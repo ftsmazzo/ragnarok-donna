@@ -1281,3 +1281,12 @@ input {
 .schedule-slot span {
   color: var(--muted);
 }
+
+.staff-mgmt-metrics {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.staff-stat-alert strong {
+  color: var(--danger);
+}

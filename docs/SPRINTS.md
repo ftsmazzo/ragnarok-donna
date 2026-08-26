@@ -23,6 +23,8 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 - **Clique na linha** abre ficha (cadastro + jornada)
 - Campos: nome, apelido, telefone, e-mail, comissão %, cor na agenda, bookable
 - Aba **Jornada**: até 2 turnos por dia da semana
+- Aba **Performance**: faturamento, comissão (fechada/aberta), descontos, comandas e serviços do mês
+- **Taxa de cancelamento + ausência** — só para login de gestão (owner, admin, manager)
 - **Inativar / reativar** com confirmação
 - Resumo: total agendamentos e itens em comandas
 - Lógica em `src/server/staff/` + server actions

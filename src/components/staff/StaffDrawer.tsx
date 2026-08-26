@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { StaffDetail } from "@/server/staff/queries";
+import type { StaffPerformance } from "@/server/staff/performance";
 import {
   createStaffAction,
   deactivateStaffAction,
@@ -9,9 +10,10 @@ import {
   saveStaffSchedulesAction,
   updateStaffAction,
 } from "@/app/(painel)/profissionais/actions";
+import { StaffPerformancePanel } from "@/components/staff/StaffPerformancePanel";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
-import { formatCommission, weekdayLabel } from "@/lib/format";
+import { weekdayLabel } from "@/lib/format";
 
 type Mode = "new" | "edit";
 
@@ -19,7 +21,7 @@ type Props = {
   open: boolean;
   mode: Mode;
   staff: StaffDetail | null;
-  stats: { appointmentsTotal: number; orderItemsTotal: number } | null;
+  performance: StaffPerformance | null;
   onClose: () => void;
   onSaved: (id: string) => void;
 };
@@ -40,10 +42,10 @@ function commissionPct(bps: number | null): string {
   return String(bps / 100);
 }
 
-export function StaffDrawer({ open, mode, staff, stats, onClose, onSaved }: Props) {
+export function StaffDrawer({ open, mode, staff, performance, onClose, onSaved }: Props) {
   const [error, setError] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
-  const [tab, setTab] = useState<"cadastro" | "jornada">("cadastro");
+  const [tab, setTab] = useState<"cadastro" | "jornada" | "performance">("cadastro");
   const [pending, startTransition] = useTransition();
 
   const isEdit = mode === "edit" && staff;
@@ -194,27 +196,6 @@ export function StaffDrawer({ open, mode, staff, stats, onClose, onSaved }: Prop
         />
         <span>Disponível para agendamento online / agenda</span>
       </label>
-
-      {isEdit && stats ? (
-        <div className="client-meta">
-          <div>
-            <span className="meta-label">Agendamentos</span>
-            <strong>{stats.appointmentsTotal.toLocaleString("pt-BR")}</strong>
-          </div>
-          <div>
-            <span className="meta-label">Itens em comandas</span>
-            <strong>{stats.orderItemsTotal.toLocaleString("pt-BR")}</strong>
-          </div>
-          <div>
-            <span className="meta-label">Comissão cadastro</span>
-            <span>{formatCommission(staff.defaultCommissionBps)}</span>
-          </div>
-          <div>
-            <span className="meta-label">Jornada</span>
-            <span>{staff.scheduleSlots} slot(s)</span>
-          </div>
-        </div>
-      ) : null}
     </form>
   );
 
@@ -283,7 +264,7 @@ export function StaffDrawer({ open, mode, staff, stats, onClose, onSaved }: Prop
               : "Equipe · jornada e comissão"
             : "Dados básicos da equipe"
         }
-        width={isEdit ? 560 : 420}
+        width={isEdit ? 600 : 420}
         footer={
           <>
             <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
@@ -355,8 +336,19 @@ export function StaffDrawer({ open, mode, staff, stats, onClose, onSaved }: Prop
                   <span className="drawer-tab-badge">{staff.scheduleSlots}</span>
                 ) : null}
               </button>
+              <button
+                type="button"
+                className={tab === "performance" ? "drawer-tab is-active" : "drawer-tab"}
+                onClick={() => setTab("performance")}
+              >
+                Performance
+              </button>
             </nav>
-            {tab === "cadastro" ? cadastroForm : jornadaForm}
+            {tab === "cadastro" ? cadastroForm : null}
+            {tab === "jornada" ? jornadaForm : null}
+            {tab === "performance" && performance ? (
+              <StaffPerformancePanel performance={performance} />
+            ) : null}
           </>
         ) : (
           cadastroForm

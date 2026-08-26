@@ -48,6 +48,11 @@ export async function requireTenantContext(): Promise<TenantContext> {
   };
 }
 
+/** Papéis com visão gerencial (cancelamentos, acertos, etc.) */
+export function isManagementRole(role: MemberRole): boolean {
+  return role === "owner" || role === "admin" || role === "manager";
+}
+
 /** Guarda mínima de papéis — expandir conforme sprints. */
 export function requireRole(session: AppSession, allowed: MemberRole[]): void {
   if (!allowed.includes(session.role)) {

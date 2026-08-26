@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import { ProfissionaisView } from "@/components/staff/ProfissionaisView";
+import { isManagementRole, requireSession } from "@/server/context/tenant";
 import {
   getStaffMember,
-  getStaffStats,
+  getStaffPerformance,
   listStaffMembers,
   type StaffFilter,
 } from "@/server/staff";
@@ -20,15 +21,18 @@ export default async function ProfissionaisPage({ searchParams }: Props) {
   const data = await listStaffMembers({ q: sp.q, filter });
 
   let selectedStaff = null;
-  let selectedStats = null;
+  let selectedPerformance = null;
   let drawerMode: "none" | "new" | "edit" = "none";
 
   if (sp.novo === "1") {
     drawerMode = "new";
   } else if (sp.id) {
     try {
+      const session = await requireSession();
       selectedStaff = await getStaffMember(sp.id);
-      selectedStats = await getStaffStats(sp.id);
+      selectedPerformance = await getStaffPerformance(sp.id, {
+        includeManagementMetrics: isManagementRole(session.role),
+      });
       drawerMode = "edit";
     } catch (err) {
       if (!(err instanceof NotFoundError)) throw err;
@@ -40,7 +44,7 @@ export default async function ProfissionaisPage({ searchParams }: Props) {
       <ProfissionaisView
         data={data}
         selectedStaff={selectedStaff}
-        selectedStats={selectedStats}
+        selectedPerformance={selectedPerformance}
         drawerMode={drawerMode}
       />
     </Suspense>

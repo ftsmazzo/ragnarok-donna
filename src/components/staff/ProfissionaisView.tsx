@@ -8,6 +8,7 @@ import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import { StatusBadge } from "@/components/cadastro/StatusBadge";
 import { StaffDrawer } from "@/components/staff/StaffDrawer";
 import type { StaffDetail, StaffFilter, StaffListItem } from "@/server/staff/queries";
+import type { StaffPerformance } from "@/server/staff/performance";
 import { formatCommission, formatPhone } from "@/lib/format";
 
 type ListData = {
@@ -20,7 +21,7 @@ type ListData = {
 type Props = {
   data: ListData;
   selectedStaff: StaffDetail | null;
-  selectedStats: { appointmentsTotal: number; orderItemsTotal: number } | null;
+  selectedPerformance: StaffPerformance | null;
   drawerMode: "none" | "new" | "edit";
 };
 
@@ -32,7 +33,12 @@ function filterHref(filter: StaffFilter, q?: string) {
   return qs ? `/profissionais?${qs}` : "/profissionais";
 }
 
-export function ProfissionaisView({ data, selectedStaff, selectedStats, drawerMode }: Props) {
+export function ProfissionaisView({
+  data,
+  selectedStaff,
+  selectedPerformance,
+  drawerMode,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -164,7 +170,7 @@ export function ProfissionaisView({ data, selectedStaff, selectedStats, drawerMo
         open={drawerOpen}
         mode={drawerMode === "new" ? "new" : "edit"}
         staff={drawerMode === "edit" ? selectedStaff : null}
-        stats={drawerMode === "edit" ? selectedStats : null}
+        performance={drawerMode === "edit" ? selectedPerformance : null}
         onClose={closeDrawer}
         onSaved={onSaved}
       />
