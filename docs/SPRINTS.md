@@ -6,13 +6,29 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 
 | Sprint | Status | Entrega |
 |--------|--------|---------|
-| **0 — Fundação** | ✅ em curso | Auth, tenant context, `server/`, Drawer/Modal |
-| 1 — Clientes | pendente | CRUD completo + ficha lateral |
+| **0 — Fundação** | ✅ concluído | Auth, tenant context, `server/`, Drawer/Modal |
+| **1 — Clientes** | ✅ concluído | CRUD + Drawer (criar, editar, inativar, reativar) |
 | 2 — Profissionais + jornada | pendente | CRUD + horários |
 | 3 — Agenda operacional | pendente | Modal agendar/bloquear/encaixe |
 | 4 — Comanda | pendente | Abrir → itens → pagamento |
 | 5 — Financeiro real | pendente | Sessão caixa, fluxo, comissões no fechamento |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
+
+---
+
+## Sprint 1 — Clientes ✅
+
+### Entregue
+- **+ Novo cliente** abre Drawer lateral
+- **Clique na linha** abre ficha para editar
+- Campos: nome, telefone, e-mail, nascimento, observações
+- **Inativar** (soft delete) com confirmação Modal
+- **Reativar** clientes removidos
+- Link **WhatsApp** na ficha (quando há telefone)
+- Lógica em `src/server/clients/` + server actions
+- Permissão: owner, admin, manager
+
+---
 
 ## Sprint 0 — Fundação SaaS ✅
 
