@@ -10,7 +10,8 @@
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push --force",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "import:appbarber": "node scripts/import-appbarber.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.44.7",

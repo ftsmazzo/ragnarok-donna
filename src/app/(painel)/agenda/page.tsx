@@ -1,24 +1,55 @@
 import { PageHeader } from "@/components/shell/PageHeader";
+import {
+  getAgendaDay,
+  groupAppointmentsByStaffHour,
+  type AgendaAppointment,
+} from "@/lib/agenda";
+import {
+  formatDateLabelSp,
+  formatTimeSp,
+  shiftDateSp,
+  shortPersonName,
+} from "@/lib/datetime";
+import Link from "next/link";
 import { Fragment } from "react";
 
-const HOURS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"];
-const STAFF = ["Diego", "Luciano", "Barbeiro 3"];
+export const dynamic = "force-dynamic";
 
-export default function AgendaPage() {
+type Props = {
+  searchParams: Promise<{ date?: string }>;
+};
+
+function slotClass(a: AgendaAppointment): string {
+  if (a.status === "blocked") return "slot block";
+  if (a.status === "no_show" || a.status === "cancelled") return "slot muted";
+  return "slot";
+}
+
+export default async function AgendaPage({ searchParams }: Props) {
+  const { date: dateParam } = await searchParams;
+  const data = await getAgendaDay(dateParam);
+  const prevDate = shiftDateSp(data.date, -1);
+  const nextDate = shiftDateSp(data.date, 1);
+  const dateLabel = formatDateLabelSp(data.date);
+  const staffCols = Math.max(data.staff.length, 1);
+
   return (
     <>
       <PageHeader
         title="Agenda"
-        subtitle="Dia · visão operacional (mock — dados reais após import)"
+        subtitle={`${dateLabel} · ${data.totalAppointments} agendamento(s)`}
         actions={
           <>
-            <button type="button" className="btn btn-outline">
-              Dia
-            </button>
-            <button type="button" className="btn btn-outline">
-              Semana
-            </button>
-            <button type="button" className="btn btn-primary">
+            <Link href={`/agenda?date=${data.date}`} className="btn btn-outline">
+              Hoje
+            </Link>
+            <Link href={`/agenda?date=${prevDate}`} className="btn btn-outline">
+              ← Anterior
+            </Link>
+            <Link href={`/agenda?date=${nextDate}`} className="btn btn-outline">
+              Próximo →
+            </Link>
+            <button type="button" className="btn btn-primary" disabled title="Em breve">
               + Encaixe
             </button>
           </>
@@ -26,50 +57,66 @@ export default function AgendaPage() {
       />
 
       <div className="panel-toolbar" style={{ marginBottom: 12 }}>
-        {STAFF.map((name, i) => (
-          <span key={name} className={`chip${i === 0 ? " is-on" : ""}`}>
-            {name}
+        {data.staff.map((s, i) => (
+          <span key={s.id} className={`chip${i === 0 ? " is-on" : ""}`}>
+            {s.name}
           </span>
         ))}
       </div>
 
       <div className="agenda-layout">
         <section>
-          <div className="agenda-grid">
-            <div className="agenda-head" />
-            {STAFF.map((name) => (
-              <div key={name} className="agenda-head">
-                {name}
-              </div>
-            ))}
+          {data.staff.length === 0 ? (
+            <div className="panel-empty">Nenhum profissional cadastrado.</div>
+          ) : (
+            <div
+              className="agenda-grid"
+              style={{
+                gridTemplateColumns: `56px repeat(${staffCols}, minmax(120px, 1fr))`,
+              }}
+            >
+              <div className="agenda-head" />
+              {data.staff.map((s) => (
+                <div key={s.id} className="agenda-head">
+                  {s.name}
+                </div>
+              ))}
 
-            {HOURS.map((hour, row) => (
-              <Fragment key={hour}>
-                <div className="agenda-time">{hour}</div>
-                {STAFF.map((name, col) => (
-                  <div key={`${name}-${hour}`} className="agenda-cell">
-                    {row === 1 && col === 0 ? (
-                      <div className="slot">
-                        <strong>Carlos M.</strong>
-                        <br />
-                        Corte + Barba
+              {data.hours.map((hour) => (
+                <Fragment key={hour}>
+                  <div className="agenda-time">{hour}</div>
+                  {data.staff.map((s) => {
+                    const slots = groupAppointmentsByStaffHour(
+                      data.appointments,
+                      s.id,
+                      hour
+                    );
+                    return (
+                      <div key={`${s.id}-${hour}`} className="agenda-cell">
+                        {slots.map((a) => (
+                          <div
+                            key={a.id}
+                            className={slotClass(a)}
+                            style={
+                              s.color && a.status !== "blocked"
+                                ? { background: s.color }
+                                : undefined
+                            }
+                            title={`${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)}`}
+                          >
+                            <strong>{shortPersonName(a.clientName)}</strong>
+                            {a.isEncaixe ? " · encaixe" : null}
+                            <br />
+                            {a.serviceName ?? (a.status === "blocked" ? "Bloqueio" : "—")}
+                          </div>
+                        ))}
                       </div>
-                    ) : null}
-                    {row === 3 && col === 1 ? (
-                      <div className="slot block">Bloqueio</div>
-                    ) : null}
-                    {row === 5 && col === 0 ? (
-                      <div className="slot">
-                        <strong>João P.</strong>
-                        <br />
-                        Barba
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </Fragment>
-            ))}
-          </div>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </div>
+          )}
 
           <div className="legend">
             <span>
@@ -79,23 +126,35 @@ export default function AgendaPage() {
               <i style={{ background: "var(--slot-block)" }} /> Bloqueio
             </span>
             <span>
-              <i style={{ background: "#9ca3af" }} /> Fora do expediente
+              <i style={{ background: "#9ca3af" }} /> Cancelado / ausente
             </span>
           </div>
         </section>
 
         <aside>
           <div className="side-card">
-            <h3>Horários disponíveis</h3>
-            <div className="body">14:30 · 15:00 · 16:30</div>
+            <h3>Resumo do dia</h3>
+            <div className="body">
+              {data.totalAppointments} agendamento(s)
+              <br />
+              {data.staff.length} profissional(is) na grade
+            </div>
           </div>
           <div className="side-card">
             <h3>Lista de espera</h3>
-            <div className="body">2 clientes aguardando encaixe</div>
+            <div className="body">
+              {data.waitlistCount > 0
+                ? `${data.waitlistCount} cliente(s) aguardando encaixe`
+                : "Nenhum cliente na fila"}
+            </div>
           </div>
           <div className="side-card">
             <h3>Comandas abertas</h3>
-            <div className="body">3 comandas do dia</div>
+            <div className="body">
+              {data.openOrdersCount > 0
+                ? `${data.openOrdersCount} comanda(s) aberta(s) hoje`
+                : "Nenhuma comanda aberta hoje"}
+            </div>
           </div>
         </aside>
       </div>

@@ -15,6 +15,9 @@ export const NAV: NavItem[] = [
       { label: "Serviços", href: "/servicos" },
       { label: "Produtos", href: "/produtos" },
       { label: "Pacotes", href: "/pacotes" },
+      { label: "Clube", href: "/modulo/clube" },
+      { label: "Mensagens", href: "/modulo/mensagens" },
+      { label: "Pesquisa", href: "/modulo/pesquisa" },
     ],
   },
   {
@@ -29,6 +32,8 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Caixa", href: "/caixa" },
       { label: "Comissões", href: "/comissoes" },
+      { label: "Fluxo de caixa", href: "/modulo/fluxo-caixa" },
+      { label: "Contas", href: "/modulo/contas" },
     ],
   },
   {
@@ -47,6 +52,10 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Lista de espera", href: "/lista-espera" },
       { label: "Parâmetros", href: "/configuracoes" },
+      { label: "Rodízio", href: "/modulo/rodizio" },
+      { label: "Funcionamento", href: "/modulo/funcionamento" },
+      { label: "Alertas", href: "/modulo/alertas" },
+      { label: "Anamnese", href: "/modulo/anamnese" },
     ],
   },
 ];
