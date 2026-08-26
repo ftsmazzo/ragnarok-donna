@@ -535,6 +535,46 @@ input {
   color: var(--muted);
 }
 
+.badge.is-warn {
+  background: #fff3e0;
+  color: #e67e22;
+}
+
+.overview-grid-summary {
+  padding: 12px;
+  margin: 0;
+}
+
+.panel-body-flush {
+  padding: 0;
+}
+
+.relatorio-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.filter-field-grow {
+  flex: 1;
+  min-width: 180px;
+}
+
+.filter-field .search-input {
+  max-width: none;
+  min-width: 140px;
+}
+
 .avatar {
   display: inline-block;
   border-radius: 50%;

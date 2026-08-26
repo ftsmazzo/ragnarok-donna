@@ -54,6 +54,28 @@ export function todaySp(): string {
   return formatDateSp(new Date());
 }
 
+export function monthStartSp(): string {
+  const today = todaySp();
+  return `${today.slice(0, 8)}01`;
+}
+
+export function rangeBoundsSp(from: string, to: string) {
+  const start = new Date(`${from}T00:00:00-03:00`);
+  const end = new Date(`${to}T23:59:59.999-03:00`);
+  return { from, to, start, end };
+}
+
+export function formatDateTimeSp(d: Date): string {
+  return d.toLocaleString("pt-BR", {
+    timeZone: TZ,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function shortPersonName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return parts[0] ?? name;

@@ -36,3 +36,41 @@ export function initials(name: string): string {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
+
+const ORDER_STATUS: Record<string, string> = {
+  open: "Aberta",
+  closed: "Fechada",
+  cancelled: "Cancelada",
+};
+
+const APPT_STATUS: Record<string, string> = {
+  scheduled: "Agendado",
+  confirmed: "Confirmado",
+  arrived: "Chegou",
+  in_progress: "Em atendimento",
+  completed: "Realizado",
+  cancelled: "Cancelado",
+  no_show: "Ausente",
+  blocked: "Bloqueio",
+};
+
+const PAYMENT_METHOD: Record<string, string> = {
+  cash: "Dinheiro",
+  pix: "PIX",
+  debit: "Débito",
+  credit: "Crédito",
+  transfer: "Transferência",
+  other: "Outro",
+};
+
+export function labelOrderStatus(status: string): string {
+  return ORDER_STATUS[status] ?? status;
+}
+
+export function labelApptStatus(status: string): string {
+  return APPT_STATUS[status] ?? status;
+}
+
+export function labelPaymentMethod(method: string): string {
+  return PAYMENT_METHOD[method] ?? method;
+}
