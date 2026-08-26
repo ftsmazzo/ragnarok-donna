@@ -7,7 +7,7 @@ import { FilterTabs } from "@/components/cadastro/FilterTabs";
 import { Pagination } from "@/components/cadastro/Pagination";
 import { StatusBadge } from "@/components/cadastro/StatusBadge";
 import { ClientDrawer } from "@/components/clients/ClientDrawer";
-import type { ClientDetail, ClientFilter, ClientListItem } from "@/server/clients/queries";
+import type { ClientDetail, ClientFilter, ClientListItem, ClientProfile } from "@/server/clients/queries";
 import { formatPhone } from "@/lib/format";
 
 type ListData = {
@@ -22,6 +22,7 @@ type ListData = {
 type Props = {
   data: ListData;
   selectedClient: ClientDetail | null;
+  selectedProfile: ClientProfile | null;
   drawerMode: "none" | "new" | "edit";
 };
 
@@ -33,7 +34,7 @@ function filterHref(filter: ClientFilter, q?: string) {
   return qs ? `/clientes?${qs}` : "/clientes";
 }
 
-export function ClientesView({ data, selectedClient, drawerMode }: Props) {
+export function ClientesView({ data, selectedClient, selectedProfile, drawerMode }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -163,6 +164,7 @@ export function ClientesView({ data, selectedClient, drawerMode }: Props) {
         open={drawerOpen}
         mode={drawerMode === "new" ? "new" : "edit"}
         client={drawerMode === "edit" ? selectedClient : null}
+        profile={drawerMode === "edit" ? selectedProfile : null}
         onClose={closeDrawer}
         onSaved={onSaved}
       />

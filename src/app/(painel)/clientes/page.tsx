@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ClientesView } from "@/components/clients/ClientesView";
-import { getClient, listClients, type ClientFilter } from "@/server/clients";
+import { getClient, getClientProfile, listClients, type ClientFilter } from "@/server/clients";
 import { NotFoundError } from "@/server/errors";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ export default async function ClientesPage({ searchParams }: Props) {
   const data = await listClients({ q: sp.q, filter, page });
 
   let selectedClient = null;
+  let selectedProfile = null;
   let drawerMode: "none" | "new" | "edit" = "none";
 
   if (sp.novo === "1") {
@@ -23,6 +24,7 @@ export default async function ClientesPage({ searchParams }: Props) {
   } else if (sp.id) {
     try {
       selectedClient = await getClient(sp.id);
+      selectedProfile = await getClientProfile(sp.id);
       drawerMode = "edit";
     } catch (err) {
       if (!(err instanceof NotFoundError)) throw err;
@@ -31,7 +33,12 @@ export default async function ClientesPage({ searchParams }: Props) {
 
   return (
     <Suspense fallback={<p className="panel-empty">Carregando clientes…</p>}>
-      <ClientesView data={data} selectedClient={selectedClient} drawerMode={drawerMode} />
+      <ClientesView
+        data={data}
+        selectedClient={selectedClient}
+        selectedProfile={selectedProfile}
+        drawerMode={drawerMode}
+      />
     </Suspense>
   );
 }

@@ -2,11 +2,13 @@ import {
   and,
   asc,
   count,
+  desc,
   eq,
   ilike,
   isNotNull,
   isNull,
   or,
+  sql,
 } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { NotFoundError } from "../errors";
@@ -30,9 +32,42 @@ export type ClientDetail = ClientListItem & {
   phoneE164: string | null;
   notes: string | null;
   birthDate: string | null;
+  tags: string[];
+  preferences: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
   externalSource: string | null;
+};
+
+export type ClientTimelineAppointment = {
+  id: string;
+  startsAt: Date;
+  status: string;
+  serviceName: string | null;
+  staffName: string | null;
+  priceCents: number | null;
+};
+
+export type ClientTimelineOrder = {
+  id: string;
+  externalId: string | null;
+  openedAt: Date;
+  closedAt: Date | null;
+  status: string;
+  totalCents: number;
+  itemCount: number;
+};
+
+export type ClientProfile = {
+  stats: {
+    appointmentsTotal: number;
+    ordersTotal: number;
+    ordersClosed: number;
+    totalSpentCents: number;
+    lastVisitAt: Date | null;
+  };
+  recentAppointments: ClientTimelineAppointment[];
+  recentOrders: ClientTimelineOrder[];
 };
 
 function clientFilterWhere(tenantId: string, filter: ClientFilter) {
@@ -118,6 +153,8 @@ export async function getClient(clientId: string): Promise<ClientDetail> {
       loyaltyPoints: schema.clients.loyaltyPoints,
       isActive: schema.clients.isActive,
       deletedAt: schema.clients.deletedAt,
+      tags: schema.clients.tags,
+      preferences: schema.clients.preferences,
       createdAt: schema.clients.createdAt,
       updatedAt: schema.clients.updatedAt,
       externalSource: schema.clients.externalSource,
@@ -133,5 +170,103 @@ export async function getClient(clientId: string): Promise<ClientDetail> {
   return {
     ...row,
     birthDate: row.birthDate ?? null,
+    tags: row.tags ?? [],
+    preferences: row.preferences ?? {},
+  };
+}
+
+export async function getClientProfile(clientId: string): Promise<ClientProfile> {
+  const tenant = await requireTenantContext();
+  const db = createDb();
+
+  await getClient(clientId);
+
+  const [[apptStats], [orderStats], recentAppointments, recentOrders] = await Promise.all([
+    db
+      .select({
+        total: count(),
+        lastAt: sql<Date | null>`max(${schema.appointments.startsAt})`,
+      })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.clientId, clientId),
+          eq(schema.appointments.tenantId, tenant.id),
+          isNull(schema.appointments.deletedAt)
+        )
+      ),
+    db
+      .select({
+        total: count(),
+        closed: sql<number>`count(*) filter (where ${schema.orders.status} = 'closed')::int`,
+        spent: sql<number>`coalesce(sum(case when ${schema.orders.status} = 'closed' then ${schema.orders.totalCents} else 0 end), 0)::int`,
+      })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.clientId, clientId),
+          eq(schema.orders.tenantId, tenant.id),
+          isNull(schema.orders.deletedAt)
+        )
+      ),
+    db
+      .select({
+        id: schema.appointments.id,
+        startsAt: schema.appointments.startsAt,
+        status: schema.appointments.status,
+        serviceName: schema.services.name,
+        staffName: schema.staff.name,
+        priceCents: schema.appointments.priceCents,
+      })
+      .from(schema.appointments)
+      .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
+      .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
+      .where(
+        and(
+          eq(schema.appointments.clientId, clientId),
+          eq(schema.appointments.tenantId, tenant.id),
+          isNull(schema.appointments.deletedAt)
+        )
+      )
+      .orderBy(desc(schema.appointments.startsAt))
+      .limit(15),
+    db
+      .select({
+        id: schema.orders.id,
+        externalId: schema.orders.externalId,
+        openedAt: schema.orders.openedAt,
+        closedAt: schema.orders.closedAt,
+        status: schema.orders.status,
+        totalCents: schema.orders.totalCents,
+        itemCount: sql<number>`(
+          select count(*)::int from ${schema.orderItems}
+          where ${schema.orderItems.orderId} = ${schema.orders.id}
+        )`.as("item_count"),
+      })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.clientId, clientId),
+          eq(schema.orders.tenantId, tenant.id),
+          isNull(schema.orders.deletedAt)
+        )
+      )
+      .orderBy(desc(schema.orders.openedAt))
+      .limit(15),
+  ]);
+
+  return {
+    stats: {
+      appointmentsTotal: Number(apptStats?.total ?? 0),
+      ordersTotal: Number(orderStats?.total ?? 0),
+      ordersClosed: Number(orderStats?.closed ?? 0),
+      totalSpentCents: Number(orderStats?.spent ?? 0),
+      lastVisitAt: apptStats?.lastAt ?? null,
+    },
+    recentAppointments,
+    recentOrders: recentOrders.map((o) => ({
+      ...o,
+      itemCount: Number(o.itemCount),
+    })),
   };
 }
