@@ -323,6 +323,7 @@ async function main() {
       is_encaixe: r.Encaixe === "1",
       meta: {
         comCodigo: r.Com_Codigo || null,
+        codCliente: r.codCliente ? String(r.codCliente) : null,
         title: r.title || null,
       },
       external_source: "appbarber",
@@ -354,6 +355,7 @@ async function main() {
       meta: {
         tipoPagamento: r.TipoPagamento || null,
         profissional: r.Profissional || null,
+        appbarberClientCode: r.CodigoCliente ? String(r.CodigoCliente) : null,
       },
       external_source: "appbarber",
       external_id: String(r.Codigo),
@@ -430,6 +432,25 @@ async function main() {
     }
     stats.order_items = itemRows.length;
     console.log("✓ order_items", stats.order_items);
+
+    console.log("→ Vínculos cliente ↔ comanda/agenda…");
+    const linkedOrders = await sql`
+      update orders o
+      set client_id = a.client_id, updated_at = now()
+      from appointments a
+      where o.tenant_id = ${tenantId}
+        and a.tenant_id = ${tenantId}
+        and o.client_id is null
+        and a.client_id is not null
+        and a.deleted_at is null
+        and o.deleted_at is null
+        and o.external_source = 'appbarber'
+        and a.external_source = 'appbarber'
+        and coalesce(a.meta->>'comCodigo', '') <> ''
+        and o.external_id = a.meta->>'comCodigo'
+    `;
+    stats.orders_linked_via_agenda = linkedOrders.count;
+    console.log("✓ orders ligadas via Com_Codigo", linkedOrders.count);
 
     await sql`delete from waitlist_entries where tenant_id = ${tenantId} and external_source = 'appbarber'`;
     // --- Extras ---

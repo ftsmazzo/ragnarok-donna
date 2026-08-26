@@ -2,9 +2,9 @@
 
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
 import { formatDateTimeSp } from "@/lib/datetime";
-import { formatMoney, labelApptStatus, labelOrderStatus } from "@/lib/format";
+import { formatMoney, labelApptStatus, labelOrderStatus, labelPaymentMethod } from "@/lib/format";
 
-type Tab = "resumo" | "cadastro" | "agenda" | "comandas";
+type Tab = "resumo" | "cadastro" | "agenda" | "comandas" | "consumo";
 
 type Props = {
   client: ClientDetail;
@@ -19,10 +19,11 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "cadastro", label: "Cadastro" },
   { id: "agenda", label: "Agenda" },
   { id: "comandas", label: "Comandas" },
+  { id: "consumo", label: "Consumo" },
 ];
 
 export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastroForm }: Props) {
-  const { stats, recentAppointments, recentOrders } = profile;
+  const { stats, recentAppointments, recentOrders, recentItems, topServices } = profile;
   const prefEntries = Object.entries(client.preferences ?? {}).filter(
     ([, v]) => v !== null && v !== undefined && v !== ""
   );
@@ -56,8 +57,8 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
               <strong>{stats.appointmentsTotal.toLocaleString("pt-BR")}</strong>
             </div>
             <div className="client-stat">
-              <span className="meta-label">Comandas fechadas</span>
-              <strong>{stats.ordersClosed.toLocaleString("pt-BR")}</strong>
+              <span className="meta-label">Comandas</span>
+              <strong>{stats.ordersTotal.toLocaleString("pt-BR")}</strong>
             </div>
             <div className="client-stat">
               <span className="meta-label">Total consumido</span>
@@ -73,9 +74,38 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
             <p className="client-profile-hint">
               Último agendamento: <strong>{formatDateTimeSp(stats.lastVisitAt)}</strong>
             </p>
+          ) : stats.ordersTotal > 0 ? (
+            <p className="client-profile-hint">
+              Sem agendamentos vinculados, mas há {stats.ordersTotal.toLocaleString("pt-BR")}{" "}
+              comanda(s) no histórico.
+            </p>
           ) : (
-            <p className="client-profile-hint">Nenhum agendamento registrado para este cliente.</p>
+            <p className="client-profile-hint">
+              Nenhum histórico vinculado a este cadastro ainda.
+            </p>
           )}
+
+          {stats.waitlistTotal > 0 ? (
+            <p className="client-profile-hint">
+              Lista de espera: <strong>{stats.waitlistTotal}</strong> registro(s).
+            </p>
+          ) : null}
+
+          {topServices.length > 0 ? (
+            <div className="client-profile-block">
+              <h3 className="client-profile-heading">Serviços mais frequentes</h3>
+              <ul className="client-top-list">
+                {topServices.map((s) => (
+                  <li key={s.description}>
+                    <span>{s.description}</span>
+                    <span>
+                      {s.count}x · {formatMoney(s.totalCents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {client.notes ? (
             <div className="client-profile-block">
@@ -109,12 +139,7 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
                 ))}
               </dl>
             </div>
-          ) : (
-            <p className="client-profile-hint muted">
-              Preferências estruturadas (profissional favorito, tom de corte…) entram em{" "}
-              <em>Preferências</em> e alimentam o agente WhatsApp — em breve editáveis aqui.
-            </p>
-          )}
+          ) : null}
         </div>
       ) : null}
 
@@ -160,7 +185,7 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
                 <li key={o.id} className="client-timeline-item">
                   <div className="client-timeline-main">
                     <strong>
-                      {o.externalId ? `#${o.externalId}` : formatDateTimeSp(o.openedAt)}
+                      {o.externalId ? `Comanda #${o.externalId}` : formatDateTimeSp(o.openedAt)}
                     </strong>
                     <span>{formatDateTimeSp(o.openedAt)}</span>
                   </div>
@@ -169,6 +194,9 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
                     <span>
                       {o.itemCount} item(ns) · {formatMoney(o.totalCents)}
                     </span>
+                    {o.paymentMethod ? (
+                      <span>{labelPaymentMethod(o.paymentMethod)}</span>
+                    ) : null}
                   </div>
                 </li>
               ))}
@@ -180,6 +208,36 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
               {stats.ordersTotal.toLocaleString("pt-BR")}.
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {tab === "consumo" ? (
+        <div className="client-profile-section">
+          {recentItems.length === 0 ? (
+            <p className="client-profile-empty">Nenhum item de consumo registrado.</p>
+          ) : (
+            <ul className="client-timeline">
+              {recentItems.map((item) => (
+                <li key={item.id} className="client-timeline-item">
+                  <div className="client-timeline-main">
+                    <strong>{item.description}</strong>
+                    <span>
+                      {item.performedAt
+                        ? formatDateTimeSp(item.performedAt)
+                        : item.orderExternalId
+                          ? `Comanda #${item.orderExternalId}`
+                          : "—"}
+                    </span>
+                  </div>
+                  <div className="client-timeline-meta">
+                    <span>{item.itemType === "service" ? "Serviço" : "Produto"}</span>
+                    {item.staffName ? <span>{item.staffName}</span> : null}
+                    <span>{formatMoney(item.totalCents)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       ) : null}
     </>

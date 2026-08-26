@@ -12,6 +12,7 @@
     "db:push": "drizzle-kit push --force",
     "db:studio": "drizzle-kit studio",
     "import:appbarber": "node scripts/import-appbarber.mjs",
+    "backfill:client-links": "node scripts/backfill-client-links.mjs",
     "seed:owner": "node scripts/seed-owner.mjs"
   },
   "dependencies": {

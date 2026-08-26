@@ -27,7 +27,7 @@ type Props = {
 export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: Props) {
   const [error, setError] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
-  const [tab, setTab] = useState<"resumo" | "cadastro" | "agenda" | "comandas">("resumo");
+  const [tab, setTab] = useState<"resumo" | "cadastro" | "agenda" | "comandas" | "consumo">("resumo");
   const [pending, startTransition] = useTransition();
 
   const isEdit = mode === "edit" && client;
@@ -181,7 +181,7 @@ export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: 
               : "Ficha do cliente"
             : "Preencha os dados básicos"
         }
-        width={isEdit ? 560 : 420}
+        width={isEdit ? 600 : 420}
         footer={
           <>
             <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>

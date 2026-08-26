@@ -1196,3 +1196,26 @@ input {
   font-size: 11px;
   color: var(--muted);
 }
+
+.client-top-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.client-top-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.client-top-list li span:last-child {
+  color: var(--muted);
+  white-space: nowrap;
+}

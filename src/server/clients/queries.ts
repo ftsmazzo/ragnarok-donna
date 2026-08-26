@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   or,
@@ -13,6 +14,15 @@ import {
 import { createDb, schema } from "@/db";
 import { NotFoundError } from "../errors";
 import { requireTenantContext } from "../context/tenant";
+import {
+  andWhere,
+  appointmentsForClientWhere,
+  notDeletedAppts,
+  notDeletedOrders,
+  ordersForClientWhere,
+  scopedApptTenantWhere,
+  scopedTenantWhere,
+} from "./scope";
 
 export const CLIENT_PAGE_SIZE = 50;
 
@@ -37,6 +47,7 @@ export type ClientDetail = ClientListItem & {
   createdAt: Date;
   updatedAt: Date;
   externalSource: string | null;
+  externalId: string | null;
 };
 
 export type ClientTimelineAppointment = {
@@ -56,6 +67,23 @@ export type ClientTimelineOrder = {
   status: string;
   totalCents: number;
   itemCount: number;
+  paymentMethod: string | null;
+};
+
+export type ClientOrderItem = {
+  id: string;
+  description: string;
+  itemType: string;
+  performedAt: Date | null;
+  totalCents: number;
+  staffName: string | null;
+  orderExternalId: string | null;
+};
+
+export type ClientTopService = {
+  description: string;
+  count: number;
+  totalCents: number;
 };
 
 export type ClientProfile = {
@@ -65,9 +93,12 @@ export type ClientProfile = {
     ordersClosed: number;
     totalSpentCents: number;
     lastVisitAt: Date | null;
+    waitlistTotal: number;
   };
   recentAppointments: ClientTimelineAppointment[];
   recentOrders: ClientTimelineOrder[];
+  recentItems: ClientOrderItem[];
+  topServices: ClientTopService[];
 };
 
 function clientFilterWhere(tenantId: string, filter: ClientFilter) {
@@ -158,6 +189,7 @@ export async function getClient(clientId: string): Promise<ClientDetail> {
       createdAt: schema.clients.createdAt,
       updatedAt: schema.clients.updatedAt,
       externalSource: schema.clients.externalSource,
+      externalId: schema.clients.externalId,
     })
     .from(schema.clients)
     .where(and(eq(schema.clients.id, clientId), eq(schema.clients.tenantId, tenant.id)))
@@ -179,22 +211,37 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
   const tenant = await requireTenantContext();
   const db = createDb();
 
-  await getClient(clientId);
+  const client = await getClient(clientId);
+  const clientExternalId =
+    client.externalSource === "appbarber" ? client.externalId : null;
 
-  const [[apptStats], [orderStats], recentAppointments, recentOrders] = await Promise.all([
+  const apptWhere = andWhere(
+    scopedApptTenantWhere(tenant.id),
+    notDeletedAppts(),
+    appointmentsForClientWhere(tenant.id, clientId, clientExternalId)
+  );
+
+  const orderWhere = andWhere(
+    scopedTenantWhere(tenant.id),
+    notDeletedOrders(),
+    ordersForClientWhere(tenant.id, clientId, clientExternalId)
+  );
+
+  const [
+    [apptStats],
+    [orderStats],
+    [waitlistStats],
+    recentAppointments,
+    recentOrders,
+    orderIdsRows,
+  ] = await Promise.all([
     db
       .select({
         total: count(),
         lastAt: sql<Date | null>`max(${schema.appointments.startsAt})`,
       })
       .from(schema.appointments)
-      .where(
-        and(
-          eq(schema.appointments.clientId, clientId),
-          eq(schema.appointments.tenantId, tenant.id),
-          isNull(schema.appointments.deletedAt)
-        )
-      ),
+      .where(apptWhere),
     db
       .select({
         total: count(),
@@ -202,11 +249,19 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
         spent: sql<number>`coalesce(sum(case when ${schema.orders.status} = 'closed' then ${schema.orders.totalCents} else 0 end), 0)::int`,
       })
       .from(schema.orders)
+      .where(orderWhere),
+    db
+      .select({ total: count() })
+      .from(schema.waitlistEntries)
       .where(
         and(
-          eq(schema.orders.clientId, clientId),
-          eq(schema.orders.tenantId, tenant.id),
-          isNull(schema.orders.deletedAt)
+          eq(schema.waitlistEntries.tenantId, tenant.id),
+          or(
+            eq(schema.waitlistEntries.clientId, clientId),
+            client.phoneE164
+              ? sql`regexp_replace(coalesce(${schema.waitlistEntries.phone}, ''), '\\D', '', 'g') = regexp_replace(${client.phoneE164}, '\\D', '', 'g')`
+              : sql`false`
+          )
         )
       ),
     db
@@ -221,15 +276,9 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
       .from(schema.appointments)
       .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
       .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
-      .where(
-        and(
-          eq(schema.appointments.clientId, clientId),
-          eq(schema.appointments.tenantId, tenant.id),
-          isNull(schema.appointments.deletedAt)
-        )
-      )
+      .where(apptWhere)
       .orderBy(desc(schema.appointments.startsAt))
-      .limit(15),
+      .limit(20),
     db
       .select({
         id: schema.orders.id,
@@ -239,21 +288,70 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
         status: schema.orders.status,
         totalCents: schema.orders.totalCents,
         itemCount: sql<number>`(
-          select count(*)::int from ${schema.orderItems}
-          where ${schema.orderItems.orderId} = ${schema.orders.id}
+          select count(*)::int from ${schema.orderItems} oi
+          where oi.order_id = ${schema.orders.id}
         )`.as("item_count"),
+        paymentMethod: sql<string | null>`(
+          select p.method from ${schema.payments} p
+          where p.order_id = ${schema.orders.id}
+          order by p.paid_at desc
+          limit 1
+        )`.as("payment_method"),
       })
       .from(schema.orders)
-      .where(
-        and(
-          eq(schema.orders.clientId, clientId),
-          eq(schema.orders.tenantId, tenant.id),
-          isNull(schema.orders.deletedAt)
-        )
-      )
+      .where(orderWhere)
       .orderBy(desc(schema.orders.openedAt))
-      .limit(15),
+      .limit(20),
+    db.select({ id: schema.orders.id }).from(schema.orders).where(orderWhere),
   ]);
+
+  const orderIds = orderIdsRows.map((r) => r.id);
+
+  let recentItems: ClientOrderItem[] = [];
+  let topServices: ClientTopService[] = [];
+
+  if (orderIds.length > 0) {
+    [recentItems, topServices] = await Promise.all([
+      db
+        .select({
+          id: schema.orderItems.id,
+          description: schema.orderItems.description,
+          itemType: schema.orderItems.itemType,
+          performedAt: schema.orderItems.performedAt,
+          totalCents: schema.orderItems.totalCents,
+          staffName: schema.staff.name,
+          orderExternalId: schema.orders.externalId,
+        })
+        .from(schema.orderItems)
+        .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+        .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
+        .where(
+          and(
+            eq(schema.orderItems.tenantId, tenant.id),
+            inArray(schema.orderItems.orderId, orderIds)
+          )
+        )
+        .orderBy(desc(sql`coalesce(${schema.orderItems.performedAt}, ${schema.orders.openedAt})`))
+        .limit(25),
+      db
+        .select({
+          description: schema.orderItems.description,
+          count: sql<number>`count(*)::int`,
+          totalCents: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+        })
+        .from(schema.orderItems)
+        .where(
+          and(
+            eq(schema.orderItems.tenantId, tenant.id),
+            inArray(schema.orderItems.orderId, orderIds),
+            eq(schema.orderItems.itemType, "service")
+          )
+        )
+        .groupBy(schema.orderItems.description)
+        .orderBy(desc(sql`count(*)`))
+        .limit(8),
+    ]);
+  }
 
   return {
     stats: {
@@ -262,11 +360,19 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
       ordersClosed: Number(orderStats?.closed ?? 0),
       totalSpentCents: Number(orderStats?.spent ?? 0),
       lastVisitAt: apptStats?.lastAt ?? null,
+      waitlistTotal: Number(waitlistStats?.total ?? 0),
     },
     recentAppointments,
     recentOrders: recentOrders.map((o) => ({
       ...o,
       itemCount: Number(o.itemCount),
+      paymentMethod: o.paymentMethod ?? null,
+    })),
+    recentItems,
+    topServices: topServices.map((s) => ({
+      description: s.description,
+      count: Number(s.count),
+      totalCents: Number(s.totalCents),
     })),
   };
 }
