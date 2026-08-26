@@ -575,6 +575,39 @@ input {
   min-width: 140px;
 }
 
+.info-banner {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: #e8f4fc;
+  border: 1px solid #b8daef;
+  border-radius: 3px;
+  font-size: 13px;
+  color: #2c5282;
+}
+
+.caixa-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.section-title-inset {
+  margin: 16px 12px 8px;
+}
+
+.btn.is-active-tab {
+  background: var(--info);
+  border-color: var(--info);
+  color: #fff;
+}
+
+@media (max-width: 960px) {
+  .caixa-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .avatar {
   display: inline-block;
   border-radius: 50%;

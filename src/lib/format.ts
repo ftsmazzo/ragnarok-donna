@@ -74,3 +74,12 @@ export function labelApptStatus(status: string): string {
 export function labelPaymentMethod(method: string): string {
   return PAYMENT_METHOD[method] ?? method;
 }
+
+const WAITLIST_STATUS: Record<string, string> = {
+  waiting: "Aguardando",
+  notified: "Notificado",
+};
+
+export function labelWaitlistStatus(status: string): string {
+  return WAITLIST_STATUS[status] ?? status;
+}
