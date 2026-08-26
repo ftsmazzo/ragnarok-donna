@@ -12,6 +12,7 @@ Painel: mesmo cluster FabriaIA (`*.kxryyk.easypanel.host`).
 | `redis` | Redis 7 | interno `ragnarok-donna_redis:6379` |
 | `evolution` | Evolution API `v2.3.7` | https://ragnarok-donna-evolution.kxryyk.easypanel.host |
 | `n8n` | n8n `2.31.7` | https://ragnarok-donna-n8n.kxryyk.easypanel.host |
+| `app` | Next.js (painel SaaS) | https://ragnarok-donna-app.kxryyk.easypanel.host |
 
 DbGate (opcional): `https://ragnarok-donna-db-dbgate.kxryyk.easypanel.host`
 

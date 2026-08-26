@@ -10,7 +10,12 @@ O painel replica a **gramática visual** do AppBarber para facilitar a migraçã
 | Fonte | Quicksand |
 | Slots agenda | Roxo / teal (bloqueio) |
 
-Menu principal: Agenda → Cadastros → Comandas → Financeiro → **Conversas IA** → Config.
+Menu principal: Agenda → Cadastros → Comandas → Financeiro → **Relatórios** → Conversas IA → Config.
+
+Relatórios (espelho AppBarber, prioridade do cliente RagnaroK):
+- Agendamentos — período, status, cliente, profissional; export Excel/PDF
+- Gerencial Financeiro — dashboard receitas/despesas, caixa
+- Gerencial Comandas, Estoque, Perfil
 
 Telas de listagem/agenda ainda usam **mock**; dados reais após seed + import AppBarber.
 

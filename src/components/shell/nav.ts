@@ -31,6 +31,16 @@ export const NAV: NavItem[] = [
       { label: "Comissões", href: "/comissoes" },
     ],
   },
+  {
+    label: "Relatórios",
+    children: [
+      { label: "Agendamentos", href: "/relatorios/agendamentos" },
+      { label: "Gerencial — Financeiro", href: "/relatorios/financeiro" },
+      { label: "Gerencial — Comandas", href: "/relatorios/comandas" },
+      { label: "Gerencial — Estoque", href: "/relatorios/estoque" },
+      { label: "Gerencial — Perfil", href: "/relatorios/perfil" },
+    ],
+  },
   { label: "Conversas IA", href: "/conversas" },
   {
     label: "Configurações",
