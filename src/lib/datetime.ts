@@ -50,6 +50,10 @@ export function shiftDateSp(dateStr: string, days: number): string {
   return formatDateSp(d);
 }
 
+export function todaySp(): string {
+  return formatDateSp(new Date());
+}
+
 export function shortPersonName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return parts[0] ?? name;

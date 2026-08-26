@@ -6,6 +6,7 @@ export type NavItem = {
 
 /** Navegação espelhada do AppBarber (AdminLTE), com Conversas IA nosso. */
 export const NAV: NavItem[] = [
+  { label: "Início", href: "/inicio" },
   { label: "Agenda", href: "/agenda" },
   {
     label: "Cadastros",

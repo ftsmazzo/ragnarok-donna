@@ -1,6 +1,6 @@
 import { and, asc, count, eq, gte, isNull, lte } from "drizzle-orm";
 import { schema } from "@/db";
-import { dayBoundsSp, formatDateSp, hourInSp } from "./datetime";
+import { dayBoundsSp, formatDateSp, hourInSp, todaySp } from "./datetime";
 import { getDb } from "./db";
 import { getDefaultTenant } from "./tenant";
 
@@ -153,8 +153,4 @@ export function groupAppointmentsByStaffHour(
     if (a.status === "cancelled") return false;
     return hourInSp(a.startsAt) === hour;
   });
-}
-
-export function todaySp(): string {
-  return formatDateSp(new Date());
 }
