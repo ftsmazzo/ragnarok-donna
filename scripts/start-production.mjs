@@ -1,18 +1,18 @@
 /**
- * Startup de produção: vincula clientes no Postgres e sobe o Next.js.
- * Roda automaticamente no deploy (Docker CMD) — sem terminal no EasyPanel.
+ * Startup de produção: sobe o Next.js imediatamente e vincula clientes em background.
+ * Roda no deploy (npm start / Docker) — sem terminal no EasyPanel.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import postgres from "postgres";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 const TENANT_SLUG = "ragnaroks";
 const LOCK_KEY = 8347291;
 const JSON_BOOTSTRAP_VERSION = 1;
+const BOOTSTRAP_TIMEOUT_MS = 120_000;
 
 function exportDir() {
   const dir =
@@ -25,6 +25,26 @@ function readJson(name, dir) {
   return JSON.parse(fs.readFileSync(path.join(dir, `${name}.json`), "utf8"));
 }
 
+function resolveServer() {
+  const candidates = [
+    { file: path.join(ROOT, "server.js"), cwd: ROOT },
+    { file: path.join(ROOT, ".next/standalone/server.js"), cwd: path.join(ROOT, ".next/standalone") },
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c.file)) return c;
+  }
+  return null;
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`bootstrap timeout (${ms}ms)`)), ms)
+    ),
+  ]);
+}
+
 async function runBootstrap() {
   if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
 
@@ -34,7 +54,15 @@ async function runBootstrap() {
     return;
   }
 
-  const sql = postgres(dbUrl, { max: 1 });
+  let postgres;
+  try {
+    postgres = (await import("postgres")).default;
+  } catch (err) {
+    console.warn("[bootstrap] módulo postgres indisponível — pulando.", err);
+    return;
+  }
+
+  const sql = postgres(dbUrl, { max: 1, connect_timeout: 10 });
 
   try {
     const [{ ok: locked }] = await sql`select pg_try_advisory_lock(${LOCK_KEY}) as ok`;
@@ -50,7 +78,7 @@ async function runBootstrap() {
     }
 
     const tenantId = tenant.id;
-    console.log("[bootstrap] vinculando clientes ↔ agenda ↔ comandas…");
+    console.log("[bootstrap] vinculando clientes ↔ agenda ↔ comandas (background)…");
 
     const dir = exportDir();
     if (dir) {
@@ -169,25 +197,41 @@ async function runBootstrap() {
     `;
     console.log("[bootstrap] concluído.", { linked, ...stats });
   } catch (err) {
-    console.error("[bootstrap] falhou (app sobe mesmo assim):", err);
+    console.error("[bootstrap] falhou:", err);
   } finally {
     await sql`select pg_advisory_unlock(${LOCK_KEY})`.catch(() => {});
     await sql.end({ timeout: 5 });
   }
 }
 
-await runBootstrap();
+const server = resolveServer();
+if (!server) {
+  console.error("[start] server.js não encontrado (tente npm run build antes).");
+  process.exit(1);
+}
 
-const server = spawn(process.execPath, [path.join(ROOT, "server.js")], {
+const child = spawn(process.execPath, [server.file], {
   stdio: "inherit",
   env: process.env,
+  cwd: server.cwd,
 });
 
-server.on("exit", (code, signal) => {
+child.on("error", (err) => {
+  console.error("[start] falha ao subir Next.js:", err);
+  process.exit(1);
+});
+
+child.on("exit", (code, signal) => {
   if (signal) process.kill(process.pid, signal);
-  process.exit(code ?? 0);
+  process.exit(code ?? 1);
 });
 
 for (const sig of ["SIGINT", "SIGTERM"]) {
-  process.on(sig, () => server.kill(sig));
+  process.on(sig, () => child.kill(sig));
 }
+
+setImmediate(() => {
+  withTimeout(runBootstrap(), BOOTSTRAP_TIMEOUT_MS).catch((err) => {
+    console.error("[bootstrap]", err.message ?? err);
+  });
+});

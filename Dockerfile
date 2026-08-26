@@ -21,6 +21,7 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/data ./data
 COPY --from=build /app/scripts/start-production.mjs ./scripts/start-production.mjs
+COPY --from=deps /app/node_modules/postgres ./node_modules/postgres
 
 RUN chown -R nextjs:nodejs /app
 USER nextjs
