@@ -52,6 +52,14 @@ REDIS_URL=redis://default:<SENHA_REDIS>@ragnarok-donna_redis:6379/0
 - Domínios custom (ex.: app.cliente.com)
 - Instâncias WhatsApp no Evolution (uma por tenant: RagnaroK, Donna)
 
+## Deploy do app
+
+O app **não exige terminal** no EasyPanel. Na subida (`npm start` / Docker), `scripts/start-production.mjs`
+vincula automaticamente clientes ↔ agenda ↔ comandas no Postgres antes de subir o Next.js.
+
+Opcional: incluir `data/appbarber-export/agenda.json` + `comandas-historico.json` na imagem
+Docker (ver `data/appbarber-export/README.md`) para reparo completo via export AppBarber.
+
 ## Próximos passos
 
 1. `db:push` do schema Drizzle no banco `ragnarok`
