@@ -1,10 +1,27 @@
 "use client";
 
-type TopbarProps = {
-  onToggleSidebar?: () => void;
+import { useRouter } from "next/navigation";
+
+type ShellSession = {
+  userName: string;
+  tenantName: string;
+  role: string;
 };
 
-export function Topbar({ onToggleSidebar }: TopbarProps) {
+type TopbarProps = {
+  onToggleSidebar?: () => void;
+  session: ShellSession;
+};
+
+export function Topbar({ onToggleSidebar, session }: TopbarProps) {
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
     <header className="topbar">
       <button
@@ -20,13 +37,20 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           type="search"
           placeholder="Buscar cliente, serviço…"
           aria-label="Busca rápida"
+          disabled
+          title="Busca global — Sprint 1"
         />
       </div>
       <div className="topbar-actions">
-        <button type="button" className="btn btn-ghost">
+        <a href="/caixa" className="btn btn-ghost">
           Caixa
+        </a>
+        <span className="topbar-user" title={`${session.tenantName} · ${session.role}`}>
+          {session.userName}
+        </span>
+        <button type="button" className="btn btn-outline topbar-logout" onClick={handleLogout}>
+          Sair
         </button>
-        <span className="topbar-user">Luciano</span>
       </div>
     </header>
   );

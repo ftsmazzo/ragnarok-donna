@@ -3,11 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { NAV, TENANT_LABEL, type NavItem } from "./nav";
+import { NAV, type NavItem } from "./nav";
+
+type ShellSession = {
+  tenantName: string;
+  tenantSlug: string;
+};
+
+type SidebarProps = {
+  session: ShellSession;
+};
 
 function isActive(pathname: string, href?: string) {
   if (!href) return false;
-  if (href === "/agenda") return pathname === "/" || pathname === "/agenda";
+  if (href === "/inicio") return pathname === "/" || pathname === "/inicio";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -15,7 +24,7 @@ function hasActiveChild(pathname: string, item: NavItem) {
   return item.children?.some((c) => isActive(pathname, c.href)) ?? false;
 }
 
-export function Sidebar() {
+export function Sidebar({ session }: SidebarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -28,8 +37,8 @@ export function Sidebar() {
       <div className="sidebar-brand">
         <span className="sidebar-brand-mark">RD</span>
         <div>
-          <strong>{TENANT_LABEL}</strong>
-          <small>Donna · RagnaroK</small>
+          <strong>{session.tenantName}</strong>
+          <small>{session.tenantSlug} · SaaS</small>
         </div>
       </div>
 

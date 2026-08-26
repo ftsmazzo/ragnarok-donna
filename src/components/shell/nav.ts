@@ -61,4 +61,3 @@ export const NAV: NavItem[] = [
   },
 ];
 
-export const TENANT_LABEL = "RagnaroK's Barbearia";

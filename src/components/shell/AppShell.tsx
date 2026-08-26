@@ -4,14 +4,26 @@ import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export type ShellSession = {
+  userName: string;
+  tenantName: string;
+  tenantSlug: string;
+  role: string;
+};
+
+type AppShellProps = {
+  children: React.ReactNode;
+  session: ShellSession;
+};
+
+export function AppShell({ children, session }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className={`app-shell${collapsed ? " is-collapsed" : ""}`}>
-      <Sidebar />
+      <Sidebar session={session} />
       <div className="app-main">
-        <Topbar onToggleSidebar={() => setCollapsed((v) => !v)} />
+        <Topbar session={session} onToggleSidebar={() => setCollapsed((v) => !v)} />
         <main className="app-content">{children}</main>
       </div>
     </div>
