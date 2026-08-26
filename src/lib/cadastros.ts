@@ -30,6 +30,8 @@ export type ClientRow = {
   deletedAt: Date | null;
 };
 
+// listClients movido para @/server/clients (Sprint 1)
+
 export type StaffRow = {
   id: string;
   name: string;
@@ -90,73 +92,6 @@ export type TenantOverview = {
   waitlist: number;
   openOrdersToday: number;
 };
-
-function clientFilterWhere(tenantId: string, filter: ClientFilter) {
-  const base = eq(schema.clients.tenantId, tenantId);
-  if (filter === "ativos") {
-    return and(base, eq(schema.clients.isActive, true), isNull(schema.clients.deletedAt));
-  }
-  if (filter === "removidos") {
-    return and(
-      base,
-      or(eq(schema.clients.isActive, false), isNotNull(schema.clients.deletedAt))
-    );
-  }
-  return base;
-}
-
-export async function listClients(opts: {
-  q?: string;
-  filter?: ClientFilter;
-  page?: number;
-}) {
-  const tenant = await getDefaultTenant();
-  const db = getDb();
-  const filter = opts.filter ?? "ativos";
-  const page = Math.max(1, opts.page ?? 1);
-  const q = opts.q?.trim();
-
-  let where = clientFilterWhere(tenant.id, filter);
-  if (q) {
-    where = and(
-      where,
-      or(
-        ilike(schema.clients.name, `%${q}%`),
-        ilike(schema.clients.phone, `%${q}%`),
-        ilike(schema.clients.email, `%${q}%`)
-      )
-    );
-  }
-
-  const [totalRow] = await db.select({ n: count() }).from(schema.clients).where(where);
-
-  const rows = await db
-    .select({
-      id: schema.clients.id,
-      name: schema.clients.name,
-      phone: schema.clients.phone,
-      email: schema.clients.email,
-      loyaltyPoints: schema.clients.loyaltyPoints,
-      isActive: schema.clients.isActive,
-      deletedAt: schema.clients.deletedAt,
-    })
-    .from(schema.clients)
-    .where(where)
-    .orderBy(asc(schema.clients.name))
-    .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE);
-
-  const total = Number(totalRow?.n ?? 0);
-  return {
-    rows,
-    total,
-    page,
-    pageSize: PAGE_SIZE,
-    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    filter,
-    q: q ?? "",
-  };
-}
 
 export async function listStaff() {
   const tenant = await getDefaultTenant();

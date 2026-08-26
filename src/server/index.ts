@@ -6,3 +6,4 @@ export * from "./errors";
 export * from "./types";
 export * from "./context/tenant";
 export * from "./auth/login";
+export * from "./clients";

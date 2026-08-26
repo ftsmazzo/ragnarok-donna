@@ -952,3 +952,75 @@ input {
     transform: scale(1);
   }
 }
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.form-field input,
+.form-field textarea,
+.form-field select {
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.form-field textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+.form-error {
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  background: #fdecea;
+  border: 1px solid #f5c6c0;
+  color: var(--danger);
+  font-size: 13px;
+  border-radius: 3px;
+}
+
+.client-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.meta-label {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.link-action {
+  color: var(--info);
+  font-weight: 600;
+}
+
+.data-table-clickable tbody tr {
+  cursor: pointer;
+}
+
+.data-table-clickable tbody tr.is-selected td {
+  background: #eef6fc;
+}
+
+.data-table-clickable tbody tr:hover td {
+  background: #f5f9fc;
+}
