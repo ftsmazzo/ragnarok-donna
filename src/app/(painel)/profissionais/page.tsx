@@ -1,95 +1,48 @@
-import { PageHeader } from "@/components/shell/PageHeader";
-import { CadastroSearch } from "@/components/cadastro/CadastroSearch";
-import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
-import { StatusBadge } from "@/components/cadastro/StatusBadge";
-import { listStaff } from "@/lib/cadastros";
-import { formatCommission, formatPhone } from "@/lib/format";
+import { Suspense } from "react";
+import { ProfissionaisView } from "@/components/staff/ProfissionaisView";
+import {
+  getStaffMember,
+  getStaffStats,
+  listStaffMembers,
+  type StaffFilter,
+} from "@/server/staff";
+import { NotFoundError } from "@/server/errors";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string; id?: string; novo?: string }>;
 };
 
 export default async function ProfissionaisPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const { rows, total } = await listStaff();
-  const q = sp.q?.trim().toLowerCase() ?? "";
-  const filtered = q
-    ? rows.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) ||
-          (r.nickname?.toLowerCase().includes(q) ?? false) ||
-          (r.phone?.includes(q) ?? false)
-      )
-    : rows;
+  const filter = (sp.filter as StaffFilter) || "ativos";
+  const data = await listStaffMembers({ q: sp.q, filter });
+
+  let selectedStaff = null;
+  let selectedStats = null;
+  let drawerMode: "none" | "new" | "edit" = "none";
+
+  if (sp.novo === "1") {
+    drawerMode = "new";
+  } else if (sp.id) {
+    try {
+      selectedStaff = await getStaffMember(sp.id);
+      selectedStats = await getStaffStats(sp.id);
+      drawerMode = "edit";
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err;
+    }
+  }
 
   return (
-    <>
-      <PageHeader
-        title="Profissionais"
-        subtitle={`${total} profissional(is) · equipe bookable`}
-        actions={
-          <button type="button" className="btn btn-primary" disabled title="Em breve">
-            + Novo profissional
-          </button>
-        }
+    <Suspense fallback={<p className="panel-empty">Carregando profissionais…</p>}>
+      <ProfissionaisView
+        data={data}
+        selectedStaff={selectedStaff}
+        selectedStats={selectedStats}
+        drawerMode={drawerMode}
       />
-
-      <section className="panel">
-        <div className="panel-toolbar">
-          <CadastroSearch action="/profissionais" q={sp.q} placeholder="Nome ou telefone" />
-        </div>
-
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th />
-                <th>Nome</th>
-                <th>Apelido</th>
-                <th>Telefone</th>
-                <th>Comissão</th>
-                <th>Jornada</th>
-                <th>Agenda</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="table-empty">
-                    Nenhum profissional encontrado.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <PersonAvatar name={s.name} src={s.avatarUrl} color={s.color} />
-                    </td>
-                    <td className="cell-strong">{s.name}</td>
-                    <td>{s.nickname ?? "—"}</td>
-                    <td>{formatPhone(s.phone)}</td>
-                    <td>{formatCommission(s.defaultCommissionBps)}</td>
-                    <td>{s.scheduleSlots} slot(s)</td>
-                    <td>
-                      <StatusBadge
-                        active={s.isBookable}
-                        activeLabel="Bookable"
-                        inactiveLabel="Off"
-                      />
-                    </td>
-                    <td>
-                      <StatusBadge active={s.isActive} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
+    </Suspense>
   );
 }

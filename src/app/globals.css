@@ -1219,3 +1219,65 @@ input {
   color: var(--muted);
   white-space: nowrap;
 }
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.form-check input {
+  margin-top: 2px;
+}
+
+.schedule-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.schedule-grid-head,
+.schedule-grid-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.schedule-grid-head {
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.schedule-day {
+  font-weight: 600;
+}
+
+.schedule-slot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.schedule-slot input[type="time"] {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.schedule-slot span {
+  color: var(--muted);
+}

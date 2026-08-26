@@ -83,3 +83,9 @@ const WAITLIST_STATUS: Record<string, string> = {
 export function labelWaitlistStatus(status: string): string {
   return WAITLIST_STATUS[status] ?? status;
 }
+
+const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
+
+export function weekdayLabel(weekday: number): string {
+  return WEEKDAY_LABELS[weekday] ?? String(weekday);
+}

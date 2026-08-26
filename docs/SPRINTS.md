@@ -7,12 +7,26 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | Sprint | Status | Entrega |
 |--------|--------|---------|
 | **0 — Fundação** | ✅ concluído | Auth, tenant context, `server/`, Drawer/Modal |
-| **1 — Clientes** | ✅ concluído | CRUD + Drawer (criar, editar, inativar, reativar) |
-| 2 — Profissionais + jornada | pendente | CRUD + horários |
+| **1 — Clientes** | ✅ concluído | CRUD + Drawer + ficha (histórico) |
+| **2 — Profissionais** | ✅ concluído | CRUD + jornada semanal no Drawer |
 | 3 — Agenda operacional | pendente | Modal agendar/bloquear/encaixe |
 | 4 — Comanda | pendente | Abrir → itens → pagamento |
 | 5 — Financeiro real | pendente | Sessão caixa, fluxo, comissões no fechamento |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
+
+---
+
+## Sprint 2 — Profissionais ✅
+
+### Entregue
+- **+ Novo profissional** abre Drawer
+- **Clique na linha** abre ficha (cadastro + jornada)
+- Campos: nome, apelido, telefone, e-mail, comissão %, cor na agenda, bookable
+- Aba **Jornada**: até 2 turnos por dia da semana
+- **Inativar / reativar** com confirmação
+- Resumo: total agendamentos e itens em comandas
+- Lógica em `src/server/staff/` + server actions
+- Filtros: ativos, removidos, todos
 
 ---
 
