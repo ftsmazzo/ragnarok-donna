@@ -1,0 +1,11 @@
+node_modules/
+.next/
+dist/
+drizzle/meta/
+research/export/
+research/api-discovery/
+research/node_modules/
+research/package-lock.json
+**/.env
+**/.env.local
+!**/.env.example

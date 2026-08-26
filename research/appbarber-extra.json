@@ -1,0 +1,44 @@
+[
+  {
+    "name": "servicos",
+    "hash": "#/servicos",
+    "text": "Cadastro de Serviços Serviços Combos Serviço Atualizar Excel PDF Imprimir 10 25 50 100 resultados por página Pesquisar Descrição Valor Tempo Comissão Categoria Disponível Barba 45,00 30 40.00% Avulso Editar Excluir Barba CORTESIA 0,00 20 Editar Excluir Barba DIFERENÇA 20,00 20 40.00% Avulso Editar Excluir Barba PROMO 25,00 30 40.00% Recorrência Editar Excluir Barba Recorrência 45,00 30 40.00% Recorrência Editar Excluir barboterapia 15,00 15 50.00% Editar Excluir C",
+    "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\Y-servicos.png"
+  },
+  {
+    "name": "pacotes",
+    "hash": "#/pacotes",
+    "text": "Meus Pacotes Aqui você pode adicionar e/ou editar os pacotes. Pacote Filtro Todos Disponíveis Indisponíveis Filtrar Excel PDF Imprimir 10 25 50 100 resultados por página Pesquisar Descrição Valor Total Data Disponível Comissão pela Venda ACE R$ 97,00 12/03/2026 15:15 Web App Não Editar Excluir 4 Hidratação R$ 100,00 28/02/2026 09:00 Web App Não Editar Excluir Pacote Manutenção (protese) R$ 200,00 20/02/2026 17:48 Web App Não Editar Excluir 3 Cor",
+    "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\Y-pacotes.png"
+  },
+  {
+    "name": "assinaturas",
+    "hash": "#/assinaturas",
+    "text": "Assinatura Recorrente AppBarber Clubes de assinatura com cobrança recorrente no cartão do seu cliente. Seus clientes podem escolher um dos seus planos e pagar automaticamente todo mês via cartão de crédito. Para mais detalhes, clique no botão abaixo que nossa equipe comercial entrará em contato para lhe passar mais informações. Tenho Interesse",
+    "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\Y-assinaturas.png"
+  },
+  {
+    "name": "noticias",
+    "hash": "#/noticias",
+    "text": "Cadastro de Notícias/Promoções Notícias/Promoções Notícia/Promoção 10 25 50 100 resultados por página Pesquisar Título Data de Envio Disponível até Nenhum registro encontrado Mostrando 0 até 0 de 0 registros Anterior Próximo",
+    "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\Y-noticias.png"
+  },
+  {
+    "name": "rodizio",
+    "hash": "#/rodizio",
+    "text": " Abrir Rodízio Não há nenhum rodízio aberto! Clique no botão acima para abrir um novo rodízio.",
+    "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\Y-rodizio.png"
+  },
+  {
+    "name": "relatorio-agendamento",
+    "hash": "#/relatorioagendamento",
+    "text": "Relatório de Agendamentos Agendamentos do seu estabelecimento pelo período a sua escolha. Data Inicial:* Data Final:* Hoje Status: Todos Agendados Realizados Cancelados Ausentes Bloqueados Cliente: Selecione o Cliente Profissional: Profissional Abner Nattã(excluído) Breno Eduardo de Meia(excluído) Cláudio Marcílio(excluído) Diego de Oliveira Diogo Souza Gabriel Ferreira (excluído) Guilherme Balduino Gustavo de Matos Kauan Ferrareze(excluído) Kauê Padula(excluído) Kauê(excluído) Leona",
+    "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\Y-relatorio-agendamento.png"
+  },
+  {
+    "name": "relatorio-gerencial-financeiro",
+    "hash": "#/relatoriogerencialfinanceiro",
+    "text": "Relatório Gerencial - Financeiro Data Inicial:* Data Final:* Hoje Tipo* Tipo Dashboard Geral Entrada e Saída Mês Gráfico de Saldo Mensal Dashboard Profissional Total de Recebimentos no Período. Total de Receitas por Tipo. Analítico Receitas Recebimentos Provisionados Reposições Total de Despesas no Período. Total de Despesas por Tipo. Total de Despesas Não Baixadas por Tipo. Total de Despesas por Categoria. Analítico Despesas Sangrias de Caixa Retiradas de Financeiro Movimentações de Ca",
+    "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\Y-relatorio-gerencial-financeiro.png"
+  }
+]

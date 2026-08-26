@@ -1,0 +1,147 @@
+[
+  {
+    "text": "Agenda",
+    "href": "/agenda",
+    "hasChildren": false
+  },
+  {
+    "text": "Cadastros",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "Comandas",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "Financeiro",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "Relatórios",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "Configurações",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "Parâmetros",
+    "href": "/parametros",
+    "hasChildren": false
+  },
+  {
+    "text": "Rodizio de Profissionais",
+    "href": "/rodizio",
+    "hasChildren": false
+  },
+  {
+    "text": "Ordem de Chegada",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "Lista de Espera",
+    "href": "/listaDeEspera",
+    "hasChildren": false
+  },
+  {
+    "text": "Anamnese",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "Documentos",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "Preferências Locais",
+    "href": "/preferenciasLocais",
+    "hasChildren": false
+  },
+  {
+    "text": "Avaliações",
+    "href": "/avaliacoes",
+    "hasChildren": false
+  },
+  {
+    "text": "Lista de Restrições",
+    "href": "/restricaoCliente",
+    "hasChildren": false
+  },
+  {
+    "text": "Funcionamento",
+    "href": "/funcionamentoEmpresa",
+    "hasChildren": false
+  },
+  {
+    "text": "Alertas",
+    "href": "/alertas",
+    "hasChildren": false
+  },
+  {
+    "text": "Videos Tutoriais",
+    "href": "/tutoriais",
+    "hasChildren": false
+  },
+  {
+    "text": "Cursos",
+    "href": "/cursos",
+    "hasChildren": false
+  },
+  {
+    "text": "Ajuda",
+    "href": "",
+    "hasChildren": true
+  },
+  {
+    "text": "O que fazer?",
+    "href": "",
+    "hasChildren": false
+  },
+  {
+    "text": "Central de Ajuda",
+    "href": "https://appbarber-appbeleza.zendesk.com/hc/pt-br",
+    "hasChildren": false
+  },
+  {
+    "text": "Termo de Uso",
+    "href": " https://appbarber.com.br/termodeuso ",
+    "hasChildren": false
+  },
+  {
+    "text": "Instagram",
+    "href": " https://www.instagram.com/appbarber/ ",
+    "hasChildren": false
+  },
+  {
+    "text": "Blog",
+    "href": " https://blog.appbarber.com.br/ ",
+    "hasChildren": false
+  },
+  {
+    "text": "Youtube",
+    "href": " https://www.youtube.com/appbarber ",
+    "hasChildren": false
+  },
+  {
+    "text": "BarberCast",
+    "href": " https://open.spotify.com/show/7jMwLsoFdBstVYQ9bjjDr4 ",
+    "hasChildren": false
+  },
+  {
+    "text": "Imagens de Marketing",
+    "href": "/divulgacao",
+    "hasChildren": false
+  },
+  {
+    "text": "Aplicativo Próprio NOVO",
+    "href": "",
+    "hasChildren": false
+  }
+]

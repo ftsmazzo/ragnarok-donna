@@ -1,0 +1,1137 @@
+{
+  "startedAt": "2026-08-26T13:27:31.406Z",
+  "screens": [
+    {
+      "name": "agenda-inicial",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\01-agenda-inicial.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/agenda",
+      "note": "Agenda após login"
+    },
+    {
+      "name": "sidebar-expandida",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\02-sidebar-expandida.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/agenda",
+      "note": "Menu completo"
+    },
+    {
+      "name": "cadastros-clientes",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\03-cadastros-clientes.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/clientes",
+      "note": "Clientes"
+    },
+    {
+      "name": "cadastros-profissionais",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\04-cadastros-profissionais.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/profissionais",
+      "note": "Profissionais"
+    },
+    {
+      "name": "cadastros-produtos",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\05-cadastros-produtos.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/estoque",
+      "note": "Produtos"
+    },
+    {
+      "name": "comandas-abertas",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\06-comandas-abertas.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/comandasabertas",
+      "note": "Abertas"
+    },
+    {
+      "name": "comandas-historico",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\07-comandas-historico.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/comandashistorico",
+      "note": "Histórico de Comandas"
+    },
+    {
+      "name": "financeiro-caixa",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\08-financeiro-caixa.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/caixa",
+      "note": "Caixa"
+    },
+    {
+      "name": "financeiro-comissoes",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\09-financeiro-comissoes.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/comissaoprofissionais",
+      "note": "Comissões"
+    },
+    {
+      "name": "financeiro-fluxo",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\10-financeiro-fluxo.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/painelFinanceiro",
+      "note": "Fluxo de Caixa"
+    },
+    {
+      "name": "relatorios-financeiro",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\11-relatorios-financeiro.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/painelFinanceiro",
+      "note": "Financeiro"
+    },
+    {
+      "name": "config-parametros",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\12-config-parametros.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/parametros",
+      "note": "Parâmetros"
+    },
+    {
+      "name": "config-lista-espera",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\13-config-lista-espera.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/listaDeEspera",
+      "note": "Lista de Espera"
+    },
+    {
+      "name": "config-funcionamento",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\14-config-funcionamento.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/funcionamentoEmpresa",
+      "note": "Funcionamento"
+    },
+    {
+      "name": "agenda-volta",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\15-agenda-volta.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/agenda",
+      "note": "Agenda"
+    },
+    {
+      "name": "cadastros-clube",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\16-cadastros-clube.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/clubeVantagens",
+      "note": "Clube de Clientes"
+    },
+    {
+      "name": "cadastros-pesquisa",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\17-cadastros-pesquisa.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/pesquisa",
+      "note": "Pesquisa de Satisfação"
+    },
+    {
+      "name": "cadastros-mensagens",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\18-cadastros-mensagens.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/mensagens",
+      "note": "Mensagens p/ Usuários"
+    },
+    {
+      "name": "agenda-view-semana",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\19-agenda-view-semana.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/agenda",
+      "note": "Agenda Semana"
+    },
+    {
+      "name": "agenda-view-mes",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\20-agenda-view-mes.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/agenda",
+      "note": "Agenda Mês"
+    },
+    {
+      "name": "agenda-view-dia",
+      "file": "C:\\Users\\anjo_\\OneDrive\\Projetos-FabriaIA\\app-barbearia\\research\\appbarber-screenshots\\21-agenda-view-dia.png",
+      "url": "https://sistema.appbarber.com.br/index.php#/agenda",
+      "note": "Agenda Dia"
+    }
+  ],
+  "menus": [
+    {
+      "text": "Agenda",
+      "href": "/agenda",
+      "hasChildren": false
+    },
+    {
+      "text": "Cadastros",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "Comandas",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "Financeiro",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "Relatórios",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "Configurações",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "Parâmetros",
+      "href": "/parametros",
+      "hasChildren": false
+    },
+    {
+      "text": "Rodizio de Profissionais",
+      "href": "/rodizio",
+      "hasChildren": false
+    },
+    {
+      "text": "Ordem de Chegada",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "Lista de Espera",
+      "href": "/listaDeEspera",
+      "hasChildren": false
+    },
+    {
+      "text": "Anamnese",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "Documentos",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "Preferências Locais",
+      "href": "/preferenciasLocais",
+      "hasChildren": false
+    },
+    {
+      "text": "Avaliações",
+      "href": "/avaliacoes",
+      "hasChildren": false
+    },
+    {
+      "text": "Lista de Restrições",
+      "href": "/restricaoCliente",
+      "hasChildren": false
+    },
+    {
+      "text": "Funcionamento",
+      "href": "/funcionamentoEmpresa",
+      "hasChildren": false
+    },
+    {
+      "text": "Alertas",
+      "href": "/alertas",
+      "hasChildren": false
+    },
+    {
+      "text": "Videos Tutoriais",
+      "href": "/tutoriais",
+      "hasChildren": false
+    },
+    {
+      "text": "Cursos",
+      "href": "/cursos",
+      "hasChildren": false
+    },
+    {
+      "text": "Ajuda",
+      "href": "",
+      "hasChildren": true
+    },
+    {
+      "text": "O que fazer?",
+      "href": "",
+      "hasChildren": false
+    },
+    {
+      "text": "Central de Ajuda",
+      "href": "https://appbarber-appbeleza.zendesk.com/hc/pt-br",
+      "hasChildren": false
+    },
+    {
+      "text": "Termo de Uso",
+      "href": " https://appbarber.com.br/termodeuso ",
+      "hasChildren": false
+    },
+    {
+      "text": "Instagram",
+      "href": " https://www.instagram.com/appbarber/ ",
+      "hasChildren": false
+    },
+    {
+      "text": "Blog",
+      "href": " https://blog.appbarber.com.br/ ",
+      "hasChildren": false
+    },
+    {
+      "text": "Youtube",
+      "href": " https://www.youtube.com/appbarber ",
+      "hasChildren": false
+    },
+    {
+      "text": "BarberCast",
+      "href": " https://open.spotify.com/show/7jMwLsoFdBstVYQ9bjjDr4 ",
+      "hasChildren": false
+    },
+    {
+      "text": "Imagens de Marketing",
+      "href": "/divulgacao",
+      "hasChildren": false
+    },
+    {
+      "text": "Aplicativo Próprio NOVO",
+      "href": "",
+      "hasChildren": false
+    }
+  ],
+  "identity": {
+    "url": "https://sistema.appbarber.com.br/index.php#/agenda",
+    "hash": "#/agenda",
+    "title": "AppBarber | Agenda",
+    "bodyBg": "rgb(242, 242, 242)",
+    "bodyColor": "rgb(0, 0, 0)",
+    "font": "Quicksand, sans-serif",
+    "headerBg": "rgba(0, 0, 0, 0)",
+    "sidebarBg": "rgb(34, 45, 50)",
+    "headings": [
+      "Quarta, 26/Ago/2026",
+      "Quarta, 26/Ago/2026",
+      "Legenda",
+      "Dados Pessoais",
+      "Dados Usuário",
+      "Categorias",
+      "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+      "Formas de Pagamento",
+      "Pagamento",
+      "Troco"
+    ],
+    "buttons": [
+      "Diego",
+      "Conta",
+      "Acessos",
+      "Temas",
+      "Sair",
+      "Fechar",
+      "Enviar",
+      "Hoje",
+      "+ Encaixe",
+      "Dia",
+      "Semana",
+      "Mês",
+      "Ver Rodízio",
+      "Agenda por Categorias",
+      "Horários disponíveis",
+      "Lista de Agendamentos",
+      "Lista de Espera",
+      "Produtos / Serviços",
+      "Totem",
+      "Agendado",
+      "Realizado",
+      "Sem Cadastro",
+      "Ausência",
+      "Bloqueado",
+      "Encaixe"
+    ],
+    "tableCount": 52,
+    "formCount": 39,
+    "textSample": " Hoje + Encaixe Quarta, 26/Ago/2026 Dia Semana Mês Diego 00:00 - 09:00 - 09:00 - 11:00 Raylan Miranda - (17) 99278-1816 - Manutenção = - 11:00 - 12:00 Raylan Miranda - (17) 99278-1816 - Barba = 12:30 - BLOQUEADO = - 1° 13:00 - 14:30 Bruno Henrique de Oliveira - (17) 99152-8038 - indicação primo diego - Corte+Barba = - 1° 15:00 - 16:30 Eduardo Carlessi - (17) 99282-2887 - perguntou sobre desconto, falei que na próxima vinda ele consegue desconto \"recorrencia\" - Corte+Barba Promo = - 1° 18:00 - 19:00 Bruno Azevedo - (17) 99662-0746 - Corte+Barba Promo = 19:00 - 23:59 11:30 - 12:30"
+  },
+  "pages": [
+    {
+      "name": "cadastros-clientes",
+      "label": "Clientes",
+      "url": "https://sistema.appbarber.com.br/index.php#/clientes",
+      "hash": "#/clientes",
+      "title": "AppBarber | Clientes",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Cadastro de Clientes",
+        "Cadastro de Clientes",
+        "Dados Pessoais",
+        "Está certo disso?",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Cliente",
+        "Atualizar",
+        "Colunas",
+        "Excel",
+        "PDF",
+        "Info",
+        "Editar",
+        "Excluir"
+      ],
+      "tableCount": 45,
+      "formCount": 33,
+      "textSample": "Cadastro de Clientes Cliente Atualizar Ativos Removidos Colunas Excel PDF 10 25 50 100 1000 resultados por página Pesquisar Nome Completo E-mail Celular Login Pontos Breno Gonsalves (17) 99610-0201 Não Possui 0 Info Editar Excluir Abenício Pereira de Souza (17) 99602-8157 Não Possui 0 Info Editar Excluir Abiel Ribeiro (17) 99601-1257 Não Possui 0 Info Editar Excluir Abimael Paulo de Lima (17) 99724-9431 Não Possui 0 Info Editar Excluir Abner (41) 99657-8892 Não Possui 0 Info Editar Excluir"
+    },
+    {
+      "name": "cadastros-profissionais",
+      "label": "Profissionais",
+      "url": "https://sistema.appbarber.com.br/index.php#/profissionais",
+      "hash": "#/profissionais",
+      "title": "AppBarber | Profissionais",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Cadastro de Profissionais",
+        "Cadastro de Profissionais",
+        "Esse profissional não tem dados de acesso, portanto não consegue acessar nenhum módulo do sistema.",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Profissional",
+        "Horários de trabalho",
+        "Atualizar",
+        "Excel",
+        "PDF",
+        "Info",
+        "Reativar"
+      ],
+      "tableCount": 52,
+      "formCount": 44,
+      "textSample": "Cadastro de Profissionais Profissional Horários de trabalho Atualizar Ativos Removidos Excel PDF 10 25 50 100 resultados por página Pesquisar Gestor Nome Completo E-mail Celular Apelido Disp Não Diego de Oliveira diholiveira22@yahoo.com (17) 99776-2505 Diego Não Diogo Souza diogomazzaropi04@gmail.com (17) 98831-6091 Diogo Não Guilherme Balduino balduinogui123@icloud.com (17) 99732-9994 Guilherme Não Gustavo de Matos gto1993sccp@gmail.com (17) 98172-2575 Gustavo Sim Luciano Marchesini luappendino@hotmail.com (17) 99776-4668 Luciano Mostrando de 1 até 5 de 5 regist"
+    },
+    {
+      "name": "cadastros-produtos",
+      "label": "Produtos",
+      "url": "https://sistema.appbarber.com.br/index.php#/estoque",
+      "hash": "#/estoque",
+      "title": "AppBarber | Estoque",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Controle de Estoque",
+        "Controle de Estoque",
+        "Dados Gerais",
+        "Programa de Fidelidade",
+        "Programa de Fidelidade",
+        "Dados Cadastrais",
+        "Dados Do Fornecedor",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Produto",
+        "Fornecedores",
+        "Adicionar compra ao estoque",
+        "Transferir entre unidades",
+        "Excel",
+        "PDF",
+        "Imprimir",
+        "Colunas",
+        "Movimentações",
+        "Editar",
+        "Excluir"
+      ],
+      "tableCount": 52,
+      "formCount": 38,
+      "textSample": "Controle de Estoque Disponível pra venda Apenas para uso Combos Conferência Produto Fornecedores Adicionar compra ao estoque Excel PDF Imprimir Colunas 10 25 50 100 1000 resultados por página Pesquisar Descrição Categoria Marca Qtde Valor (R$ ) Comissão Antarctica Lata bebida 21 7,00 0.00% Movimentações Editar Excluir Ativador de Cachos produto pra venda barba macho 8 75,00 20.00% Movimentações Editar Excluir Balm Barba Macho produto pra venda barba macho 11 60,00 20.00% Movimentações Editar Excluir Brahma Lata bebida 6 7,00 0% "
+    },
+    {
+      "name": "comandas-abertas",
+      "label": "Abertas",
+      "url": "https://sistema.appbarber.com.br/index.php#/comandasabertas",
+      "hash": "#/comandasabertas",
+      "title": "AppBarber | Comandas Abertas",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Comandas",
+        "Comandas",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:",
+        "Saldo:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Comanda",
+        "Hoje",
+        "Pesquisar",
+        "Colunas",
+        "Excel",
+        "PDF",
+        "Imprimir",
+        "Info",
+        "Ver",
+        "Cancelar"
+      ],
+      "tableCount": 42,
+      "formCount": 27,
+      "textSample": "Comandas Comanda Data Inicial:* Data Final:* Hoje Pesquisar Colunas Excel PDF Imprimir 10 25 50 100 resultados por página Pesquisar Comanda Cartão Data Valor Cliente Obs Cadastrou Profissional 235856128 26/08/2026 13:00 0,00 Bruno Henrique de Oliveira indicação primo diego Luciano Marchesini Diego Info Ver Cancelar 235812955 26/08/2026 16:30 45,00 Anderson Oliveira Dos Santos Comanda Aberta por Agendamento Luciano Marchesini Luciano Info Ver Cancelar 235725588 26/08/2026 11:30 45,00 Joaquim De Souza Comanda Aberta por Agendamento Luciano Marchesini Gustavo Info V"
+    },
+    {
+      "name": "comandas-historico",
+      "label": "Histórico de Comandas",
+      "url": "https://sistema.appbarber.com.br/index.php#/comandashistorico",
+      "hash": "#/comandashistorico",
+      "title": "AppBarber | Comandas Histórico",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Histórico Comandas",
+        "Histórico Comandas",
+        "N˚:",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Filtrar",
+        "Comanda",
+        "Colunas",
+        "Excel",
+        "PDF",
+        "Imprimir",
+        "Ver",
+        "Reabrir"
+      ],
+      "tableCount": 45,
+      "formCount": 26,
+      "textSample": "Histórico Comandas Mostrar Comandas Clientes Profissionais (Consumo) Comanda Específica Período: Filtrar Comanda Colunas Excel PDF Imprimir 10 25 50 100 resultados por página Pesquisar Comanda Status Data Valor Cliente Cadastro Profissional Finalização Data Caixa Comanda Status Data Valor Cliente Cadastro Profissional Finalização Data Caixa 235856128 Aberta 26/08/2026 13:00 0,00 Bruno Henrique de Oliveira Luciano Marchesini Diego Ver 235826932 Fechada 25/08/2026 18:20 0,00 Leonardo Dourado Luciano Marchesini Luciano + 2 Luciano Marchesi"
+    },
+    {
+      "name": "financeiro-caixa",
+      "label": "Caixa",
+      "url": "https://sistema.appbarber.com.br/index.php#/caixa",
+      "hash": "#/caixa",
+      "title": "AppBarber | Caixa",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:",
+        "Saldo:",
+        "N˚:",
+        "Dados Pessoais"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Encerrar Caixa",
+        "Ver Dia",
+        "Entrada",
+        "Saída",
+        "Comanda",
+        "Vale",
+        "Detalhes",
+        "Abrir Caixa",
+        "Ver mais caixas",
+        "0"
+      ],
+      "tableCount": 45,
+      "formCount": 26,
+      "textSample": " Encerrar Caixa Usuário: Luciano Marchesini Data Inicio: 26/08/2026 Valor Inicial: R$ 0,00 Descricao Valor Pagamento Descricao Valor Pagamento Comanda Número: 233053029 - Cliente: Luciano Evangelista 45,00 Dinheiro Entrada Saída Comanda Vale Entradas Saídas Dinheiro: R$ 45,00 - Valor inicial: R$ 0,00 - Total de Entradas: R$ 45,00 Total de Saídas: R$ 0,00 Saldo: R$ 45,00 Detalhes"
+    },
+    {
+      "name": "financeiro-comissoes",
+      "label": "Comissões",
+      "url": "https://sistema.appbarber.com.br/index.php#/comissaoprofissionais",
+      "hash": "#/comissaoprofissionais",
+      "title": "AppBarber | Comissões",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Comissões/Profissionais",
+        "Comissões/Profissionais",
+        "Recalcular comanda",
+        "Saldo:",
+        "RECIBO DE PAGAMENTO DE COMISSÕES",
+        "Pagamento de Comissão",
+        "Pagamento de Comissão",
+        "RECIBO DE PAGAMENTO DE COMISSÕES",
+        "Extrato",
+        "Alterar Data do Pagamento"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Pesquisar",
+        "Recalcular",
+        "Pagar Comissão",
+        "Gerar Recibo",
+        "Adicionar Valor",
+        "Ver Faturas",
+        "Gerar Comissao",
+        "Selecionar Tudo",
+        "Deselecionar Tudo",
+        "Todos os Vales",
+        "Deselecionar Vales",
+        "Todas as Comandas",
+        "Deselecionar Comandas",
+        "Todos os Servicos",
+        "Deselecionar Serviços",
+        "Todos os Produtos",
+        "Deselecionar Produtos",
+        "Todos os Pacotes"
+      ],
+      "tableCount": 62,
+      "formCount": 28,
+      "textSample": "Comissões/Profissionais Comissões Extratos Data Inicial:* Data Final:* Tipo Todos - Sintético Totais - Analítico Serviço Produto Pacotes Serviço/Produto/Pacotes - Analítico Vale / Adiantamento Comandas de Profissionais Comissões como Auxiliar Bonificações Descontos Assinaturas Mostrar Não Pagas Pagas Todas Buscar profissionais: Ativos Todos Ativos Profissionais Profissional Diego de Oliveira Diogo Souza Guilherme Balduino Gustavo de Matos Luciano Marchesini Diego de Oliveira Pesquisar Recalcular Legenda Bruto: Valor a receber SEM taxas de cartão descontadas Líquido: Valor a receber "
+    },
+    {
+      "name": "financeiro-fluxo",
+      "label": "Fluxo de Caixa",
+      "url": "https://sistema.appbarber.com.br/index.php#/painelFinanceiro",
+      "hash": "#/painelFinanceiro",
+      "title": "AppBarber | Painel Financeiro",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Fluxo de Caixa Seu resumo de fluxo de caixa no período.",
+        "Fluxo de Caixa",
+        "R$ 381,00",
+        "R$ 381,00",
+        "R$ 0,00",
+        "R$ 381,00",
+        "R$ 0,00",
+        "R$ 381,00",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Pesquisar",
+        "Hoje",
+        "×",
+        "Ver Detalhes",
+        "Ver mais caixas",
+        "Encerrar Caixa",
+        "Ver Dia",
+        "Entrada",
+        "Saída",
+        "Comanda",
+        "Vale"
+      ],
+      "tableCount": 46,
+      "formCount": 26,
+      "textSample": "Fluxo de Caixa Seu resumo de fluxo de caixa no período. Fluxo de caixa Fluxo Geral Painel Financeiro Movimentações de entrada lançadas no período, detalhando o que já está disponível e o que ainda tem a receber. Data Início Data Fim Hoje Pesquisar R$ 381,00 Líquido: R$ 371,91 Total Movimentado Detalhes R$ 381,00 Líquido: R$ 371,91 Total Disponível Detalhes R$ 0,00 Líquido: R$ 0,00 Total a Receber Detalhes Movimentações por tipo de pagamento Dinheiro: R$ 45,00 Cartão de Crédito: R$ 311,00 Cartão de Débito: R$ 25,00 Movimentações por Item Valor Pgto | Valor Total Serviços: 121,00 |"
+    },
+    {
+      "name": "relatorios-financeiro",
+      "label": "Financeiro",
+      "url": "https://sistema.appbarber.com.br/index.php#/painelFinanceiro",
+      "hash": "#/painelFinanceiro",
+      "title": "AppBarber | Painel Financeiro",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Fluxo de Caixa Seu resumo de fluxo de caixa no período.",
+        "Fluxo de Caixa",
+        "R$ 381,00",
+        "R$ 381,00",
+        "R$ 0,00",
+        "R$ 381,00",
+        "R$ 0,00",
+        "R$ 381,00",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Pesquisar",
+        "Hoje",
+        "×",
+        "Ver Detalhes",
+        "Ver mais caixas",
+        "Encerrar Caixa",
+        "Ver Dia",
+        "Entrada",
+        "Saída",
+        "Comanda",
+        "Vale"
+      ],
+      "tableCount": 46,
+      "formCount": 26,
+      "textSample": "Fluxo de Caixa Seu resumo de fluxo de caixa no período. Fluxo de caixa Fluxo Geral Painel Financeiro Movimentações de entrada lançadas no período, detalhando o que já está disponível e o que ainda tem a receber. Data Início Data Fim Hoje Pesquisar R$ 381,00 Líquido: R$ 371,91 Total Movimentado Detalhes R$ 381,00 Líquido: R$ 371,91 Total Disponível Detalhes R$ 0,00 Líquido: R$ 0,00 Total a Receber Detalhes Movimentações por tipo de pagamento Dinheiro: R$ 45,00 Cartão de Crédito: R$ 311,00 Cartão de Débito: R$ 25,00 Movimentações por Item Valor Pgto | Valor Total Serviços: 121,00 |"
+    },
+    {
+      "name": "config-parametros",
+      "label": "Parâmetros",
+      "url": "https://sistema.appbarber.com.br/index.php#/parametros",
+      "hash": "#/parametros",
+      "title": "AppBarber | Parâmetros",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Configuração de Parâmetros",
+        "Configuração de Parâmetros",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:",
+        "Saldo:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Salvar"
+      ],
+      "tableCount": 41,
+      "formCount": 96,
+      "textSample": "Configuração de Parâmetros 1 - Dias para Data de Expiração de Pontos Selecione uma Opção 1 Mês 2 Meses 3 Meses 4 Meses 5 Meses 6 Meses 7 Meses 8 Meses 9 Meses 10 Meses 11 Meses 1 Ano 2 Anos 3 Anos 4 Anos 5 Anos Nunca 1 Ano Salvar 2 - Limite de tolerância de cancelamento de horário pelo Cliente (app) Selecione uma Opção 15 minutos 30 minutos 45 minutos 1 hora 2 horas 3 horas 4 horas 5 horas 6 horas 7 horas 8 horas 9 horas 10 horas 11 horas 12 horas 24 horas 48 horas 2 horas Salvar 3 - Tempo (em minutos) Padrão para o Agendamento (ex: de 15 em 15 ou de 30 em 30min) Selecione uma Opção "
+    },
+    {
+      "name": "config-lista-espera",
+      "label": "Lista de Espera",
+      "url": "https://sistema.appbarber.com.br/index.php#/listaDeEspera",
+      "hash": "#/listaDeEspera",
+      "title": "AppBarber | Lista de Espera",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Lista de Espera",
+        "Dados Pessoais",
+        "Dados Usuário",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Adicionar na Lista de Espera",
+        "Pesquisar",
+        "×",
+        "Novo",
+        "Salvar",
+        "Cadastrar",
+        "Limpar",
+        "Ver mais caixas",
+        "Encerrar Caixa",
+        "Ver Dia",
+        "Entrada",
+        "Saída",
+        "Comanda",
+        "Vale",
+        "Detalhes"
+      ],
+      "tableCount": 42,
+      "formCount": 30,
+      "textSample": "Lista de Espera Data Inicial:* Data Final:* Adicionar na Lista de Espera Pesquisar Descricao Data de Cadastro Data Cliente Celular Cadastrou Serviço Profissional Enviado Nenhum registro encontrado"
+    },
+    {
+      "name": "config-funcionamento",
+      "label": "Funcionamento",
+      "url": "https://sistema.appbarber.com.br/index.php#/funcionamentoEmpresa",
+      "hash": "#/funcionamentoEmpresa",
+      "title": "AppBarber | Funcionamento",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Funcionamento",
+        "Funcionamento",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:",
+        "Saldo:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Adicionar Fechamento de Agenda",
+        "×",
+        "Salvar",
+        "Ver mais caixas",
+        "Encerrar Caixa",
+        "Ver Dia",
+        "Entrada",
+        "Saída",
+        "Comanda",
+        "Vale",
+        "Detalhes",
+        "Abrir Caixa",
+        "0",
+        "1",
+        "2",
+        "3"
+      ],
+      "tableCount": 42,
+      "formCount": 26,
+      "textSample": "Funcionamento Adicionar Fechamento de Agenda 10 25 50 100 resultados por página Pesquisar Observação Data Nenhum registro encontrado Mostrando 0 até 0 de 0 registros Anterior Próximo"
+    },
+    {
+      "name": "agenda-volta",
+      "label": "Agenda",
+      "url": "https://sistema.appbarber.com.br/index.php#/agenda",
+      "hash": "#/agenda",
+      "title": "AppBarber | Agenda",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Quarta, 26/Ago/2026",
+        "Quarta, 26/Ago/2026",
+        "Legenda",
+        "Dados Pessoais",
+        "Dados Usuário",
+        "Categorias",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Hoje",
+        "+ Encaixe",
+        "Dia",
+        "Semana",
+        "Mês",
+        "Ver Rodízio",
+        "Agenda por Categorias",
+        "Horários disponíveis",
+        "Lista de Agendamentos",
+        "Lista de Espera",
+        "Produtos / Serviços",
+        "Totem",
+        "Agendado",
+        "Realizado",
+        "Sem Cadastro",
+        "Ausência",
+        "Bloqueado",
+        "Encaixe"
+      ],
+      "tableCount": 52,
+      "formCount": 39,
+      "textSample": " Hoje + Encaixe Quarta, 26/Ago/2026 Dia Semana Mês Diego 00:00 - 09:00 - 09:00 - 11:00 Raylan Miranda - (17) 99278-1816 - Manutenção = - 11:00 - 12:00 Raylan Miranda - (17) 99278-1816 - Barba = 12:30 - BLOQUEADO = - 1° 13:00 - 14:30 Bruno Henrique de Oliveira - (17) 99152-8038 - indicação primo diego - Corte+Barba = - 1° 15:00 - 16:30 Eduardo Carlessi - (17) 99282-2887 - perguntou sobre desconto, falei que na próxima vinda ele consegue desconto \"recorrencia\" - Corte+Barba Promo = - 1° 18:00 - 19:00 Bruno Azevedo - (17) 99662-0746 - Corte+Barba Promo = 19:00 - 23:59 11:30 - 12:30"
+    },
+    {
+      "name": "cadastros-clube",
+      "label": "Clube de Clientes",
+      "url": "https://sistema.appbarber.com.br/index.php#/clubeVantagens",
+      "hash": "#/clubeVantagens",
+      "title": "AppBarber | Clube de clientes",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Clube de clientes Clubes de descontos para clientes. Aqui você pode cadastrar grupos de clientes para receber descontos em determinados serviços",
+        "Clube de clientes",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:",
+        "Saldo:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Clube de Clientes",
+        "Ranking",
+        "Editar",
+        "Excluir",
+        "×",
+        "Salvar",
+        "Todos os Serviços",
+        "Selecionar Serviços",
+        "Adicionar",
+        "Próximo"
+      ],
+      "tableCount": 49,
+      "formCount": 30,
+      "textSample": "Clube de clientes Clubes de descontos para clientes. Aqui você pode cadastrar grupos de clientes para receber descontos em determinados serviços Clube de Clientes Ranking 10 25 50 100 resultados por página Pesquisar Descrição RECORRENCIA Editar Excluir Mostrando de 1 até 1 de 1 registros Anterior 1 Próximo"
+    },
+    {
+      "name": "cadastros-pesquisa",
+      "label": "Pesquisa de Satisfação",
+      "url": "https://sistema.appbarber.com.br/index.php#/pesquisa",
+      "hash": "#/pesquisa",
+      "title": "AppBarber | Pesquisa de Satisfação",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Pesquisa de Satisfação Aqui você pode habilitar uma pesquisa de satisfação para seus clientes efetuarem logo após um serviço realizado. Será solicitado para o cliente avaliar o serviço com as seguintes opções: Excelente, Ótimo, Bom, Regular, Ruim e Não Quero Avaliar.",
+        "Pesquisa de Satisfação",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:",
+        "Saldo:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Ver Detalhes",
+        "Criar Pesquisa",
+        "×",
+        "Pesquisar",
+        "Ver mais caixas",
+        "Encerrar Caixa",
+        "Ver Dia",
+        "Entrada",
+        "Saída",
+        "Comanda",
+        "Vale",
+        "Detalhes",
+        "Abrir Caixa",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "tableCount": 42,
+      "formCount": 26,
+      "textSample": "Pesquisa de Satisfação Aqui você pode habilitar uma pesquisa de satisfação para seus clientes efetuarem logo após um serviço realizado. Será solicitado para o cliente avaliar o serviço com as seguintes opções: Excelente, Ótimo, Bom, Regular, Ruim e Não Quero Avaliar. Pesquisa Ativa Descrição: Pesquisa de Satisfação Habilitado: Ver Detalhes"
+    },
+    {
+      "name": "cadastros-mensagens",
+      "label": "Mensagens p/ Usuários",
+      "url": "https://sistema.appbarber.com.br/index.php#/mensagens",
+      "hash": "#/mensagens",
+      "title": "AppBarber | Mensagens para Usuário",
+      "bodyBg": "rgb(242, 242, 242)",
+      "bodyColor": "rgb(0, 0, 0)",
+      "font": "Quicksand, sans-serif",
+      "headerBg": "rgba(0, 0, 0, 0)",
+      "sidebarBg": "rgb(34, 45, 50)",
+      "headings": [
+        "Cadastro de Mensagens Aqui você pode enviar mensagens para os clientes que possuem usuário no aplicativo. Ele receberá uma notificação no dispositivo.",
+        "Cadastro de Mensagens",
+        "Em uma escala de 0 a 10, o quanto você indicaria o AppBarber para um amigo ou colega?",
+        "Formas de Pagamento",
+        "Pagamento",
+        "Troco",
+        "Pacote",
+        "Assinatura",
+        "Assinatura:",
+        "Saldo:"
+      ],
+      "buttons": [
+        "Diego",
+        "Conta",
+        "Acessos",
+        "Temas",
+        "Sair",
+        "Fechar",
+        "Enviar",
+        "Mensagem",
+        "Atualizar",
+        "Pesquisar",
+        "Excel",
+        "PDF",
+        "Imprimir",
+        "Cancelar",
+        "Ver mais caixas",
+        "Encerrar Caixa",
+        "Ver Dia",
+        "Entrada",
+        "Saída",
+        "Comanda",
+        "Vale",
+        "Detalhes",
+        "Abrir Caixa",
+        "0",
+        "1"
+      ],
+      "tableCount": 42,
+      "formCount": 27,
+      "textSample": "Cadastro de Mensagens Aqui você pode enviar mensagens para os clientes que possuem usuário no aplicativo. Ele receberá uma notificação no dispositivo. Mensagem Atualizar Data Início Data Fim Pesquisar Excel PDF Imprimir 10 25 50 100 resultados por página Pesquisar Descrição Data Envio Usuário Status App Status SMS Parabéns amigo cliente, que o seu dia especial seja comemorado com alegria, junto daqueles que mais ama. 26/08/2026 07:31 André Contador A Enviar Sem SMS Cancelar Mostrando de 1 até 1 de 1 registros Anterior 1 Próximo"
+    }
+  ],
+  "notes": [
+    {
+      "type": "error",
+      "step": {
+        "click": "Serviços",
+        "name": "cadastros-servicos"
+      },
+      "message": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator('.sidebar-menu a, .main-sidebar a, .nav-sidebar a, aside a').filter({ hasText: /^Serviços$/i }).first()\n    - locator resolved to <a data-toggle=\"tab\" class=\"ng-b"
+    },
+    {
+      "type": "error",
+      "step": {
+        "click": "Meus Pacotes",
+        "name": "cadastros-pacotes"
+      },
+      "message": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator('.sidebar-menu a, .main-sidebar a, .nav-sidebar a, aside a').filter({ hasText: 'Meus Pacotes' }).first()\n    - locator resolved to <a href=\"/pacotes\" ui-sref=\"pac"
+    },
+    {
+      "type": "error",
+      "step": {
+        "click": "Geral",
+        "name": "relatorios-geral"
+      },
+      "message": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator('.sidebar-menu a, .main-sidebar a, .nav-sidebar a, aside a').filter({ hasText: 'Geral' }).first()\n    - locator resolved to <a ui-sref=\"relAgendameto\" href=\"/rela"
+    },
+    {
+      "type": "miss",
+      "click": "Rodízio de Profissionais"
+    },
+    {
+      "type": "error",
+      "step": {
+        "click": "Planos de Assinatura",
+        "name": "cadastros-assinaturas"
+      },
+      "message": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator('.sidebar-menu a, .main-sidebar a, .nav-sidebar a, aside a').filter({ hasText: 'Planos de Assinatura' }).first()\n    - locator resolved to <a href=\"/assinaturas\" "
+    }
+  ],
+  "finishedAt": "2026-08-26T13:30:52.399Z"
+}
