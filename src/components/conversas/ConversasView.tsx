@@ -14,7 +14,7 @@ import type {
   ConversationFilter,
   ConversationListItem,
 } from "@/server/agent/conversations";
-import { seedDemoConversationAction } from "@/app/(painel)/conversas/actions";
+import { clearAgentInboxAction, seedDemoConversationAction } from "@/app/(painel)/conversas/actions";
 
 type ListData = {
   rows: ConversationListItem[];
@@ -82,6 +82,22 @@ export function ConversasView({
     });
   }
 
+  function clearInbox() {
+    if (!window.confirm("Apagar todas as conversas e mensagens deste estabelecimento?")) {
+      return;
+    }
+    setSeedError(null);
+    startTransition(async () => {
+      const result = await clearAgentInboxAction();
+      if (!result.ok) {
+        setSeedError(result.error);
+        return;
+      }
+      router.push("/conversas");
+      router.refresh();
+    });
+  }
+
   return (
     <>
       <PageHeader
@@ -92,6 +108,14 @@ export function ConversasView({
             <Link href="/relatorios/perfil?tab=retorno" className="btn btn-outline">
               Lista de retorno
             </Link>
+            <button
+              type="button"
+              className="btn btn-outline"
+              disabled={pending}
+              onClick={clearInbox}
+            >
+              Limpar inbox
+            </button>
             <button
               type="button"
               className="btn btn-primary"

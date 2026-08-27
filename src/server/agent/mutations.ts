@@ -200,6 +200,41 @@ export async function sendHumanMessage(
   }
 }
 
+/** Apaga todas as conversas/mensagens/tool calls do tenant (inbox limpa p/ teste). */
+export async function clearAgentInbox(): Promise<
+  { ok: true; conversations: number; messages: number } | { ok: false; error: string }
+> {
+  try {
+    await assertCanWrite();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const msgs = await db
+      .delete(schema.messages)
+      .where(eq(schema.messages.tenantId, tenant.id))
+      .returning({ id: schema.messages.id });
+
+    const tools = await db
+      .delete(schema.agentToolCalls)
+      .where(eq(schema.agentToolCalls.tenantId, tenant.id))
+      .returning({ id: schema.agentToolCalls.id });
+
+    const convs = await db
+      .delete(schema.conversations)
+      .where(eq(schema.conversations.tenantId, tenant.id))
+      .returning({ id: schema.conversations.id });
+
+    void tools;
+    return { ok: true, conversations: convs.length, messages: msgs.length };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Falha ao limpar inbox",
+    };
+  }
+}
+
 /** Conversa fake para validar inbox/handoff sem WhatsApp (dev/demo). */
 export async function seedDemoConversation(): Promise<ActionResult> {
   try {

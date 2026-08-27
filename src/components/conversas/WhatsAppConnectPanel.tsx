@@ -73,21 +73,6 @@ export function WhatsAppConnectPanel({ initial }: Props) {
     return () => window.clearInterval(id);
   }, [connected, state?.qrcodeBase64, state?.status]);
 
-  // Uma vez conectado: puxa msgs que o webhook pode ter perdido
-  useEffect(() => {
-    if (!connected) return;
-    let cancelled = false;
-    syncInboxFromEvolutionAction().then((result) => {
-      if (cancelled || !result.ok) return;
-      if (result.imported > 0) {
-        setSyncNote(`Sincronizado: ${result.imported} mensagem(ns) nova(s).`);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [connected]);
-
   return (
     <section className="panel dash-panel wa-connect-panel">
       <div className="panel-toolbar">

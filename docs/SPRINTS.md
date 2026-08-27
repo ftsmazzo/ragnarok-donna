@@ -21,7 +21,9 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **6.0 — Donna scaffold** | ✅ concluído | Orquestrador, tools/skills, outreach_jobs, APIs, /conversas |
 | **6.1 — Inbox real** | ✅ concluído | Thread + handoff IA ↔ humano |
 | **6.2 — Webhook Evolution** | ✅ concluído | QR no painel, webhook, Donna responde |
-| **6.3 — Tools agenda** | 🔄 próximo | list_slots, book, find_client |
+| **6.3 — Tools agenda** | ✅ concluído | find_client, list_services, list_slots, book, cancel |
+| **6.4 — Follow-up** | 🔄 próximo | lista retorno → fila → envio |
+| **6.5 — MCP** | ⏳ | bridge das mesmas tools |
 
 ---
 
@@ -64,6 +66,26 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 
 ### Próximo (6.3)
 - Tools reais: agenda, cliente, comanda
+
+---
+
+## Sprint 6.3 — Tools agenda ✅
+
+### Entregue
+- `find_client` (telefone + histórico)
+- `list_services`, `list_slots`, `book_appointment`, `cancel_appointment`
+- Fluxo WhatsApp: dia → serviço → manhã/tarde → opções → confirma e grava na agenda
+- Debounce/lock anti-duplicata no webhook
+- Botão **Limpar inbox** + `POST /api/agent/ops/clear-inbox`
+
+### Teste real
+1. Limpar inbox
+2. Mandar no Zap: horário + serviço + período
+3. Escolher um dos horários oferecidos
+4. Conferir em **Agenda** no painel
+
+### Próximo (6.4)
+- Follow-up: lista retorno → fila → envio
 
 ---
 

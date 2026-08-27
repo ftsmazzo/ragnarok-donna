@@ -1,5 +1,10 @@
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import {
+  bookAppointmentForAgent,
+  cancelAppointmentForAgent,
+  listFreeSlotsForTenant,
+} from "./domain-agenda";
 import { TOOL_CATALOG } from "./catalog";
 import type { AgentToolName, ToolResult } from "./types";
 
@@ -269,6 +274,78 @@ export async function executeTool(
             args,
           },
         };
+        break;
+      }
+      case "list_slots": {
+        const date = String(args.date ?? "").trim();
+        const durationMin = Number(args.durationMin ?? 30);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          result = { ok: false, error: "date YYYY-MM-DD obrigatório" };
+          break;
+        }
+        const periodRaw = String(args.period ?? "").toLowerCase();
+        const period =
+          periodRaw === "tarde" || periodRaw === "manha" || periodRaw === "manhã"
+            ? periodRaw.startsWith("tarde")
+              ? "tarde"
+              : "manha"
+            : null;
+        const slots = await listFreeSlotsForTenant({
+          tenantId: ctx.tenantId,
+          date,
+          durationMin: Number.isFinite(durationMin) ? durationMin : 30,
+          period,
+          limit: Number(args.limit ?? 5),
+        });
+        result = { ok: true, data: { date, period, slots } };
+        break;
+      }
+      case "book_appointment": {
+        const clientId = String(args.clientId ?? "");
+        const staffId = String(args.staffId ?? "");
+        const date = String(args.date ?? "");
+        const hour = Number(args.hour);
+        const durationMin = Number(args.durationMin ?? 30);
+        if (!clientId || !staffId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(hour)) {
+          result = { ok: false, error: "clientId, staffId, date e hour obrigatórios" };
+          break;
+        }
+        const booked = await bookAppointmentForAgent({
+          tenantId: ctx.tenantId,
+          clientId,
+          staffId,
+          serviceId: args.serviceId ? String(args.serviceId) : null,
+          date,
+          hour,
+          durationMin: Number.isFinite(durationMin) ? durationMin : 30,
+          priceCents: typeof args.priceCents === "number" ? args.priceCents : null,
+          notes: args.notes ? String(args.notes) : undefined,
+        });
+        result = booked.ok
+          ? {
+              ok: true,
+              data: {
+                appointmentId: booked.id,
+                startsAt: booked.startsAt.toISOString(),
+                endsAt: booked.endsAt.toISOString(),
+              },
+            }
+          : { ok: false, error: booked.error };
+        break;
+      }
+      case "cancel_appointment": {
+        const appointmentId = String(args.appointmentId ?? "");
+        if (!appointmentId) {
+          result = { ok: false, error: "appointmentId obrigatório" };
+          break;
+        }
+        const cancelled = await cancelAppointmentForAgent({
+          tenantId: ctx.tenantId,
+          appointmentId,
+        });
+        result = cancelled.ok
+          ? { ok: true, data: { appointmentId } }
+          : { ok: false, error: cancelled.error };
         break;
       }
       case "handoff_human": {

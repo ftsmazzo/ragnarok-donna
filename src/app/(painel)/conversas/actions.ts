@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  clearAgentInbox,
   returnToAi,
   seedDemoConversation,
   sendHumanMessage,
@@ -57,5 +58,11 @@ export async function sendHumanMessageAction(conversationId: string, body: strin
 export async function seedDemoConversationAction() {
   const result = await seedDemoConversation();
   if (result.ok) revalidateConversas(result.id);
+  return result;
+}
+
+export async function clearAgentInboxAction() {
+  const result = await clearAgentInbox();
+  if (result.ok) revalidateConversas();
   return result;
 }

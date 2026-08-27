@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { phoneFromMessageKey } from "@/server/evolution/phone";
 import { findRecentMessages, mapConnectionStatus } from "@/server/evolution/client";
@@ -213,6 +213,74 @@ export async function processInboundMessage(
   if (!inserted) return "dup";
 
   if (!shouldReply || conv.mode === "human") return "ok";
+
+  // Evita rajada: mesmo texto em <90s ou outra resposta IA ainda "quente"
+  const db = createDb();
+  const windowStart = new Date(Date.now() - 90_000);
+  const [sameBody] = await db
+    .select({ id: schema.messages.id })
+    .from(schema.messages)
+    .where(
+      and(
+        eq(schema.messages.conversationId, conv.id),
+        eq(schema.messages.direction, "inbound"),
+        eq(schema.messages.body, text),
+        gte(schema.messages.createdAt, windowStart),
+        ne(schema.messages.waMessageId, waMessageId)
+      )
+    )
+    .limit(1);
+  if (sameBody) {
+    console.warn("[webhook] skip reply — texto duplicado recente", phoneE164);
+    return "dup";
+  }
+
+  const hotStart = new Date(Date.now() - 20_000);
+  const [hotOut] = await db
+    .select({ id: schema.messages.id })
+    .from(schema.messages)
+    .where(
+      and(
+        eq(schema.messages.conversationId, conv.id),
+        eq(schema.messages.direction, "outbound_ai"),
+        gte(schema.messages.createdAt, hotStart)
+      )
+    )
+    .limit(1);
+  if (hotOut) {
+    console.warn("[webhook] skip reply — outbound recente (debounce)", phoneE164);
+    return "ok";
+  }
+
+  // Lock curto na conversa (Evolution retries)
+  const [lockRow] = await db
+    .select({ meta: schema.conversations.meta })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.id, conv.id))
+    .limit(1);
+  const lockAtRaw = lockRow?.meta?.replyLockAt;
+  const lockAtMs = lockAtRaw ? Date.parse(String(lockAtRaw)) : 0;
+  const lockHolder = lockRow?.meta?.replyLock;
+  if (
+    lockHolder &&
+    lockHolder !== waMessageId &&
+    Number.isFinite(lockAtMs) &&
+    Date.now() - lockAtMs < 60_000
+  ) {
+    console.warn("[webhook] skip reply — lock ativo", phoneE164);
+    return "ok";
+  }
+  await db
+    .update(schema.conversations)
+    .set({
+      meta: {
+        ...(lockRow?.meta ?? {}),
+        replyLock: waMessageId,
+        replyLockAt: new Date().toISOString(),
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.conversations.id, conv.id));
 
   const result = await runOrchestrator({
     tenantId,
