@@ -3,7 +3,7 @@ import { createDb, schema } from "@/db";
 import { AppError, NotFoundError } from "../errors";
 import { requireCapability } from "../permissions/guards";
 import { requireSession, requireTenantContext } from "../context/tenant";
-import { ensureDefaultAgentProfile } from "./conversations";
+import { ensureDefaultAgentProfile } from "./persona-profile";
 import { deliverWhatsAppText, getConnectionForTenant } from "./outbound";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };

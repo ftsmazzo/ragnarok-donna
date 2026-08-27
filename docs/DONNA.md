@@ -73,7 +73,15 @@ Replicar loja = novo tenant + perfil + conexão WA. Zero fork de código.
 As **mesmas** tools do registry serão expostas como MCP server (fase 6.5) para n8n/Cursor.  
 Auth: token de serviço + `tenant_id` obrigatório.
 
-## Segurança
+## Persona (tom de voz)
+
+Template estruturado em `agent_profiles.persona` (jsonb). `systemPrompt` é **compilado** — não editar manualmente.
+
+- Defaults: `src/server/agent/persona/defaults.ts` (barbearia pré-montada)
+- Compile: `compilePersonaToSystemPrompt()` — pronto para LLM (6.3+)
+- Orquestrador v0 já usa `fluxos.saudacao_inicial`
+- Tela de edição no painel: próximo passo (Configurações → Agente IA)
+
 
 - Webhook valida `webhook_secret` / assinatura Evolution  
 - APIs de agente usam `AGENT_SERVICE_TOKEN` (não sessão de usuário)  

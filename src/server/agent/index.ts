@@ -1,7 +1,14 @@
 export { SKILL_CATALOG, TOOL_CATALOG } from "./catalog";
 export { listToolDefinitions, executeTool, auditToolCall } from "./tools";
 export { runOrchestrator, getDefaultAgentProfile } from "./orchestrator";
-export { listConversations, getConversation, ensureDefaultAgentProfile } from "./conversations";
+export { backfillAgentPersona, ensureDefaultAgentProfile } from "./persona-profile";
+export {
+  takeHandoff,
+  returnToAi,
+  sendHumanMessage,
+  seedDemoConversation,
+} from "./mutations";
+export { listConversations, getConversation } from "./conversations";
 export type {
   ConversationFilter,
   ConversationListItem,
@@ -19,11 +26,14 @@ export type { WhatsAppConnectionView } from "./connection";
 export { handleEvolutionWebhook, assertWebhookAuthorized } from "./inbound";
 export { deliverWhatsAppText, getConnectionForTenant } from "./outbound";
 export {
-  takeHandoff,
-  returnToAi,
-  sendHumanMessage,
-  seedDemoConversation,
-} from "./mutations";
+  createDefaultPersona,
+  mergePersona,
+  compilePersonaToSystemPrompt,
+  pickGreeting,
+  isPersonaEmpty,
+  PERSONA_QA_CHECKLIST,
+} from "./persona";
+export type { AgentPersona, PersonaPatch } from "./persona";
 export { assertAgentServiceToken, readBearerToken } from "./auth";
 export type {
   AgentToolName,

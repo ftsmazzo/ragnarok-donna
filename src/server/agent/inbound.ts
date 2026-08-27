@@ -3,7 +3,7 @@ import { createDb, schema } from "@/db";
 import { phoneFromJid } from "@/server/evolution/phone";
 import { mapConnectionStatus } from "@/server/evolution/client";
 import { resolveTenantByInstance, syncWhatsAppConnectionByInstance } from "./connection";
-import { ensureDefaultAgentProfile } from "./conversations";
+import { ensureDefaultAgentProfile } from "./persona-profile";
 import { deliverWhatsAppText } from "./outbound";
 import { runOrchestrator } from "./orchestrator";
 

@@ -58,6 +58,8 @@ export const agentProfiles = pgTable(
     name: varchar("name", { length: 80 }).notNull(), // Pati, etc.
     displayName: varchar("display_name", { length: 120 }).notNull(),
     systemPrompt: text("system_prompt").notNull().default(""),
+    /** Persona estruturada (tom, fluxos, vocabulário) — systemPrompt é derivado. */
+    persona: jsonb("persona").notNull().default({}),
     /** Tools liberadas: list_slots, book, cancel, waitlist, handoff… */
     toolsEnabled: jsonb("tools_enabled").$type<string[]>().notNull().default([]),
     model: varchar("model", { length: 80 }).notNull().default("openai/gpt-4.1-mini"),

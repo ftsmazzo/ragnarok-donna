@@ -112,8 +112,10 @@ CREATE INDEX IF NOT EXISTS outreach_jobs_tenant_status_sched_idx
   ON outreach_jobs (tenant_id, status, scheduled_at);
 CREATE INDEX IF NOT EXISTS outreach_jobs_tenant_client_idx
   ON outreach_jobs (tenant_id, client_id);
+
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS persona jsonb NOT NULL DEFAULT '{}'::jsonb;
 `);
-    console.log("[bootstrap] schema staff_advances + outreach_jobs ok");
+    console.log("[bootstrap] schema staff_advances + outreach_jobs + agent_profiles.persona ok");
 
     const [{ ok: locked }] = await sql`select pg_try_advisory_lock(${LOCK_KEY}) as ok`;
     if (!locked) {

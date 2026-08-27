@@ -2,7 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { SKILL_CATALOG } from "./catalog";
 import { executeTool, listToolDefinitions } from "./tools";
+import { pickGreeting, type AgentPersona } from "./persona";
 import type { OrchestratorInput, OrchestratorResult, AgentSkillName } from "./types";
+
+function readPersona(raw: unknown): AgentPersona | null {
+  if (!raw || typeof raw !== "object" || Object.keys(raw as object).length === 0) return null;
+  return raw as AgentPersona;
+}
 
 export async function getDefaultAgentProfile(tenantId: string) {
   const db = createDb();
@@ -33,6 +39,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
 
   const profile = await getDefaultAgentProfile(input.tenantId);
   const displayName = profile?.displayName || profile?.name || "Assistente";
+  const persona = readPersona(profile?.persona);
   const enabled = listToolDefinitions(profile?.toolsEnabled ?? undefined);
 
   const text = input.userText.toLowerCase();
@@ -76,8 +83,12 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       ? `Detectei intenção: ${skills.map((s) => SKILL_CATALOG.find((c) => c.name === s)?.title ?? s).join(", ")}.`
       : `Posso ajudar a agendar, tirar dúvidas ou chamar a recepção.`;
 
+  const greeting = persona
+    ? pickGreeting(persona, displayName)
+    : `Olá! Sou ${displayName}.`;
+
   return {
-    reply: `Olá! Sou ${displayName}. ${skillHint}`,
+    reply: `${greeting} ${skillHint}`.trim(),
     skills,
     toolCalls,
   };

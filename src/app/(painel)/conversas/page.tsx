@@ -22,7 +22,11 @@ type Props = {
 export default async function ConversasPage({ searchParams }: Props) {
   await requirePageAccess("/conversas");
   const tenant = await requireTenantContext();
-  await ensureDefaultAgentProfile({ tenantId: tenant.id, displayName: "Donna" });
+  await ensureDefaultAgentProfile({
+    tenantId: tenant.id,
+    displayName: "Donna",
+    businessName: tenant.name,
+  });
 
   const sp = await searchParams;
   const filter: ConversationFilter =
