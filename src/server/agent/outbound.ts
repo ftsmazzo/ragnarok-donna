@@ -13,6 +13,20 @@ export async function getConnectionForTenant(tenantId: string) {
   return row ?? null;
 }
 
+/**
+ * Preferência de destino:
+ * 1) remoteJidLid (@lid) — Baileys com tctoken costuma entregar melhor
+ * 2) telefone E.164 em dígitos
+ */
+function resolveSendNumber(
+  phoneE164: string,
+  meta: Record<string, unknown> | null | undefined
+): string {
+  const lid = typeof meta?.remoteJidLid === "string" ? meta.remoteJidLid : null;
+  if (lid && lid.includes("@lid")) return lid;
+  return digitsForEvolution(phoneE164);
+}
+
 export async function deliverWhatsAppText(input: {
   tenantId: string;
   instanceName: string;
@@ -26,13 +40,24 @@ export async function deliverWhatsAppText(input: {
   const now = new Date();
   let waMessageId: string | undefined;
 
+  const [conv] = await db
+    .select({ meta: schema.conversations.meta })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.id, input.conversationId))
+    .limit(1);
+
+  const number = resolveSendNumber(input.phoneE164, conv?.meta);
+
   try {
-    const res = await sendTextMessage(
-      input.instanceName,
-      digitsForEvolution(input.phoneE164),
-      input.text
-    );
+    const res = await sendTextMessage(input.instanceName, number, input.text);
     waMessageId = res.key?.id;
+    const status = (res as { status?: string }).status;
+    if (status && String(status).toUpperCase() === "PENDING") {
+      console.warn(
+        "[outbound] Evolution retornou PENDING — Baileys/tctoken pode estar sem patch:",
+        number
+      );
+    }
   } catch (err) {
     return {
       ok: false,

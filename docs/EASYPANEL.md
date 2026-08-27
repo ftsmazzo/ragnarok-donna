@@ -39,7 +39,23 @@ REDIS_URL=redis://default:<SENHA_REDIS>@ragnarok-donna_redis:6379/0
 # URI interna: postgresql://postgres:<SENHA>@ragnarok-donna_db:5432/evolution?schema=public
 ```
 
+## Evolution — patch Baileys (obrigatório)
+
+A imagem `evoapicloud/evolution-api:v2.3.7` vem com `baileys@7.0.0-rc.9`.
+Sem o bump, mensagens outbound ficam em **PENDING** e **não chegam no Zap**
+(erro WhatsApp 463 / tctoken).
+
+No EasyPanel → `evolution` → Deploy → **Command**:
+
+```bash
+sh -c "npm install baileys@7.0.0-rc13 --force --legacy-peer-deps && node -e \"const p=require('baileys/package.json'); console.log('[baileys-patch]', p.version); if(!String(p.version).includes('rc13') && !String(p.version).includes('rc.13')) { console.error('Baileys patch failed'); process.exit(1); }\" && npm run db:deploy && npm run db:generate && npm run start:prod"
+```
+
+No log de boot deve aparecer: `[baileys-patch] 7.0.0-rc13`.
+Depois de redeploy, se a sessão cair, reconecte o QR em `/conversas`.
+
 ## Chaves de integração
+
 
 | Variável | Onde |
 |----------|------|

@@ -75,10 +75,23 @@ async function ensureConversation(input: {
   phoneE164: string;
   agentProfileId: string;
   clientId: string | null;
+  remoteJid?: string | null;
+  remoteJidAlt?: string | null;
 }) {
   const db = createDb();
+  const jidMeta: Record<string, string> = {};
+  if (input.remoteJid?.includes("@lid")) jidMeta.remoteJidLid = input.remoteJid;
+  if (input.remoteJidAlt) jidMeta.remoteJidAlt = input.remoteJidAlt;
+  else if (input.remoteJid && !input.remoteJid.includes("@lid")) {
+    jidMeta.remoteJidAlt = input.remoteJid;
+  }
+
   const [existing] = await db
-    .select({ id: schema.conversations.id, mode: schema.conversations.mode })
+    .select({
+      id: schema.conversations.id,
+      mode: schema.conversations.mode,
+      meta: schema.conversations.meta,
+    })
     .from(schema.conversations)
     .where(
       and(
@@ -89,12 +102,15 @@ async function ensureConversation(input: {
     .limit(1);
 
   if (existing) {
-    if (input.clientId) {
-      await db
-        .update(schema.conversations)
-        .set({ clientId: input.clientId, updatedAt: new Date() })
-        .where(eq(schema.conversations.id, existing.id));
-    }
+    const nextMeta = { ...(existing.meta ?? {}), ...jidMeta };
+    await db
+      .update(schema.conversations)
+      .set({
+        clientId: input.clientId ?? undefined,
+        meta: nextMeta,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.conversations.id, existing.id));
     return existing;
   }
 
@@ -106,6 +122,7 @@ async function ensureConversation(input: {
       clientId: input.clientId,
       mode: "ai",
       agentProfileId: input.agentProfileId,
+      meta: jidMeta,
     })
     .returning({ id: schema.conversations.id, mode: schema.conversations.mode });
   return row;
@@ -183,6 +200,8 @@ export async function processInboundMessage(
     phoneE164,
     agentProfileId: profileId,
     clientId,
+    remoteJid: raw.key?.remoteJid,
+    remoteJidAlt: raw.key?.remoteJidAlt,
   });
 
   const inserted = await persistInbound({
