@@ -138,17 +138,40 @@ export async function findRecentMessages(
   instanceName: string,
   limit = 30
 ): Promise<EvolutionStoredMessage[]> {
-  const data = await evolutionFetch<{
-    messages?: { records?: EvolutionStoredMessage[] };
-    records?: EvolutionStoredMessage[];
-  }>(`/chat/findMessages/${encodeURIComponent(instanceName)}`, {
-    body: {
-      where: { key: { fromMe: false } },
-      limit,
-      offset: 0,
-    },
-  });
-  return data.messages?.records ?? data.records ?? [];
+  // Evolution ignora bem o filtro fromMe=false — paginamos e filtramos no app.
+  const inbound: EvolutionStoredMessage[] = [];
+  const pageSize = 50;
+  let offset = 0;
+  const maxPages = 8;
+
+  for (let page = 0; page < maxPages && inbound.length < limit; page += 1) {
+    const data = await evolutionFetch<{
+      messages?: { records?: EvolutionStoredMessage[]; total?: number };
+      records?: EvolutionStoredMessage[];
+    }>(`/chat/findMessages/${encodeURIComponent(instanceName)}`, {
+      body: {
+        where: {},
+        limit: pageSize,
+        offset,
+      },
+    });
+
+    const records = data.messages?.records ?? data.records ?? [];
+    if (records.length === 0) break;
+
+    for (const msg of records) {
+      if (msg.key?.fromMe) continue;
+      const jid = msg.key?.remoteJid ?? "";
+      if (jid.startsWith("0@") || jid.includes("@g.us") || jid.includes("status@")) continue;
+      inbound.push(msg);
+      if (inbound.length >= limit) break;
+    }
+
+    offset += records.length;
+    if (records.length < pageSize) break;
+  }
+
+  return inbound;
 }
 
 
