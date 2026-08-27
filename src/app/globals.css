@@ -843,6 +843,11 @@ input {
   align-items: stretch;
 }
 
+.ui-overlay + .ui-overlay {
+  z-index: 110;
+  background: rgba(15, 18, 22, 0.35);
+}
+
 .ui-overlay:has(.ui-modal) {
   justify-content: center;
   align-items: center;
