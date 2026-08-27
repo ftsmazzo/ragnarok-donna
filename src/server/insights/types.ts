@@ -2,8 +2,13 @@ export const DEFAULT_SERVICE_RETURN_DAYS = 60;
 export const DEFAULT_PRODUCT_REBUY_DAYS = 60;
 /** Cliente teve serviço de categoria Recorrência e não renovou após este prazo. */
 export const DEFAULT_RECURRENCE_LAPSE_DAYS = 45;
-/** Cliente sem visita/comanda há este prazo → follow-up de retorno. */
+/** Sem serviço/visita há este prazo → candidato a retorno. */
 export const DEFAULT_INACTIVE_DAYS = 60;
+/**
+ * Janela máxima (saudável): só quem ainda “sumiu recente”.
+ * last_visit entre inactiveDays e inactiveWindowDays atrás.
+ */
+export const DEFAULT_INACTIVE_WINDOW_DAYS = 100;
 
 export type UpsellTipKind =
   | "service_due"
@@ -62,6 +67,7 @@ export type PerfilReport = {
   productThresholdDays: number;
   recurrenceLapseDays: number;
   inactiveDays: number;
+  inactiveWindowDays: number;
   serviceDue: PerfilReofferRow[];
   productDue: PerfilReofferRow[];
   recurrenceLapsed: FollowUpRow[];

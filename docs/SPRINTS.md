@@ -111,7 +111,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 ### Regras
 | Filtro | Prazo | Lógica |
 |--------|-------|--------|
-| **Não retorna** | 60d | Sem item/agenda; lista de follow-up |
+| **Não retorna** | 60–100d | Sem serviço/agenda; janela saudável (não puxa sumidos antigos) |
 | **Recorrência parada** | 45d | Teve serviço categoria Recorrência e não renovou |
 | **Serviços a reoferecer** | 60d | Ciclo padrão; **exclui** categoria Recorrência |
 | **Produtos** | 60d | Recompra |

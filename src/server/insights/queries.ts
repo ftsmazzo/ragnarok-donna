@@ -3,6 +3,7 @@ import { createDb, schema } from "@/db";
 import { requireTenantContext } from "../context/tenant";
 import {
   DEFAULT_INACTIVE_DAYS,
+  DEFAULT_INACTIVE_WINDOW_DAYS,
   DEFAULT_PRODUCT_REBUY_DAYS,
   DEFAULT_RECURRENCE_LAPSE_DAYS,
   DEFAULT_SERVICE_RETURN_DAYS,
@@ -373,21 +374,25 @@ async function loadRecurrenceLapsed(
 }
 
 /**
- * Clientes que já vieram e não têm atividade (item/agenda) há N dias.
- * Lista de follow-up para convite de retorno.
+ * Lista nominal saudável de retorno:
+ * - sem serviço (item_type=service) e sem aparição na agenda nos últimos `minDays`
+ * - última visita ainda dentro da janela `windowDays` (não puxa quem sumiu há anos)
+ * Ordenada por dias sem vir (maior primeiro).
  */
 async function loadInactiveClients(
   tenantId: string,
-  inactiveDays: number,
-  limit = 100
+  minDays: number,
+  windowDays: number,
+  limit = 250
 ): Promise<FollowUpRow[]> {
   const db = createDb();
+  const maxDays = Math.max(minDays, windowDays);
 
   const result = await db.execute(sql`
-    with activity as (
+    with services as (
       select
         o.client_id,
-        max(oi.performed_at) as last_item_at,
+        max(oi.performed_at) as last_service_at,
         (
           array_agg(oi.description order by oi.performed_at desc nulls last)
           filter (where oi.performed_at is not null)
@@ -398,6 +403,7 @@ async function loadInactiveClients(
         and o.tenant_id = ${tenantId}
         and o.client_id is not null
         and o.deleted_at is null
+        and oi.item_type = 'service'
         and oi.performed_at is not null
       group by o.client_id
     ),
@@ -409,7 +415,7 @@ async function loadInactiveClients(
       where a.tenant_id = ${tenantId}
         and a.client_id is not null
         and a.deleted_at is null
-        and a.status <> 'blocked'
+        and a.status not in ('blocked', 'cancelled')
       group by a.client_id
     ),
     merged as (
@@ -417,19 +423,20 @@ async function loadInactiveClients(
         c.id as client_id,
         c.name as client_name,
         c.phone,
-        greatest(activity.last_item_at, appts.last_appt_at) as last_at,
-        activity.last_service
+        greatest(services.last_service_at, appts.last_appt_at) as last_at,
+        services.last_service
       from clients c
-      left join activity on activity.client_id = c.id
+      inner join services on services.client_id = c.id
       left join appts on appts.client_id = c.id
       where c.tenant_id = ${tenantId}
         and c.deleted_at is null
         and c.is_active = true
-        and greatest(activity.last_item_at, appts.last_appt_at) is not null
+        and greatest(services.last_service_at, appts.last_appt_at) is not null
     )
     select client_id, client_name, phone, last_at, last_service
     from merged
-    where last_at <= now() - (${inactiveDays} * interval '1 day')
+    where last_at <= now() - (${minDays} * interval '1 day')
+      and last_at >= now() - (${maxDays} * interval '1 day')
     order by last_at asc
     limit ${limit}
   `);
@@ -450,7 +457,7 @@ async function loadInactiveClients(
       phone: r.phone,
       lastAt,
       daysSince: daysBetween(lastAt),
-      thresholdDays: inactiveDays,
+      thresholdDays: minDays,
       lastServiceName: r.last_service,
       reason: "inactive" as const,
     };
@@ -478,19 +485,21 @@ export async function reportPerfil(opts?: {
   productDays?: number;
   recurrenceDays?: number;
   inactiveDays?: number;
+  inactiveWindowDays?: number;
 }): Promise<PerfilReport> {
   const tenant = await requireTenantContext();
   const serviceThresholdDays = opts?.serviceDays ?? DEFAULT_SERVICE_RETURN_DAYS;
   const productThresholdDays = opts?.productDays ?? DEFAULT_PRODUCT_REBUY_DAYS;
   const recurrenceLapseDays = opts?.recurrenceDays ?? DEFAULT_RECURRENCE_LAPSE_DAYS;
   const inactiveDays = opts?.inactiveDays ?? DEFAULT_INACTIVE_DAYS;
+  const inactiveWindowDays = opts?.inactiveWindowDays ?? DEFAULT_INACTIVE_WINDOW_DAYS;
 
   const [serviceDue, productDue, recurrenceLapsed, inactiveClients, lowStockCount] =
     await Promise.all([
       loadServiceDueRows(tenant.id, serviceThresholdDays),
       loadProductDueRows(tenant.id, productThresholdDays),
       loadRecurrenceLapsed(tenant.id, recurrenceLapseDays),
-      loadInactiveClients(tenant.id, inactiveDays),
+      loadInactiveClients(tenant.id, inactiveDays, inactiveWindowDays),
       countLowStock(tenant.id),
     ]);
 
@@ -499,6 +508,7 @@ export async function reportPerfil(opts?: {
     productThresholdDays,
     recurrenceLapseDays,
     inactiveDays,
+    inactiveWindowDays,
     serviceDue,
     productDue,
     recurrenceLapsed,
@@ -519,9 +529,9 @@ export async function getWeeklyInsights(): Promise<WeeklyInsights> {
   const cards = [
     {
       id: "inactive",
-      label: "Não retornam",
+      label: "Lista de retorno",
       value: report.inactiveCount,
-      hint: `${report.inactiveDays}d+ sem visita`,
+      hint: `${report.inactiveDays}–${report.inactiveWindowDays}d sem vir`,
       href: "/relatorios/perfil?tab=retorno",
     },
     {
@@ -551,7 +561,7 @@ export async function getWeeklyInsights(): Promise<WeeklyInsights> {
   if (report.inactiveCount > 0) {
     const sample = report.inactiveClients[0];
     tips.push(
-      `Follow-up: ${sample.clientName} não volta há ${sample.daysSince} dias — convide a retornar.`
+      `Retorno: ${report.inactiveCount} cliente(s) entre ${report.inactiveDays} e ${report.inactiveWindowDays} dias sem vir — ex.: ${sample.clientName} (${sample.daysSince}d).`
     );
   }
   if (report.recurrenceLapsedCount > 0) {

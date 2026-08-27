@@ -19,6 +19,7 @@ type Props = {
     productDays?: string;
     recurrenceDays?: string;
     inactiveDays?: string;
+    windowDays?: string;
   }>;
 };
 
@@ -32,19 +33,21 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
   await requirePageAccess("/relatorios/perfil", sp);
   const tenant = await requireTenantContext();
 
-  const serviceDays = Number(sp.serviceDays) || undefined;
-  const productDays = Number(sp.productDays) || undefined;
-  const recurrenceDays = Number(sp.recurrenceDays) || undefined;
-  const inactiveDays = Number(sp.inactiveDays) || undefined;
   const data = await reportPerfil({
-    serviceDays,
-    productDays,
-    recurrenceDays,
-    inactiveDays,
+    serviceDays: Number(sp.serviceDays) || undefined,
+    productDays: Number(sp.productDays) || undefined,
+    recurrenceDays: Number(sp.recurrenceDays) || undefined,
+    inactiveDays: Number(sp.inactiveDays) || undefined,
+    inactiveWindowDays: Number(sp.windowDays) || undefined,
   });
   const tab = parseTab(sp.tab);
 
-  const q = `serviceDays=${data.serviceThresholdDays}&productDays=${data.productThresholdDays}&recurrenceDays=${data.recurrenceLapseDays}&inactiveDays=${data.inactiveDays}`;
+  const q =
+    `serviceDays=${data.serviceThresholdDays}` +
+    `&productDays=${data.productThresholdDays}` +
+    `&recurrenceDays=${data.recurrenceLapseDays}` +
+    `&inactiveDays=${data.inactiveDays}` +
+    `&windowDays=${data.inactiveWindowDays}`;
 
   const uniqueService = new Set(data.serviceDue.map((r) => r.clientId)).size;
   const uniqueProduct = new Set(data.productDue.map((r) => r.clientId)).size;
@@ -52,8 +55,8 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
   return (
     <>
       <PageHeader
-        title="Ações e follow-up"
-        subtitle="Filtros de retorno, recorrência e recompra — base pra mensagem da Donna"
+        title="Lista de retorno"
+        subtitle={`Clientes que já vieram, sem serviço/visita há ${data.inactiveDays}+ dias · janela saudável até ${data.inactiveWindowDays}d`}
       />
 
       <section className="panel" style={{ marginBottom: 12 }}>
@@ -61,13 +64,24 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
           <form action="/relatorios/perfil" method="get" className="relatorio-filters">
             <input type="hidden" name="tab" value={tab} />
             <label className="filter-field">
-              <span>Não retorna (dias)</span>
+              <span>Mín. sem vir (dias)</span>
               <input
                 type="number"
                 name="inactiveDays"
                 min={30}
-                max={365}
+                max={180}
                 defaultValue={data.inactiveDays}
+                className="search-input"
+              />
+            </label>
+            <label className="filter-field">
+              <span>Janela máx. (dias)</span>
+              <input
+                type="number"
+                name="windowDays"
+                min={60}
+                max={365}
+                defaultValue={data.inactiveWindowDays}
                 className="search-input"
               />
             </label>
@@ -114,19 +128,19 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
       <SummaryCards
         cards={[
           {
-            label: "Não retornam",
+            label: "Na lista de retorno",
             value: data.inactiveCount,
-            hint: `${data.inactiveDays}d+ · follow-up`,
+            hint: `${data.inactiveDays}–${data.inactiveWindowDays} dias sem vir`,
           },
           {
             label: "Recorrência parada",
             value: data.recurrenceLapsedCount,
-            hint: `${data.recurrenceLapseDays}d+ sem renovar`,
+            hint: `${data.recurrenceLapseDays}d+`,
           },
           {
             label: "Serviços a reoferecer",
             value: data.serviceDueCount,
-            hint: `${uniqueService} cliente(s) · ${data.serviceThresholdDays}d`,
+            hint: `${uniqueService} cliente(s)`,
           },
           {
             label: "Produtos",
@@ -138,13 +152,13 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
 
       <div className="panel-toolbar" style={{ marginTop: 12, marginBottom: 8, gap: 8 }}>
         <Link href={`/relatorios/perfil?tab=retorno&${q}`} className={`chip${tab === "retorno" ? " is-on" : ""}`}>
-          Retorno {data.inactiveDays}d
+          Retorno {data.inactiveDays}–{data.inactiveWindowDays}d
         </Link>
         <Link
           href={`/relatorios/perfil?tab=recorrencia&${q}`}
           className={`chip${tab === "recorrencia" ? " is-on" : ""}`}
         >
-          Recorrência {data.recurrenceLapseDays}d
+          Recorrência
         </Link>
         <Link href={`/relatorios/perfil?tab=servicos&${q}`} className={`chip${tab === "servicos" ? " is-on" : ""}`}>
           Serviços
@@ -154,45 +168,55 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
         </Link>
       </div>
 
-      {(tab === "retorno" || tab === "recorrencia") && (
+      {tab === "retorno" ? (
         <section className="panel">
           <div className="panel-toolbar">
             <strong>
-              {tab === "retorno"
-                ? `Follow-up — sem voltar há ${data.inactiveDays}+ dias`
-                : `Teve recorrência e não renovou há ${data.recurrenceLapseDays}+ dias`}
+              Lista nominal — {data.inactiveCount.toLocaleString("pt-BR")} cliente(s) sem
+              serviço/visita
             </strong>
-            <span className="badge is-muted">Msg pronta · Agendar IA na Sprint 6</span>
+            <span className="badge is-muted">
+              Só quem ainda é acionável ({data.inactiveDays}–{data.inactiveWindowDays}d)
+            </span>
           </div>
+          <p className="muted-note" style={{ padding: "0 12px 8px" }}>
+            Critério: já teve serviço, não apareceu na barbearia (serviço nem agenda) há pelo
+            menos {data.inactiveDays} dias, e a última visita não passa de {data.inactiveWindowDays}{" "}
+            dias — evita lista infinita de clientes antigos. Donna / envio automático fica para
+            depois.
+          </p>
           <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Cliente</th>
+                  <th>Dias sem vir</th>
+                  <th>Última visita</th>
+                  <th>Último serviço</th>
                   <th>Telefone</th>
-                  <th>Último sinal</th>
-                  <th>Há</th>
-                  <th>Contexto</th>
-                  <th>Ação</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {(tab === "retorno" ? data.inactiveClients : data.recurrenceLapsed).length === 0 ? (
+                {data.inactiveClients.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="table-empty">
-                      Nenhum cliente neste filtro.
+                      Ninguém nesta janela — ajuste os dias ou aguarde novos lacunes.
                     </td>
                   </tr>
                 ) : (
-                  (tab === "retorno" ? data.inactiveClients : data.recurrenceLapsed).map((r) => (
-                    <tr key={`${r.reason}-${r.clientId}`}>
+                  data.inactiveClients.map((r) => (
+                    <tr key={r.clientId}>
                       <td className="cell-strong">
                         <Link href={`/clientes?id=${r.clientId}`}>{r.clientName}</Link>
                       </td>
-                      <td>{formatPhone(r.phone)}</td>
+                      <td>
+                        <span className="days-away">{r.daysSince}</span>
+                        <span className="days-away-unit"> dias</span>
+                      </td>
                       <td>{formatDateTimeSp(r.lastAt)}</td>
-                      <td>{r.daysSince}d</td>
                       <td>{r.lastServiceName ?? "—"}</td>
+                      <td>{formatPhone(r.phone)}</td>
                       <td>
                         <FollowUpActions row={r} tenantName={tenant.name} />
                       </td>
@@ -203,7 +227,58 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
             </table>
           </div>
         </section>
-      )}
+      ) : null}
+
+      {tab === "recorrencia" ? (
+        <section className="panel">
+          <div className="panel-toolbar">
+            <strong>
+              Teve recorrência e não renovou há {data.recurrenceLapseDays}+ dias
+            </strong>
+          </div>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Dias</th>
+                  <th>Último sinal</th>
+                  <th>Serviço</th>
+                  <th>Telefone</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recurrenceLapsed.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="table-empty">
+                      Nenhum cliente neste filtro.
+                    </td>
+                  </tr>
+                ) : (
+                  data.recurrenceLapsed.map((r) => (
+                    <tr key={r.clientId}>
+                      <td className="cell-strong">
+                        <Link href={`/clientes?id=${r.clientId}`}>{r.clientName}</Link>
+                      </td>
+                      <td>
+                        <span className="days-away">{r.daysSince}</span>
+                        <span className="days-away-unit"> dias</span>
+                      </td>
+                      <td>{formatDateTimeSp(r.lastAt)}</td>
+                      <td>{r.lastServiceName ?? "—"}</td>
+                      <td>{formatPhone(r.phone)}</td>
+                      <td>
+                        <FollowUpActions row={r} tenantName={tenant.name} />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {(tab === "servicos" || tab === "produtos") && (
         <section className="panel">

@@ -995,6 +995,19 @@ input {
   cursor: help;
 }
 
+.days-away {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--header-ink, #1a1208);
+  letter-spacing: -0.02em;
+}
+
+.days-away-unit {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
 .form-field {
   display: flex;
   flex-direction: column;

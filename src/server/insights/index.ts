@@ -9,6 +9,7 @@ export {
   DEFAULT_SERVICE_RETURN_DAYS,
   DEFAULT_RECURRENCE_LAPSE_DAYS,
   DEFAULT_INACTIVE_DAYS,
+  DEFAULT_INACTIVE_WINDOW_DAYS,
 } from "./types";
 export type {
   ClientUpsellTip,
