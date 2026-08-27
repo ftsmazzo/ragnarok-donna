@@ -6,11 +6,15 @@ import {
   StatusBarChart,
 } from "@/components/relatorio/charts";
 import { getTenantOverview } from "@/lib/cadastros";
-import { formatDateLabelSp, monthStartSp, todaySp } from "@/lib/datetime";
+import { formatDateLabelSp, monthStartSp, todaySp, weekBoundsSp } from "@/lib/datetime";
 import { formatMoney } from "@/lib/format";
 import { canAccessRoute } from "@/server/permissions/routes";
 import { isManagementRole } from "@/server/permissions/roles";
-import { getManagementDashboard, getWeeklyInsights } from "@/server/insights";
+import {
+  buildOperationalAlerts,
+  getManagementDashboard,
+  getWeeklyInsights,
+} from "@/server/insights";
 import { profissionaisHref } from "@/components/shell/nav";
 import type { AppSession } from "@/server/types";
 import Link from "next/link";
@@ -39,41 +43,33 @@ export async function InicioContent({ session, searchParams }: Props) {
   const canReports = canAccessRoute("/relatorios", session.role, {
     staffId: session.staffId,
   });
+  const canAlerts = canAccessRoute("/alertas", session.role, { staffId: session.staffId });
 
   const today = todaySp();
   const monthFrom = monthStartSp();
+  const week = weekBoundsSp(today);
+  const weekTo = today < week.to ? today : week.to;
 
-  const [o, weekly, dash] = await Promise.all([
+  const [o, weekly, dashMonth, dashWeek, alerts] = await Promise.all([
     getTenantOverview(),
     showInsights ? getWeeklyInsights() : Promise.resolve(null),
     canReports
       ? getManagementDashboard({ from: monthFrom, to: today })
       : Promise.resolve(null),
+    canReports
+      ? getManagementDashboard({ from: week.from, to: weekTo })
+      : Promise.resolve(null),
+    canAlerts ? buildOperationalAlerts() : Promise.resolve(null),
   ]);
 
   const reportLinks = filterLinks(session, [
-    {
-      href: "/relatorios/agendamentos",
-      label: "Agendamentos",
-      hint: "Volume e status",
-    },
-    {
-      href: "/relatorios/financeiro",
-      label: "Financeiro",
-      hint: "Receita e mix",
-    },
-    {
-      href: "/relatorios/comandas",
-      label: "Comandas",
-      hint: "Ticket e volume",
-    },
-    {
-      href: "/relatorios/estoque",
-      label: "Estoque",
-      hint: "Saldo e alertas",
-    },
+    { href: "/alertas", label: "Alertas", hint: "Estoque, cancelamentos, retornos" },
+    { href: "/relatorios/agendamentos", label: "Agendamentos", hint: "Volume e status" },
+    { href: "/relatorios/financeiro", label: "Financeiro", hint: "Receita e mix" },
+    { href: "/relatorios/comandas", label: "Comandas", hint: "Ticket e volume" },
+    { href: "/relatorios/estoque", label: "Estoque", hint: "Saldo e alertas" },
     { href: "/comissoes", label: "Comissões", hint: "Ranking e analítico" },
-    { href: "/relatorios/perfil", label: "Perfil", hint: "Recompra" },
+    { href: "/relatorios/perfil", label: "Perfil do cliente", hint: "Recompra" },
   ]);
 
   const atalhos = filterLinks(session, [
@@ -92,10 +88,10 @@ export async function InicioContent({ session, searchParams }: Props) {
     staffId: session.staffId,
   });
 
-  const delta =
-    dash?.revenueDeltaPct == null
+  const monthDelta =
+    dashMonth?.revenueDeltaPct == null
       ? "mês até hoje"
-      : `${dash.revenueDeltaPct > 0 ? "+" : ""}${dash.revenueDeltaPct}% vs período anterior`;
+      : `${dashMonth.revenueDeltaPct > 0 ? "+" : ""}${dashMonth.revenueDeltaPct}% vs período anterior`;
 
   return (
     <>
@@ -143,55 +139,167 @@ export async function InicioContent({ session, searchParams }: Props) {
                 },
               ]
             : []),
-          ...(canFinance && dash
+          ...(canFinance && dashMonth
             ? [
                 {
                   label: "Receita no mês",
-                  value: formatMoney(dash.revenueCents),
-                  hint: delta,
+                  value: formatMoney(dashMonth.revenueCents),
+                  hint: monthDelta,
                 },
                 {
                   label: "Ticket médio",
-                  value: formatMoney(dash.ticketAvgCents),
-                  hint: `${dash.closedOrders} comanda(s)`,
+                  value: formatMoney(dashMonth.ticketAvgCents),
+                  hint: `${dashMonth.closedOrders} comanda(s)`,
                 },
               ]
-            : dash
+            : dashMonth
               ? [
                   {
                     label: "Agendamentos no mês",
-                    value: dash.appointmentsTotal.toLocaleString("pt-BR"),
-                    hint: `No-show ${dash.noShowRatePct}%`,
+                    value: dashMonth.appointmentsTotal.toLocaleString("pt-BR"),
+                    hint: `No-show ${dashMonth.noShowRatePct}%`,
                   },
                 ]
               : []),
         ]}
       />
 
-      {dash && (canFinance || dash.appointmentStatus.length > 0) ? (
+      {alerts ? (
+        <section className="panel" style={{ marginTop: 12 }}>
+          <div className="panel-toolbar panel-toolbar-split">
+            <strong>Alertas da semana</strong>
+            <Link href="/alertas" className="btn btn-outline btn-sm">
+              Ver todos
+            </Link>
+          </div>
+          <div className="panel-body">
+            {alerts.alerts.length === 0 ? (
+              <div className="empty-decision">
+                Tudo sob controle nesta semana. Sem estoque crítico nem pico de cancelamentos.
+              </div>
+            ) : (
+              <ul className="alert-list">
+                {alerts.alerts.slice(0, 5).map((a) => (
+                  <li key={a.id} className={`alert-item alert-item--${a.severity}`}>
+                    <div className="alert-item-main">
+                      <div>
+                        <strong>{a.title}</strong>
+                        <p className="muted-note">{a.detail}</p>
+                      </div>
+                    </div>
+                    <Link href={a.href} className="btn btn-outline btn-sm">
+                      Abrir
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {dashWeek ? (
+        <section className="panel" style={{ marginTop: 12 }}>
+          <div className="panel-toolbar panel-toolbar-split">
+            <strong>Esta semana</strong>
+            <Link
+              href={`/relatorios?period=week&from=${week.from}&to=${weekTo}`}
+              className="btn btn-outline btn-sm"
+            >
+              Detalhe
+            </Link>
+          </div>
+          <div className="panel-body">
+            <div className="decision-grid">
+              <div className="decision-card">
+                <span className="meta-label">Agendamentos</span>
+                <strong>{dashWeek.appointmentsTotal.toLocaleString("pt-BR")}</strong>
+                <span className="muted-note">
+                  Cancel. {dashWeek.cancelRatePct}% · no-show {dashWeek.noShowRatePct}%
+                </span>
+              </div>
+              {canFinance ? (
+                <div className="decision-card">
+                  <span className="meta-label">Receita da semana</span>
+                  <strong>{formatMoney(dashWeek.revenueCents)}</strong>
+                  <span className="muted-note">
+                    {dashWeek.closedOrders > 0
+                      ? `${dashWeek.closedOrders} comanda(s) · ticket ${formatMoney(dashWeek.ticketAvgCents)}`
+                      : "Sem pagamentos no período — feche comandas no Caixa"}
+                  </span>
+                </div>
+              ) : null}
+              {alerts ? (
+                <div className="decision-card">
+                  <span className="meta-label">Estoque crítico</span>
+                  <strong>
+                    {(alerts.summary.lowStockShop + alerts.summary.lowStockBar).toLocaleString(
+                      "pt-BR"
+                    )}
+                  </strong>
+                  <span className="muted-note">
+                    Loja {alerts.summary.lowStockShop} · Bar {alerts.summary.lowStockBar}
+                  </span>
+                  <Link href="/relatorios/estoque?low=1" className="btn btn-ghost btn-sm">
+                    Abrir estoque baixo
+                  </Link>
+                </div>
+              ) : null}
+              {alerts ? (
+                <div className="decision-card">
+                  <span className="meta-label">Quem voltou</span>
+                  <strong>{alerts.summary.returnedLostWeek.toLocaleString("pt-BR")}</strong>
+                  <span className="muted-note">
+                    + {alerts.summary.renewalsWeek} renovação(ões)
+                  </span>
+                  <Link href="/relatorios/perfil?tab=retorno" className="btn btn-ghost btn-sm">
+                    Ver perfil
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {dashMonth && (canFinance || dashMonth.appointmentStatus.length > 0) ? (
         <div className="dash-grid" style={{ marginTop: 12 }}>
           {canFinance ? (
             <section className="panel dash-panel">
               <div className="panel-toolbar panel-toolbar-split">
                 <strong>Receita no mês</strong>
-                <Link href="/relatorios/financeiro" className="btn btn-outline btn-sm">
+                <Link href="/relatorios/financeiro?period=month" className="btn btn-outline btn-sm">
                   Detalhe
                 </Link>
               </div>
               <div className="panel-body">
-                <RevenueAreaChart data={dash.revenueSeries} />
+                {dashMonth.revenueCents <= 0 ? (
+                  <div className="empty-decision">
+                    Sem pagamentos no mês ainda. Feche comandas no Caixa para alimentar o
+                    financeiro.
+                  </div>
+                ) : (
+                  <RevenueAreaChart data={dashMonth.revenueSeries} />
+                )}
               </div>
             </section>
           ) : null}
           <section className="panel dash-panel">
             <div className="panel-toolbar panel-toolbar-split">
               <strong>Agenda no mês</strong>
-              <Link href="/relatorios/agendamentos" className="btn btn-outline btn-sm">
+              <Link
+                href="/relatorios/agendamentos?period=month"
+                className="btn btn-outline btn-sm"
+              >
                 Detalhe
               </Link>
             </div>
             <div className="panel-body">
-              <StatusBarChart data={dash.appointmentStatus} />
+              {dashMonth.appointmentsTotal <= 0 ? (
+                <div className="empty-decision">Sem agendamentos no mês corrente.</div>
+              ) : (
+                <StatusBarChart data={dashMonth.appointmentStatus} />
+              )}
             </div>
           </section>
           {canFinance ? (
@@ -200,7 +308,11 @@ export async function InicioContent({ session, searchParams }: Props) {
                 <strong>Mix de pagamento</strong>
               </div>
               <div className="panel-body">
-                <PaymentMixDonut data={dash.paymentMix} />
+                {dashMonth.paymentMix.length === 0 ? (
+                  <div className="empty-decision">Sem mix ainda neste mês.</div>
+                ) : (
+                  <PaymentMixDonut data={dashMonth.paymentMix} />
+                )}
               </div>
             </section>
           ) : null}
@@ -210,12 +322,12 @@ export async function InicioContent({ session, searchParams }: Props) {
       {weekly ? (
         <section className="panel" style={{ marginTop: 12 }}>
           <div className="panel-toolbar panel-toolbar-split">
-            <strong>O que fazer esta semana</strong>
+            <strong>Ações de perfil / recompra</strong>
             {canAccessRoute("/relatorios/perfil", session.role, {
               staffId: session.staffId,
             }) ? (
               <Link href="/relatorios/perfil" className="btn btn-outline btn-sm">
-                Perfil / recompra
+                Abrir perfil
               </Link>
             ) : null}
           </div>
@@ -240,7 +352,7 @@ export async function InicioContent({ session, searchParams }: Props) {
 
       {reportLinks.length > 0 ? (
         <>
-          <h2 className="section-title">Relatórios do dia a dia</h2>
+          <h2 className="section-title">Relatórios</h2>
           <section className="overview-grid overview-grid-cadastros">
             {reportLinks.map((r) => (
               <Link key={r.href} href={r.href} className="overview-card">

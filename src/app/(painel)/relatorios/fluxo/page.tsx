@@ -1,22 +1,30 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
+import { PeriodPresets } from "@/components/relatorio/PeriodPresets";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
+import { ExportCsvButton } from "@/components/relatorio/ExportCsvButton";
 import { PaymentMixDonut, RevenueAreaChart } from "@/components/relatorio/charts";
 import { getCashFlowReport } from "@/server/commissions";
+import { resolveReportPeriod } from "@/lib/datetime";
 import { formatMoney, labelPaymentMethod } from "@/lib/format";
 import { requirePageAccess } from "@/server/permissions/page-access";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; period?: string }>;
 };
 
 export default async function FluxoCaixaPage({ searchParams }: Props) {
   const sp = await searchParams;
   await requirePageAccess("/relatorios/fluxo", sp);
-  const data = await getCashFlowReport({ from: sp.from, to: sp.to });
+  const period = resolveReportPeriod({
+    period: sp.period,
+    from: sp.from,
+    to: sp.to,
+  });
+  const data = await getCashFlowReport({ from: period.from, to: period.to });
 
   const mix = data.byMethod.map((m) => ({
     name: labelPaymentMethod(m.name),
@@ -30,17 +38,45 @@ export default async function FluxoCaixaPage({ searchParams }: Props) {
         title="Fluxo de caixa"
         subtitle={`Movimentado ${formatMoney(data.totalMovedCents)} · ${data.from} → ${data.to}`}
         actions={
-          <Link href="/caixa" className="btn btn-outline">
-            Caixa do dia
-          </Link>
+          <>
+            <Link href="/caixa" className="btn btn-outline">
+              Caixa do dia
+            </Link>
+            <ExportCsvButton
+              filename={`fluxo_${data.from}_${data.to}`}
+              headers={["Forma", "Total R$", "Qtd"]}
+              rows={data.byMethod.map((m) => [
+                labelPaymentMethod(m.name),
+                Number(m.value).toFixed(2),
+                m.extra ?? "",
+              ])}
+            />
+          </>
         }
       />
 
       <section className="panel" style={{ marginBottom: 12 }}>
-        <div className="panel-toolbar">
-          <RelatorioFilters action="/relatorios/fluxo" from={data.from} to={data.to} />
+        <div className="panel-toolbar" style={{ flexWrap: "wrap", gap: 12 }}>
+          <PeriodPresets
+            basePath="/relatorios/fluxo"
+            period={period.period}
+            from={data.from}
+            to={data.to}
+          />
+          <RelatorioFilters
+            action="/relatorios/fluxo"
+            from={data.from}
+            to={data.to}
+            hidden={{ period: "custom" }}
+          />
         </div>
       </section>
+
+      {data.totalMovedCents === 0 ? (
+        <p className="empty-decision" style={{ marginBottom: 12 }}>
+          Sem movimentação no período — feche comandas no Caixa para alimentar o fluxo.
+        </p>
+      ) : null}
 
       <SummaryCards
         cards={[

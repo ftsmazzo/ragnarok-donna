@@ -717,11 +717,42 @@ export async function executeTool(
         break;
       }
       case "list_followups": {
+        const { listFollowupsForAgent } = await import("@/server/insights");
+        const limit = Math.min(30, Number(args.limit ?? 15) || 15);
+        const perfil = await listFollowupsForAgent(ctx.tenantId, {
+          inactiveDays:
+            typeof args.inactiveDays === "number" ? args.inactiveDays : undefined,
+          recurrenceDays:
+            typeof args.recurrenceDays === "number" ? args.recurrenceDays : undefined,
+          limit,
+        });
         result = {
           ok: true,
           data: {
-            note: "list_followups wired na fase 6.4 — use /relatorios/perfil hoje",
-            args,
+            inactive: perfil.inactiveClients.map((r) => ({
+              clientId: r.clientId,
+              clientName: r.clientName,
+              phone: r.phone,
+              daysSince: r.daysSince,
+              lastServiceName: r.lastServiceName,
+              lastAt: r.lastAt.toISOString(),
+              reason: r.reason,
+            })),
+            recurrenceLapsed: perfil.recurrenceLapsed.map((r) => ({
+              clientId: r.clientId,
+              clientName: r.clientName,
+              phone: r.phone,
+              daysSince: r.daysSince,
+              lastServiceName: r.lastServiceName,
+              lastAt: r.lastAt.toISOString(),
+              reason: r.reason,
+            })),
+            counts: {
+              inactive: perfil.inactiveCount,
+              recurrenceLapsed: perfil.recurrenceLapsedCount,
+            },
+            note:
+              "Use estes clientes para follow-up WhatsApp. Não invente telefones. Para enviar, use send_whatsapp com phoneE164 e texto curto.",
           },
         };
         break;

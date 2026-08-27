@@ -2,8 +2,10 @@ export {
   getClientUpsellTips,
   getWeeklyInsights,
   reportPerfil,
+  listFollowupsForAgent,
 } from "./queries";
 export { getManagementDashboard } from "./dashboard";
+export { buildOperationalAlerts, isBarCategory } from "./alerts";
 export {
   DEFAULT_PRODUCT_REBUY_DAYS,
   DEFAULT_SERVICE_RETURN_DAYS,
@@ -18,5 +20,8 @@ export type {
   PerfilReport,
   PerfilReofferRow,
   WeeklyInsights,
+  OperationalAlert,
+  OperationalAlertsReport,
+  AlertSeverity,
 } from "./types";
 export type { ManagementDashboard } from "./dashboard";

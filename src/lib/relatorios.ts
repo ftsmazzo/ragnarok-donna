@@ -5,6 +5,11 @@ import { getDb } from "./db";
 import { getDefaultTenant } from "./tenant";
 import { PAGE_SIZE } from "./cadastros";
 
+function isBarCategory(category: string | null | undefined): boolean {
+  const c = (category ?? "").toLowerCase();
+  return /\bbar\b|bebida|drink|cerveja|whisky|refrigerante|porção|petisco|destilado/.test(c);
+}
+
 export type ApptReportRow = {
   id: string;
   startsAt: Date;
@@ -29,6 +34,8 @@ export async function reportAppointments(opts: {
   status?: string;
   q?: string;
   page?: number;
+  /** Para export CSV (máx. 2000). */
+  pageSize?: number;
 }) {
   const tenant = await getDefaultTenant();
   const db = getDb();
@@ -36,6 +43,7 @@ export async function reportAppointments(opts: {
   const to = opts.to ?? todaySp();
   const { start, end } = rangeBoundsSp(from, to);
   const page = Math.max(1, opts.page ?? 1);
+  const pageSize = Math.min(2000, Math.max(1, opts.pageSize ?? PAGE_SIZE));
   const q = opts.q?.trim();
   const status = opts.status?.trim();
 
@@ -103,23 +111,49 @@ export async function reportAppointments(opts: {
     .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
     .where(where)
     .orderBy(desc(schema.appointments.startsAt))
-    .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE);
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
 
   const total = Number(totalRow?.n ?? 0);
   const byStatus = Object.fromEntries(statusCounts.map((r) => [r.status, Number(r.n)]));
+
+  const hourRows = await db
+    .select({
+      hour: sql<number>`extract(hour from (${schema.appointments.startsAt} at time zone 'America/Sao_Paulo'))::int`,
+      n: count(),
+    })
+    .from(schema.appointments)
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenant.id),
+        gte(schema.appointments.startsAt, start),
+        lte(schema.appointments.startsAt, end),
+        isNull(schema.appointments.deletedAt),
+        sql`${schema.appointments.status} <> 'blocked'`
+      )
+    )
+    .groupBy(
+      sql`extract(hour from (${schema.appointments.startsAt} at time zone 'America/Sao_Paulo'))::int`
+    );
+
+  const hourMap = Object.fromEntries(hourRows.map((r) => [Number(r.hour), Number(r.n)]));
+  const hourHeatmap = Array.from({ length: 12 }, (_, i) => {
+    const hour = i + 8; // 08–19
+    return { hour, count: Number(hourMap[hour] ?? 0) };
+  });
 
   return {
     rows: rows as ApptReportRow[],
     total,
     page,
-    pageSize: PAGE_SIZE,
-    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
     from,
     to,
     status: status ?? "all",
     q: q ?? "",
     byStatus,
+    hourHeatmap,
   };
 }
 
@@ -174,22 +208,83 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
       )
     );
 
+  const byItemType = await db
+    .select({
+      itemType: schema.orderItems.itemType,
+      n: count(),
+      totalCents: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, tenant.id),
+        eq(schema.orders.status, "closed"),
+        gte(schema.orders.closedAt, start),
+        lte(schema.orders.closedAt, end),
+        isNull(schema.orders.deletedAt)
+      )
+    )
+    .groupBy(schema.orderItems.itemType);
+
+  const byStaff = await db
+    .select({
+      staffId: schema.orderItems.staffId,
+      staffName: schema.staff.name,
+      n: count(),
+      totalCents: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, tenant.id),
+        eq(schema.orders.status, "closed"),
+        gte(schema.orders.closedAt, start),
+        lte(schema.orders.closedAt, end),
+        isNull(schema.orders.deletedAt)
+      )
+    )
+    .groupBy(schema.orderItems.staffId, schema.staff.name)
+    .orderBy(desc(sql`sum(${schema.orderItems.totalCents})`))
+    .limit(12);
+
   const totalPayments = byMethod.reduce((s, r) => s + Number(r.totalCents), 0);
   const totalPaymentsCount = byMethod.reduce((s, r) => s + Number(r.n), 0);
+  const closedN = Number(closedOrders?.n ?? 0);
+  const closedCents = Number(closedOrders?.total ?? 0);
+  const ticketAvgCents = closedN > 0 ? Math.round(closedCents / closedN) : 0;
+
+  const servicesCents = Number(
+    byItemType.find((r) => r.itemType === "service")?.totalCents ?? 0
+  );
+  const productsCents = Number(
+    byItemType.find((r) => r.itemType === "product")?.totalCents ?? 0
+  );
 
   return {
     from,
     to,
     totalPaymentsCents: totalPayments,
     totalPaymentsCount,
-    closedOrdersCount: Number(closedOrders?.n ?? 0),
-    closedOrdersCents: Number(closedOrders?.total ?? 0),
+    closedOrdersCount: closedN,
+    closedOrdersCents: closedCents,
     openOrdersCount: Number(openOrders?.n ?? 0),
+    ticketAvgCents,
+    servicesCents,
+    productsCents,
     byMethod: byMethod.map((r) => ({
       method: r.method,
       count: Number(r.n),
       totalCents: Number(r.totalCents),
     })) as FinancialByMethod[],
+    byStaff: byStaff.map((r) => ({
+      staffId: r.staffId,
+      staffName: r.staffName ?? "Sem profissional",
+      count: Number(r.n),
+      totalCents: Number(r.totalCents),
+    })),
   };
 }
 
@@ -231,6 +326,22 @@ export async function reportOrders(opts: {
     .from(schema.orderItems)
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
     .where(where);
+
+  const [openTime] = await db
+    .select({
+      avgMin: sql<number>`coalesce(avg(extract(epoch from (${schema.orders.closedAt} - ${schema.orders.openedAt})) / 60.0), 0)::int`,
+    })
+    .from(schema.orders)
+    .where(
+      and(
+        eq(schema.orders.tenantId, tenant.id),
+        eq(schema.orders.status, "closed"),
+        gte(schema.orders.openedAt, start),
+        lte(schema.orders.openedAt, end),
+        isNull(schema.orders.deletedAt),
+        sql`${schema.orders.closedAt} is not null`
+      )
+    );
 
   const rows = await db
     .select({
@@ -282,6 +393,8 @@ export async function reportOrders(opts: {
     total,
     totalCents: Number(summary?.total ?? 0),
     itemCount: Number(itemsSummary?.n ?? 0),
+    avgItemsPerOrder: total > 0 ? Math.round((Number(itemsSummary?.n ?? 0) / total) * 10) / 10 : 0,
+    avgOpenMinutes: Number(openTime?.avgMin ?? 0),
     page,
     pageSize: PAGE_SIZE,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -292,7 +405,13 @@ export async function reportOrders(opts: {
   };
 }
 
-export async function reportStock(opts?: { q?: string; onlyLow?: boolean; from?: string; to?: string }) {
+export async function reportStock(opts?: {
+  q?: string;
+  onlyLow?: boolean;
+  from?: string;
+  to?: string;
+  scope?: "all" | "shop" | "bar";
+}) {
   const tenant = await getDefaultTenant();
   const db = getDb();
   const from = opts?.from ?? monthStartSp();
@@ -300,6 +419,7 @@ export async function reportStock(opts?: { q?: string; onlyLow?: boolean; from?:
   const { start, end } = rangeBoundsSp(from, to);
   const q = opts?.q?.trim();
   const onlyLow = Boolean(opts?.onlyLow);
+  const scope = opts?.scope ?? "all";
 
   let where = and(
     eq(schema.products.tenantId, tenant.id),
@@ -322,7 +442,7 @@ export async function reportStock(opts?: { q?: string; onlyLow?: boolean; from?:
     where = and(where, sql`${schema.products.stockQty} <= ${schema.products.minQty}`);
   }
 
-  const rows = await db
+  const allRows = await db
     .select({
       id: schema.products.id,
       name: schema.products.name,
@@ -336,6 +456,16 @@ export async function reportStock(opts?: { q?: string; onlyLow?: boolean; from?:
     .from(schema.products)
     .where(where)
     .orderBy(asc(schema.products.name));
+
+  const rows = allRows.filter((r) => {
+    if (scope === "bar") return isBarCategory(r.category);
+    if (scope === "shop") return !isBarCategory(r.category);
+    return true;
+  });
+
+  const lowInScope = rows.filter((r) => r.stockQty <= r.minQty).length;
+  const zeroInScope = rows.filter((r) => r.stockQty <= 0).length;
+  const valueInScope = rows.reduce((acc, r) => acc + r.stockQty * r.priceCents, 0);
 
   const [totals] = await db
     .select({
@@ -398,11 +528,12 @@ export async function reportStock(opts?: { q?: string; onlyLow?: boolean; from?:
     to,
     q: q ?? "",
     onlyLow,
+    scope,
     rows,
-    skuCount: Number(totals?.n ?? 0),
-    lowStockCount: Number(totals?.low ?? 0),
-    zeroStockCount: Number(totals?.zero ?? 0),
-    inventoryValueCents: Number(totals?.value ?? 0),
+    skuCount: scope === "all" ? Number(totals?.n ?? 0) : rows.length,
+    lowStockCount: scope === "all" ? Number(totals?.low ?? 0) : lowInScope,
+    zeroStockCount: scope === "all" ? Number(totals?.zero ?? 0) : zeroInScope,
+    inventoryValueCents: scope === "all" ? Number(totals?.value ?? 0) : valueInScope,
     byCategory: byCategory.map((r) => ({
       name: r.name.length > 22 ? `${r.name.slice(0, 20)}…` : r.name,
       value: Number(r.stock),

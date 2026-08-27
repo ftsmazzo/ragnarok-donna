@@ -2,15 +2,16 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import { FollowUpActions } from "@/components/relatorio/FollowUpActions";
+import { ExportCsvButton } from "@/components/relatorio/ExportCsvButton";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatPhone } from "@/lib/format";
-import { reportPerfil } from "@/server/insights";
+import { buildOperationalAlerts, reportPerfil } from "@/server/insights";
 import { requirePageAccess } from "@/server/permissions/page-access";
 import { requireTenantContext } from "@/server/context/tenant";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "retorno" | "recorrencia" | "servicos" | "produtos";
+type Tab = "retorno" | "recorrencia" | "servicos" | "produtos" | "voltaram";
 
 type Props = {
   searchParams: Promise<{
@@ -24,7 +25,14 @@ type Props = {
 };
 
 function parseTab(raw?: string): Tab {
-  if (raw === "recorrencia" || raw === "servicos" || raw === "produtos") return raw;
+  if (
+    raw === "recorrencia" ||
+    raw === "servicos" ||
+    raw === "produtos" ||
+    raw === "voltaram"
+  ) {
+    return raw;
+  }
   return "retorno";
 }
 
@@ -33,13 +41,16 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
   await requirePageAccess("/relatorios/perfil", sp);
   const tenant = await requireTenantContext();
 
-  const data = await reportPerfil({
-    serviceDays: Number(sp.serviceDays) || undefined,
-    productDays: Number(sp.productDays) || undefined,
-    recurrenceDays: Number(sp.recurrenceDays) || undefined,
-    inactiveDays: Number(sp.inactiveDays) || undefined,
-    inactiveWindowDays: Number(sp.windowDays) || undefined,
-  });
+  const [data, alerts] = await Promise.all([
+    reportPerfil({
+      serviceDays: Number(sp.serviceDays) || undefined,
+      productDays: Number(sp.productDays) || undefined,
+      recurrenceDays: Number(sp.recurrenceDays) || undefined,
+      inactiveDays: Number(sp.inactiveDays) || undefined,
+      inactiveWindowDays: Number(sp.windowDays) || undefined,
+    }),
+    buildOperationalAlerts(),
+  ]);
   const tab = parseTab(sp.tab);
 
   const q =
@@ -51,12 +62,37 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
 
   const uniqueService = new Set(data.serviceDue.map((r) => r.clientId)).size;
   const uniqueProduct = new Set(data.productDue.map((r) => r.clientId)).size;
+  const returned = alerts.returnedClients;
+  const renewalsCount = alerts.summary.renewalsWeek;
 
   return (
     <>
       <PageHeader
-        title="Lista de retorno"
-        subtitle={`Clientes que já vieram, sem serviço/visita há ${data.inactiveDays}+ dias · janela saudável até ${data.inactiveWindowDays}d`}
+        title="Perfil do cliente"
+        subtitle={`Retorno, renovações e quem voltou esta semana · Donna no WhatsApp`}
+        actions={
+          tab === "retorno" || tab === "recorrencia" ? (
+            <ExportCsvButton
+              filename={`perfil_${tab}`}
+              headers={["Cliente", "Dias", "Última visita", "Serviço", "Telefone"]}
+              rows={(tab === "retorno" ? data.inactiveClients : data.recurrenceLapsed).map(
+                (r) => [
+                  r.clientName,
+                  r.daysSince,
+                  formatDateTimeSp(r.lastAt),
+                  r.lastServiceName,
+                  r.phone,
+                ]
+              )}
+            />
+          ) : tab === "voltaram" ? (
+            <ExportCsvButton
+              filename="perfil_voltaram"
+              headers={["Cliente", "Gap dias", "Telefone"]}
+              rows={returned.map((r) => [r.clientName, r.gapDays, r.phone])}
+            />
+          ) : undefined
+        }
       />
 
       <section className="panel" style={{ marginBottom: 12 }}>
@@ -130,35 +166,41 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
           {
             label: "Na lista de retorno",
             value: data.inactiveCount,
-            hint: `${data.inactiveDays}–${data.inactiveWindowDays} dias sem vir`,
+            hint: `${data.inactiveDays}–${data.inactiveWindowDays}d · acione WhatsApp/Donna`,
           },
           {
-            label: "Recorrência parada",
+            label: "Recorrência / renovações",
             value: data.recurrenceLapsedCount,
-            hint: `${data.recurrenceLapseDays}d+`,
+            hint: `${renewalsCount} renovaram esta semana`,
+          },
+          {
+            label: "Perdidos que voltaram",
+            value: returned.length,
+            hint: "reapareceram após 60d+",
           },
           {
             label: "Serviços a reoferecer",
             value: data.serviceDueCount,
-            hint: `${uniqueService} cliente(s)`,
-          },
-          {
-            label: "Produtos",
-            value: data.productDueCount,
-            hint: `${uniqueProduct} cliente(s)`,
+            hint: `${uniqueService} cliente(s) · ${uniqueProduct} c/ produto`,
           },
         ]}
       />
 
       <div className="panel-toolbar" style={{ marginTop: 12, marginBottom: 8, gap: 8 }}>
         <Link href={`/relatorios/perfil?tab=retorno&${q}`} className={`chip${tab === "retorno" ? " is-on" : ""}`}>
-          Retorno {data.inactiveDays}–{data.inactiveWindowDays}d
+          Retorno
         </Link>
         <Link
           href={`/relatorios/perfil?tab=recorrencia&${q}`}
           className={`chip${tab === "recorrencia" ? " is-on" : ""}`}
         >
           Recorrência
+        </Link>
+        <Link
+          href={`/relatorios/perfil?tab=voltaram&${q}`}
+          className={`chip${tab === "voltaram" ? " is-on" : ""}`}
+        >
+          Voltaram esta semana
         </Link>
         <Link href={`/relatorios/perfil?tab=servicos&${q}`} className={`chip${tab === "servicos" ? " is-on" : ""}`}>
           Serviços
@@ -168,22 +210,85 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
         </Link>
       </div>
 
+      {tab === "voltaram" ? (
+        <section className="panel">
+          <div className="panel-toolbar">
+            <strong>
+              Clientes inativos que reapareceram esta semana ({returned.length})
+            </strong>
+            <Link href="/conversas" className="btn btn-outline btn-sm">
+              Abrir Donna
+            </Link>
+          </div>
+          <p className="muted-note" style={{ padding: "0 12px 8px" }}>
+            Gap ≥ {data.inactiveDays} dias entre a visita anterior e a desta semana. Bom momento
+            para reforçar o vínculo.
+          </p>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Gap</th>
+                  <th>Telefone</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {returned.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="table-empty">
+                      Ninguém “perdido” voltou nesta semana.
+                    </td>
+                  </tr>
+                ) : (
+                  returned.map((r) => (
+                    <tr key={r.clientId}>
+                      <td className="cell-strong">
+                        <Link href={`/clientes?id=${r.clientId}`}>{r.clientName}</Link>
+                      </td>
+                      <td>
+                        <span className="days-away">{r.gapDays}</span>
+                        <span className="days-away-unit"> dias</span>
+                      </td>
+                      <td>{formatPhone(r.phone)}</td>
+                      <td>
+                        <FollowUpActions
+                          row={{
+                            clientId: r.clientId,
+                            clientName: r.clientName,
+                            phone: r.phone,
+                            lastAt: new Date(),
+                            daysSince: r.gapDays,
+                            thresholdDays: data.inactiveDays,
+                            lastServiceName: null,
+                            reason: "inactive",
+                          }}
+                          tenantName={tenant.name}
+                        />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       {tab === "retorno" ? (
         <section className="panel">
           <div className="panel-toolbar">
             <strong>
-              Lista nominal — {data.inactiveCount.toLocaleString("pt-BR")} cliente(s) sem
-              serviço/visita
+              Lista nominal — {data.inactiveCount.toLocaleString("pt-BR")} cliente(s)
             </strong>
-            <span className="badge is-muted">
-              Só quem ainda é acionável ({data.inactiveDays}–{data.inactiveWindowDays}d)
-            </span>
+            <Link href="/conversas" className="btn btn-outline btn-sm">
+              Pedir follow-up à Donna
+            </Link>
           </div>
           <p className="muted-note" style={{ padding: "0 12px 8px" }}>
-            Critério: já teve serviço, não apareceu na barbearia (serviço nem agenda) há pelo
-            menos {data.inactiveDays} dias, e a última visita não passa de {data.inactiveWindowDays}{" "}
-            dias — evita lista infinita de clientes antigos. Donna / envio automático fica para
-            depois.
+            Já teve serviço, sem visita há {data.inactiveDays}–{data.inactiveWindowDays} dias.
+            Use WhatsApp ou peça à Donna em Conversas IA.
           </p>
           <div className="table-wrap">
             <table className="data-table">
@@ -285,7 +390,7 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
           <div className="panel-toolbar">
             <strong>
               {tab === "servicos"
-                ? `Serviços além do ciclo (${data.serviceThresholdDays}d) — sem categoria Recorrência`
+                ? `Serviços além do ciclo (${data.serviceThresholdDays}d)`
                 : `Produtos sem recompra (${data.productThresholdDays}d+)`}
             </strong>
           </div>

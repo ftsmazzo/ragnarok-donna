@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { Pagination } from "@/components/cadastro/Pagination";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
+import { ExportCsvButton } from "@/components/relatorio/ExportCsvButton";
 import { PaymentMixDonut, RankingBarChart } from "@/components/relatorio/charts";
 import { CommissionAdvancePanel } from "@/components/comissoes/CommissionAdvancePanel";
 import { reportCommissions } from "@/server/commissions";
@@ -79,14 +80,29 @@ export default async function ComissoesPage({ searchParams }: Props) {
               />
             ) : null}
             {!ownOnly ? (
-              <>
-                <button type="button" className="btn btn-outline" disabled title="Em breve">
-                  Excel
-                </button>
-                <button type="button" className="btn btn-outline" disabled title="Em breve">
-                  PDF
-                </button>
-              </>
+              <ExportCsvButton
+                filename={`comissoes_${data.from}_${data.to}`}
+                headers={[
+                  "Profissional",
+                  "Itens",
+                  "Comissão",
+                  "Vales",
+                  "Bônus",
+                  "Desc.",
+                  "Pago",
+                  "A pagar",
+                ]}
+                rows={data.byStaff.map((s) => [
+                  s.staffName ?? "Sem profissional",
+                  s.itemCount,
+                  (s.commissionCents / 100).toFixed(2),
+                  (s.valeCents / 100).toFixed(2),
+                  (s.bonusCents / 100).toFixed(2),
+                  (s.discountCents / 100).toFixed(2),
+                  (s.payoutCents / 100).toFixed(2),
+                  (s.netDueCents / 100).toFixed(2),
+                ])}
+              />
             ) : null}
           </>
         }

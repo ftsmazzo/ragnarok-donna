@@ -59,6 +59,52 @@ export function monthStartSp(): string {
   return `${today.slice(0, 8)}01`;
 }
 
+/** Segunda → domingo da semana civil em America/Sao_Paulo. */
+export function weekBoundsSp(anchorDate = todaySp()): { from: string; to: string } {
+  const label = parseDateSp(anchorDate).toLocaleDateString("en-US", {
+    timeZone: TZ,
+    weekday: "short",
+  });
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const wd = map[label] ?? 0;
+  const mondayOffset = wd === 0 ? -6 : 1 - wd;
+  const from = shiftDateSp(anchorDate, mondayOffset);
+  const to = shiftDateSp(from, 6);
+  return { from, to };
+}
+
+/** Resolve preset de relatório: week | month | custom (from/to). */
+export function resolveReportPeriod(input?: {
+  period?: string | null;
+  from?: string | null;
+  to?: string | null;
+}): { period: "week" | "month" | "custom"; from: string; to: string } {
+  const today = todaySp();
+  const periodRaw = (input?.period ?? "").toLowerCase().trim();
+
+  if (periodRaw === "week" || periodRaw === "semana") {
+    const w = weekBoundsSp(today);
+    return { period: "week", from: w.from, to: today < w.to ? today : w.to };
+  }
+
+  if (periodRaw === "custom" && input?.from && input?.to) {
+    return { period: "custom", from: input.from, to: input.to };
+  }
+
+  if (periodRaw === "month" || periodRaw === "mes" || periodRaw === "mês" || !periodRaw) {
+    if (!periodRaw && input?.from && input?.to) {
+      return { period: "custom", from: input.from, to: input.to };
+    }
+    return { period: "month", from: monthStartSp(), to: today };
+  }
+
+  if (input?.from && input?.to) {
+    return { period: "custom", from: input.from, to: input.to };
+  }
+
+  return { period: "month", from: monthStartSp(), to: today };
+}
+
 /** N dias atrás (inclusivo: 0 = hoje) */
 export function daysAgoSp(days: number): string {
   return shiftDateSp(todaySp(), -days);

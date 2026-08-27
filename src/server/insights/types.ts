@@ -67,6 +67,49 @@ export type WeeklyInsights = {
   tips: string[];
 };
 
+export type AlertSeverity = "critical" | "warning" | "info";
+
+export type OperationalAlertKind =
+  | "stock_low_shop"
+  | "stock_low_bar"
+  | "cancellations_week"
+  | "renewals_week"
+  | "returned_lost_week"
+  | "open_orders_stale";
+
+export type OperationalAlert = {
+  id: string;
+  severity: AlertSeverity;
+  kind: OperationalAlertKind;
+  title: string;
+  detail: string;
+  count: number;
+  href: string;
+  periodLabel: string;
+};
+
+export type OperationalAlertsReport = {
+  generatedAt: string;
+  weekFrom: string;
+  weekTo: string;
+  summary: {
+    critical: number;
+    warning: number;
+    info: number;
+    total: number;
+    lowStockShop: number;
+    lowStockBar: number;
+    cancellationsWeek: number;
+    cancelRatePct: number;
+    appointmentsWeek: number;
+    renewalsWeek: number;
+    returnedLostWeek: number;
+  };
+  alerts: OperationalAlert[];
+  returnedClients: { clientId: string; clientName: string; phone: string | null; gapDays: number }[];
+  renewalClients: { clientId: string; clientName: string; phone: string | null; gapDays: number }[];
+};
+
 export type PerfilReport = {
   serviceThresholdDays: number;
   productThresholdDays: number;

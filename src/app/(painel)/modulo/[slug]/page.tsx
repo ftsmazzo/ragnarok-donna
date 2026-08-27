@@ -19,6 +19,12 @@ export default async function ModuloBacklogPage({ params }: Props) {
   if (slug === "fluxo-caixa") {
     redirect("/relatorios/fluxo");
   }
+  if (slug === "alertas") {
+    redirect("/alertas");
+  }
+  if (slug === "contas") {
+    redirect("/contas");
+  }
   const meta = LABELS[slug] ?? { title: slug, subtitle: "Módulo em backlog" };
   return (
     <StubPage

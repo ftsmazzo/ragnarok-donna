@@ -535,6 +535,28 @@ export async function reportPerfil(opts?: {
   };
 }
 
+/** Follow-ups para a Donna (sem sessão HTTP — usa tenantId do webhook). */
+export async function listFollowupsForAgent(
+  tenantId: string,
+  opts?: { inactiveDays?: number; recurrenceDays?: number; limit?: number }
+) {
+  const inactiveDays = opts?.inactiveDays ?? DEFAULT_INACTIVE_DAYS;
+  const recurrenceLapseDays = opts?.recurrenceDays ?? DEFAULT_RECURRENCE_LAPSE_DAYS;
+  const limit = Math.min(40, opts?.limit ?? 15);
+  const [inactiveClients, recurrenceLapsed] = await Promise.all([
+    loadInactiveClients(tenantId, inactiveDays, DEFAULT_INACTIVE_WINDOW_DAYS, limit),
+    loadRecurrenceLapsed(tenantId, recurrenceLapseDays, DEFAULT_ACTIONABLE_WINDOW_DAYS, limit),
+  ]);
+  return {
+    inactiveClients,
+    recurrenceLapsed,
+    inactiveDays,
+    recurrenceLapseDays,
+    inactiveCount: inactiveClients.length,
+    recurrenceLapsedCount: recurrenceLapsed.length,
+  };
+}
+
 export async function getWeeklyInsights(): Promise<WeeklyInsights> {
   const report = await reportPerfil();
   const uniqueServiceClients = new Set(report.serviceDue.map((r) => r.clientId)).size;

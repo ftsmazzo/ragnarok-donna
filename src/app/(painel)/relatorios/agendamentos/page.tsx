@@ -1,10 +1,12 @@
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Pagination } from "@/components/cadastro/Pagination";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
+import { PeriodPresets } from "@/components/relatorio/PeriodPresets";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
+import { ExportCsvButton } from "@/components/relatorio/ExportCsvButton";
 import { StatusBarChart } from "@/components/relatorio/charts";
 import { reportAppointments } from "@/lib/relatorios";
-import { formatDateTimeSp } from "@/lib/datetime";
+import { formatDateTimeSp, resolveReportPeriod } from "@/lib/datetime";
 import { formatMoney, labelApptStatus } from "@/lib/format";
 import { requirePageAccess } from "@/server/permissions/page-access";
 
@@ -14,6 +16,7 @@ type Props = {
   searchParams: Promise<{
     from?: string;
     to?: string;
+    period?: string;
     status?: string;
     q?: string;
     page?: string;
@@ -23,9 +26,14 @@ type Props = {
 export default async function RelatorioAgendamentosPage({ searchParams }: Props) {
   const sp = await searchParams;
   await requirePageAccess("/relatorios/agendamentos", sp);
-  const data = await reportAppointments({
+  const period = resolveReportPeriod({
+    period: sp.period,
     from: sp.from,
     to: sp.to,
+  });
+  const data = await reportAppointments({
+    from: period.from,
+    to: period.to,
     status: sp.status,
     q: sp.q,
     page: Number(sp.page) || 1,
@@ -38,31 +46,57 @@ export default async function RelatorioAgendamentosPage({ searchParams }: Props)
       value: Number(n),
     }));
 
+  const confirmed =
+    (data.byStatus.confirmed ?? 0) +
+    (data.byStatus.scheduled ?? 0) +
+    (data.byStatus.arrived ?? 0) +
+    (data.byStatus.in_progress ?? 0);
+  const cancelled = data.byStatus.cancelled ?? 0;
+  const noShow = data.byStatus.no_show ?? 0;
+  const completed = data.byStatus.completed ?? 0;
+  const denom = Math.max(1, data.total);
+  const maxHeat = Math.max(1, ...data.hourHeatmap.map((h) => h.count));
+
   return (
     <>
       <PageHeader
-        title="Relatório de Agendamentos"
-        subtitle={`${data.total.toLocaleString("pt-BR")} agendamento(s) no período`}
+        title="Agendamentos"
+        subtitle={`${data.total.toLocaleString("pt-BR")} no período · taxas de realização e falhas`}
         actions={
-          <>
-            <button type="button" className="btn btn-outline" disabled title="Em breve">
-              Excel
-            </button>
-            <button type="button" className="btn btn-outline" disabled title="Em breve">
-              PDF
-            </button>
-          </>
+          <ExportCsvButton
+            filename={`agendamentos_${data.from}_${data.to}`}
+            headers={["Data", "Cliente", "Profissional", "Serviço", "Valor", "Status"]}
+            rows={data.rows.map((a) => [
+              formatDateTimeSp(a.startsAt),
+              a.clientName,
+              a.staffName,
+              a.serviceName,
+              a.priceCents != null ? (a.priceCents / 100).toFixed(2) : "",
+              labelApptStatus(a.status),
+            ])}
+          />
         }
       />
 
       <section className="panel">
-        <div className="panel-toolbar">
+        <div className="panel-toolbar" style={{ flexWrap: "wrap", gap: 12 }}>
+          <PeriodPresets
+            basePath="/relatorios/agendamentos"
+            period={period.period}
+            from={data.from}
+            to={data.to}
+            extraParams={{
+              status: data.status !== "all" ? data.status : undefined,
+              q: data.q || undefined,
+            }}
+          />
           <RelatorioFilters
             action="/relatorios/agendamentos"
             from={data.from}
             to={data.to}
             q={data.q}
             showSearch
+            hidden={{ period: "custom" }}
           >
             <label className="filter-field">
               <span>Status</span>
@@ -82,25 +116,58 @@ export default async function RelatorioAgendamentosPage({ searchParams }: Props)
         <div className="panel-body-flush">
           <SummaryCards
             cards={[
-              { label: "Total", value: data.total.toLocaleString("pt-BR") },
+              {
+                label: "Total",
+                value: data.total.toLocaleString("pt-BR"),
+                hint: "o que entrou na agenda",
+              },
               {
                 label: "Realizados",
-                value: (data.byStatus.completed ?? 0).toLocaleString("pt-BR"),
+                value: `${completed.toLocaleString("pt-BR")} (${Math.round((completed / denom) * 100)}%)`,
+                hint: "já concluídos",
               },
               {
-                label: "Cancelados",
-                value: (data.byStatus.cancelled ?? 0).toLocaleString("pt-BR"),
+                label: "Em aberto / confirmados",
+                value: confirmed.toLocaleString("pt-BR"),
+                hint: "ainda na fila",
               },
               {
-                label: "Ausentes",
-                value: (data.byStatus.no_show ?? 0).toLocaleString("pt-BR"),
+                label: "Cancelados + no-show",
+                value: `${(cancelled + noShow).toLocaleString("pt-BR")} (${Math.round(((cancelled + noShow) / denom) * 100)}%)`,
+                hint: `${cancelled} cancel. · ${noShow} ausentes`,
               },
             ]}
           />
 
-          <div className="dash-panel-inner" style={{ margin: "8px 12px 16px" }}>
-            <h3 className="section-title section-title-inset">Distribuição por status</h3>
-            <StatusBarChart data={statusChart} />
+          <div className="dash-grid" style={{ margin: "8px 12px 16px" }}>
+            <div className="dash-panel-inner">
+              <h3 className="section-title section-title-inset">Distribuição por status</h3>
+              {statusChart.length === 0 ? (
+                <p className="empty-decision">Sem agendamentos no período — confira a Agenda.</p>
+              ) : (
+                <StatusBarChart data={statusChart} />
+              )}
+            </div>
+            <div className="dash-panel-inner">
+              <h3 className="section-title section-title-inset">Horários mais cheios (8h–19h)</h3>
+              <div className="heatmap" aria-label="Heatmap de horários">
+                {data.hourHeatmap.map((h) => {
+                  const intensity = h.count / maxHeat;
+                  const bg = `rgba(180, 83, 9, ${0.12 + intensity * 0.75})`;
+                  return (
+                    <div
+                      key={h.hour}
+                      className="heatmap-cell"
+                      style={{ background: bg }}
+                      title={`${String(h.hour).padStart(2, "0")}h: ${h.count}`}
+                    >
+                      <strong>{String(h.hour).padStart(2, "0")}</strong>
+                      <span>{h.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <div className="table-wrap">
@@ -119,7 +186,8 @@ export default async function RelatorioAgendamentosPage({ searchParams }: Props)
                 {data.rows.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="table-empty">
-                      Nenhum agendamento no período.
+                      Nenhum agendamento no período. Ajuste o filtro ou abra a Agenda para
+                      lançar.
                     </td>
                   </tr>
                 ) : (
@@ -152,6 +220,7 @@ export default async function RelatorioAgendamentosPage({ searchParams }: Props)
             params={{
               from: data.from,
               to: data.to,
+              period: period.period,
               status: data.status !== "all" ? data.status : undefined,
               q: data.q || undefined,
             }}

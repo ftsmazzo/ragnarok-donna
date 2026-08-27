@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { FollowUpRow } from "@/server/insights/types";
 import { buildFollowUpDraft } from "@/lib/followup";
@@ -20,6 +21,9 @@ export function FollowUpActions({ row, tenantName }: Props) {
   const [copied, setCopied] = useState(false);
   const draft = buildFollowUpDraft(row, tenantName);
   const wa = digitsPhone(row.phone);
+  const donnaHint = encodeURIComponent(
+    `Follow-up: ${row.clientName} (${row.daysSince}d sem vir). Pode ajudar a reativar?`
+  );
 
   async function copy() {
     try {
@@ -50,9 +54,13 @@ export function FollowUpActions({ row, tenantName }: Props) {
           Sem tel.
         </span>
       )}
-      <span className="followup-soon" title="Sprint 6 — Donna gera e agenda via Evolution">
-        Agendar IA
-      </span>
+      <Link
+        href={`/conversas?q=${encodeURIComponent(row.clientName)}&hint=${donnaHint}`}
+        className="btn btn-outline btn-sm"
+        title="Abrir Conversas IA com contexto de follow-up"
+      >
+        Donna
+      </Link>
     </div>
   );
 }

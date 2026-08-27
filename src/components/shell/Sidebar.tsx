@@ -56,6 +56,7 @@ export function Sidebar({ session }: SidebarProps) {
                 href={item.href}
                 className={`nav-link${active ? " is-active" : ""}`}
               >
+                {item.icon ? <span className="nav-link-icon" aria-hidden>{item.icon}</span> : null}
                 {item.label}
               </Link>
             );
@@ -72,7 +73,10 @@ export function Sidebar({ session }: SidebarProps) {
                 onClick={() => toggle(item.label)}
                 aria-expanded={expanded}
               >
-                <span>{item.label}</span>
+                <span>
+                  {item.icon ? <span className="nav-link-icon" aria-hidden>{item.icon}</span> : null}
+                  {item.label}
+                </span>
                 <span className="nav-caret" aria-hidden>
                   ▾
                 </span>
@@ -87,6 +91,11 @@ export function Sidebar({ session }: SidebarProps) {
                         isActive(pathname, child.href) ? " is-active" : ""
                       }`}
                     >
+                      {child.icon ? (
+                        <span className="nav-link-icon" aria-hidden>
+                          {child.icon}
+                        </span>
+                      ) : null}
                       {child.label}
                     </Link>
                   ))}
