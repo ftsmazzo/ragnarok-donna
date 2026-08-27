@@ -5,6 +5,16 @@ export {
   compileSkillsBlock,
   skillsUsedFromTools,
 } from "./skills";
+export {
+  RAGNAROK_BUSINESS_PROFILE,
+  compileBusinessFactsForPrompt,
+  readBusinessProfileFromSettings,
+} from "./business-profile";
+export type { BusinessProfile } from "./business-profile";
+export {
+  ensureBusinessProfile,
+  ensureBusinessProfileIfMissing,
+} from "./ensure-business-profile";
 export { listToolDefinitions, executeTool, auditToolCall } from "./tools";
 export { runOrchestrator, getDefaultAgentProfile } from "./orchestrator";
 export { backfillAgentPersona, ensureDefaultAgentProfile } from "./persona-profile";

@@ -7,6 +7,11 @@
  */
 import { and, desc, eq } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import {
+  compileBusinessFactsForPrompt,
+  readBusinessProfileFromSettings,
+} from "./business-profile";
+import { ensureBusinessProfileIfMissing } from "./ensure-business-profile";
 import { chatCompletion, getLlmConfig, type ChatMessage } from "./llm";
 import { compilePersonaToSystemPrompt, type AgentPersona } from "./persona";
 import {
@@ -122,20 +127,30 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   const skillNames = enabledSkills.map((s) => s.name) as AgentSkillName[];
   const tools = buildToolsForSkills({ skills: skillNames, toolsEnabled });
 
+  await ensureBusinessProfileIfMissing(input.tenantId);
+
   const db = createDb();
   const [tenant] = await db
-    .select({ name: schema.tenants.name })
+    .select({ name: schema.tenants.name, settings: schema.tenants.settings })
     .from(schema.tenants)
     .where(eq(schema.tenants.id, input.tenantId))
     .limit(1);
 
   const businessName = tenant?.name || "a barbearia";
+  const businessProfile = readBusinessProfileFromSettings(tenant?.settings);
+  const businessFacts = businessProfile
+    ? compileBusinessFactsForPrompt(businessProfile)
+    : "";
+
   const systemPrompt = [
     profile?.systemPrompt?.trim() ||
       (persona ? compilePersonaToSystemPrompt(persona, displayName) : `Você é ${displayName}.`),
+    businessFacts,
     compileSkillsBlock(skillNames),
     runtimeRules(businessName, displayName, input.phoneE164),
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   const history = await loadRecentThread(input.conversationId);
   const historyBlock = history.length

@@ -15,6 +15,10 @@ import {
 } from "./domain-agenda";
 import { dayBoundsSp } from "@/server/agenda/utils";
 import { TOOL_CATALOG } from "./catalog";
+import {
+  formatHoursForAgent,
+  readBusinessProfileFromSettings,
+} from "./business-profile";
 import type { AgentToolName, ToolResult } from "./types";
 
 const ACTIVE_APPOINTMENT_STATUSES = ["scheduled", "confirmed", "arrived", "in_progress"] as const;
@@ -131,6 +135,7 @@ export async function executeTool(
             name: schema.tenants.name,
             slug: schema.tenants.slug,
             timezone: schema.tenants.timezone,
+            settings: schema.tenants.settings,
           })
           .from(schema.tenants)
           .where(eq(schema.tenants.id, ctx.tenantId))
@@ -150,11 +155,34 @@ export async function executeTool(
               isNull(schema.staff.deletedAt)
             )
           );
+        const businessProfile = readBusinessProfileFromSettings(tenant?.settings) ?? null;
         result = {
           ok: true,
           data: {
-            tenant: tenant ?? null,
+            tenant: tenant
+              ? { id: tenant.id, name: tenant.name, slug: tenant.slug, timezone: tenant.timezone }
+              : null,
             bookableStaff: staff,
+            businessProfile: businessProfile
+              ? {
+                  nome: businessProfile.nomeFantasia,
+                  tagline: businessProfile.tagline,
+                  slogan: businessProfile.slogan,
+                  endereco: businessProfile.endereco.textoCompleto,
+                  email: businessProfile.email,
+                  horarios: formatHoursForAgent(businessProfile.horarios),
+                  horariosDetalhe: businessProfile.horarios,
+                  diferenciais: businessProfile.diferenciais,
+                  sobre: businessProfile.sobre,
+                  servicosSite: businessProfile.servicosSite,
+                  redes: businessProfile.redes,
+                  avaliacaoGoogle: businessProfile.avaliacaoGoogle,
+                  desdeAno: businessProfile.desdeAno,
+                  site: businessProfile.sourceUrl,
+                  note: "Não informe WhatsApp do site antigo — o canal desta conversa já é o WhatsApp oficial.",
+                }
+              : null,
+            branding: businessProfile?.brand ?? null,
             toolCatalogVersion: 1,
           },
         };

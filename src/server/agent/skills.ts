@@ -18,6 +18,7 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
    → Liste TODOS os retornados (ou diga que não há). Nunca cite só o mais longe. Nunca invente dia da semana.
 5. Marcar → list_services → list_slots → confirme → book_appointment.
 6. Cancelar → list_client_appointments → cancel_appointment com o id.
+7. Endereço / horário / sobre a loja → get_unit_context (ou use os DADOS DA UNIDADE do system prompt). Nunca cite WhatsApp antigo do site.
 Nunca invente horário.`,
 
   "skill.order": `SKILL.ORDER — produtos e comanda
@@ -173,7 +174,8 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     type: "function",
     function: {
       name: "get_unit_context",
-      description: "Nome da loja, timezone e profissionais bookable.",
+      description:
+        "Dados da loja: endereço, horários, diferenciais, redes, branding e profissionais bookable. Use para perguntas de onde fica / que horas abre / sobre a barbearia.",
       parameters: { type: "object", properties: {} },
     },
   },
