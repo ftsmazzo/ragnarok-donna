@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { createDb } from "@/db";
 import { schema } from "@/db";
+import { getStaffIdForUser } from "../permissions/staff-scope";
 import { UnauthorizedError } from "../errors";
 import type { AppSession } from "../types";
 import { verifyPassword } from "./password";
@@ -73,6 +74,11 @@ export async function login(input: LoginInput): Promise<AppSession> {
     throw new UnauthorizedError("Unidade inativa ou suspensa");
   }
 
+  let staffId: string | null = null;
+  if (membership.role === "staff") {
+    staffId = await getStaffIdForUser(membership.tenantId, user.id);
+  }
+
   const session: AppSession = {
     user: { id: user.id, name: user.name, email: user.email },
     tenant: {
@@ -81,6 +87,7 @@ export async function login(input: LoginInput): Promise<AppSession> {
       slug: membership.tenantSlug,
     },
     role: membership.role,
+    staffId,
   };
 
   await setSessionCookie(session);

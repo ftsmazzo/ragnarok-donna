@@ -9,6 +9,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **0 — Fundação** | ✅ concluído | Auth, tenant context, `server/`, Drawer/Modal |
 | **1 — Clientes** | ✅ concluído | CRUD + Drawer + ficha (histórico) |
 | **2 — Profissionais** | ✅ concluído | CRUD + jornada semanal no Drawer |
+| **2.5 — Perfis (RBAC)** | ✅ concluído | Dono / Recepção / Barbeiro + menu + guards + Equipe |
 | 3 — Agenda operacional | pendente | Modal agendar/bloquear/encaixe |
 | 4 — Comanda | pendente | Abrir → itens → pagamento |
 | 5 — Financeiro real | pendente | Sessão caixa, fluxo, comissões no fechamento |
@@ -16,7 +17,30 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 
 ---
 
-## Sprint 2 — Profissionais ✅
+## Sprint 2.5 — Perfis e permissões ✅
+
+### Papéis (UI)
+| Papel técnico | Nome na UI | Escopo |
+|---------------|------------|--------|
+| `owner` / `admin` | Dono / Administrador | Acesso total |
+| `manager` | Recepção | Agenda, clientes, comandas, caixa, conversas IA, relatório operacional |
+| `staff` | Barbeiro | Própria performance e comissões (vinculado a profissional) |
+| `readonly` | Somente leitura | Consulta limitada |
+
+### Entregue
+- Matriz central em `src/server/permissions/`
+- Menu lateral filtrado por perfil
+- Middleware bloqueia URL direta
+- **Conversas IA** liberada para Recepção + Dono
+- Barbeiro: `/profissionais` → minha performance; `/comissoes` → só próprias
+- **Configurações → Equipe de acesso**: alterar papel e vincular barbeiro ↔ profissional
+- Métricas de cancelamento na Performance: só Dono/Admin
+
+### Próximo (RBAC)
+- Convite de usuário por e-mail
+- Escopo de agenda/comanda por barbeiro (Sprint 3)
+
+---
 
 ### Entregue
 - **+ Novo profissional** abre Drawer

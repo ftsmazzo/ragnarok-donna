@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { createDb, schema } from "@/db";
-import { ForbiddenError, UnauthorizedError } from "../errors";
+import { UnauthorizedError, ForbiddenError } from "../errors";
 import { readSession } from "../auth/session";
-import type { AppSession, MemberRole, TenantContext } from "../types";
+import type { AppSession, TenantContext } from "../types";
 
 /** Sessão obrigatória — use em layouts, pages e services. */
 export async function requireSession(): Promise<AppSession> {
@@ -46,16 +46,4 @@ export async function requireTenantContext(): Promise<TenantContext> {
     timezone: tenant.timezone,
     currency: tenant.currency,
   };
-}
-
-/** Papéis com visão gerencial (cancelamentos, acertos, etc.) */
-export function isManagementRole(role: MemberRole): boolean {
-  return role === "owner" || role === "admin" || role === "manager";
-}
-
-/** Guarda mínima de papéis — expandir conforme sprints. */
-export function requireRole(session: AppSession, allowed: MemberRole[]): void {
-  if (!allowed.includes(session.role)) {
-    throw new ForbiddenError();
-  }
 }

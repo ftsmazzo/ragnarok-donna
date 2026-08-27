@@ -17,6 +17,7 @@ export default async function PainelLayout({
         tenantName: session.tenant.name,
         tenantSlug: session.tenant.slug,
         role: session.role,
+        staffId: session.staffId,
       }}
     >
       {children}

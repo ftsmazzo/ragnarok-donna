@@ -1,3 +1,6 @@
+import { canAccessRoute } from "@/server/permissions/routes";
+import type { MemberRole } from "@/server/types";
+
 export type NavItem = {
   label: string;
   href?: string;
@@ -52,6 +55,7 @@ export const NAV: NavItem[] = [
     label: "Configurações",
     children: [
       { label: "Lista de espera", href: "/lista-espera" },
+      { label: "Equipe de acesso", href: "/configuracoes/equipe" },
       { label: "Parâmetros", href: "/configuracoes" },
       { label: "Rodízio", href: "/modulo/rodizio" },
       { label: "Funcionamento", href: "/modulo/funcionamento" },
@@ -61,3 +65,25 @@ export const NAV: NavItem[] = [
   },
 ];
 
+export function filterNavForRole(role: MemberRole, staffId?: string | null): NavItem[] {
+  const ctx = { staffId };
+
+  return NAV.map((item) => {
+    if (item.href) {
+      return canAccessRoute(item.href, role, ctx) ? item : null;
+    }
+
+    const children = item.children?.filter((c) => canAccessRoute(c.href, role, ctx));
+    if (!children?.length) return null;
+
+    return { ...item, children };
+  }).filter((item): item is NavItem => item !== null);
+}
+
+/** Profissionais: barbeiro vai direto para a própria ficha. */
+export function profissionaisHref(role: MemberRole, staffId?: string | null): string {
+  if (role === "staff" && staffId) {
+    return `/profissionais?id=${staffId}`;
+  }
+  return "/profissionais";
+}

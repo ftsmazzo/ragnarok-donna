@@ -1,11 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { hasCapability } from "@/server/permissions/capabilities";
+import { roleLabel } from "@/server/permissions/roles";
+import type { MemberRole } from "@/server/types";
 
 type ShellSession = {
   userName: string;
   tenantName: string;
-  role: string;
+  role: MemberRole;
 };
 
 type TopbarProps = {
@@ -15,6 +18,7 @@ type TopbarProps = {
 
 export function Topbar({ onToggleSidebar, session }: TopbarProps) {
   const router = useRouter();
+  const showCash = hasCapability(session.role, "cash.read");
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -42,11 +46,17 @@ export function Topbar({ onToggleSidebar, session }: TopbarProps) {
         />
       </div>
       <div className="topbar-actions">
-        <a href="/caixa" className="btn btn-ghost">
-          Caixa
-        </a>
-        <span className="topbar-user" title={`${session.tenantName} · ${session.role}`}>
+        {showCash ? (
+          <a href="/caixa" className="btn btn-ghost">
+            Caixa
+          </a>
+        ) : null}
+        <span
+          className="topbar-user"
+          title={`${session.tenantName} · ${roleLabel(session.role)}`}
+        >
           {session.userName}
+          <small className="topbar-role">{roleLabel(session.role)}</small>
         </span>
         <button type="button" className="btn btn-outline topbar-logout" onClick={handleLogout}>
           Sair

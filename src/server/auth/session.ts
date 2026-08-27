@@ -37,9 +37,9 @@ export async function readSession(): Promise<AppSession | null> {
 
   try {
     const { payload } = await jwtVerify(token, getAuthSecret());
-    const { user, tenant, role } = payload as SessionPayload;
+    const { user, tenant, role, staffId } = payload as SessionPayload;
     if (!user?.id || !tenant?.id || !role) return null;
-    return { user, tenant, role };
+    return { user, tenant, role, staffId: staffId ?? null };
   } catch {
     return null;
   }
@@ -47,10 +47,18 @@ export async function readSession(): Promise<AppSession | null> {
 
 /** Para middleware (edge) — verifica token sem cookies(). */
 export async function verifySessionToken(token: string): Promise<boolean> {
+  const session = await readSessionFromToken(token);
+  return session !== null;
+}
+
+/** Decodifica sessão a partir do JWT (middleware / edge). */
+export async function readSessionFromToken(token: string): Promise<AppSession | null> {
   try {
-    await jwtVerify(token, getAuthSecret());
-    return true;
+    const { payload } = await jwtVerify(token, getAuthSecret());
+    const { user, tenant, role, staffId } = payload as SessionPayload;
+    if (!user?.id || !tenant?.id || !role) return null;
+    return { user, tenant, role, staffId: staffId ?? null };
   } catch {
-    return false;
+    return null;
   }
 }

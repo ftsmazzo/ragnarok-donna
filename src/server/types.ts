@@ -18,6 +18,8 @@ export type AppSession = {
   user: SessionUser;
   tenant: SessionTenant;
   role: MemberRole;
+  /** Profissional vinculado — barbeiro (staff). */
+  staffId?: string | null;
 };
 
 export type TenantContext = SessionTenant & {

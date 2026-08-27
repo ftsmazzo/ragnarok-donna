@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { NAV, type NavItem } from "./nav";
+import { filterNavForRole, type NavItem } from "./nav";
+import type { MemberRole } from "@/server/types";
 
 type ShellSession = {
   tenantName: string;
   tenantSlug: string;
+  role: MemberRole;
+  staffId?: string | null;
 };
 
 type SidebarProps = {
@@ -27,6 +30,7 @@ function hasActiveChild(pathname: string, item: NavItem) {
 export function Sidebar({ session }: SidebarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const nav = filterNavForRole(session.role, session.staffId);
 
   function toggle(label: string) {
     setOpen((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -43,7 +47,7 @@ export function Sidebar({ session }: SidebarProps) {
       </div>
 
       <nav className="sidebar-nav" aria-label="Principal">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           if (item.href) {
             const active = isActive(pathname, item.href);
             return (

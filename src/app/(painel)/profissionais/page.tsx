@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ProfissionaisView } from "@/components/staff/ProfissionaisView";
-import { isManagementRole, requireSession } from "@/server/context/tenant";
+import { StaffBarberView } from "@/components/staff/StaffBarberView";
 import {
   getStaffMember,
   getStaffPerformance,
@@ -9,6 +9,13 @@ import {
 } from "@/server/staff";
 import { NotFoundError } from "@/server/errors";
 import { monthStartSp, todaySp } from "@/lib/datetime";
+import {
+  assertOwnStaffAccess,
+  isBarberRole,
+  isOwnerOnlyInsights,
+  requireOwnStaffId,
+  requirePageAccess,
+} from "@/server/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +32,35 @@ type Props = {
 
 export default async function ProfissionaisPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const filter = (sp.filter as StaffFilter) || "ativos";
-  const data = await listStaffMembers({ q: sp.q, filter });
+  const session = await requirePageAccess("/profissionais", sp);
 
   const perfFrom = sp.from ?? monthStartSp();
   const perfTo = sp.to ?? todaySp();
+
+  if (isBarberRole(session.role)) {
+    const staffId = sp.id ?? (await requireOwnStaffId(session));
+    await assertOwnStaffAccess(session, staffId);
+    const [staff, performance] = await Promise.all([
+      getStaffMember(staffId),
+      getStaffPerformance(staffId, {
+        from: perfFrom,
+        to: perfTo,
+        includeManagementMetrics: false,
+      }),
+    ]);
+
+    return (
+      <StaffBarberView
+        staff={staff}
+        performance={performance}
+        perfFrom={perfFrom}
+        perfTo={perfTo}
+      />
+    );
+  }
+
+  const filter = (sp.filter as StaffFilter) || "ativos";
+  const data = await listStaffMembers({ q: sp.q, filter });
 
   let selectedStaff = null;
   let selectedPerformance = null;
@@ -39,12 +70,11 @@ export default async function ProfissionaisPage({ searchParams }: Props) {
     drawerMode = "new";
   } else if (sp.id) {
     try {
-      const session = await requireSession();
       selectedStaff = await getStaffMember(sp.id);
       selectedPerformance = await getStaffPerformance(sp.id, {
         from: perfFrom,
         to: perfTo,
-        includeManagementMetrics: isManagementRole(session.role),
+        includeManagementMetrics: isOwnerOnlyInsights(session.role),
       });
       drawerMode = "edit";
     } catch (err) {

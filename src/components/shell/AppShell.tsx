@@ -4,11 +4,14 @@ import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
+import type { MemberRole } from "@/server/types";
+
 export type ShellSession = {
   userName: string;
   tenantName: string;
   tenantSlug: string;
-  role: string;
+  role: MemberRole;
+  staffId?: string | null;
 };
 
 type AppShellProps = {

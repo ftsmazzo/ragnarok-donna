@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { AppError, ForbiddenError, NotFoundError } from "../errors";
-import { requireRole, requireSession, requireTenantContext } from "../context/tenant";
+import { requireCapability } from "../permissions/guards";
+import { requireSession, requireTenantContext } from "../context/tenant";
 import { getStaffMember } from "./queries";
 import { normalizeEmail, normalizeName, normalizePhone } from "../clients/normalize";
 
@@ -58,7 +59,7 @@ function parseStaffInput(raw: StaffInput): StaffInput & { commissionBps: number 
 
 function assertCanWriteAsync() {
   return requireSession().then((session) => {
-    requireRole(session, ["owner", "admin", "manager"]);
+    requireCapability(session, "staff.write");
     return session;
   });
 }
