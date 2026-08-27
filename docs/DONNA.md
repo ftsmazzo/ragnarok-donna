@@ -26,8 +26,8 @@ WhatsApp (Evolution)
 | Fase | Entrega | Status |
 |------|---------|--------|
 | **6.0** | Contrato + schema `outreach_jobs` + scaffolding agent/tools/skills + APIs stub + `/conversas` esqueleto | ✅ |
-| **6.1** | Inbox `/conversas` (lista + thread + handoff UI) | próximo |
-| **6.2** | Webhook Evolution → persistir msg → resposta (sem tools ou 1 tool) | |
+| **6.1** | Inbox `/conversas` (lista + thread + handoff UI) | ✅ |
+| **6.2** | Webhook Evolution → persistir msg → resposta (sem tools ou 1 tool) | próximo |
 | **6.3** | Tools v1 ligadas ao domínio (agenda + cliente) | |
 | **6.4** | Skills + follow-up (lista retorno → fila → envio) | |
 | **6.5** | MCP bridge (mesmas tools) + n8n opcional | |

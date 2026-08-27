@@ -19,7 +19,8 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **5.8 — Vales + fluxo** | ✅ concluído | staff_advances, a pagar líquido, fluxo de caixa |
 | **5.9 — Follow-up / ações** | ✅ concluído | 60d retorno, recorrência 45d, lista + msg |
 | **6.0 — Donna scaffold** | ✅ concluído | Orquestrador, tools/skills, outreach_jobs, APIs, /conversas |
-| **6.1 — Inbox real** | 🔄 próximo | Thread + handoff UI |
+| **6.1 — Inbox real** | ✅ concluído | Thread + handoff IA ↔ humano |
+| **6.2 — Webhook Evolution** | 🔄 próximo | Persistência de msgs + resposta |
 
 ---
 
@@ -34,6 +35,20 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 
 ### Próximo (6.1)
 - Thread de conversa + handoff IA ↔ humano na UI
+
+---
+
+## Sprint 6.1 — Inbox real ✅
+
+### Entregue
+- Drawer de thread com histórico (inbound / IA / humano / sistema)
+- **Assumir atendimento** / **Devolver à IA** (mode + assignedUser + msgs de sistema)
+- Resposta humana persistida no thread (envio WA na 6.2)
+- Filtros Todas / IA / Humano
+- Botão **Conversa de teste** para validar sem WhatsApp
+
+### Próximo (6.2)
+- Webhook Evolution → persistir inbound → orquestrador → outbound
 
 ---
 

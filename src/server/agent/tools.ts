@@ -102,12 +102,14 @@ export async function executeTool(
           break;
         }
         const db = createDb();
+        const now = new Date();
         await db
           .update(schema.conversations)
           .set({
             mode: "human",
-            humanRequestedAt: new Date(),
-            updatedAt: new Date(),
+            humanRequestedAt: now,
+            lastMessageAt: now,
+            updatedAt: now,
           })
           .where(
             and(
@@ -115,6 +117,12 @@ export async function executeTool(
               eq(schema.conversations.tenantId, ctx.tenantId)
             )
           );
+        await db.insert(schema.messages).values({
+          tenantId: ctx.tenantId,
+          conversationId: ctx.conversationId,
+          direction: "system",
+          body: "Cliente pediu atendimento humano — aguardando recepção.",
+        });
         result = { ok: true, data: { mode: "human" } };
         break;
       }
