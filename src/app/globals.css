@@ -205,8 +205,17 @@ input {
 .nav-link.is-active {
   background: var(--sidebar-active);
   color: var(--sidebar-ink-active);
+}
+
+/* Barra laranja só no item principal — submenu não desloca */
+.nav-link.is-active:not(.nav-child) {
   border-left: 3px solid var(--header);
   padding-left: 13px;
+}
+
+.nav-child.is-active {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
 }
 
 .nav-toggle .nav-caret {
