@@ -128,9 +128,22 @@ function buildScheduleReply(input: {
 
   // Cliente conhecido + último serviço
   if (client.found && client.lastServiceName) {
+    const lastMatchesHint =
+      serviceHint === "corte"
+        ? /corte|cabelo|degrad/i.test(client.lastServiceName)
+        : serviceHint === "combo"
+          ? isComboName(client.lastServiceName)
+          : serviceHint === "barba"
+            ? /barba/i.test(client.lastServiceName)
+            : true;
+
+    if (serviceHint === "corte" && !lastMatchesHint) {
+      return `${hi} Pro ${day} consigo ver horário. É só corte ou você quer o combo com barba? Prefere manhã ou tarde?`;
+    }
+
     return [
       `${hi} Vi que da última vez foi ${client.lastServiceName}.`,
-      serviceHint === "corte"
+      lastMatchesHint && serviceHint === "corte"
         ? `No ${day} você quer só o corte de novo, ou prefere o combo com barba? Manhã ou tarde?`
         : `Quer repetir no ${day}, ou muda o serviço? Me fala também se prefere manhã ou tarde.`,
     ].join(" ");
