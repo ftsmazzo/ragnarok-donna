@@ -30,12 +30,9 @@ type Props = {
   toolCount: number;
   skillTitles: { name: string; title: string; description: string }[];
   whatsApp: WhatsAppConnectionView | null;
+  /** Layout enxuto para PWA / celular */
+  compact?: boolean;
 };
-
-function filterHref(filter: ConversationFilter) {
-  if (filter === "todas") return "/conversas";
-  return `/conversas?filter=${filter}`;
-}
 
 export function ConversasView({
   tenantName,
@@ -44,12 +41,18 @@ export function ConversasView({
   toolCount,
   skillTitles,
   whatsApp,
+  compact = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [seedError, setSeedError] = useState<string | null>(null);
+
+  function filterHref(filter: ConversationFilter) {
+    if (filter === "todas") return pathname;
+    return `${pathname}?filter=${filter}`;
+  }
 
   function buildUrl(params: Record<string, string | undefined>) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -93,7 +96,7 @@ export function ConversasView({
         setSeedError(result.error);
         return;
       }
-      router.push("/conversas");
+      router.push(pathname);
       router.refresh();
     });
   }
@@ -101,10 +104,22 @@ export function ConversasView({
   return (
     <>
       <PageHeader
-        title="Conversas"
-        subtitle={`${tenantName} · inbox IA ↔ humano`}
+        title={compact ? "Inbox" : "Conversas"}
+        subtitle={
+          compact
+            ? `${tenantName} · atendimento`
+            : `${tenantName} · inbox IA ↔ humano`
+        }
         actions={
+          compact ? (
+            <Link href={`${pathname}?filter=human`} className="btn btn-primary btn-sm">
+              Humanos
+            </Link>
+          ) : (
           <div className="header-actions">
+            <Link href="/pwa/conversas" className="btn btn-outline">
+              App celular
+            </Link>
             <Link href="/relatorios/perfil?tab=retorno" className="btn btn-outline">
               Lista de retorno
             </Link>
@@ -125,9 +140,11 @@ export function ConversasView({
               {pending ? "Criando…" : "Conversa de teste"}
             </button>
           </div>
+          )
         }
       />
 
+      {!compact ? (
       <div className="dash-grid" style={{ marginBottom: 12 }}>
         <WhatsAppConnectPanel initial={whatsApp} />
         <section className="panel dash-panel">
@@ -166,6 +183,12 @@ export function ConversasView({
           </div>
         </section>
       </div>
+      ) : (
+        <div style={{ marginBottom: 10 }}>
+          <WhatsAppConnectPanel initial={whatsApp} />
+          {seedError ? <p className="form-error">{seedError}</p> : null}
+        </div>
+      )}
 
       <section className="panel">
         <div className="panel-toolbar panel-toolbar-split">

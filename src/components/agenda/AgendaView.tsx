@@ -26,6 +26,7 @@ type Props = {
   services: AgendaPickerService[];
   permissions: AgendaPermissions;
   staffFilter?: string;
+  tabletMode?: boolean;
 };
 
 function slotClass(a: AgendaAppointment): string {
@@ -48,7 +49,13 @@ function slotsForHour(
   });
 }
 
-export function AgendaView({ data, services, permissions, staffFilter }: Props) {
+export function AgendaView({
+  data,
+  services,
+  permissions,
+  staffFilter,
+  tabletMode = false,
+}: Props) {
   const router = useRouter();
   const prevDate = shiftDateSp(data.date, -1);
   const nextDate = shiftDateSp(data.date, 1);
@@ -65,10 +72,18 @@ export function AgendaView({ data, services, permissions, staffFilter }: Props) 
     router.refresh();
   }
 
-  function staffHref(id?: string) {
-    const sp = new URLSearchParams({ date: data.date });
-    if (id) sp.set("staff", id);
+  function qs(extra?: Record<string, string | undefined>) {
+    const sp = new URLSearchParams();
+    sp.set("date", extra?.date ?? data.date);
+    const staff = extra && "staff" in extra ? extra.staff : staffFilter;
+    if (staff) sp.set("staff", staff);
+    const modo = extra && "modo" in extra ? extra.modo : tabletMode ? "tablet" : undefined;
+    if (modo) sp.set("modo", modo);
     return `/agenda?${sp.toString()}`;
+  }
+
+  function staffHref(id?: string) {
+    return qs({ staff: id });
   }
 
   function openSlot(staffId: string, hour: number, mode: AgendaFormMode) {
@@ -86,17 +101,23 @@ export function AgendaView({ data, services, permissions, staffFilter }: Props) 
   return (
     <>
       <PageHeader
-        title="Agenda"
+        title={tabletMode ? "Agenda · Mesa" : "Agenda"}
         subtitle={`${dateLabel} · ${data.totalAppointments} agendamento(s)`}
         actions={
           <>
-            <Link href={`/agenda?date=${data.date}`} className="btn btn-outline">
+            <Link
+              href={tabletMode ? qs({ modo: undefined }) : qs({ modo: "tablet" })}
+              className="btn btn-outline"
+            >
+              {tabletMode ? "Modo normal" : "Modo tablet"}
+            </Link>
+            <Link href={qs({ date: data.date })} className="btn btn-outline">
               Hoje
             </Link>
-            <Link href={`/agenda?date=${prevDate}${staffFilter ? `&staff=${staffFilter}` : ""}`} className="btn btn-outline">
+            <Link href={qs({ date: prevDate })} className="btn btn-outline">
               ← Anterior
             </Link>
-            <Link href={`/agenda?date=${nextDate}${staffFilter ? `&staff=${staffFilter}` : ""}`} className="btn btn-outline">
+            <Link href={qs({ date: nextDate })} className="btn btn-outline">
               Próximo →
             </Link>
             {permissions.canWrite ? (
@@ -136,7 +157,7 @@ export function AgendaView({ data, services, permissions, staffFilter }: Props) 
         </div>
       )}
 
-      <div className="agenda-layout">
+      <div className={`agenda-layout${tabletMode ? " is-tablet" : ""}`}>
         <section>
           {data.staff.length === 0 ? (
             <div className="panel-empty">Nenhum profissional na agenda.</div>
@@ -144,7 +165,9 @@ export function AgendaView({ data, services, permissions, staffFilter }: Props) 
             <div
               className="agenda-grid"
               style={{
-                gridTemplateColumns: `56px repeat(${staffCols}, minmax(120px, 1fr))`,
+                gridTemplateColumns: tabletMode
+                  ? `72px repeat(${staffCols}, minmax(160px, 1fr))`
+                  : `56px repeat(${staffCols}, minmax(120px, 1fr))`,
               }}
             >
               <div className="agenda-head" />
@@ -227,6 +250,7 @@ export function AgendaView({ data, services, permissions, staffFilter }: Props) 
           </div>
         </section>
 
+        {!tabletMode ? (
         <aside>
           <div className="side-card">
             <h3>Resumo do dia</h3>
@@ -253,6 +277,18 @@ export function AgendaView({ data, services, permissions, staffFilter }: Props) 
             </div>
           </div>
         </aside>
+        ) : (
+          <aside className="agenda-tablet-strip">
+            <div className="side-card">
+              <h3>Hoje</h3>
+              <div className="body">
+                <strong style={{ fontSize: 28 }}>{data.totalAppointments}</strong>
+                <br />
+                agendamentos · toque no horário para ver
+              </div>
+            </div>
+          </aside>
+        )}
       </div>
 
       {formMode && slot ? (

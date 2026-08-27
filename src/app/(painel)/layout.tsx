@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import { eq } from "drizzle-orm";
 import { AppShell } from "@/components/shell/AppShell";
 import { createDb, schema } from "@/db";
@@ -30,18 +31,20 @@ export default async function PainelLayout({
   });
 
   return (
-    <AppShell
-      session={{
-        userName: session.user.name,
-        tenantName: brand.displayName,
-        tenantSlug: session.tenant.slug,
-        role: session.role,
-        staffId: session.staffId,
-        brandLogoSrc: brand.logoSrc,
-        brandTagline: brand.tagline,
-      }}
-    >
-      {children}
-    </AppShell>
+    <Suspense fallback={<div className="app-shell" />}>
+      <AppShell
+        session={{
+          userName: session.user.name,
+          tenantName: brand.displayName,
+          tenantSlug: session.tenant.slug,
+          role: session.role,
+          staffId: session.staffId,
+          brandLogoSrc: brand.logoSrc,
+          brandTagline: brand.tagline,
+        }}
+      >
+        {children}
+      </AppShell>
+    </Suspense>
   );
 }

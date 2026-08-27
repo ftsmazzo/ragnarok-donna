@@ -9,12 +9,13 @@ import { requirePageAccess } from "@/server/permissions/page-access";
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ date?: string; staff?: string }>;
+  searchParams: Promise<{ date?: string; staff?: string; modo?: string }>;
 };
 
 export default async function AgendaPage({ searchParams }: Props) {
   const sp = await searchParams;
   await requirePageAccess("/agenda", sp);
+  const tabletMode = sp.modo === "tablet";
 
   const [data, services, permissions] = await Promise.all([
     getAgendaDay(sp.date, sp.staff),
@@ -28,6 +29,7 @@ export default async function AgendaPage({ searchParams }: Props) {
       services={services}
       permissions={permissions}
       staffFilter={sp.staff}
+      tabletMode={tabletMode}
     />
   );
 }

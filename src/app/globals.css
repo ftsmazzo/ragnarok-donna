@@ -1984,3 +1984,96 @@ input {
   color: var(--muted);
   background: #fafafa;
 }
+
+.empresa-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.empresa-span-2 {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .empresa-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pwa-shell {
+  min-height: 100vh;
+  background: #f4f4f4;
+  display: flex;
+  flex-direction: column;
+}
+
+.pwa-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #1a1a1a;
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.pwa-body {
+  padding: 12px;
+  flex: 1;
+}
+
+.pwa-notify-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.app-shell.is-tablet-mode .app-content {
+  padding: 10px 12px 24px;
+}
+
+.agenda-layout.is-tablet {
+  grid-template-columns: 1fr minmax(160px, 220px);
+  gap: 12px;
+}
+
+.agenda-layout.is-tablet .agenda-grid {
+  font-size: 15px;
+}
+
+.agenda-layout.is-tablet .agenda-cell {
+  min-height: 64px;
+}
+
+.agenda-layout.is-tablet .slot {
+  padding: 8px 10px;
+  font-size: 14px;
+  border-radius: 8px;
+  min-height: 48px;
+}
+
+.agenda-layout.is-tablet .agenda-time {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.agenda-tablet-strip .side-card .body {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+@media (max-width: 900px) {
+  .agenda-layout.is-tablet {
+    grid-template-columns: 1fr;
+  }
+}

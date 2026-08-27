@@ -71,7 +71,9 @@ const RULES: RouteRule[] = [
   { pattern: "/lista-espera", roles: ["owner", "admin", "manager"] },
   { pattern: "/configuracoes/equipe", roles: ["owner", "admin"] },
   { pattern: "/configuracoes/agente", roles: ["owner", "admin"] },
+  { pattern: "/configuracoes/empresa", roles: ["owner", "admin"] },
   { pattern: "/configuracoes", roles: ["owner", "admin"] },
+  { pattern: "/pwa/conversas", roles: ["owner", "admin", "manager"] },
 
   /** Módulos genéricos stub — só gestão. */
   { pattern: "/modulo/*", roles: ["owner", "admin"] },

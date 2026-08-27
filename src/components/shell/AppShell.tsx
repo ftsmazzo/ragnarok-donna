@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
@@ -22,10 +23,18 @@ type AppShellProps = {
 };
 
 export function AppShell({ children, session }: AppShellProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const searchParams = useSearchParams();
+  const tabletMode = searchParams.get("modo") === "tablet";
+  const [collapsed, setCollapsed] = useState(tabletMode);
+
+  useEffect(() => {
+    if (tabletMode) setCollapsed(true);
+  }, [tabletMode]);
 
   return (
-    <div className={`app-shell${collapsed ? " is-collapsed" : ""}`}>
+    <div
+      className={`app-shell${collapsed ? " is-collapsed" : ""}${tabletMode ? " is-tablet-mode" : ""}`}
+    >
       <Sidebar session={session} />
       <div className="app-main">
         <Topbar session={session} onToggleSidebar={() => setCollapsed((v) => !v)} />
