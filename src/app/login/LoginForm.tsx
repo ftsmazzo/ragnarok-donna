@@ -2,11 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { resolveClientHomePath } from "@/lib/device";
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/inicio";
+  const nextParam = searchParams.get("next");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +32,10 @@ export function LoginForm() {
         return;
       }
 
-      router.push(next);
+      // Celular → conversas; tablet → agenda; PC → início (ou ?next= explícito)
+      const forced = nextParam && nextParam !== "/inicio" && nextParam !== "/" ? nextParam : null;
+      const dest = forced ?? resolveClientHomePath();
+      router.push(dest);
       router.refresh();
     } catch {
       setError("Não foi possível conectar. Tente novamente.");

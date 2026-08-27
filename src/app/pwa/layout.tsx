@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Donna · Conversas",
@@ -21,18 +20,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function PwaLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="pwa-shell">
-      <header className="pwa-top">
-        <strong>Donna · Conversas</strong>
-        <Link href="/conversas" className="btn btn-ghost btn-sm">
-          Painel completo
-        </Link>
-      </header>
-      <div className="pwa-body">{children}</div>
-    </div>
-  );
+  return <div className="pwa-shell">{children}</div>;
 }

@@ -1,15 +1,11 @@
 import { Suspense } from "react";
-import { ConversasView } from "@/components/conversas/ConversasView";
-import { PwaHandoffWatcher } from "@/components/pwa/PwaHandoffWatcher";
+import { ConversasMobileApp } from "@/components/pwa/ConversasMobileApp";
 import {
   ensureDefaultAgentProfile,
   getConversation,
   listConversations,
-  SKILL_CATALOG,
-  TOOL_CATALOG,
   type ConversationFilter,
 } from "@/server/agent";
-import { getWhatsAppConnection } from "@/server/agent/connection";
 import { requireTenantContext } from "@/server/context/tenant";
 import { NotFoundError } from "@/server/errors";
 import { requirePageAccess } from "@/server/permissions/page-access";
@@ -33,7 +29,6 @@ export default async function PwaConversasPage({ searchParams }: Props) {
   const filter: ConversationFilter =
     sp.filter === "ai" || sp.filter === "human" ? sp.filter : "todas";
   const data = await listConversations({ filter });
-  const whatsApp = await getWhatsAppConnection();
 
   let selected = null;
   if (sp.id) {
@@ -45,23 +40,8 @@ export default async function PwaConversasPage({ searchParams }: Props) {
   }
 
   return (
-    <>
-      <PwaHandoffWatcher />
-      <Suspense fallback={<p className="panel-empty">Carregando…</p>}>
-        <ConversasView
-          tenantName={tenant.name}
-          data={data}
-          selected={selected}
-          toolCount={TOOL_CATALOG.length}
-          skillTitles={SKILL_CATALOG.map((s) => ({
-            name: s.name,
-            title: s.title,
-            description: s.description,
-          }))}
-          whatsApp={whatsApp}
-          compact
-        />
-      </Suspense>
-    </>
+    <Suspense fallback={<p className="panel-empty">Carregando…</p>}>
+      <ConversasMobileApp rows={data.rows} filter={filter} selected={selected} />
+    </Suspense>
   );
 }

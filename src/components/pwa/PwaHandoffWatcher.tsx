@@ -34,7 +34,6 @@ export function PwaHandoffWatcher() {
 
   useEffect(() => {
     if (!ready) return;
-    let cancelled = false;
 
     async function tick() {
       try {
@@ -67,11 +66,7 @@ export function PwaHandoffWatcher() {
 
     tick();
     const id = window.setInterval(tick, 20000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-      void cancelled;
-    };
+    return () => window.clearInterval(id);
   }, [ready]);
 
   async function enable() {
@@ -81,19 +76,14 @@ export function PwaHandoffWatcher() {
   }
 
   if (perm === "unsupported") return null;
+  if (perm === "granted") return null;
 
   return (
     <div className="pwa-notify-bar">
-      {perm !== "granted" ? (
-        <button type="button" className="btn btn-primary btn-sm" onClick={enable}>
-          Ativar alertas no celular
-        </button>
-      ) : (
-        <span className="badge is-success">Alertas ativos</span>
-      )}
-      <span className="muted-note">
-        {ready ? "App pronto para instalar (menu do navegador → Adicionar à tela inicial)" : "Preparando PWA…"}
-      </span>
+      <button type="button" className="btn btn-primary btn-sm" onClick={enable}>
+        Ativar alertas
+      </button>
+      <span className="muted-note">Avisa quando o cliente pedir atendimento humano.</span>
     </div>
   );
 }

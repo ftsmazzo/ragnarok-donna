@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { homePathForUserAgent, isPhoneUserAgent, isTabletUserAgent } from "@/lib/device";
 import { SESSION_COOKIE } from "@/server/auth/constants";
 import { readSessionFromToken } from "@/server/auth/session";
 import {
@@ -7,11 +8,24 @@ import {
   defaultRouteForRole,
 } from "@/server/permissions/routes";
 import { isBarberRole } from "@/server/permissions/roles";
+import type { MemberRole } from "@/server/types";
 
 const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/agent"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function deviceHome(request: NextRequest, role: MemberRole, staffId?: string | null): string {
+  const ua = request.headers.get("user-agent");
+  if (isBarberRole(role) && (isPhoneUserAgent(ua) || isTabletUserAgent(ua))) {
+    return "/agenda?modo=tablet";
+  }
+  const path = homePathForUserAgent(ua, role);
+  if (path === "/pwa/conversas" && !canAccessRoute("/pwa/conversas", role, { staffId })) {
+    return "/agenda?modo=tablet";
+  }
+  return path;
 }
 
 export async function middleware(request: NextRequest) {
@@ -32,7 +46,33 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
+  const ua = request.headers.get("user-agent");
   const normalized = pathname === "/" ? "/inicio" : pathname;
+  const mobileLike = isPhoneUserAgent(ua) || isTabletUserAgent(ua);
+
+  // Celular/tablet: / e /inicio → modo resumido (sem menu desktop).
+  // Escape: ?painel=1 mantém o Início completo.
+  if (
+    (normalized === "/inicio" || pathname === "/") &&
+    searchParams.get("painel") !== "1" &&
+    mobileLike
+  ) {
+    const dest = deviceHome(request, session.role, session.staffId);
+    if (dest !== "/inicio") {
+      return NextResponse.redirect(new URL(dest, request.url));
+    }
+  }
+
+  // Conversas do painel no celular → PWA (lista/chat usável)
+  if (
+    mobileLike &&
+    normalized === "/conversas" &&
+    canAccessRoute("/pwa/conversas", session.role, { staffId: session.staffId })
+  ) {
+    const url = new URL("/pwa/conversas", request.url);
+    searchParams.forEach((v, k) => url.searchParams.set(k, v));
+    return NextResponse.redirect(url);
+  }
 
   if (isBarberRole(session.role) && normalized === "/profissionais" && !searchParams.get("id")) {
     if (session.staffId) {
@@ -43,7 +83,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (barberNeedsStaffLink(normalized, session.role, session.staffId)) {
-    const url = new URL("/inicio", request.url);
+    const url = new URL(deviceHome(request, session.role, session.staffId), request.url);
     url.searchParams.set("aviso", "vinculo-profissional");
     return NextResponse.redirect(url);
   }
@@ -54,8 +94,11 @@ export async function middleware(request: NextRequest) {
   });
 
   if (!allowed) {
-    const fallback = defaultRouteForRole(session.role, session.staffId);
-    const url = new URL(fallback, request.url);
+    // No celular, nunca devolve para /inicio (isso reabre o redirect e vira loop).
+    const dest = mobileLike
+      ? "/agenda?modo=tablet"
+      : defaultRouteForRole(session.role, session.staffId);
+    const url = new URL(dest, request.url);
     url.searchParams.set("acesso", "negado");
     return NextResponse.redirect(url);
   }
