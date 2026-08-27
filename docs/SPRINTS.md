@@ -18,7 +18,22 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **5.7 — Relatórios Barber + Início** | ✅ concluído | 4 gerenciais + comissões + início visual |
 | **5.8 — Vales + fluxo** | ✅ concluído | staff_advances, a pagar líquido, fluxo de caixa |
 | **5.9 — Follow-up / ações** | ✅ concluído | 60d retorno, recorrência 45d, lista + msg |
-| 6 — IA / Donna | pendente | Evolution, conversas, envio agendado |
+| **6.0 — Donna scaffold** | ✅ concluído | Orquestrador, tools/skills, outreach_jobs, APIs, /conversas |
+| **6.1 — Inbox real** | 🔄 próximo | Thread + handoff UI |
+
+---
+
+## Sprint 6.0 — Donna scaffold ✅
+
+### Entregue
+- Desenho em `docs/DONNA.md` (camadas, fases 6.0–6.5, tools/skills, MCP, segurança)
+- Schema `outreach_jobs` + DDL no bootstrap de produção
+- `src/server/agent/`: catálogo tools/skills, `executeTool` (get_unit_context + stubs), orquestrador heurístico, auth de serviço
+- APIs: `GET /api/agent/catalog`, `POST /api/agent/orchestrate` (Bearer `AGENT_SERVICE_TOKEN`)
+- `/conversas` esqueleto: status WA, perfil Donna default, inbox vazia
+
+### Próximo (6.1)
+- Thread de conversa + handoff IA ↔ humano na UI
 
 ---
 

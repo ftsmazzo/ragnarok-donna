@@ -8,7 +8,7 @@ import {
 } from "@/server/permissions/routes";
 import { isBarberRole } from "@/server/permissions/roles";
 
-const PUBLIC_PREFIXES = ["/login", "/api/auth/login"];
+const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/agent"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

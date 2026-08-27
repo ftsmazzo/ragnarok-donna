@@ -176,3 +176,35 @@ export const aiUsageDaily = pgTable(
   },
   (t) => [uniqueIndex("ai_usage_daily_tenant_day_uidx").on(t.tenantId, t.day)]
 );
+
+/**
+ * Fila de outreach (follow-up / campanha).
+ * Donna ou n8n consome: pending → sending → sent|failed|cancelled.
+ */
+export const outreachJobs = pgTable(
+  "outreach_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "set null",
+    }),
+    phoneE164: varchar("phone_e164", { length: 20 }).notNull(),
+    /** followup_inactive | followup_recurrence | manual | campaign */
+    kind: varchar("kind", { length: 40 }).notNull().default("followup_inactive"),
+    body: text("body").notNull().default(""),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    errorMessage: varchar("error_message", { length: 400 }),
+    meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    index("outreach_jobs_tenant_status_sched_idx").on(t.tenantId, t.status, t.scheduledAt),
+    index("outreach_jobs_tenant_client_idx").on(t.tenantId, t.clientId),
+  ]
+);
