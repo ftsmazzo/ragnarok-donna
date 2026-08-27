@@ -10,7 +10,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **1 — Clientes** | ✅ concluído | CRUD + Drawer + ficha (histórico) |
 | **2 — Profissionais** | ✅ concluído | CRUD + jornada semanal no Drawer |
 | **2.5 — Perfis (RBAC)** | ✅ concluído | Dono / Recepção / Barbeiro + menu + guards + Equipe |
-| 3 — Agenda operacional | pendente | Modal agendar/bloquear/encaixe |
+| **3 — Agenda operacional** | ✅ concluído | Agendar, bloquear, encaixe, status, escopo barbeiro |
 | 4 — Comanda | pendente | Abrir → itens → pagamento |
 | 5 — Financeiro real | pendente | Sessão caixa, fluxo, comissões no fechamento |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
@@ -36,9 +36,21 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 - **Configurações → Equipe de acesso**: alterar papel e vincular barbeiro ↔ profissional
 - Métricas de cancelamento na Performance: só Dono/Admin
 
-### Próximo (RBAC)
-- Convite de usuário por e-mail
-- Escopo de agenda/comanda por barbeiro (Sprint 3)
+---
+
+## Sprint 3 — Agenda operacional ✅
+
+### Entregue
+- Grade diária por profissional (multi-tenant via sessão)
+- **Agendar**: clique em célula vazia → modal (cliente, serviço, horário)
+- **Bloquear**: botão direito em célula vazia → modal de bloqueio
+- **Encaixe**: botão + Encaixe (permite sobreposição)
+- **Detalhe**: clique no slot → status operacional (confirmar, chegou, em atendimento, finalizar)
+- **Cancelamento / ausência**: só Dono, Admin e Recepção
+- Barbeiro: vê só a própria coluna; pode atualizar status do próprio atendimento
+- Busca de cliente no modal; duração vem do serviço
+- Conflito de horário validado (exceto encaixe)
+- Lógica em `src/server/agenda/`
 
 ---
 

@@ -11,6 +11,10 @@ export type Capability =
   | "catalog.write"
   | "orders.read"
   | "orders.write"
+  | "appointments.read"
+  | "appointments.write"
+  | "appointments.cancel"
+  | "appointments.status_own"
   | "cash.read"
   | "cash.write"
   | "commissions.read_all"
@@ -32,6 +36,9 @@ const OWNER: Capability[] = [
   "catalog.write",
   "orders.read",
   "orders.write",
+  "appointments.read",
+  "appointments.write",
+  "appointments.cancel",
   "cash.read",
   "cash.write",
   "commissions.read_all",
@@ -50,6 +57,9 @@ const RECEPTION: Capability[] = [
   "clients.write",
   "orders.read",
   "orders.write",
+  "appointments.read",
+  "appointments.write",
+  "appointments.cancel",
   "cash.read",
   "cash.write",
   "reports.operational",
@@ -58,12 +68,19 @@ const RECEPTION: Capability[] = [
 ];
 
 const BARBER: Capability[] = [
+  "appointments.read",
+  "appointments.status_own",
   "orders.read",
   "commissions.read_own",
   "staff.read",
 ];
 
-const READONLY: Capability[] = ["clients.read", "orders.read", "reports.operational"];
+const READONLY: Capability[] = [
+  "clients.read",
+  "appointments.read",
+  "orders.read",
+  "reports.operational",
+];
 
 const BY_ROLE: Record<MemberRole, Capability[]> = {
   owner: OWNER,
