@@ -20,10 +20,11 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
 6. Cancelar → list_client_appointments → cancel_appointment com o id.
 Nunca invente horário.`,
 
-  "skill.order": `SKILL.ORDER — comanda
-Quando o assunto for consumo na loja / comanda aberta:
-find_client → open_order / add_order_item (se disponíveis).
-Se a tool não estiver pronta, diga que a recepção resolve na loja.`,
+  "skill.order": `SKILL.ORDER — produtos e comanda
+Quando o cliente pergunta sobre produto à venda (balm, pomada, shampoo, óleo, kit…):
+→ list_products com query (ex.: "balm", "barba"). Responda com nome + priceLabel.
+Se count=0, diga que não encontrou no estoque de venda e ofereça chamar a equipe — não invente.
+Para comanda na loja: find_client → open_order / add_order_item (se disponíveis).`,
 
   "skill.followup": `SKILL.FOLLOWUP — retorno
 Quando for convite de retorno / cliente sumido:
@@ -87,8 +88,28 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     type: "function",
     function: {
       name: "list_services",
-      description: "Lista serviços ativos com preço e duração.",
-      parameters: { type: "object", properties: {} },
+      description: "Lista serviços ativos com preço e duração. Opcional: query para filtrar pelo nome.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "Filtro opcional (ex.: corte, barba)" } },
+      },
+    },
+  },
+  list_products: {
+    type: "function",
+    function: {
+      name: "list_products",
+      description:
+        "Lista produtos à venda na loja com preço (priceLabel). Use quando perguntarem balm, pomada, shampoo, óleo, etc. Passe query para filtrar.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Filtro (ex.: balm, barba, pomada). Vazio = catálogo de venda.",
+          },
+        },
+      },
     },
   },
   list_slots: {
@@ -220,6 +241,10 @@ export function buildToolsForSkills(input: {
   if (enabled.has("get_unit_context")) names.add("get_unit_context");
   if (enabled.has("cancel_appointment")) names.add("cancel_appointment");
   if (enabled.has("list_client_appointments")) names.add("list_client_appointments");
+  // Perfis antigos podem não ter list_products no toolsEnabled — libera junto com catálogo.
+  if (TOOL_SCHEMAS.list_products && (!input.toolsEnabled?.length || enabled.has("list_services") || enabled.has("list_products"))) {
+    names.add("list_products");
+  }
 
   return [...names].map((n) => TOOL_SCHEMAS[n]);
 }

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import {
   formatDateSp,
@@ -7,6 +7,7 @@ import {
   shiftDateSp,
   todaySp,
 } from "@/lib/datetime";
+import { formatMoney } from "@/lib/format";
 import {
   bookAppointmentForAgent,
   cancelAppointmentForAgent,
@@ -161,6 +162,7 @@ export async function executeTool(
       }
       case "list_services": {
         const db = createDb();
+        const q = String(args.query ?? args.q ?? "").trim();
         const rows = await db
           .select({
             id: schema.services.id,
@@ -174,11 +176,73 @@ export async function executeTool(
               eq(schema.services.tenantId, ctx.tenantId),
               eq(schema.services.isActive, true),
               eq(schema.services.bookableOnline, true),
-              isNull(schema.services.deletedAt)
+              isNull(schema.services.deletedAt),
+              q ? ilike(schema.services.name, `%${q}%`) : undefined
             )
           )
+          .orderBy(asc(schema.services.name))
           .limit(40);
-        result = { ok: true, data: { services: rows } };
+        result = {
+          ok: true,
+          data: {
+            count: rows.length,
+            services: rows.map((r) => ({
+              ...r,
+              priceLabel: formatMoney(r.priceCents),
+            })),
+          },
+        };
+        break;
+      }
+      case "list_products": {
+        const db = createDb();
+        const q = String(args.query ?? args.q ?? "").trim();
+        const rows = await db
+          .select({
+            id: schema.products.id,
+            name: schema.products.name,
+            category: schema.products.category,
+            brand: schema.products.brand,
+            priceCents: schema.products.priceCents,
+            stockQty: schema.products.stockQty,
+          })
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, ctx.tenantId),
+              eq(schema.products.isActive, true),
+              eq(schema.products.forSale, true),
+              isNull(schema.products.deletedAt),
+              q
+                ? or(
+                    ilike(schema.products.name, `%${q}%`),
+                    ilike(schema.products.brand, `%${q}%`),
+                    ilike(schema.products.category, `%${q}%`)
+                  )
+                : undefined
+            )
+          )
+          .orderBy(asc(schema.products.name))
+          .limit(40);
+        result = {
+          ok: true,
+          data: {
+            query: q || null,
+            count: rows.length,
+            products: rows.map((r) => ({
+              id: r.id,
+              name: r.name,
+              brand: r.brand,
+              category: r.category,
+              priceCents: r.priceCents,
+              priceLabel: formatMoney(r.priceCents),
+              inStock: (r.stockQty ?? 0) > 0,
+              stockQty: r.stockQty,
+            })),
+            instruction:
+              "Responda com nome + priceLabel. Se count=0, diga que não achou no estoque de venda e ofereça chamar a equipe — não invente produto.",
+          },
+        };
         break;
       }
       case "list_client_appointments": {

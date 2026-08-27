@@ -18,6 +18,11 @@ export const TOOL_CATALOG: AgentToolDefinition[] = [
     skills: ["skill.schedule", "skill.order"],
   },
   {
+    name: "list_products",
+    description: "Lista produtos à venda (nome, marca, preço, estoque)",
+    skills: ["skill.order", "skill.schedule"],
+  },
+  {
     name: "list_slots",
     description: "Horários livres na agenda por profissional/data",
     skills: ["skill.schedule"],
@@ -74,6 +79,7 @@ export const SKILL_CATALOG: AgentSkillDefinition[] = [
       "get_unit_context",
       "find_client",
       "list_services",
+      "list_products",
       "list_slots",
       "list_client_appointments",
       "book_appointment",
@@ -83,8 +89,8 @@ export const SKILL_CATALOG: AgentSkillDefinition[] = [
   {
     name: "skill.order",
     title: "Comanda",
-    description: "Abre comanda e adiciona itens de consumo",
-    tools: ["find_client", "list_services", "open_order", "add_order_item"],
+    description: "Catálogo de produtos/serviços e comanda",
+    tools: ["find_client", "list_services", "list_products", "open_order", "add_order_item"],
   },
   {
     name: "skill.followup",

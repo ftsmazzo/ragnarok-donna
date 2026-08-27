@@ -3,6 +3,7 @@ export const AGENT_TOOL_NAMES = [
   "get_unit_context",
   "find_client",
   "list_services",
+  "list_products",
   "list_slots",
   "list_client_appointments",
   "book_appointment",
