@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrandMark } from "./BrandMark";
 import { filterNavForRole, type NavItem } from "./nav";
 import type { MemberRole } from "@/server/types";
@@ -30,30 +30,45 @@ function hasActiveChild(pathname: string, item: NavItem) {
   return item.children?.some((c) => isActive(pathname, c.href)) ?? false;
 }
 
+function NavLabel({ icon, label }: { icon?: string; label: string }) {
+  return (
+    <span className="nav-label">
+      {icon ? (
+        <span className="nav-link-icon" aria-hidden>
+          {icon}
+        </span>
+      ) : null}
+      <span className="nav-label-text">{label}</span>
+    </span>
+  );
+}
+
 export function Sidebar({ session }: SidebarProps) {
   const pathname = usePathname();
-  const [open, setOpen] = useState<Record<string, boolean>>({});
   const nav = filterNavForRole(session.role, session.staffId);
 
+  const routeGroup =
+    nav.find((item) => item.children && hasActiveChild(pathname, item))?.label ?? null;
+
+  /** Accordion: um grupo por vez. */
+  const [openLabel, setOpenLabel] = useState<string | null>(routeGroup);
+
+  useEffect(() => {
+    if (routeGroup) setOpenLabel(routeGroup);
+  }, [routeGroup]);
+
   function toggle(label: string) {
-    setOpen((prev) => ({ ...prev, [label]: !prev[label] }));
+    setOpenLabel((prev) => (prev === label ? null : label));
   }
 
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
         <BrandMark logoSrc={session.brandLogoSrc} alt={session.tenantName} size="md" />
-        {!session.brandLogoSrc ? (
-          <div>
-            <strong>{session.tenantName}</strong>
-            <small>{session.brandTagline ?? "Painel"}</small>
-          </div>
-        ) : (
-          <div>
-            <strong className="sidebar-brand-name">{session.tenantName}</strong>
-            <small>{session.brandTagline ?? "Painel"}</small>
-          </div>
-        )}
+        <div>
+          <strong className="sidebar-brand-name">{session.tenantName}</strong>
+          <small>{session.brandTagline ?? "Painel"}</small>
+        </div>
       </div>
 
       <nav className="sidebar-nav" aria-label="Principal">
@@ -66,42 +81,32 @@ export function Sidebar({ session }: SidebarProps) {
                 href={item.href}
                 className={`nav-link${active ? " is-active" : ""}`}
               >
-                {item.icon ? (
-                  <span className="nav-link-icon" aria-hidden>
-                    {item.icon}
-                  </span>
-                ) : null}
-                {item.label}
+                <NavLabel icon={item.icon} label={item.label} />
               </Link>
             );
           }
 
-          const expanded = open[item.label] ?? hasActiveChild(pathname, item);
+          const expanded = openLabel === item.label;
+          const childActive = hasActiveChild(pathname, item);
+
           return (
-            <div key={item.label} className="nav-group">
+            <div key={item.label} className={`nav-group${expanded ? " is-open" : ""}`}>
               <button
                 type="button"
                 className={`nav-link nav-toggle${expanded ? " is-open" : ""}${
-                  hasActiveChild(pathname, item) ? " is-active" : ""
+                  childActive ? " is-active" : ""
                 }`}
                 onClick={() => toggle(item.label)}
                 aria-expanded={expanded}
               >
-                <span>
-                  {item.icon ? (
-                    <span className="nav-link-icon" aria-hidden>
-                      {item.icon}
-                    </span>
-                  ) : null}
-                  {item.label}
-                </span>
-                <span className="nav-caret" aria-hidden>
+                <NavLabel icon={item.icon} label={item.label} />
+                <span className={`nav-caret${expanded ? " is-open" : ""}`} aria-hidden>
                   ▾
                 </span>
               </button>
-              {expanded && item.children ? (
-                <div className="nav-children">
-                  {item.children.map((child) => (
+              <div className={`nav-children${expanded ? " is-open" : ""}`}>
+                <div className="nav-children-inner">
+                  {item.children?.map((child) => (
                     <Link
                       key={child.href}
                       href={child.href}
@@ -109,16 +114,11 @@ export function Sidebar({ session }: SidebarProps) {
                         isActive(pathname, child.href) ? " is-active" : ""
                       }`}
                     >
-                      {child.icon ? (
-                        <span className="nav-link-icon" aria-hidden>
-                          {child.icon}
-                        </span>
-                      ) : null}
-                      {child.label}
+                      <NavLabel icon={child.icon} label={child.label} />
                     </Link>
                   ))}
                 </div>
-              ) : null}
+              </div>
             </div>
           );
         })}

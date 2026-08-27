@@ -160,7 +160,7 @@ input {
 .nav-link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   padding: 10px 16px;
   border: 0;
@@ -170,6 +170,30 @@ input {
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
+  text-decoration: none;
+}
+
+.nav-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.nav-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-link-icon {
+  flex: 0 0 1.1em;
+  width: 1.1em;
+  text-align: center;
+  opacity: 0.75;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .nav-link:hover,
@@ -185,13 +209,37 @@ input {
   padding-left: 13px;
 }
 
-.nav-caret {
+.nav-toggle .nav-caret {
+  flex: 0 0 auto;
+  margin-left: auto;
   font-size: 10px;
   opacity: 0.7;
+  transition: transform 0.18s ease;
+}
+
+.nav-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
 }
 
 .nav-children {
+  display: grid;
+  grid-template-rows: 0fr;
   background: #1a2226;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.nav-children.is-open {
+  grid-template-rows: 1fr;
+}
+
+.nav-children-inner {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .nav-child {
@@ -1900,14 +1948,6 @@ input {
 .decision-card strong {
   font-size: 22px;
   line-height: 1.1;
-}
-
-.nav-link-icon {
-  display: inline-block;
-  width: 1.1em;
-  margin-right: 6px;
-  opacity: 0.75;
-  font-size: 12px;
 }
 
 .heatmap {
