@@ -1,5 +1,12 @@
-import { and, asc, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import {
+  formatDateSp,
+  formatTimeSp,
+  parseDateSp,
+  shiftDateSp,
+  todaySp,
+} from "@/lib/datetime";
 import {
   bookAppointmentForAgent,
   cancelAppointmentForAgent,
@@ -9,8 +16,64 @@ import { dayBoundsSp } from "@/server/agenda/utils";
 import { TOOL_CATALOG } from "./catalog";
 import type { AgentToolName, ToolResult } from "./types";
 
+const ACTIVE_APPOINTMENT_STATUSES = ["scheduled", "confirmed", "arrived", "in_progress"] as const;
+
 function isComboServiceName(name: string) {
   return /combo|corte\s*\+?\s*barba|barba\s*\+?\s*corte|corte\s*e\s*barba/i.test(name);
+}
+
+function weekdayLongSp(d: Date): string {
+  return d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long" });
+}
+
+function weekdayIndexSp(dateStr: string): number {
+  const label = parseDateSp(dateStr).toLocaleDateString("en-US", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "short",
+  });
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[label] ?? 0;
+}
+
+/** Segunda→domingo da semana civil em America/Sao_Paulo. */
+function weekBoundsSp(anchorDate = todaySp()) {
+  const wd = weekdayIndexSp(anchorDate);
+  const mondayOffset = wd === 0 ? -6 : 1 - wd;
+  const fromDate = shiftDateSp(anchorDate, mondayOffset);
+  const toDate = shiftDateSp(fromDate, 6);
+  return { fromDate, toDate };
+}
+
+function serializeAppointment(r: {
+  id: string;
+  startsAt: Date;
+  endsAt: Date;
+  status: string;
+  serviceName: string | null;
+  staffName: string | null;
+}) {
+  const date = formatDateSp(r.startsAt);
+  const time = formatTimeSp(r.startsAt);
+  const weekday = weekdayLongSp(r.startsAt);
+  const dateBr = r.startsAt.toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  return {
+    id: r.id,
+    date,
+    dateBr,
+    weekday,
+    time,
+    label: `${weekday}, ${dateBr} às ${time}`,
+    status: r.status,
+    serviceName: r.serviceName,
+    staffName: r.staffName,
+    startsAt: r.startsAt.toISOString(),
+    endsAt: r.endsAt.toISOString(),
+  };
 }
 
 export function listToolDefinitions(enabled?: string[]) {
@@ -121,7 +184,11 @@ export async function executeTool(
       case "list_client_appointments": {
         const clientId = String(args.clientId ?? "").trim();
         const phoneRaw = String(args.phoneE164 ?? "").trim();
-        const range = String(args.range ?? "week").toLowerCase(); // today | week | upcoming
+        // Default: próximos (do agora em diante) — nunca puxar o mais longe como “o” horário.
+        const range = String(args.range ?? "upcoming").toLowerCase();
+        const beforeDate = String(args.beforeDate ?? "").trim();
+        const afterDate = String(args.afterDate ?? "").trim();
+        const onlyNearest = range === "next" || range === "proximo" || range === "próximo";
         const db = createDb();
 
         let resolvedClientId = clientId || null;
@@ -138,7 +205,8 @@ export async function executeTool(
                 isNull(schema.clients.deletedAt),
                 or(
                   eq(schema.clients.phoneE164, e164),
-                  sql`right(regexp_replace(coalesce(${schema.clients.phoneE164}, ''), '\\D', '', 'g'), 11) = ${last11}`
+                  sql`right(regexp_replace(coalesce(${schema.clients.phoneE164}, ''), '\\D', '', 'g'), 11) = ${last11}`,
+                  sql`right(regexp_replace(coalesce(${schema.clients.phone}, ''), '\\D', '', 'g'), 11) = ${last11}`
                 )
               )
             )
@@ -160,36 +228,54 @@ export async function executeTool(
           break;
         }
 
-        const fmt = new Intl.DateTimeFormat("en-CA", {
-          timeZone: "America/Sao_Paulo",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        });
-        const today = fmt.format(new Date());
+        const today = todaySp();
+        const now = new Date();
+        let fromInstant: Date = now;
+        let toInstant: Date = dayBoundsSp(shiftDateSp(today, 60)).end;
         let fromDate = today;
-        let toDate = today;
+        let toDate = shiftDateSp(today, 60);
 
-        if (range === "week" || range === "essa_semana" || range === "semana") {
-          // segunda → domingo da semana atual (SP)
-          const wdFmt = new Intl.DateTimeFormat("en-US", {
-            timeZone: "America/Sao_Paulo",
-            weekday: "short",
-          });
-          const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-          const todayWd = map[wdFmt.format(new Date())] ?? new Date().getDay();
-          const mondayOffset = todayWd === 0 ? -6 : 1 - todayWd;
-          const monday = new Date(Date.now() + mondayOffset * 86_400_000);
-          const sunday = new Date(monday.getTime() + 6 * 86_400_000);
-          fromDate = fmt.format(monday);
-          toDate = fmt.format(sunday);
-        } else if (range === "upcoming" || range === "proximos") {
-          const end = new Date(Date.now() + 14 * 86_400_000);
-          toDate = fmt.format(end);
+        if (range === "today" || range === "hoje") {
+          const b = dayBoundsSp(today);
+          fromInstant = now > b.start ? now : b.start;
+          toInstant = b.end;
+          fromDate = today;
+          toDate = today;
+        } else if (range === "week" || range === "essa_semana" || range === "semana") {
+          const w = weekBoundsSp(today);
+          fromInstant = dayBoundsSp(w.fromDate).start;
+          toInstant = dayBoundsSp(w.toDate).end;
+          fromDate = w.fromDate;
+          toDate = w.toDate;
+          if (fromInstant < now) fromInstant = now;
+        } else if (onlyNearest || range === "upcoming" || range === "proximos" || range === "próximos") {
+          fromInstant = now;
+          toDate = shiftDateSp(today, onlyNearest ? 90 : 60);
+          toInstant = dayBoundsSp(toDate).end;
+          fromDate = today;
+        } else if (range === "all" || range === "todos") {
+          fromInstant = now;
+          toDate = shiftDateSp(today, 120);
+          toInstant = dayBoundsSp(toDate).end;
+          fromDate = today;
         }
 
-        const { start } = dayBoundsSp(fromDate);
-        const { end } = dayBoundsSp(toDate);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(beforeDate)) {
+          // Exclusivo: tudo ANTES do início desse dia (SP)
+          toInstant = new Date(`${beforeDate}T00:00:00-03:00`);
+          toInstant = new Date(toInstant.getTime() - 1);
+          toDate = formatDateSp(toInstant);
+          fromInstant = now;
+          if (fromInstant > toInstant) {
+            fromInstant = dayBoundsSp(shiftDateSp(beforeDate, -90)).start;
+          }
+          fromDate = formatDateSp(fromInstant);
+        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(afterDate)) {
+          fromInstant = dayBoundsSp(afterDate).end;
+          fromInstant = new Date(dayBoundsSp(afterDate).end.getTime() + 1);
+          fromDate = afterDate;
+        }
 
         const rows = await db
           .select({
@@ -208,24 +294,30 @@ export async function executeTool(
               eq(schema.appointments.tenantId, ctx.tenantId),
               eq(schema.appointments.clientId, resolvedClientId),
               isNull(schema.appointments.deletedAt),
-              gte(schema.appointments.startsAt, start),
-              lte(schema.appointments.startsAt, end)
+              inArray(schema.appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+              gte(schema.appointments.startsAt, fromInstant),
+              lte(schema.appointments.startsAt, toInstant)
             )
           )
           .orderBy(asc(schema.appointments.startsAt))
-          .limit(20);
+          .limit(onlyNearest ? 1 : 30);
 
-        const appointments = rows.map((r) => ({
-          id: r.id,
-          when: r.startsAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
-          status: r.status,
-          serviceName: r.serviceName,
-          staffName: r.staffName,
-        }));
+        const appointments = rows.map(serializeAppointment);
+        const nearest = appointments[0] ?? null;
 
         result = {
           ok: true,
-          data: { range, fromDate, toDate, count: appointments.length, appointments },
+          data: {
+            range,
+            fromDate,
+            toDate,
+            orderedBy: "starts_at_asc_nearest_first",
+            count: appointments.length,
+            nearest,
+            appointments,
+            instruction:
+              "Liste TODOS os itens de appointments na resposta (ou diga que não há). Use o campo label/weekday — nunca invente dia da semana. nearest = o mais próximo.",
+          },
         };
         break;
       }
@@ -323,7 +415,9 @@ export async function executeTool(
 
         const lastAppt = await db
           .select({
+            id: schema.appointments.id,
             startsAt: schema.appointments.startsAt,
+            endsAt: schema.appointments.endsAt,
             status: schema.appointments.status,
             serviceName: schema.services.name,
             staffName: schema.staff.name,
@@ -335,11 +429,46 @@ export async function executeTool(
             and(
               eq(schema.appointments.tenantId, ctx.tenantId),
               eq(schema.appointments.clientId, client.id),
-              isNull(schema.appointments.deletedAt)
+              isNull(schema.appointments.deletedAt),
+              lt(schema.appointments.startsAt, new Date()),
+              inArray(schema.appointments.status, [
+                "scheduled",
+                "confirmed",
+                "arrived",
+                "in_progress",
+                "completed",
+              ])
             )
           )
           .orderBy(desc(schema.appointments.startsAt))
           .limit(1);
+
+        const upcomingRows = await db
+          .select({
+            id: schema.appointments.id,
+            startsAt: schema.appointments.startsAt,
+            endsAt: schema.appointments.endsAt,
+            status: schema.appointments.status,
+            serviceName: schema.services.name,
+            staffName: schema.staff.name,
+          })
+          .from(schema.appointments)
+          .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
+          .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
+          .where(
+            and(
+              eq(schema.appointments.tenantId, ctx.tenantId),
+              eq(schema.appointments.clientId, client.id),
+              isNull(schema.appointments.deletedAt),
+              gte(schema.appointments.startsAt, new Date()),
+              inArray(schema.appointments.status, [...ACTIVE_APPOINTMENT_STATUSES])
+            )
+          )
+          .orderBy(asc(schema.appointments.startsAt))
+          .limit(5);
+
+        const upcoming = upcomingRows.map(serializeAppointment);
+        const nextAppointment = upcoming[0] ?? null;
 
         const serviceNames = recentItems
           .map((r) => r.serviceName || r.description || "")
@@ -365,15 +494,23 @@ export async function executeTool(
             lastServiceName,
             prefersCombo,
             openOrder: openOrder[0] ?? null,
+            /** Mais próximo no futuro — NÃO o mais longe. */
+            nextAppointment,
+            upcomingCount: upcoming.length,
+            upcomingPreview: upcoming,
+            /** Último já realizado (passado). */
             lastAppointment: lastAppt[0]
-              ? {
+              ? serializeAppointment({
+                  id: lastAppt[0].id,
                   startsAt: lastAppt[0].startsAt,
+                  endsAt: lastAppt[0].endsAt,
                   status: lastAppt[0].status,
                   serviceName: lastAppt[0].serviceName,
                   staffName: lastAppt[0].staffName,
-                }
+                })
               : null,
             recentServices: serviceNames.slice(0, 5),
+            note: "Para listar agendas use list_client_appointments (não invente a partir de lastAppointment).",
           },
         };
         break;

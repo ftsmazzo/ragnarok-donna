@@ -6,11 +6,18 @@ import type { AgentSkillName, AgentToolName } from "./types";
 const SKILL_PLAYBOOKS: Record<AgentSkillName, string> = {
   "skill.schedule": `SKILL.SCHEDULE — agenda WhatsApp
 Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU conferir agendamentos dele:
-1. find_client (telefone da conversa) para identificar.
-2. Se pediu "meus horários / essa semana / hoje" → list_client_appointments (range today|week|upcoming).
-3. Se quer marcar → list_services (se ainda não souber o serviço) → list_slots → confirme → book_appointment.
-4. Cancelar → list_client_appointments → cancel_appointment com o id.
-Nunca invente horário. Responda com os dados das tools.`,
+1. find_client (telefone da conversa) só para identificar nome/histórico.
+2. Conferir agendas → SEMPRE list_client_appointments (nunca invente a partir de lastAppointment).
+   - "essa semana" → range=week
+   - "hoje" → range=today
+   - genérico / próximos → range=upcoming (padrão)
+   - "só o próximo" → range=next
+   - "antes de DD/MM" → beforeDate=YYYY-MM-DD
+3. A tool devolve appointments ORDENADOS do mais próximo ao mais longe + campo label com weekday correto.
+   → Liste TODOS os retornados (ou diga que não há). Nunca cite só o mais longe. Nunca invente dia da semana.
+4. Marcar → list_services → list_slots → confirme → book_appointment.
+5. Cancelar → list_client_appointments → cancel_appointment com o id.
+Nunca invente horário.`,
 
   "skill.order": `SKILL.ORDER — comanda
 Quando o assunto for consumo na loja / comanda aberta:
@@ -44,13 +51,26 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     function: {
       name: "list_client_appointments",
       description:
-        "Lista agendamentos do cliente (hoje, semana, próximos). Use quando pedirem conferir/ver horários marcados.",
+        "Lista agendas ATIVAS do cliente do mais próximo ao mais longe. Obrigatório para conferir/ver horários. Retorna label com dia da semana correto.",
       parameters: {
         type: "object",
         properties: {
           clientId: { type: "string" },
           phoneE164: { type: "string" },
-          range: { type: "string", enum: ["today", "week", "upcoming"] },
+          range: {
+            type: "string",
+            enum: ["today", "week", "upcoming", "next", "all"],
+            description:
+              "today=hoje; week=semana atual (seg–dom SP); upcoming=próximos 60d (padrão); next=só o mais próximo; all=120d",
+          },
+          beforeDate: {
+            type: "string",
+            description: "YYYY-MM-DD — só agendas ANTES deste dia (ex.: cliente pergunta se tem algo antes de uma data)",
+          },
+          afterDate: {
+            type: "string",
+            description: "YYYY-MM-DD — só agendas depois deste dia",
+          },
         },
       },
     },

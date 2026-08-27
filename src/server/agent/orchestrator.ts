@@ -32,10 +32,12 @@ REGRAS:
 1. Responda a pergunta real. Não desvie para oferta se pediram outra coisa (ex.: listar agendamentos).
 2. Use as SKILLS e as TOOLS antes de afirmar fato de agenda, preço, histórico ou disponibilidade.
 3. Em find_client / list_client_appointments use o telefone acima se faltar argumento.
-4. Mensagens curtas (1–4 frases), humanas, calorosas. Sem markdown.
-5. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
-6. Nunca invente horário. Nunca diga que é IA/bot.
-7. Resposta final = só o texto do WhatsApp.
+4. Para conferir agendas: SEMPRE list_client_appointments. Liste TODOS os itens retornados, do mais próximo ao mais longe. Nunca invente dia da semana — use o campo label/weekday da tool.
+5. find_client.nextAppointment = mais próximo; lastAppointment = passado. Não use lastAppointment como se fosse o próximo.
+6. Mensagens curtas (1–4 frases), humanas, calorosas. Sem markdown.
+7. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
+8. Nunca invente horário. Nunca diga que é IA/bot.
+9. Resposta final = só o texto do WhatsApp.
 `.trim();
 }
 
@@ -193,11 +195,10 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         const name = call.function.name as AgentToolName;
         const args = parseToolArgs(call.function.arguments);
         if (name === "find_client" && !args.phoneE164) args.phoneE164 = input.phoneE164;
+        if (name === "list_client_appointments" && !args.range) args.range = "upcoming";
         if (name === "list_client_appointments" && !args.phoneE164 && !args.clientId) {
           args.phoneE164 = input.phoneE164;
         }
-        if (name === "list_client_appointments" && !args.range) args.range = "week";
-
         const exec = await executeTool(name, toolCtx, args);
         toolCallsAudit.push({ name, ok: exec.ok });
         toolsFired.push(name);
