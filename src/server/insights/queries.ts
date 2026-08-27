@@ -1,10 +1,13 @@
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { requireTenantContext } from "../context/tenant";
 import {
+  DEFAULT_INACTIVE_DAYS,
   DEFAULT_PRODUCT_REBUY_DAYS,
+  DEFAULT_RECURRENCE_LAPSE_DAYS,
   DEFAULT_SERVICE_RETURN_DAYS,
   type ClientUpsellTip,
+  type FollowUpRow,
   type PerfilReofferRow,
   type PerfilReport,
   type WeeklyInsights,
@@ -18,8 +21,13 @@ function daysBetween(from: Date, to = new Date()): number {
 function tipTitle(kind: ClientUpsellTip["kind"], name: string): string {
   if (kind === "service_due") return `Reoferecer: ${name}`;
   if (kind === "product_due") return `Produto: ${name}`;
+  if (kind === "recurrence_lapsed") return `Recorrência parada: ${name}`;
+  if (kind === "inactive_return") return `Convidar a voltar`;
   return `Costuma fazer: ${name}`;
 }
+
+/** Categoria AppBarber "Recorrência" (e variações). */
+const RECURRENCE_CAT = sql`(${schema.serviceCategories.name} ilike '%recorr%')`;
 
 /** Dicas leve para o modal da agenda (1–3 bullets). */
 export async function getClientUpsellTips(clientId: string): Promise<ClientUpsellTip[]> {
@@ -44,12 +52,17 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
       serviceId: schema.orderItems.serviceId,
       name: schema.services.name,
       returnAfterDays: schema.services.returnAfterDays,
+      categoryName: schema.serviceCategories.name,
       lastAt: sql<Date>`max(${schema.orderItems.performedAt})`.as("last_at"),
       cnt: sql<number>`count(*)::int`.as("cnt"),
     })
     .from(schema.orderItems)
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
     .innerJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
+    .leftJoin(
+      schema.serviceCategories,
+      eq(schema.services.categoryId, schema.serviceCategories.id)
+    )
     .where(
       and(
         eq(schema.orderItems.tenantId, tenant.id),
@@ -64,7 +77,8 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
     .groupBy(
       schema.orderItems.serviceId,
       schema.services.name,
-      schema.services.returnAfterDays
+      schema.services.returnAfterDays,
+      schema.serviceCategories.name
     )
     .orderBy(desc(sql`max(${schema.orderItems.performedAt})`));
 
@@ -95,8 +109,24 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
 
   for (const row of serviceRows) {
     if (!row.serviceId || !row.lastAt) continue;
-    const threshold = row.returnAfterDays ?? DEFAULT_SERVICE_RETURN_DAYS;
+    const isRecurrence = (row.categoryName ?? "").toLowerCase().includes("recorr");
     const daysSince = daysBetween(new Date(row.lastAt));
+
+    if (isRecurrence) {
+      if (daysSince >= DEFAULT_RECURRENCE_LAPSE_DAYS) {
+        tips.push({
+          kind: "recurrence_lapsed",
+          title: tipTitle("recurrence_lapsed", row.name),
+          detail: `Sem renovação há ${daysSince} dias (alerta ${DEFAULT_RECURRENCE_LAPSE_DAYS}d)`,
+          daysSince,
+          catalogId: row.serviceId,
+          catalogName: row.name,
+        });
+      }
+      continue;
+    }
+
+    const threshold = row.returnAfterDays ?? DEFAULT_SERVICE_RETURN_DAYS;
     if (daysSince >= threshold) {
       tips.push({
         kind: "service_due",
@@ -126,7 +156,9 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
     }
   }
 
-  const favorite = [...serviceRows].sort((a, b) => Number(b.cnt) - Number(a.cnt))[0];
+  const favorite = [...serviceRows]
+    .filter((r) => !(r.categoryName ?? "").toLowerCase().includes("recorr"))
+    .sort((a, b) => Number(b.cnt) - Number(a.cnt))[0];
   if (favorite?.serviceId && favorite.name) {
     const already = tips.some((t) => t.catalogId === favorite.serviceId);
     if (!already) {
@@ -144,6 +176,7 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
   return tips.slice(0, 3);
 }
 
+/** Serviços avulsos/outros além do ciclo — exclui categoria Recorrência. */
 async function loadServiceDueRows(
   tenantId: string,
   thresholdFallback: number,
@@ -164,6 +197,10 @@ async function loadServiceDueRows(
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
     .innerJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
     .innerJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
+    .leftJoin(
+      schema.serviceCategories,
+      eq(schema.services.categoryId, schema.serviceCategories.id)
+    )
     .where(
       and(
         eq(schema.orderItems.tenantId, tenantId),
@@ -174,7 +211,8 @@ async function loadServiceDueRows(
         isNotNull(schema.orderItems.performedAt),
         isNull(schema.orders.deletedAt),
         isNull(schema.clients.deletedAt),
-        eq(schema.clients.isActive, true)
+        eq(schema.clients.isActive, true),
+        or(isNull(schema.serviceCategories.id), sql`not ${RECURRENCE_CAT}`)
       )
     )
     .groupBy(
@@ -271,6 +309,154 @@ async function loadProductDueRows(
     });
 }
 
+/** Teve serviço da categoria Recorrência e não renovou após N dias. */
+async function loadRecurrenceLapsed(
+  tenantId: string,
+  lapseDays: number,
+  limit = 100
+): Promise<FollowUpRow[]> {
+  const db = createDb();
+  const rows = await db
+    .select({
+      clientId: schema.orders.clientId,
+      clientName: schema.clients.name,
+      phone: schema.clients.phone,
+      lastServiceName: sql<string>`(array_agg(${schema.services.name} order by ${schema.orderItems.performedAt} desc))[1]`.as(
+        "last_service"
+      ),
+      lastAt: sql<Date>`max(${schema.orderItems.performedAt})`.as("last_at"),
+      visits: sql<number>`count(*)::int`.as("visits"),
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .innerJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
+    .innerJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
+    .innerJoin(
+      schema.serviceCategories,
+      eq(schema.services.categoryId, schema.serviceCategories.id)
+    )
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, tenantId),
+        eq(schema.orders.tenantId, tenantId),
+        eq(schema.orderItems.itemType, "service"),
+        isNotNull(schema.orders.clientId),
+        isNotNull(schema.orderItems.performedAt),
+        isNull(schema.orders.deletedAt),
+        isNull(schema.clients.deletedAt),
+        eq(schema.clients.isActive, true),
+        RECURRENCE_CAT
+      )
+    )
+    .groupBy(schema.orders.clientId, schema.clients.name, schema.clients.phone)
+    .having(
+      sql`max(${schema.orderItems.performedAt}) <= now() - (${lapseDays} * interval '1 day')`
+    )
+    .orderBy(asc(sql`max(${schema.orderItems.performedAt})`))
+    .limit(limit);
+
+  return rows
+    .filter((r) => r.clientId && r.lastAt)
+    .map((r) => {
+      const lastAt = new Date(r.lastAt!);
+      return {
+        clientId: r.clientId!,
+        clientName: r.clientName ?? "Cliente",
+        phone: r.phone,
+        lastAt,
+        daysSince: daysBetween(lastAt),
+        thresholdDays: lapseDays,
+        lastServiceName: r.lastServiceName ?? null,
+        reason: "recurrence_lapsed" as const,
+      };
+    });
+}
+
+/**
+ * Clientes que já vieram e não têm atividade (item/agenda) há N dias.
+ * Lista de follow-up para convite de retorno.
+ */
+async function loadInactiveClients(
+  tenantId: string,
+  inactiveDays: number,
+  limit = 100
+): Promise<FollowUpRow[]> {
+  const db = createDb();
+
+  const result = await db.execute(sql`
+    with activity as (
+      select
+        o.client_id,
+        max(oi.performed_at) as last_item_at,
+        (
+          array_agg(oi.description order by oi.performed_at desc nulls last)
+          filter (where oi.performed_at is not null)
+        )[1] as last_service
+      from order_items oi
+      inner join orders o on o.id = oi.order_id
+      where oi.tenant_id = ${tenantId}
+        and o.tenant_id = ${tenantId}
+        and o.client_id is not null
+        and o.deleted_at is null
+        and oi.performed_at is not null
+      group by o.client_id
+    ),
+    appts as (
+      select
+        a.client_id,
+        max(a.starts_at) as last_appt_at
+      from appointments a
+      where a.tenant_id = ${tenantId}
+        and a.client_id is not null
+        and a.deleted_at is null
+        and a.status <> 'blocked'
+      group by a.client_id
+    ),
+    merged as (
+      select
+        c.id as client_id,
+        c.name as client_name,
+        c.phone,
+        greatest(activity.last_item_at, appts.last_appt_at) as last_at,
+        activity.last_service
+      from clients c
+      left join activity on activity.client_id = c.id
+      left join appts on appts.client_id = c.id
+      where c.tenant_id = ${tenantId}
+        and c.deleted_at is null
+        and c.is_active = true
+        and greatest(activity.last_item_at, appts.last_appt_at) is not null
+    )
+    select client_id, client_name, phone, last_at, last_service
+    from merged
+    where last_at <= now() - (${inactiveDays} * interval '1 day')
+    order by last_at asc
+    limit ${limit}
+  `);
+
+  const list = [...result] as unknown as {
+    client_id: string;
+    client_name: string;
+    phone: string | null;
+    last_at: Date;
+    last_service: string | null;
+  }[];
+
+  return list.map((r) => {
+    const lastAt = new Date(r.last_at);
+    return {
+      clientId: r.client_id,
+      clientName: r.client_name ?? "Cliente",
+      phone: r.phone,
+      lastAt,
+      daysSince: daysBetween(lastAt),
+      thresholdDays: inactiveDays,
+      lastServiceName: r.last_service,
+      reason: "inactive" as const,
+    };
+  });
+}
+
 async function countLowStock(tenantId: string): Promise<number> {
   const db = createDb();
   const [row] = await db
@@ -290,25 +476,38 @@ async function countLowStock(tenantId: string): Promise<number> {
 export async function reportPerfil(opts?: {
   serviceDays?: number;
   productDays?: number;
+  recurrenceDays?: number;
+  inactiveDays?: number;
 }): Promise<PerfilReport> {
   const tenant = await requireTenantContext();
   const serviceThresholdDays = opts?.serviceDays ?? DEFAULT_SERVICE_RETURN_DAYS;
   const productThresholdDays = opts?.productDays ?? DEFAULT_PRODUCT_REBUY_DAYS;
+  const recurrenceLapseDays = opts?.recurrenceDays ?? DEFAULT_RECURRENCE_LAPSE_DAYS;
+  const inactiveDays = opts?.inactiveDays ?? DEFAULT_INACTIVE_DAYS;
 
-  const [serviceDue, productDue, lowStockCount] = await Promise.all([
-    loadServiceDueRows(tenant.id, serviceThresholdDays),
-    loadProductDueRows(tenant.id, productThresholdDays),
-    countLowStock(tenant.id),
-  ]);
+  const [serviceDue, productDue, recurrenceLapsed, inactiveClients, lowStockCount] =
+    await Promise.all([
+      loadServiceDueRows(tenant.id, serviceThresholdDays),
+      loadProductDueRows(tenant.id, productThresholdDays),
+      loadRecurrenceLapsed(tenant.id, recurrenceLapseDays),
+      loadInactiveClients(tenant.id, inactiveDays),
+      countLowStock(tenant.id),
+    ]);
 
   return {
     serviceThresholdDays,
     productThresholdDays,
+    recurrenceLapseDays,
+    inactiveDays,
     serviceDue,
     productDue,
+    recurrenceLapsed,
+    inactiveClients,
     lowStockCount,
     serviceDueCount: serviceDue.length,
     productDueCount: productDue.length,
+    recurrenceLapsedCount: recurrenceLapsed.length,
+    inactiveCount: inactiveClients.length,
   };
 }
 
@@ -318,6 +517,20 @@ export async function getWeeklyInsights(): Promise<WeeklyInsights> {
   const uniqueProductClients = new Set(report.productDue.map((r) => r.clientId)).size;
 
   const cards = [
+    {
+      id: "inactive",
+      label: "Não retornam",
+      value: report.inactiveCount,
+      hint: `${report.inactiveDays}d+ sem visita`,
+      href: "/relatorios/perfil?tab=retorno",
+    },
+    {
+      id: "recurrence",
+      label: "Recorrência parada",
+      value: report.recurrenceLapsedCount,
+      hint: `${report.recurrenceLapseDays}d+ sem renovar`,
+      href: "/relatorios/perfil?tab=recorrencia",
+    },
     {
       id: "service_due",
       label: "Serviços a reoferecer",
@@ -332,29 +545,26 @@ export async function getWeeklyInsights(): Promise<WeeklyInsights> {
       hint: `${uniqueProductClients} cliente(s) · ${report.productThresholdDays}d+`,
       href: "/relatorios/perfil?tab=produtos",
     },
-    {
-      id: "low_stock",
-      label: "Estoque baixo",
-      value: report.lowStockCount,
-      hint: "stock ≤ mínimo",
-      href: "/relatorios/estoque",
-    },
   ];
 
   const tips: string[] = [];
+  if (report.inactiveCount > 0) {
+    const sample = report.inactiveClients[0];
+    tips.push(
+      `Follow-up: ${sample.clientName} não volta há ${sample.daysSince} dias — convide a retornar.`
+    );
+  }
+  if (report.recurrenceLapsedCount > 0) {
+    const sample = report.recurrenceLapsed[0];
+    tips.push(
+      `Recorrência: ${sample.clientName} sem renovação há ${sample.daysSince} dias${sample.lastServiceName ? ` (${sample.lastServiceName})` : ""}.`
+    );
+  }
   if (report.serviceDueCount > 0) {
     const sample = report.serviceDue[0];
     tips.push(
-      `Priorize recontato: ${sample.clientName} fez ${sample.catalogName} há ${sample.daysSince} dias.`
+      `Reoferecer: ${sample.clientName} fez ${sample.catalogName} há ${sample.daysSince} dias.`
     );
-  }
-  if (report.productDueCount > 0) {
-    tips.push(
-      `${uniqueProductClients} cliente(s) podem recomprar produto nesta semana — use a agenda para oferecer.`
-    );
-  }
-  if (report.lowStockCount > 0) {
-    tips.push(`${report.lowStockCount} produto(s) no mínimo de estoque — planeje reposição.`);
   }
   if (tips.length === 0) {
     tips.push("Sem alertas críticos esta semana — mantenha a cadência de agenda e comandas.");

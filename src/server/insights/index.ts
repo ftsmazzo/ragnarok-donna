@@ -7,9 +7,12 @@ export { getManagementDashboard } from "./dashboard";
 export {
   DEFAULT_PRODUCT_REBUY_DAYS,
   DEFAULT_SERVICE_RETURN_DAYS,
+  DEFAULT_RECURRENCE_LAPSE_DAYS,
+  DEFAULT_INACTIVE_DAYS,
 } from "./types";
 export type {
   ClientUpsellTip,
+  FollowUpRow,
   PerfilReport,
   PerfilReofferRow,
   WeeklyInsights,

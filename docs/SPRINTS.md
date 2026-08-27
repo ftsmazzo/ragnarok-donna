@@ -17,7 +17,8 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **5.6 — Dashboard visual** | ✅ concluído | Gráficos dinâmicos no painel gerencial |
 | **5.7 — Relatórios Barber + Início** | ✅ concluído | 4 gerenciais + comissões + início visual |
 | **5.8 — Vales + fluxo** | ✅ concluído | staff_advances, a pagar líquido, fluxo de caixa |
-| 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
+| **5.9 — Follow-up / ações** | ✅ concluído | 60d retorno, recorrência 45d, lista + msg |
+| 6 — IA / Donna | pendente | Evolution, conversas, envio agendado |
 
 ---
 
@@ -102,6 +103,29 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 - Auxiliar (2º profissional no item)
 - Taxas de cartão (bruto vs líquido Barber)
 - Export Excel/PDF / recibo impresso
+
+---
+
+## Sprint 5.9 — Filtros de ação / follow-up ✅
+
+### Regras
+| Filtro | Prazo | Lógica |
+|--------|-------|--------|
+| **Não retorna** | 60d | Sem item/agenda; lista de follow-up |
+| **Recorrência parada** | 45d | Teve serviço categoria Recorrência e não renovou |
+| **Serviços a reoferecer** | 60d | Ciclo padrão; **exclui** categoria Recorrência |
+| **Produtos** | 60d | Recompra |
+
+### Entregue
+- `/relatorios/perfil` vira **Ações e follow-up** com 4 abas
+- Rascunho de mensagem + **Copiar** / **WhatsApp** (`wa.me`)
+- Placeholder **Agendar IA** (Donna + Evolution na Sprint 6)
+- Insights da semana priorizam retorno e recorrência
+
+### Próximo (Sprint 6)
+- Donna gera msg personalizada
+- Fila `outreach_jobs` + n8n/Evolution envia na data
+- Status na conversa
 
 ---
 
