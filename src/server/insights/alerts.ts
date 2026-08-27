@@ -119,9 +119,13 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
     });
   }
 
+  // postgres.js + drizzle execute: Date quebra serialização — usar ISO string.
+  const weekStartIso = weekStart.toISOString();
+  const weekEndIso = weekEnd.toISOString();
+
   const returned = await db.execute(sql`
     with week_activity as (
-      select distinct client_id, min(at) as first_at
+      select client_id, min(at) as first_at
       from (
         select a.client_id, a.starts_at as at
         from appointments a
@@ -129,8 +133,8 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
           and a.deleted_at is null
           and a.client_id is not null
           and a.status not in ('cancelled', 'no_show', 'blocked')
-          and a.starts_at >= ${weekStart}
-          and a.starts_at <= ${weekEnd}
+          and a.starts_at >= ${weekStartIso}::timestamptz
+          and a.starts_at <= ${weekEndIso}::timestamptz
         union all
         select o.client_id, coalesce(o.closed_at, o.opened_at) as at
         from orders o
@@ -138,8 +142,8 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
           and o.deleted_at is null
           and o.client_id is not null
           and o.status = 'closed'
-          and coalesce(o.closed_at, o.opened_at) >= ${weekStart}
-          and coalesce(o.closed_at, o.opened_at) <= ${weekEnd}
+          and coalesce(o.closed_at, o.opened_at) >= ${weekStartIso}::timestamptz
+          and coalesce(o.closed_at, o.opened_at) <= ${weekEndIso}::timestamptz
       ) u
       group by client_id
     ),
