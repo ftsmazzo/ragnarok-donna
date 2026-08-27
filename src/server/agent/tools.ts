@@ -379,11 +379,14 @@ export async function executeTool(
             serviceName: schema.services.name,
             performedAt: schema.orderItems.performedAt,
             openedAt: schema.orders.openedAt,
+            closedAt: schema.orders.closedAt,
             orderStatus: schema.orders.status,
+            staffName: schema.staff.name,
           })
           .from(schema.orderItems)
           .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
           .leftJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
+          .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
           .where(
             and(
               eq(schema.orders.tenantId, ctx.tenantId),
@@ -392,8 +395,8 @@ export async function executeTool(
               eq(schema.orderItems.itemType, "service")
             )
           )
-          .orderBy(desc(sql`coalesce(${schema.orderItems.performedAt}, ${schema.orders.openedAt})`))
-          .limit(8);
+          .orderBy(desc(sql`coalesce(${schema.orderItems.performedAt}, ${schema.orders.closedAt}, ${schema.orders.openedAt})`))
+          .limit(25);
 
         const openOrder = await db
           .select({
@@ -470,8 +473,111 @@ export async function executeTool(
         const upcoming = upcomingRows.map(serializeAppointment);
         const nextAppointment = upcoming[0] ?? null;
 
-        const serviceNames = recentItems
-          .map((r) => r.serviceName || r.description || "")
+        function serializeHistoryMoment(input: {
+          at: Date | null;
+          serviceName: string;
+          staffName?: string | null;
+          source: "comanda" | "agenda";
+        }) {
+          if (!input.at) return null;
+          const date = formatDateSp(input.at);
+          const time = formatTimeSp(input.at);
+          const weekday = weekdayLongSp(input.at);
+          const dateBr = input.at.toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+          return {
+            serviceName: input.serviceName,
+            staffName: input.staffName ?? null,
+            date,
+            dateBr,
+            weekday,
+            time,
+            label: `${weekday}, ${dateBr} às ${time}`,
+            source: input.source,
+            at: input.at.toISOString(),
+          };
+        }
+
+        const recentServicesDated = recentItems
+          .map((r) => {
+            const name = (r.serviceName || r.description || "").trim();
+            if (!name) return null;
+            const at = r.performedAt ?? r.closedAt ?? r.openedAt;
+            return serializeHistoryMoment({
+              at,
+              serviceName: name,
+              staffName: r.staffName,
+              source: "comanda",
+            });
+          })
+          .filter(Boolean);
+
+        // Também puxa agendas passadas (completed/confirmed no passado) como histórico datado
+        const pastAppts = await db
+          .select({
+            startsAt: schema.appointments.startsAt,
+            status: schema.appointments.status,
+            serviceName: schema.services.name,
+            staffName: schema.staff.name,
+          })
+          .from(schema.appointments)
+          .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
+          .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
+          .where(
+            and(
+              eq(schema.appointments.tenantId, ctx.tenantId),
+              eq(schema.appointments.clientId, client.id),
+              isNull(schema.appointments.deletedAt),
+              lt(schema.appointments.startsAt, new Date()),
+              inArray(schema.appointments.status, ["completed", "confirmed", "scheduled", "arrived", "in_progress"])
+            )
+          )
+          .orderBy(desc(schema.appointments.startsAt))
+          .limit(15);
+
+        for (const a of pastAppts) {
+          const name = (a.serviceName || "").trim();
+          if (!name) continue;
+          const row = serializeHistoryMoment({
+            at: a.startsAt,
+            serviceName: name,
+            staffName: a.staffName,
+            source: "agenda",
+          });
+          if (row) recentServicesDated.push(row);
+        }
+
+        recentServicesDated.sort((a, b) => {
+          const ta = a && "at" in a ? Date.parse(String(a.at)) : 0;
+          const tb = b && "at" in b ? Date.parse(String(b.at)) : 0;
+          return tb - ta;
+        });
+
+        const serviceQuery = String(args.serviceQuery ?? args.serviceName ?? "")
+          .trim()
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/\p{M}/gu, "");
+
+        const matchesQuery = (name: string) => {
+          const n = name
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/\p{M}/gu, "");
+          if (!serviceQuery) return true;
+          const tokens = serviceQuery.split(/\s+/).filter((t) => t.length > 2);
+          return tokens.length ? tokens.every((t) => n.includes(t)) : n.includes(serviceQuery);
+        };
+
+        const lastServiceMatch =
+          recentServicesDated.find((r) => r && matchesQuery(r.serviceName)) ?? null;
+
+        const serviceNames = recentServicesDated
+          .map((r) => r?.serviceName ?? "")
           .filter(Boolean);
         const lastServiceName = serviceNames[0] ?? lastAppt[0]?.serviceName ?? null;
         const prefersCombo =
@@ -494,11 +600,9 @@ export async function executeTool(
             lastServiceName,
             prefersCombo,
             openOrder: openOrder[0] ?? null,
-            /** Mais próximo no futuro — NÃO o mais longe. */
             nextAppointment,
             upcomingCount: upcoming.length,
             upcomingPreview: upcoming,
-            /** Último já realizado (passado). */
             lastAppointment: lastAppt[0]
               ? serializeAppointment({
                   id: lastAppt[0].id,
@@ -509,8 +613,13 @@ export async function executeTool(
                   staffName: lastAppt[0].staffName,
                 })
               : null,
-            recentServices: serviceNames.slice(0, 5),
-            note: "Para listar agendas use list_client_appointments (não invente a partir de lastAppointment).",
+            /** Histórico com DATA — use label/dateBr ao responder. */
+            recentServices: recentServicesDated.slice(0, 12),
+            /** Se serviceQuery foi passado, o match mais recente desse serviço. */
+            lastServiceMatch,
+            serviceQuery: serviceQuery || null,
+            note:
+              "Para data de um serviço feito, use recentServices[].label ou lastServiceMatch. Para agendas futuras use list_client_appointments.",
           },
         };
         break;

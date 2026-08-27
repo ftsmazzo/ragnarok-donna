@@ -6,17 +6,18 @@ import type { AgentSkillName, AgentToolName } from "./types";
 const SKILL_PLAYBOOKS: Record<AgentSkillName, string> = {
   "skill.schedule": `SKILL.SCHEDULE — agenda WhatsApp
 Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU conferir agendamentos dele:
-1. find_client (telefone da conversa) só para identificar nome/histórico.
-2. Conferir agendas → SEMPRE list_client_appointments (nunca invente a partir de lastAppointment).
+1. find_client (telefone da conversa) para identificar.
+2. "Última vez que fiz X" / histórico de serviço → find_client com serviceQuery="X". Responda com lastServiceMatch.label (data+dia). Se lastServiceMatch for null, diga que não achou no histórico — não invente e não diga "sem data" se recentServices tiver a data.
+3. Conferir agendas → SEMPRE list_client_appointments (nunca invente a partir de lastAppointment).
    - "essa semana" → range=week
    - "hoje" → range=today
    - genérico / próximos → range=upcoming (padrão)
    - "só o próximo" → range=next
    - "antes de DD/MM" → beforeDate=YYYY-MM-DD
-3. A tool devolve appointments ORDENADOS do mais próximo ao mais longe + campo label com weekday correto.
+4. A tool devolve appointments ORDENADOS do mais próximo ao mais longe + campo label com weekday correto.
    → Liste TODOS os retornados (ou diga que não há). Nunca cite só o mais longe. Nunca invente dia da semana.
-4. Marcar → list_services → list_slots → confirme → book_appointment.
-5. Cancelar → list_client_appointments → cancel_appointment com o id.
+5. Marcar → list_services → list_slots → confirme → book_appointment.
+6. Cancelar → list_client_appointments → cancel_appointment com o id.
 Nunca invente horário.`,
 
   "skill.order": `SKILL.ORDER — comanda
@@ -38,10 +39,17 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     type: "function",
     function: {
       name: "find_client",
-      description: "Identifica o cliente pelo telefone do WhatsApp e retorna histórico de serviços.",
+      description:
+        "Identifica o cliente pelo telefone. Devolve histórico de serviços COM DATA (recentServices/lastServiceMatch). Para 'última vez que fiz X', passe serviceQuery.",
       parameters: {
         type: "object",
-        properties: { phoneE164: { type: "string" } },
+        properties: {
+          phoneE164: { type: "string" },
+          serviceQuery: {
+            type: "string",
+            description: "Nome do serviço a buscar no histórico (ex.: hidratação de barba)",
+          },
+        },
         required: ["phoneE164"],
       },
     },
