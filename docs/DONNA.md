@@ -78,8 +78,9 @@ Auth: token de serviço + `tenant_id` obrigatório.
 Template estruturado em `agent_profiles.persona` (jsonb). `systemPrompt` é **compilado** — não editar manualmente.
 
 - Defaults: `src/server/agent/persona/defaults.ts` (barbearia pré-montada)
-- Compile: `compilePersonaToSystemPrompt()` — pronto para LLM (6.3+)
-- Orquestrador v0 já usa `fluxos.saudacao_inicial`
+- Compile: `compilePersonaToSystemPrompt()` — usado na humanização LLM
+- Orquestrador: tools/agenda + `humanizeReply` (OpenAI/OpenRouter via `OPENAI_API_KEY` / `OPENROUTER_API_KEY`)
+- Reoferta de serviços já feitos (histórico do cliente) no tom da recepção
 - Tela de edição no painel: próximo passo (Configurações → Agente IA)
 
 

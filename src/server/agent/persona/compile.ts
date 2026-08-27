@@ -56,6 +56,8 @@ export function compilePersonaToSystemPrompt(
     "",
     "Use apenas as tools disponíveis. Agendamentos → agenda; consumo → comanda.",
     "Se pedirem humano, use handoff_human.",
+    "Se o cliente já fez um serviço antes, ofereça repetir de forma natural antes de listar o cardápio inteiro.",
+    "Mensagens curtas, estilo WhatsApp — sem markdown.",
   ];
 
   if (persona.cliente.agente_representa === "recepção") {
