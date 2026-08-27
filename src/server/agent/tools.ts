@@ -1,7 +1,11 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { TOOL_CATALOG } from "./catalog";
 import type { AgentToolName, ToolResult } from "./types";
+
+function isComboServiceName(name: string) {
+  return /combo|corte\s*\+?\s*barba|barba\s*\+?\s*corte|corte\s*e\s*barba/i.test(name);
+}
 
 export function listToolDefinitions(enabled?: string[]) {
   if (!enabled?.length) return TOOL_CATALOG;
@@ -106,6 +110,155 @@ export async function executeTool(
           )
           .limit(40);
         result = { ok: true, data: { services: rows } };
+        break;
+      }
+      case "find_client": {
+        const phoneRaw = String(args.phoneE164 ?? args.phone ?? "").trim();
+        const digits = phoneRaw.replace(/\D/g, "");
+        if (digits.length < 10) {
+          result = { ok: false, error: "phoneE164 obrigatório" };
+          break;
+        }
+        const e164 = digits.startsWith("55") ? `+${digits}` : `+55${digits}`;
+        const national = digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits;
+        const last11 = national.slice(-11);
+
+        const db = createDb();
+        const [client] = await db
+          .select({
+            id: schema.clients.id,
+            name: schema.clients.name,
+            phone: schema.clients.phone,
+            phoneE164: schema.clients.phoneE164,
+            notes: schema.clients.notes,
+            preferences: schema.clients.preferences,
+          })
+          .from(schema.clients)
+          .where(
+            and(
+              eq(schema.clients.tenantId, ctx.tenantId),
+              isNull(schema.clients.deletedAt),
+              or(
+                eq(schema.clients.phoneE164, e164),
+                sql`right(regexp_replace(coalesce(${schema.clients.phoneE164}, ''), '\\D', '', 'g'), 11) = ${last11}`,
+                sql`right(regexp_replace(coalesce(${schema.clients.phone}, ''), '\\D', '', 'g'), 11) = ${last11}`
+              )
+            )
+          )
+          .limit(1);
+
+        if (!client) {
+          result = { ok: true, data: { found: false } };
+          break;
+        }
+
+        if (ctx.conversationId) {
+          await db
+            .update(schema.conversations)
+            .set({ clientId: client.id, updatedAt: new Date() })
+            .where(
+              and(
+                eq(schema.conversations.id, ctx.conversationId),
+                eq(schema.conversations.tenantId, ctx.tenantId)
+              )
+            );
+        }
+
+        const recentItems = await db
+          .select({
+            description: schema.orderItems.description,
+            serviceName: schema.services.name,
+            performedAt: schema.orderItems.performedAt,
+            openedAt: schema.orders.openedAt,
+            orderStatus: schema.orders.status,
+          })
+          .from(schema.orderItems)
+          .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+          .leftJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
+          .where(
+            and(
+              eq(schema.orders.tenantId, ctx.tenantId),
+              eq(schema.orders.clientId, client.id),
+              isNull(schema.orders.deletedAt),
+              eq(schema.orderItems.itemType, "service")
+            )
+          )
+          .orderBy(desc(sql`coalesce(${schema.orderItems.performedAt}, ${schema.orders.openedAt})`))
+          .limit(8);
+
+        const openOrder = await db
+          .select({
+            id: schema.orders.id,
+            openedAt: schema.orders.openedAt,
+            totalCents: schema.orders.totalCents,
+          })
+          .from(schema.orders)
+          .where(
+            and(
+              eq(schema.orders.tenantId, ctx.tenantId),
+              eq(schema.orders.clientId, client.id),
+              eq(schema.orders.status, "open"),
+              isNull(schema.orders.deletedAt)
+            )
+          )
+          .orderBy(desc(schema.orders.openedAt))
+          .limit(1);
+
+        const lastAppt = await db
+          .select({
+            startsAt: schema.appointments.startsAt,
+            status: schema.appointments.status,
+            serviceName: schema.services.name,
+            staffName: schema.staff.name,
+          })
+          .from(schema.appointments)
+          .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
+          .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
+          .where(
+            and(
+              eq(schema.appointments.tenantId, ctx.tenantId),
+              eq(schema.appointments.clientId, client.id),
+              isNull(schema.appointments.deletedAt)
+            )
+          )
+          .orderBy(desc(schema.appointments.startsAt))
+          .limit(1);
+
+        const serviceNames = recentItems
+          .map((r) => r.serviceName || r.description || "")
+          .filter(Boolean);
+        const lastServiceName = serviceNames[0] ?? lastAppt[0]?.serviceName ?? null;
+        const prefersCombo =
+          serviceNames.slice(0, 5).some((n) => isComboServiceName(n)) ||
+          (lastServiceName ? isComboServiceName(lastServiceName) : false);
+
+        const firstName = client.name.trim().split(/\s+/)[0] || client.name;
+
+        result = {
+          ok: true,
+          data: {
+            found: true,
+            client: {
+              id: client.id,
+              name: client.name,
+              firstName,
+              phone: client.phone,
+              phoneE164: client.phoneE164,
+            },
+            lastServiceName,
+            prefersCombo,
+            openOrder: openOrder[0] ?? null,
+            lastAppointment: lastAppt[0]
+              ? {
+                  startsAt: lastAppt[0].startsAt,
+                  status: lastAppt[0].status,
+                  serviceName: lastAppt[0].serviceName,
+                  staffName: lastAppt[0].staffName,
+                }
+              : null,
+            recentServices: serviceNames.slice(0, 5),
+          },
+        };
         break;
       }
       case "list_followups": {
