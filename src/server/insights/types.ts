@@ -5,10 +5,15 @@ export const DEFAULT_RECURRENCE_LAPSE_DAYS = 45;
 /** Sem serviço/visita há este prazo → candidato a retorno. */
 export const DEFAULT_INACTIVE_DAYS = 60;
 /**
+ * Janela máxima (saudável) para qualquer alerta de ação.
+ * Cadastros parados (anos sem vir) ficam de fora.
+ */
+export const DEFAULT_ACTIONABLE_WINDOW_DAYS = 100;
+/**
  * Janela máxima (saudável): só quem ainda “sumiu recente”.
  * last_visit entre inactiveDays e inactiveWindowDays atrás.
  */
-export const DEFAULT_INACTIVE_WINDOW_DAYS = 100;
+export const DEFAULT_INACTIVE_WINDOW_DAYS = DEFAULT_ACTIONABLE_WINDOW_DAYS;
 
 export type UpsellTipKind =
   | "service_due"

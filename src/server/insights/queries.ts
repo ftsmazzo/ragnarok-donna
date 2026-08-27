@@ -2,6 +2,7 @@ import { and, asc, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { requireTenantContext } from "../context/tenant";
 import {
+  DEFAULT_ACTIONABLE_WINDOW_DAYS,
   DEFAULT_INACTIVE_DAYS,
   DEFAULT_INACTIVE_WINDOW_DAYS,
   DEFAULT_PRODUCT_REBUY_DAYS,
@@ -114,7 +115,10 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
     const daysSince = daysBetween(new Date(row.lastAt));
 
     if (isRecurrence) {
-      if (daysSince >= DEFAULT_RECURRENCE_LAPSE_DAYS) {
+      if (
+        daysSince >= DEFAULT_RECURRENCE_LAPSE_DAYS &&
+        daysSince <= DEFAULT_ACTIONABLE_WINDOW_DAYS
+      ) {
         tips.push({
           kind: "recurrence_lapsed",
           title: tipTitle("recurrence_lapsed", row.name),
@@ -128,7 +132,7 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
     }
 
     const threshold = row.returnAfterDays ?? DEFAULT_SERVICE_RETURN_DAYS;
-    if (daysSince >= threshold) {
+    if (daysSince >= threshold && daysSince <= DEFAULT_ACTIONABLE_WINDOW_DAYS) {
       tips.push({
         kind: "service_due",
         title: tipTitle("service_due", row.name),
@@ -144,7 +148,10 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
   for (const row of productRows) {
     if (!row.productId || !row.lastAt) continue;
     const daysSince = daysBetween(new Date(row.lastAt));
-    if (daysSince >= DEFAULT_PRODUCT_REBUY_DAYS) {
+    if (
+      daysSince >= DEFAULT_PRODUCT_REBUY_DAYS &&
+      daysSince <= DEFAULT_ACTIONABLE_WINDOW_DAYS
+    ) {
       tips.push({
         kind: "product_due",
         title: tipTitle("product_due", row.name),
@@ -177,10 +184,11 @@ export async function getClientUpsellTips(clientId: string): Promise<ClientUpsel
   return tips.slice(0, 3);
 }
 
-/** Serviços avulsos/outros além do ciclo — exclui categoria Recorrência. */
+/** Serviços avulsos/outros além do ciclo — exclui categoria Recorrência. Janela máx. 100d. */
 async function loadServiceDueRows(
   tenantId: string,
   thresholdFallback: number,
+  windowDays = DEFAULT_ACTIONABLE_WINDOW_DAYS,
   limit = 80
 ): Promise<PerfilReofferRow[]> {
   const db = createDb();
@@ -225,9 +233,10 @@ async function loadServiceDueRows(
       schema.services.returnAfterDays
     )
     .having(
-      sql`max(${schema.orderItems.performedAt}) <= now() - (coalesce(${schema.services.returnAfterDays}, ${thresholdFallback}) * interval '1 day')`
+      sql`max(${schema.orderItems.performedAt}) <= now() - (coalesce(${schema.services.returnAfterDays}, ${thresholdFallback}) * interval '1 day')
+        and max(${schema.orderItems.performedAt}) >= now() - (${windowDays} * interval '1 day')`
     )
-    .orderBy(asc(sql`max(${schema.orderItems.performedAt})`))
+    .orderBy(desc(sql`max(${schema.orderItems.performedAt})`))
     .limit(limit);
 
   return rows
@@ -251,6 +260,7 @@ async function loadServiceDueRows(
 async function loadProductDueRows(
   tenantId: string,
   thresholdDays: number,
+  windowDays = DEFAULT_ACTIONABLE_WINDOW_DAYS,
   limit = 80
 ): Promise<PerfilReofferRow[]> {
   const db = createDb();
@@ -288,9 +298,10 @@ async function loadProductDueRows(
       schema.products.name
     )
     .having(
-      sql`max(${schema.orderItems.performedAt}) <= now() - (${thresholdDays} * interval '1 day')`
+      sql`max(${schema.orderItems.performedAt}) <= now() - (${thresholdDays} * interval '1 day')
+        and max(${schema.orderItems.performedAt}) >= now() - (${windowDays} * interval '1 day')`
     )
-    .orderBy(asc(sql`max(${schema.orderItems.performedAt})`))
+    .orderBy(desc(sql`max(${schema.orderItems.performedAt})`))
     .limit(limit);
 
   return rows
@@ -310,13 +321,15 @@ async function loadProductDueRows(
     });
 }
 
-/** Teve serviço da categoria Recorrência e não renovou após N dias. */
+/** Teve serviço da categoria Recorrência e não renovou — só dentro da janela saudável. */
 async function loadRecurrenceLapsed(
   tenantId: string,
   lapseDays: number,
+  windowDays = DEFAULT_ACTIONABLE_WINDOW_DAYS,
   limit = 100
 ): Promise<FollowUpRow[]> {
   const db = createDb();
+  const maxDays = Math.max(lapseDays, windowDays);
   const rows = await db
     .select({
       clientId: schema.orders.clientId,
@@ -351,9 +364,10 @@ async function loadRecurrenceLapsed(
     )
     .groupBy(schema.orders.clientId, schema.clients.name, schema.clients.phone)
     .having(
-      sql`max(${schema.orderItems.performedAt}) <= now() - (${lapseDays} * interval '1 day')`
+      sql`max(${schema.orderItems.performedAt}) <= now() - (${lapseDays} * interval '1 day')
+        and max(${schema.orderItems.performedAt}) >= now() - (${maxDays} * interval '1 day')`
     )
-    .orderBy(asc(sql`max(${schema.orderItems.performedAt})`))
+    .orderBy(desc(sql`max(${schema.orderItems.performedAt})`))
     .limit(limit);
 
   return rows
@@ -559,19 +573,19 @@ export async function getWeeklyInsights(): Promise<WeeklyInsights> {
 
   const tips: string[] = [];
   if (report.inactiveCount > 0) {
-    const sample = report.inactiveClients[0];
+    const sample = [...report.inactiveClients].sort((a, b) => a.daysSince - b.daysSince)[0];
     tips.push(
       `Retorno: ${report.inactiveCount} cliente(s) entre ${report.inactiveDays} e ${report.inactiveWindowDays} dias sem vir — ex.: ${sample.clientName} (${sample.daysSince}d).`
     );
   }
   if (report.recurrenceLapsedCount > 0) {
-    const sample = report.recurrenceLapsed[0];
+    const sample = [...report.recurrenceLapsed].sort((a, b) => a.daysSince - b.daysSince)[0];
     tips.push(
       `Recorrência: ${sample.clientName} sem renovação há ${sample.daysSince} dias${sample.lastServiceName ? ` (${sample.lastServiceName})` : ""}.`
     );
   }
   if (report.serviceDueCount > 0) {
-    const sample = report.serviceDue[0];
+    const sample = [...report.serviceDue].sort((a, b) => a.daysSince - b.daysSince)[0];
     tips.push(
       `Reoferecer: ${sample.clientName} fez ${sample.catalogName} há ${sample.daysSince} dias.`
     );
