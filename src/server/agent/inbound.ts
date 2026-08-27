@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { createDb, schema } from "@/db";
-import { phoneFromJid } from "@/server/evolution/phone";
-import { mapConnectionStatus } from "@/server/evolution/client";
+import { phoneFromMessageKey } from "@/server/evolution/phone";
+import { findRecentMessages, mapConnectionStatus } from "@/server/evolution/client";
 import { resolveTenantByInstance, syncWhatsAppConnectionByInstance } from "./connection";
 import { ensureDefaultAgentProfile } from "./persona-profile";
 import { deliverWhatsAppText } from "./outbound";
@@ -15,14 +15,22 @@ type EvolutionWebhookBody = {
   apikey?: string;
 };
 
-type MessageUpsertData = {
-  key?: { remoteJid?: string; fromMe?: boolean; id?: string };
+export type MessageUpsertData = {
+  key?: {
+    remoteJid?: string;
+    remoteJidAlt?: string;
+    participant?: string;
+    participantAlt?: string;
+    fromMe?: boolean;
+    id?: string;
+  };
   message?: {
     conversation?: string;
     extendedTextMessage?: { text?: string };
     imageMessage?: { caption?: string };
   };
   pushName?: string;
+  messageType?: string;
 };
 
 type ConnectionUpdateData = {
@@ -47,7 +55,7 @@ function extractMessageText(data: MessageUpsertData): string | null {
 }
 
 function isGroupJid(jid: string) {
-  return jid.includes("@g.us") || jid.includes("@broadcast");
+  return jid.includes("@g.us") || jid.includes("@broadcast") || jid.startsWith("status@");
 }
 
 async function findClientId(tenantId: string, phoneE164: string) {
@@ -134,24 +142,38 @@ async function persistInbound(input: {
   return true;
 }
 
-async function handleMessageUpsert(instanceName: string, raw: MessageUpsertData) {
+/**
+ * Processa uma mensagem inbound.
+ * @param reply Se false, só persiste (sync histórico) — não dispara Donna.
+ */
+export async function processInboundMessage(
+  instanceName: string,
+  raw: MessageUpsertData,
+  options: { reply?: boolean } = {}
+): Promise<"ok" | "skip" | "dup" | "no_tenant"> {
+  const shouldReply = options.reply !== false;
   const tenantLink = await resolveTenantByInstance(instanceName);
   if (!tenantLink) {
     console.warn("[webhook] instância sem tenant:", instanceName);
-    return;
+    return "no_tenant";
   }
 
-  const jid = raw.key?.remoteJid ?? "";
-  if (!jid || isGroupJid(jid) || raw.key?.fromMe) return;
+  if (raw.key?.fromMe) return "skip";
 
-  const phoneE164 = phoneFromJid(jid);
-  if (!phoneE164) return;
+  const jid = raw.key?.remoteJid ?? "";
+  if (jid && isGroupJid(jid)) return "skip";
+
+  const phoneE164 = phoneFromMessageKey(raw.key);
+  if (!phoneE164) {
+    console.warn("[webhook] sem telefone (lid sem alt?):", raw.key?.remoteJid, raw.key?.remoteJidAlt);
+    return "skip";
+  }
 
   const text = extractMessageText(raw);
-  if (!text) return;
+  if (!text) return "skip";
 
   const waMessageId = raw.key?.id;
-  if (!waMessageId) return;
+  if (!waMessageId) return "skip";
 
   const tenantId = tenantLink.tenantId;
   const profileId = await ensureDefaultAgentProfile({ tenantId, displayName: "Donna" });
@@ -169,9 +191,9 @@ async function handleMessageUpsert(instanceName: string, raw: MessageUpsertData)
     body: text,
     waMessageId,
   });
-  if (!inserted) return;
+  if (!inserted) return "dup";
 
-  if (conv.mode === "human") return;
+  if (!shouldReply || conv.mode === "human") return "ok";
 
   const result = await runOrchestrator({
     tenantId,
@@ -181,10 +203,10 @@ async function handleMessageUpsert(instanceName: string, raw: MessageUpsertData)
     mode: "ai",
   });
 
-  if (!result.reply?.trim()) return;
+  if (!result.reply?.trim()) return "ok";
 
   const connection = await syncWhatsAppConnectionByInstance(instanceName);
-  if (connection?.status !== "connected") return;
+  if (connection?.status !== "connected") return "ok";
 
   await deliverWhatsAppText({
     tenantId,
@@ -194,6 +216,8 @@ async function handleMessageUpsert(instanceName: string, raw: MessageUpsertData)
     conversationId: conv.id,
     direction: "outbound_ai",
   });
+
+  return "ok";
 }
 
 async function handleConnectionUpdate(instanceName: string, raw: ConnectionUpdateData) {
@@ -235,10 +259,14 @@ export async function handleEvolutionWebhook(body: EvolutionWebhookBody) {
   if (event === "messages.upsert") {
     const payload = body.data;
     const items = Array.isArray(payload) ? payload : payload ? [payload] : [];
+    let ok = 0;
     for (const item of items) {
-      await handleMessageUpsert(instanceName, item as MessageUpsertData);
+      const r = await processInboundMessage(instanceName, item as MessageUpsertData, {
+        reply: true,
+      });
+      if (r === "ok") ok += 1;
     }
-    return { ok: true, handled: "messages.upsert", count: items.length };
+    return { ok: true, handled: "messages.upsert", count: items.length, processed: ok };
   }
 
   if (event === "connection.update") {
@@ -252,4 +280,30 @@ export async function handleEvolutionWebhook(body: EvolutionWebhookBody) {
   }
 
   return { ok: true, skipped: event || "unknown" };
+}
+
+/** Puxa últimas msgs da Evolution e grava na inbox (sem re-responder). */
+export async function syncRecentInboundFromEvolution(instanceName: string, limit = 40) {
+  const records = await findRecentMessages(instanceName, limit);
+  let imported = 0;
+  let skipped = 0;
+  for (const msg of records) {
+    if (msg.key?.fromMe) {
+      skipped += 1;
+      continue;
+    }
+    const r = await processInboundMessage(
+      instanceName,
+      {
+        key: msg.key,
+        message: msg.message,
+        pushName: msg.pushName,
+        messageType: msg.messageType,
+      },
+      { reply: false }
+    );
+    if (r === "ok") imported += 1;
+    else skipped += 1;
+  }
+  return { imported, skipped, scanned: records.length };
 }

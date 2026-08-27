@@ -114,6 +114,44 @@ export async function sendTextMessage(instanceName: string, numberDigits: string
   );
 }
 
+export type EvolutionStoredMessage = {
+  id?: string;
+  key?: {
+    id?: string;
+    fromMe?: boolean;
+    remoteJid?: string;
+    remoteJidAlt?: string;
+    participant?: string;
+    participantAlt?: string;
+  };
+  pushName?: string;
+  messageType?: string;
+  message?: {
+    conversation?: string;
+    extendedTextMessage?: { text?: string };
+    imageMessage?: { caption?: string };
+  };
+  messageTimestamp?: number;
+};
+
+export async function findRecentMessages(
+  instanceName: string,
+  limit = 30
+): Promise<EvolutionStoredMessage[]> {
+  const data = await evolutionFetch<{
+    messages?: { records?: EvolutionStoredMessage[] };
+    records?: EvolutionStoredMessage[];
+  }>(`/chat/findMessages/${encodeURIComponent(instanceName)}`, {
+    body: {
+      where: { key: { fromMe: false } },
+      limit,
+      offset: 0,
+    },
+  });
+  return data.messages?.records ?? data.records ?? [];
+}
+
+
 export function extractQrBase64(payload: {
   qrcode?: { base64?: string };
   base64?: string;

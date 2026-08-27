@@ -23,7 +23,12 @@ export {
   resolveTenantByInstance,
 } from "./connection";
 export type { WhatsAppConnectionView } from "./connection";
-export { handleEvolutionWebhook, assertWebhookAuthorized } from "./inbound";
+export {
+  handleEvolutionWebhook,
+  assertWebhookAuthorized,
+  syncRecentInboundFromEvolution,
+} from "./inbound";
+export { syncInboxFromEvolution } from "./sync-inbox";
 export { deliverWhatsAppText, getConnectionForTenant } from "./outbound";
 export {
   createDefaultPersona,

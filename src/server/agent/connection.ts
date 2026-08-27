@@ -209,6 +209,20 @@ export async function refreshWhatsAppPairing(): Promise<
     const status = synced?.status ?? row?.status ?? "disconnected";
     const phoneE164 = synced?.phoneE164 ?? row?.phoneE164 ?? null;
 
+    try {
+      const webhookUrl = getAgentWebhookUrl();
+      await setInstanceWebhook(instanceName, webhookUrl);
+      await upsertConnection({
+        tenantId: tenant.id,
+        instanceName,
+        status,
+        phoneE164,
+        webhookUrl,
+      });
+    } catch {
+      // webhook re-set best-effort
+    }
+
     if (status !== "connected") {
       try {
         const connect = await connectInstance(instanceName);
@@ -225,7 +239,7 @@ export async function refreshWhatsAppPairing(): Promise<
         status,
         phoneE164,
         qrcodeBase64,
-        webhookConfigured: Boolean(row?.meta?.webhookUrl),
+        webhookConfigured: true,
       },
     };
   } catch (err) {

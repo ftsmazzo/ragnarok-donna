@@ -5,6 +5,7 @@ import type { WhatsAppConnectionView } from "@/server/agent/connection";
 import {
   refreshWhatsAppPairingAction,
   startWhatsAppPairingAction,
+  syncInboxFromEvolutionAction,
 } from "@/app/(painel)/conversas/actions";
 
 type Props = {
@@ -14,12 +15,14 @@ type Props = {
 export function WhatsAppConnectPanel({ initial }: Props) {
   const [state, setState] = useState<WhatsAppConnectionView | null>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const connected = state?.status === "connected";
 
   function startPairing() {
     setError(null);
+    setSyncNote(null);
     startTransition(async () => {
       const result = await startWhatsAppPairingAction();
       if (!result.ok) {
@@ -39,6 +42,21 @@ export function WhatsAppConnectPanel({ initial }: Props) {
         return;
       }
       setState(result.data);
+    });
+  }
+
+  function syncInbox() {
+    setError(null);
+    setSyncNote(null);
+    startTransition(async () => {
+      const result = await syncInboxFromEvolutionAction();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setSyncNote(
+        `Sincronizado: ${result.imported} mensagem(ns) nova(s) · ${result.skipped} ignorada(s).`
+      );
     });
   }
 
@@ -72,12 +90,24 @@ export function WhatsAppConnectPanel({ initial }: Props) {
               Instância: <code>{state?.instanceName}</code>
             </p>
             <p className="muted-note">
-              Mensagens recebidas aparecem na inbox. Depois você pode trocar o número — basta
-              desconectar no Evolution e parear de novo.
+              Mensagens novas entram sozinhas. Se algo não apareceu, use{" "}
+              <strong>Sincronizar inbox</strong>.
             </p>
-            <button type="button" className="btn btn-outline btn-sm" disabled={pending} onClick={refresh}>
-              Atualizar status
-            </button>
+            {error ? <p className="form-error">{error}</p> : null}
+            {syncNote ? <p className="muted-note">{syncNote}</p> : null}
+            <div className="wa-connect-actions">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={pending}
+                onClick={syncInbox}
+              >
+                {pending ? "Sincronizando…" : "Sincronizar inbox"}
+              </button>
+              <button type="button" className="btn btn-outline btn-sm" disabled={pending} onClick={refresh}>
+                Atualizar status
+              </button>
+            </div>
           </>
         ) : (
           <>
