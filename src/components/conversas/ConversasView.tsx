@@ -5,8 +5,10 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { FilterTabs } from "@/components/cadastro/FilterTabs";
+import { WhatsAppConnectPanel } from "@/components/conversas/WhatsAppConnectPanel";
 import { ConversationDrawer } from "@/components/conversas/ConversationDrawer";
 import { formatDateTimeSp } from "@/lib/datetime";
+import type { WhatsAppConnectionView } from "@/server/agent/connection";
 import type {
   ConversationDetail,
   ConversationFilter,
@@ -27,6 +29,7 @@ type Props = {
   selected: ConversationDetail | null;
   toolCount: number;
   skillTitles: { name: string; title: string; description: string }[];
+  whatsApp: WhatsAppConnectionView | null;
 };
 
 function filterHref(filter: ConversationFilter) {
@@ -40,6 +43,7 @@ export function ConversasView({
   selected,
   toolCount,
   skillTitles,
+  whatsApp,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -101,18 +105,21 @@ export function ConversasView({
       />
 
       <div className="dash-grid" style={{ marginBottom: 12 }}>
+        <WhatsAppConnectPanel initial={whatsApp} />
         <section className="panel dash-panel">
           <div className="panel-toolbar">
-            <strong>Canal WhatsApp</strong>
+            <strong>Agente Donna</strong>
+            <span className="badge is-muted">
+              {data.agentReady ? "Perfil OK" : "Sem perfil"}
+            </span>
           </div>
           <div className="panel-body">
             <p className="muted-note">
-              Status: <strong>{data.connectionStatus ?? "não provisionada"}</strong>
-              {" · "}
               Perfil: <strong>{data.agentReady ? "Donna (default)" : "ausente"}</strong>
             </p>
             <p className="muted-note" style={{ marginTop: 8 }}>
-              Webhook Evolution na fase 6.2. Clique numa linha para abrir o thread.
+              Envie uma mensagem para o número conectado — a Donna responde e o thread aparece
+              na inbox.
             </p>
             {seedError ? <p className="form-error">{seedError}</p> : null}
           </div>
@@ -175,8 +182,8 @@ export function ConversasView({
               {data.rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="table-empty">
-                    Nenhuma conversa. Use <strong>Conversa de teste</strong> ou conecte o
-                    WhatsApp (6.2).
+                    Nenhuma conversa ainda. Conecte o WhatsApp acima ou use{" "}
+                    <strong>Conversa de teste</strong>.
                   </td>
                 </tr>
               ) : (

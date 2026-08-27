@@ -9,6 +9,16 @@ export type {
   ConversationMessage,
 } from "./conversations";
 export {
+  getWhatsAppConnection,
+  startWhatsAppPairing,
+  refreshWhatsAppPairing,
+  syncWhatsAppConnectionByInstance,
+  resolveTenantByInstance,
+} from "./connection";
+export type { WhatsAppConnectionView } from "./connection";
+export { handleEvolutionWebhook, assertWebhookAuthorized } from "./inbound";
+export { deliverWhatsAppText, getConnectionForTenant } from "./outbound";
+export {
   takeHandoff,
   returnToAi,
   sendHumanMessage,

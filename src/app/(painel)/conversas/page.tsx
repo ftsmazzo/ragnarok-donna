@@ -8,6 +8,7 @@ import {
   TOOL_CATALOG,
   type ConversationFilter,
 } from "@/server/agent";
+import { getWhatsAppConnection } from "@/server/agent/connection";
 import { requireTenantContext } from "@/server/context/tenant";
 import { NotFoundError } from "@/server/errors";
 import { requirePageAccess } from "@/server/permissions/page-access";
@@ -27,6 +28,7 @@ export default async function ConversasPage({ searchParams }: Props) {
   const filter: ConversationFilter =
     sp.filter === "ai" || sp.filter === "human" ? sp.filter : "todas";
   const data = await listConversations({ filter });
+  const whatsApp = await getWhatsAppConnection();
 
   let selected = null;
   if (sp.id) {
@@ -49,6 +51,7 @@ export default async function ConversasPage({ searchParams }: Props) {
           title: s.title,
           description: s.description,
         }))}
+        whatsApp={whatsApp}
       />
     </Suspense>
   );

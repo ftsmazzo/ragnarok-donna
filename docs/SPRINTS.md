@@ -20,7 +20,8 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **5.9 — Follow-up / ações** | ✅ concluído | 60d retorno, recorrência 45d, lista + msg |
 | **6.0 — Donna scaffold** | ✅ concluído | Orquestrador, tools/skills, outreach_jobs, APIs, /conversas |
 | **6.1 — Inbox real** | ✅ concluído | Thread + handoff IA ↔ humano |
-| **6.2 — Webhook Evolution** | 🔄 próximo | Persistência de msgs + resposta |
+| **6.2 — Webhook Evolution** | ✅ concluído | QR no painel, webhook, Donna responde |
+| **6.3 — Tools agenda** | 🔄 próximo | list_slots, book, find_client |
 
 ---
 
@@ -43,12 +44,26 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 ### Entregue
 - Drawer de thread com histórico (inbound / IA / humano / sistema)
 - **Assumir atendimento** / **Devolver à IA** (mode + assignedUser + msgs de sistema)
-- Resposta humana persistida no thread (envio WA na 6.2)
+- Resposta humana persistida no thread + envio WA (6.2)
 - Filtros Todas / IA / Humano
 - Botão **Conversa de teste** para validar sem WhatsApp
 
-### Próximo (6.2)
-- Webhook Evolution → persistir inbound → orquestrador → outbound
+---
+
+## Sprint 6.2 — Webhook Evolution ✅
+
+### Entregue
+- Cliente Evolution + `POST /api/agent/webhook`
+- Pareamento no painel (**Conectar WhatsApp** + QR em `/conversas`)
+- Inbound → thread → Donna responde; recepção envia via WA
+
+### Parear (provisório ou oficial)
+1. Env: `EVOLUTION_URL`, `EVOLUTION_API_KEY`, `NEXT_PUBLIC_APP_URL`
+2. `/conversas` → **Conectar WhatsApp** → QR no celular
+3. Mande mensagem de teste para o número pareado
+
+### Próximo (6.3)
+- Tools reais: agenda, cliente, comanda
 
 ---
 

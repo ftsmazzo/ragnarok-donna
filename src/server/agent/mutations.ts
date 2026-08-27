@@ -4,6 +4,7 @@ import { AppError, NotFoundError } from "../errors";
 import { requireCapability } from "../permissions/guards";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { ensureDefaultAgentProfile } from "./conversations";
+import { deliverWhatsAppText, getConnectionForTenant } from "./outbound";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -19,6 +20,7 @@ async function loadOwnedConversation(conversationId: string, tenantId: string) {
     .select({
       id: schema.conversations.id,
       mode: schema.conversations.mode,
+      phoneE164: schema.conversations.phoneE164,
       agentProfileId: schema.conversations.agentProfileId,
     })
     .from(schema.conversations)
@@ -132,8 +134,7 @@ export async function returnToAi(conversationId: string): Promise<ActionResult> 
 }
 
 /**
- * Mensagem da recepção no thread.
- * Persistência local agora; envio Evolution entra na fase 6.2.
+ * Mensagem da recepção — persiste e envia via Evolution quando conectado.
  */
 export async function sendHumanMessage(
   conversationId: string,
@@ -147,6 +148,25 @@ export async function sendHumanMessage(
     if (!text) throw new AppError("VALIDATION", "Mensagem vazia");
     if (conv.mode !== "human") {
       throw new AppError("VALIDATION", "Assuma o atendimento (modo humano) para responder");
+    }
+
+    const connection = await getConnectionForTenant(tenant.id);
+    if (connection?.status === "connected") {
+      const sent = await deliverWhatsAppText({
+        tenantId: tenant.id,
+        instanceName: connection.instanceName,
+        phoneE164: conv.phoneE164,
+        text,
+        conversationId,
+        direction: "outbound_human",
+        operatorUserId: session.user.id,
+      });
+      if (!sent.ok) throw new AppError("UPSTREAM", sent.error);
+      await createDb()
+        .update(schema.conversations)
+        .set({ assignedUserId: session.user.id, updatedAt: new Date() })
+        .where(eq(schema.conversations.id, conversationId));
+      return { ok: true, id: sent.messageId };
     }
 
     const db = createDb();

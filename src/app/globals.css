@@ -1722,3 +1722,29 @@ input {
   color: var(--muted);
   font-size: 13px;
 }
+
+.wa-connect-panel .panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wa-connect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wa-qrcode-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.wa-qrcode {
+  width: min(240px, 100%);
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+}

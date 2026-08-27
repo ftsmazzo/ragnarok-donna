@@ -77,10 +77,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       : `Posso ajudar a agendar, tirar dúvidas ou chamar a recepção.`;
 
   return {
-    reply:
-      `Olá! Sou ${displayName}. ` +
-      `${skillHint} ` +
-      `(Scaffold 6.0 — LLM e tools de agenda/comanda entram nas próximas fases.)`,
+    reply: `Olá! Sou ${displayName}. ${skillHint}`,
     skills,
     toolCalls,
   };

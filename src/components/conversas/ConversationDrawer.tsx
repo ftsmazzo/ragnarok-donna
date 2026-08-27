@@ -108,7 +108,7 @@ export function ConversationDrawer({ open, conversation, onClose }: Props) {
               Enviar
             </button>
             <p className="muted-note chat-compose-hint">
-              Salva no thread agora. Envio WhatsApp (Evolution) na fase 6.2.
+              Enviado pelo WhatsApp conectado quando o canal está ativo.
             </p>
           </form>
         ) : (
