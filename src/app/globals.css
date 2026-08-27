@@ -104,6 +104,40 @@ input {
   font-size: 13px;
 }
 
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.brand-logo-img {
+  height: auto;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.brand-logo-sm .brand-logo-img {
+  max-height: 32px;
+  max-width: 110px;
+}
+
+.brand-logo-md .brand-logo-img {
+  max-height: 40px;
+  max-width: 140px;
+}
+
+.brand-logo-lg .brand-logo-img {
+  max-height: 56px;
+  max-width: 220px;
+}
+
+.sidebar-brand .brand-logo-md .brand-logo-img {
+  /* wordmark no fundo escuro da sidebar */
+  filter: none;
+}
+
 .sidebar-brand strong {
   display: block;
   color: #fff;

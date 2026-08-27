@@ -9,8 +9,12 @@ const quicksand = Quicksand({
 });
 
 export const metadata: Metadata = {
-  title: "RagnaroK · Donna | Painel",
-  description: "Gestão de barbearia e salão com agente WhatsApp",
+  title: "Barbearia Ragnarok · Painel",
+  description: "Gestão da Barbearia Ragnarok com agente WhatsApp Donna",
+  icons: {
+    icon: "/branding/ragnarok-favicon.png",
+    apple: "/branding/ragnarok-favicon.png",
+  },
 };
 
 export default function RootLayout({
@@ -20,9 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className={quicksand.className}>
-        {children}
-      </body>
+      <body className={quicksand.className}>{children}</body>
     </html>
   );
 }

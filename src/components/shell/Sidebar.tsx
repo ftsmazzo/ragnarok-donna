@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { BrandMark } from "./BrandMark";
 import { filterNavForRole, type NavItem } from "./nav";
 import type { MemberRole } from "@/server/types";
 
@@ -11,6 +12,8 @@ type ShellSession = {
   tenantSlug: string;
   role: MemberRole;
   staffId?: string | null;
+  brandLogoSrc?: string | null;
+  brandTagline?: string | null;
 };
 
 type SidebarProps = {
@@ -39,11 +42,18 @@ export function Sidebar({ session }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="sidebar-brand-mark">RD</span>
-        <div>
-          <strong>{session.tenantName}</strong>
-          <small>{session.tenantSlug} · SaaS</small>
-        </div>
+        <BrandMark logoSrc={session.brandLogoSrc} alt={session.tenantName} size="md" />
+        {!session.brandLogoSrc ? (
+          <div>
+            <strong>{session.tenantName}</strong>
+            <small>{session.brandTagline ?? "Painel"}</small>
+          </div>
+        ) : (
+          <div>
+            <strong className="sidebar-brand-name">{session.tenantName}</strong>
+            <small>{session.brandTagline ?? "Painel"}</small>
+          </div>
+        )}
       </div>
 
       <nav className="sidebar-nav" aria-label="Principal">
@@ -56,7 +66,11 @@ export function Sidebar({ session }: SidebarProps) {
                 href={item.href}
                 className={`nav-link${active ? " is-active" : ""}`}
               >
-                {item.icon ? <span className="nav-link-icon" aria-hidden>{item.icon}</span> : null}
+                {item.icon ? (
+                  <span className="nav-link-icon" aria-hidden>
+                    {item.icon}
+                  </span>
+                ) : null}
                 {item.label}
               </Link>
             );
@@ -74,7 +88,11 @@ export function Sidebar({ session }: SidebarProps) {
                 aria-expanded={expanded}
               >
                 <span>
-                  {item.icon ? <span className="nav-link-icon" aria-hidden>{item.icon}</span> : null}
+                  {item.icon ? (
+                    <span className="nav-link-icon" aria-hidden>
+                      {item.icon}
+                    </span>
+                  ) : null}
                   {item.label}
                 </span>
                 <span className="nav-caret" aria-hidden>

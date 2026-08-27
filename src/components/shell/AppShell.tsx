@@ -12,6 +12,8 @@ export type ShellSession = {
   tenantSlug: string;
   role: MemberRole;
   staffId?: string | null;
+  brandLogoSrc?: string | null;
+  brandTagline?: string | null;
 };
 
 type AppShellProps = {
