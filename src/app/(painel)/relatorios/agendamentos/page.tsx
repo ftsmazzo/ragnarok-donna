@@ -2,9 +2,11 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { Pagination } from "@/components/cadastro/Pagination";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
+import { StatusBarChart } from "@/components/relatorio/charts";
 import { reportAppointments } from "@/lib/relatorios";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelApptStatus } from "@/lib/format";
+import { requirePageAccess } from "@/server/permissions/page-access";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ type Props = {
 
 export default async function RelatorioAgendamentosPage({ searchParams }: Props) {
   const sp = await searchParams;
+  await requirePageAccess("/relatorios/agendamentos", sp);
   const data = await reportAppointments({
     from: sp.from,
     to: sp.to,
@@ -27,6 +30,13 @@ export default async function RelatorioAgendamentosPage({ searchParams }: Props)
     q: sp.q,
     page: Number(sp.page) || 1,
   });
+
+  const statusChart = Object.entries(data.byStatus)
+    .filter(([k]) => k !== "blocked")
+    .map(([status, n]) => ({
+      name: labelApptStatus(status),
+      value: Number(n),
+    }));
 
   return (
     <>
@@ -87,6 +97,11 @@ export default async function RelatorioAgendamentosPage({ searchParams }: Props)
               },
             ]}
           />
+
+          <div className="dash-panel-inner" style={{ margin: "8px 12px 16px" }}>
+            <h3 className="section-title section-title-inset">Distribuição por status</h3>
+            <StatusBarChart data={statusChart} />
+          </div>
 
           <div className="table-wrap">
             <table className="data-table">

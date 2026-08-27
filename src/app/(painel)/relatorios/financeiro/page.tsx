@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/shell/PageHeader";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
+import { PaymentMixDonut, RevenueAreaChart } from "@/components/relatorio/charts";
 import { reportFinancial } from "@/lib/relatorios";
 import { formatMoney, labelPaymentMethod } from "@/lib/format";
+import { getManagementDashboard } from "@/server/insights";
+import { requirePageAccess } from "@/server/permissions/page-access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +15,11 @@ type Props = {
 
 export default async function RelatorioFinanceiroPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const data = await reportFinancial({ from: sp.from, to: sp.to });
+  await requirePageAccess("/relatorios/financeiro", sp);
+  const [data, dash] = await Promise.all([
+    reportFinancial({ from: sp.from, to: sp.to }),
+    getManagementDashboard({ from: sp.from, to: sp.to }),
+  ]);
 
   return (
     <>
@@ -57,7 +64,18 @@ export default async function RelatorioFinanceiroPage({ searchParams }: Props) {
             ]}
           />
 
-          <div className="table-wrap">
+          <div className="dash-grid" style={{ marginTop: 8 }}>
+            <div className="dash-panel-inner">
+              <h3 className="section-title section-title-inset">Receita no tempo</h3>
+              <RevenueAreaChart data={dash.revenueSeries} />
+            </div>
+            <div className="dash-panel-inner">
+              <h3 className="section-title section-title-inset">Mix de pagamento</h3>
+              <PaymentMixDonut data={dash.paymentMix} />
+            </div>
+          </div>
+
+          <div className="table-wrap" style={{ marginTop: 12 }}>
             <table className="data-table">
               <thead>
                 <tr>

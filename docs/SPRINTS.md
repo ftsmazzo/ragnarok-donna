@@ -14,6 +14,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **4 — Comanda** | ✅ concluído | Abrir → itens → pagamento → fechar |
 | **5 — Financeiro real** | ✅ concluído | Sessão caixa, sangria/suprimento, pagamento → caixa |
 | **5.5 — Insights / Upsell** | ✅ concluído | Hub relatórios, Perfil, KPIs semanais, dicas na agenda |
+| **5.6 — Dashboard visual** | ✅ concluído | Gráficos dinâmicos no painel gerencial |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
 
 ---
@@ -50,6 +51,22 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 
 ### Próximo
 - Donna / Conversas IA consome os mesmos sinais com narrativa
+
+---
+
+## Sprint 5.6 — Dashboard visual gerencial ✅
+
+### Entregue
+- Hub `/relatorios` vira **painel gerencial** com gráficos (Recharts)
+- Receita no tempo (área), mix de pagamento (donut), status da agenda (barras)
+- Ranking top serviços e top profissionais
+- Comparativo vs período anterior na receita
+- Financeiro e Agendamentos também com gráfico no topo + tabela (estilo Barber, visual nosso)
+- RBAC: financeiro/rankings só gestão; recepção vê agenda + insights
+
+### Diferencial vs AppBarber
+- Barber: tabelas densas, pouco visual
+- Aqui: leitura rápida do negócio + drill-down tabular
 
 ---
 

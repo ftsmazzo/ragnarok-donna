@@ -3,6 +3,7 @@ export {
   getWeeklyInsights,
   reportPerfil,
 } from "./queries";
+export { getManagementDashboard } from "./dashboard";
 export {
   DEFAULT_PRODUCT_REBUY_DAYS,
   DEFAULT_SERVICE_RETURN_DAYS,
@@ -13,3 +14,4 @@ export type {
   PerfilReofferRow,
   WeeklyInsights,
 } from "./types";
+export type { ManagementDashboard } from "./dashboard";
