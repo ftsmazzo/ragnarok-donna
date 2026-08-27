@@ -253,8 +253,10 @@ async function handleConnectionUpdate(instanceName: string, raw: ConnectionUpdat
 
 export function assertWebhookAuthorized(request: Request, body: EvolutionWebhookBody) {
   const expectedSecret = process.env.AGENT_WEBHOOK_SECRET?.trim();
-  const expectedApiKey = process.env.EVOLUTION_API_KEY?.trim();
 
+  // Auth real = AGENT_WEBHOOK_SECRET (query/header).
+  // NÃO comparar body.apikey com EVOLUTION_API_KEY: a Evolution envia o
+  // token da instância (≠ AUTHENTICATION_API_KEY global) → 401 em todo inbound.
   if (expectedSecret) {
     const url = new URL(request.url);
     const q = url.searchParams.get("secret");
@@ -264,9 +266,7 @@ export function assertWebhookAuthorized(request: Request, body: EvolutionWebhook
     }
   }
 
-  if (expectedApiKey && body.apikey && body.apikey !== expectedApiKey) {
-    throw new Error("Unauthorized webhook apikey");
-  }
+  void body;
 }
 
 export async function handleEvolutionWebhook(body: EvolutionWebhookBody) {
