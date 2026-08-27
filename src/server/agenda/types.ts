@@ -17,6 +17,7 @@ export type AgendaAppointment = {
   isEncaixe: boolean;
   notes: string | null;
   priceCents: number | null;
+  orderId: string | null;
 };
 
 export type AgendaDayData = {
@@ -47,5 +48,6 @@ export type AgendaPermissions = {
   canWrite: boolean;
   canCancel: boolean;
   canUpdateStatus: boolean;
+  canOpenOrder: boolean;
   scopedStaffId: string | null;
 };

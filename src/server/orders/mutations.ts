@@ -78,13 +78,16 @@ export async function openOrder(input: {
     const tenant = await requireTenantContext();
     const db = createDb();
 
-    if (input.clientId) {
+    let clientId = input.clientId || undefined;
+    let appointmentId = input.appointmentId || undefined;
+
+    if (clientId) {
       const [client] = await db
         .select({ id: schema.clients.id })
         .from(schema.clients)
         .where(
           and(
-            eq(schema.clients.id, input.clientId),
+            eq(schema.clients.id, clientId),
             eq(schema.clients.tenantId, tenant.id),
             isNull(schema.clients.deletedAt)
           )
@@ -93,34 +96,44 @@ export async function openOrder(input: {
       if (!client) throw new AppError("VALIDATION", "Cliente inválido");
     }
 
-    if (input.appointmentId) {
+    if (appointmentId) {
       const [appt] = await db
-        .select({ id: schema.appointments.id })
+        .select({
+          id: schema.appointments.id,
+          orderId: schema.appointments.orderId,
+          clientId: schema.appointments.clientId,
+        })
         .from(schema.appointments)
         .where(
           and(
-            eq(schema.appointments.id, input.appointmentId),
+            eq(schema.appointments.id, appointmentId),
             eq(schema.appointments.tenantId, tenant.id),
             isNull(schema.appointments.deletedAt)
           )
         )
         .limit(1);
       if (!appt) throw new AppError("VALIDATION", "Agendamento inválido");
+      if (appt.orderId) {
+        return { ok: true, id: appt.orderId };
+      }
+      if (!clientId && appt.clientId) {
+        clientId = appt.clientId;
+      }
     }
 
     const [row] = await db
       .insert(schema.orders)
       .values({
         tenantId: tenant.id,
-        clientId: input.clientId || null,
-        appointmentId: input.appointmentId || null,
+        clientId: clientId || null,
+        appointmentId: appointmentId || null,
         status: "open",
         notes: input.notes?.trim() || null,
         openedByUserId: session.user.id,
       })
       .returning({ id: schema.orders.id });
 
-    if (input.appointmentId) {
+    if (appointmentId) {
       await db
         .update(schema.appointments)
         .set({
@@ -130,7 +143,7 @@ export async function openOrder(input: {
         })
         .where(
           and(
-            eq(schema.appointments.id, input.appointmentId),
+            eq(schema.appointments.id, appointmentId),
             eq(schema.appointments.tenantId, tenant.id)
           )
         );
@@ -345,6 +358,14 @@ export async function addPayment(input: {
         amountCents: Math.round(input.amountCents),
       })
       .returning({ id: schema.payments.id });
+
+    const { recordPaymentInCash } = await import("../finance/mutations");
+    await recordPaymentInCash({
+      tenantId: tenant.id,
+      orderId: input.orderId,
+      method: input.method as PaymentMethod,
+      amountCents: Math.round(input.amountCents),
+    });
 
     return { ok: true, id: row.id };
   } catch (err) {

@@ -26,6 +26,7 @@ export async function getAgendaPermissions(): Promise<AgendaPermissions> {
     canUpdateStatus:
       hasCapability(session.role, "appointments.write") ||
       hasCapability(session.role, "appointments.status_own"),
+    canOpenOrder: hasCapability(session.role, "orders.write"),
     scopedStaffId,
   };
 }
@@ -87,6 +88,7 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       isEncaixe: schema.appointments.isEncaixe,
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
+      orderId: schema.appointments.orderId,
     })
     .from(schema.appointments)
     .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
@@ -107,6 +109,7 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
     isEncaixe: r.isEncaixe,
     notes: r.notes,
     priceCents: r.priceCents,
+    orderId: r.orderId,
   }));
 
   const [waitlistRow] = await db
@@ -163,6 +166,7 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       isEncaixe: schema.appointments.isEncaixe,
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
+      orderId: schema.appointments.orderId,
     })
     .from(schema.appointments)
     .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
@@ -195,6 +199,7 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
     isEncaixe: row.isEncaixe,
     notes: row.notes,
     priceCents: row.priceCents,
+    orderId: row.orderId,
   };
 }
 

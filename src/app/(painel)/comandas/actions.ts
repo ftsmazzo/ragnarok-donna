@@ -28,6 +28,18 @@ export async function openOrderAction(formData: FormData) {
   return result;
 }
 
+export async function openOrderFromAppointmentAction(appointmentId: string, clientId?: string) {
+  const result = await openOrder({
+    appointmentId,
+    clientId: clientId || undefined,
+  });
+  if (result.ok) {
+    revalidateOrders(result.id);
+    revalidatePath("/agenda");
+  }
+  return result;
+}
+
 export async function addOrderItemAction(formData: FormData) {
   const orderId = String(formData.get("orderId") ?? "");
   const itemType = String(formData.get("itemType") ?? "service") as "service" | "product";

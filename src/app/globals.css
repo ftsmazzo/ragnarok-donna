@@ -1475,8 +1475,7 @@ input {
   gap: 4px;
 }
 
-.order-add-item {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+.cell-danger {
+  color: var(--danger);
+  font-weight: 600;
 }

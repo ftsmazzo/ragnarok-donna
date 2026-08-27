@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import type { AgendaAppointment, AgendaPermissions } from "@/server/agenda/types";
@@ -9,6 +10,7 @@ import {
   removeBlockAction,
   updateAppointmentStatusAction,
 } from "@/app/(painel)/agenda/actions";
+import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
 
 type Props = {
   open: boolean;
@@ -34,6 +36,7 @@ export function AgendaDetailModal({
   onClose,
   onSaved,
 }: Props) {
+  const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const isBlock = a.status === "blocked";
@@ -64,6 +67,25 @@ export function AgendaDetailModal({
     });
   }
 
+  function handleOpenOrder() {
+    setError("");
+    if (a.orderId) {
+      router.push(`/comandas?id=${a.orderId}`);
+      onClose();
+      return;
+    }
+    startTransition(async () => {
+      const result = await openOrderFromAppointmentAction(a.id, a.clientId ?? undefined);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onSaved();
+      onClose();
+      router.push(`/comandas?id=${result.id}`);
+    });
+  }
+
   return (
     <Modal
       open={open}
@@ -74,6 +96,16 @@ export function AgendaDetailModal({
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
             Fechar
           </button>
+          {!isBlock && permissions.canOpenOrder && a.status !== "cancelled" ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleOpenOrder}
+              disabled={pending}
+            >
+              {a.orderId ? "Ver comanda" : "Abrir comanda"}
+            </button>
+          ) : null}
           {isBlock && permissions.canWrite ? (
             <button
               type="button"

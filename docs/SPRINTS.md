@@ -12,7 +12,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **2.5 — Perfis (RBAC)** | ✅ concluído | Dono / Recepção / Barbeiro + menu + guards + Equipe |
 | **3 — Agenda operacional** | ✅ concluído | Agendar, bloquear, encaixe, status, escopo barbeiro |
 | **4 — Comanda** | ✅ concluído | Abrir → itens → pagamento → fechar |
-| 5 — Financeiro real | pendente | Sessão caixa, fluxo, comissões no fechamento |
+| **5 — Financeiro real** | ✅ concluído | Sessão caixa, sangria/suprimento, pagamento → caixa |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
 
 ---
@@ -38,6 +38,22 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 
 ---
 
+## Sprint 5 — Financeiro real (caixa) ✅
+
+### Entregue
+- **Abrir caixa** com fundo de troco
+- **Sangria** e **suprimento** na sessão aberta
+- **Fechar caixa** com contagem e saldo esperado
+- Pagamento de comanda gera `cash_movement` automático se houver caixa aberto
+- Visão do dia: movimentos da sessão + pagamentos por forma
+- **Agenda → Abrir comanda** no detalhe do horário (espinha Barber)
+- Lógica em `src/server/finance/` · RBAC `cash.write` (Dono/Recepção)
+
+### Paridade Barber (operação do dia)
+Agenda → status → comanda → itens → pagamento → caixa → fechamento
+
+---
+
 ## Sprint 4 — Comanda ✅
 
 ### Entregue
@@ -52,9 +68,9 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 - Se vinculada a agendamento: status → em atendimento / completed
 - Lógica em `src/server/orders/` · RBAC `orders.write` (Dono/Recepção)
 
-### Próximo (Sprint 5)
-- Sessão de caixa + cash_movements ao fechar
-- Abrir comanda direto do agendamento na agenda
+### Próximo (Sprint 6)
+- Evolution / Conversas IA operacionais
+- Tenant Donna
 
 ---
 
