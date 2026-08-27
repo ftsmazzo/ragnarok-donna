@@ -3,9 +3,11 @@ import { Pagination } from "@/components/cadastro/Pagination";
 import { OrdersTable } from "@/components/comandas/OrdersTable";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
+import { StatusBarChart } from "@/components/relatorio/charts";
 import { reportOrders } from "@/lib/relatorios";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, labelOrderStatus } from "@/lib/format";
 import type { OrderRow } from "@/lib/comandas";
+import { requirePageAccess } from "@/server/permissions/page-access";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +22,21 @@ type Props = {
 
 export default async function RelatorioComandasPage({ searchParams }: Props) {
   const sp = await searchParams;
+  await requirePageAccess("/relatorios/comandas", sp);
   const data = await reportOrders({
     from: sp.from,
     to: sp.to,
     status: sp.status,
     page: Number(sp.page) || 1,
   });
+
+  const statusChart = Object.entries(data.byStatus).map(([status, info]) => ({
+    name: labelOrderStatus(status),
+    value: info.n,
+  }));
+
+  const ticketAvg =
+    data.total > 0 ? Math.round(data.totalCents / data.total) : 0;
 
   return (
     <>
@@ -65,8 +76,14 @@ export default async function RelatorioComandasPage({ searchParams }: Props) {
               { label: "Comandas", value: data.total.toLocaleString("pt-BR") },
               { label: "Itens consumidos", value: data.itemCount.toLocaleString("pt-BR") },
               { label: "Valor total", value: formatMoney(data.totalCents) },
+              { label: "Ticket médio", value: formatMoney(ticketAvg) },
             ]}
           />
+
+          <div className="dash-panel-inner" style={{ margin: "8px 12px 16px" }}>
+            <h3 className="section-title section-title-inset">Distribuição por status</h3>
+            <StatusBarChart data={statusChart} />
+          </div>
 
           <OrdersTable rows={data.rows as OrderRow[]} />
         </div>

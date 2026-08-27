@@ -2,9 +2,10 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { Pagination } from "@/components/cadastro/Pagination";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
+import { PaymentMixDonut, RankingBarChart } from "@/components/relatorio/charts";
 import { reportCommissions } from "@/lib/comissoes";
 import { formatDateTimeSp } from "@/lib/datetime";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, labelItemType } from "@/lib/format";
 import {
   commissionsScope,
   requireOwnStaffId,
@@ -38,6 +39,23 @@ export default async function ComissoesPage({ searchParams }: Props) {
   });
 
   const ownOnly = Boolean(forcedStaffId);
+
+  const ranking = data.byStaff
+    .filter((s) => s.staffName)
+    .slice(0, 8)
+    .map((s) => ({
+      name:
+        (s.staffName ?? "—").length > 18
+          ? `${(s.staffName ?? "").slice(0, 16)}…`
+          : (s.staffName ?? "—"),
+      value: s.commissionCents / 100,
+      extra: s.itemCount,
+    }));
+
+  const typeMix = data.byType.map((t) => ({
+    name: labelItemType(t.itemType),
+    value: t.commissionCents / 100,
+  }));
 
   return (
     <>
@@ -88,6 +106,19 @@ export default async function ComissoesPage({ searchParams }: Props) {
             ]}
           />
 
+          <div className="dash-grid" style={{ marginTop: 8 }}>
+            {!ownOnly ? (
+              <div className="dash-panel-inner">
+                <h3 className="section-title section-title-inset">Ranking de comissão</h3>
+                <RankingBarChart data={ranking} valueLabel="Comissão" />
+              </div>
+            ) : null}
+            <div className="dash-panel-inner">
+              <h3 className="section-title section-title-inset">Mix por tipo</h3>
+              <PaymentMixDonut data={typeMix} />
+            </div>
+          </div>
+
           {!ownOnly ? (
             <>
               <h3 className="section-title section-title-inset">Sintético por profissional</h3>
@@ -133,6 +164,7 @@ export default async function ComissoesPage({ searchParams }: Props) {
                   {!ownOnly ? <th>Profissional</th> : null}
                   <th>Cliente</th>
                   <th>Item</th>
+                  <th>Tipo</th>
                   <th>Valor</th>
                   <th>Comissão</th>
                 </tr>
@@ -140,7 +172,7 @@ export default async function ComissoesPage({ searchParams }: Props) {
               <tbody>
                 {data.items.length === 0 ? (
                   <tr>
-                    <td colSpan={ownOnly ? 5 : 6} className="table-empty">
+                    <td colSpan={ownOnly ? 6 : 7} className="table-empty">
                       Nenhum item no período.
                     </td>
                   </tr>
@@ -151,6 +183,7 @@ export default async function ComissoesPage({ searchParams }: Props) {
                       {!ownOnly ? <td>{i.staffName ?? "—"}</td> : null}
                       <td>{i.clientName ?? "—"}</td>
                       <td>{i.description}</td>
+                      <td>{labelItemType(i.itemType)}</td>
                       <td>{formatMoney(i.totalCents)}</td>
                       <td>{formatMoney(i.commissionCents)}</td>
                     </tr>

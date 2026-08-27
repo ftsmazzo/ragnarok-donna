@@ -14,9 +14,12 @@ Menu principal: Agenda → Cadastros → Comandas → Financeiro → **Relatóri
 
 Relatórios (espelho AppBarber + diferencial nosso):
 - **Painel gerencial** `/relatorios` — KPIs + gráficos dinâmicos + ações da semana
-- Agendamentos — período, status, cliente, profissional; chart + tabela
-- Gerencial Financeiro — receita no tempo, mix de pagamento, caixa
-- Gerencial Comandas, Estoque, Perfil (recompra)
+- **1 Agendamentos** — chart + tabela por status
+- **2 Financeiro** — receita no tempo, mix de pagamento
+- **3 Comandas** — ticket, volume, status
+- **4 Estoque** — saldo, mínimo, vendas de produto
+- Perfil (recompra) + **Comissões** (ranking + analítico)
+- **Início** — mesmo visual do painel (dia + mês + ações)
 
 Telas de listagem/agenda ainda usam **mock**; dados reais após seed + import AppBarber.
 

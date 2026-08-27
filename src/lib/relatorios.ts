@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import { schema } from "@/db";
 import { monthStartSp, rangeBoundsSp, todaySp } from "./datetime";
 import { getDb } from "./db";
@@ -255,6 +255,28 @@ export async function reportOrders(opts: {
     .offset((page - 1) * PAGE_SIZE);
 
   const total = Number(summary?.n ?? 0);
+
+  const statusCounts = await db
+    .select({
+      status: schema.orders.status,
+      n: count(),
+      total: sql<number>`coalesce(sum(${schema.orders.totalCents}), 0)::int`,
+    })
+    .from(schema.orders)
+    .where(
+      and(
+        eq(schema.orders.tenantId, tenant.id),
+        gte(schema.orders.openedAt, start),
+        lte(schema.orders.openedAt, end),
+        isNull(schema.orders.deletedAt)
+      )
+    )
+    .groupBy(schema.orders.status);
+
+  const byStatus = Object.fromEntries(
+    statusCounts.map((r) => [r.status, { n: Number(r.n), totalCents: Number(r.total) }])
+  );
+
   return {
     rows,
     total,
@@ -266,6 +288,131 @@ export async function reportOrders(opts: {
     from,
     to,
     status,
+    byStatus,
+  };
+}
+
+export async function reportStock(opts?: { q?: string; onlyLow?: boolean; from?: string; to?: string }) {
+  const tenant = await getDefaultTenant();
+  const db = getDb();
+  const from = opts?.from ?? monthStartSp();
+  const to = opts?.to ?? todaySp();
+  const { start, end } = rangeBoundsSp(from, to);
+  const q = opts?.q?.trim();
+  const onlyLow = Boolean(opts?.onlyLow);
+
+  let where = and(
+    eq(schema.products.tenantId, tenant.id),
+    isNull(schema.products.deletedAt),
+    eq(schema.products.isActive, true)
+  );
+
+  if (q) {
+    where = and(
+      where,
+      or(
+        ilike(schema.products.name, `%${q}%`),
+        ilike(schema.products.category, `%${q}%`),
+        ilike(schema.products.brand, `%${q}%`)
+      )
+    );
+  }
+
+  if (onlyLow) {
+    where = and(where, sql`${schema.products.stockQty} <= ${schema.products.minQty}`);
+  }
+
+  const rows = await db
+    .select({
+      id: schema.products.id,
+      name: schema.products.name,
+      category: schema.products.category,
+      brand: schema.products.brand,
+      stockQty: schema.products.stockQty,
+      minQty: schema.products.minQty,
+      priceCents: schema.products.priceCents,
+      forSale: schema.products.forSale,
+    })
+    .from(schema.products)
+    .where(where)
+    .orderBy(asc(schema.products.name));
+
+  const [totals] = await db
+    .select({
+      n: count(),
+      low: sql<number>`count(*) filter (where ${schema.products.stockQty} <= ${schema.products.minQty})::int`,
+      zero: sql<number>`count(*) filter (where ${schema.products.stockQty} <= 0)::int`,
+      value: sql<number>`coalesce(sum(${schema.products.stockQty} * ${schema.products.priceCents}), 0)::int`,
+    })
+    .from(schema.products)
+    .where(
+      and(
+        eq(schema.products.tenantId, tenant.id),
+        isNull(schema.products.deletedAt),
+        eq(schema.products.isActive, true)
+      )
+    );
+
+  const byCategory = await db
+    .select({
+      name: sql<string>`coalesce(nullif(${schema.products.category}, ''), 'Sem categoria')`,
+      n: count(),
+      stock: sql<number>`coalesce(sum(${schema.products.stockQty}), 0)::int`,
+    })
+    .from(schema.products)
+    .where(
+      and(
+        eq(schema.products.tenantId, tenant.id),
+        isNull(schema.products.deletedAt),
+        eq(schema.products.isActive, true)
+      )
+    )
+    .groupBy(sql`coalesce(nullif(${schema.products.category}, ''), 'Sem categoria')`)
+    .orderBy(desc(sql`sum(${schema.products.stockQty})`))
+    .limit(8);
+
+  const soldRows = await db
+    .select({
+      name: schema.orderItems.description,
+      qty: sql<number>`coalesce(sum(${schema.orderItems.qty}), 0)::int`,
+      total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, tenant.id),
+        eq(schema.orderItems.itemType, "product"),
+        eq(schema.orders.status, "closed"),
+        gte(schema.orders.closedAt, start),
+        lte(schema.orders.closedAt, end),
+        isNull(schema.orders.deletedAt)
+      )
+    )
+    .groupBy(schema.orderItems.description)
+    .orderBy(desc(sql`sum(${schema.orderItems.totalCents})`))
+    .limit(8);
+
+  return {
+    from,
+    to,
+    q: q ?? "",
+    onlyLow,
+    rows,
+    skuCount: Number(totals?.n ?? 0),
+    lowStockCount: Number(totals?.low ?? 0),
+    zeroStockCount: Number(totals?.zero ?? 0),
+    inventoryValueCents: Number(totals?.value ?? 0),
+    byCategory: byCategory.map((r) => ({
+      name: r.name.length > 22 ? `${r.name.slice(0, 20)}…` : r.name,
+      value: Number(r.stock),
+      extra: Number(r.n),
+    })),
+    topSold: soldRows.map((r) => ({
+      name: r.name.length > 28 ? `${r.name.slice(0, 26)}…` : r.name,
+      value: Number(r.total) / 100,
+      extra: Number(r.qty),
+    })),
   };
 }
 

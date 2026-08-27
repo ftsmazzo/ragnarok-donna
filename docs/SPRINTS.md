@@ -15,6 +15,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **5 — Financeiro real** | ✅ concluído | Sessão caixa, sangria/suprimento, pagamento → caixa |
 | **5.5 — Insights / Upsell** | ✅ concluído | Hub relatórios, Perfil, KPIs semanais, dicas na agenda |
 | **5.6 — Dashboard visual** | ✅ concluído | Gráficos dinâmicos no painel gerencial |
+| **5.7 — Relatórios Barber + Início** | ✅ concluído | 4 gerenciais + comissões + início visual |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
 
 ---
@@ -67,6 +68,22 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 ### Diferencial vs AppBarber
 - Barber: tabelas densas, pouco visual
 - Aqui: leitura rápida do negócio + drill-down tabular
+
+---
+
+## Sprint 5.7 — 4 gerenciais Barber + Início visual ✅
+
+### Entregue
+- Os **4 primeiros** do Barber no hub e no menu: Agendamentos, Financeiro, Comandas, **Estoque real**
+- Estoque: saldo, mínimo, valor em estoque, chart por categoria, top produtos vendidos
+- Comandas com gráfico de status + ticket médio
+- **Comissões** no menu Relatórios + ranking visual + mix serviço/produto
+- **Início** no mesmo padrão do painel: KPIs do dia/mês, gráficos, ações da semana, atalhos
+
+### Ainda não (Barber avançado)
+- Vales / auxiliares / bonificações de comissão
+- Movimentação histórica de estoque (entrada/saída manual)
+- Export Excel/PDF
 
 ---
 

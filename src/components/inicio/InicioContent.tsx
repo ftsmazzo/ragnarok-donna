@@ -1,9 +1,16 @@
 import { PageHeader } from "@/components/shell/PageHeader";
+import { SummaryCards } from "@/components/relatorio/SummaryCards";
+import {
+  PaymentMixDonut,
+  RevenueAreaChart,
+  StatusBarChart,
+} from "@/components/relatorio/charts";
 import { getTenantOverview } from "@/lib/cadastros";
-import { formatDateLabelSp, todaySp } from "@/lib/datetime";
+import { formatDateLabelSp, monthStartSp, todaySp } from "@/lib/datetime";
+import { formatMoney } from "@/lib/format";
 import { canAccessRoute } from "@/server/permissions/routes";
 import { isManagementRole } from "@/server/permissions/roles";
-import { getWeeklyInsights } from "@/server/insights";
+import { getManagementDashboard, getWeeklyInsights } from "@/server/insights";
 import { profissionaisHref } from "@/components/shell/nav";
 import type { AppSession } from "@/server/types";
 import Link from "next/link";
@@ -26,37 +33,69 @@ type Props = {
 export async function InicioContent({ session, searchParams }: Props) {
   const sp = await searchParams;
   const showInsights = isManagementRole(session.role);
-  const [o, weekly] = await Promise.all([
+  const canFinance = canAccessRoute("/relatorios/financeiro", session.role, {
+    staffId: session.staffId,
+  });
+  const canReports = canAccessRoute("/relatorios", session.role, {
+    staffId: session.staffId,
+  });
+
+  const today = todaySp();
+  const monthFrom = monthStartSp();
+
+  const [o, weekly, dash] = await Promise.all([
     getTenantOverview(),
     showInsights ? getWeeklyInsights() : Promise.resolve(null),
+    canReports
+      ? getManagementDashboard({ from: monthFrom, to: today })
+      : Promise.resolve(null),
   ]);
-  const today = todaySp();
 
-  const cadastros = filterLinks(session, [
-    { href: "/clientes", label: "Clientes", hint: `${o.clientsActive.toLocaleString("pt-BR")} ativos` },
+  const reportLinks = filterLinks(session, [
+    {
+      href: "/relatorios/agendamentos",
+      label: "Agendamentos",
+      hint: "Volume e status",
+    },
+    {
+      href: "/relatorios/financeiro",
+      label: "Financeiro",
+      hint: "Receita e mix",
+    },
+    {
+      href: "/relatorios/comandas",
+      label: "Comandas",
+      hint: "Ticket e volume",
+    },
+    {
+      href: "/relatorios/estoque",
+      label: "Estoque",
+      hint: "Saldo e alertas",
+    },
+    { href: "/comissoes", label: "Comissões", hint: "Ranking e analítico" },
+    { href: "/relatorios/perfil", label: "Perfil", hint: "Recompra" },
+  ]);
+
+  const atalhos = filterLinks(session, [
+    { href: "/agenda", label: "Agenda" },
+    { href: "/comandas", label: "Comandas abertas" },
+    { href: "/caixa", label: "Caixa" },
+    { href: "/conversas", label: "Conversas IA" },
     {
       href: profissionaisHref(session.role, session.staffId),
       label: session.role === "staff" ? "Minha performance" : "Profissionais",
     },
-    { href: "/servicos", label: "Serviços" },
-    { href: "/produtos", label: "Produtos" },
-    { href: "/pacotes", label: "Pacotes" },
-  ]);
-
-  const operacao = filterLinks(session, [
-    { href: "/agenda", label: "Agenda" },
-    { href: "/comandas", label: "Comandas abertas" },
-    { href: "/comandas/historico", label: "Histórico de comandas" },
-    { href: "/relatorios", label: "Relatórios" },
-    { href: "/relatorios/perfil", label: "Perfil / recompra" },
-    { href: "/conversas", label: "Conversas IA" },
-    { href: "/comissoes", label: "Comissões" },
-    { href: "/caixa", label: "Caixa" },
+    { href: "/clientes", label: "Clientes" },
   ]);
 
   const showWaitlist = canAccessRoute("/lista-espera", session.role, {
     staffId: session.staffId,
   });
+
+  const delta =
+    dash?.revenueDeltaPct == null
+      ? "mês até hoje"
+      : `${dash.revenueDeltaPct > 0 ? "+" : ""}${dash.revenueDeltaPct}% vs período anterior`;
 
   return (
     <>
@@ -84,84 +123,140 @@ export async function InicioContent({ session, searchParams }: Props) {
         }
       />
 
-      <section className="overview-grid">
-        {canAccessRoute("/agenda", session.role, { staffId: session.staffId }) ? (
-          <Link href={`/agenda?date=${today}`} className="overview-card is-highlight">
-            <span className="overview-value">{o.appointmentsToday}</span>
-            <span className="overview-label">Agendamentos hoje</span>
-          </Link>
-        ) : null}
-        {showWaitlist ? (
-          <Link href="/lista-espera" className="overview-card">
-            <span className="overview-value">{o.waitlist}</span>
-            <span className="overview-label">Lista de espera</span>
-          </Link>
-        ) : null}
-        {canAccessRoute("/comandas", session.role, { staffId: session.staffId }) ? (
-          <Link href="/comandas" className="overview-card">
-            <span className="overview-value">{o.openOrdersToday}</span>
-            <span className="overview-label">Comandas abertas hoje</span>
-          </Link>
-        ) : null}
-        {canAccessRoute("/clientes", session.role, { staffId: session.staffId }) ? (
-          <div className="overview-card is-static">
-            <span className="overview-value">{o.clients.toLocaleString("pt-BR")}</span>
-            <span className="overview-label">Clientes no banco</span>
-            <small>{o.clientsActive.toLocaleString("pt-BR")} ativos</small>
-          </div>
-        ) : null}
-      </section>
+      <SummaryCards
+        cards={[
+          ...(canAccessRoute("/agenda", session.role, { staffId: session.staffId })
+            ? [
+                {
+                  label: "Agenda hoje",
+                  value: o.appointmentsToday.toLocaleString("pt-BR"),
+                  hint: showWaitlist ? `${o.waitlist} na espera` : "do dia",
+                },
+              ]
+            : []),
+          ...(canAccessRoute("/comandas", session.role, { staffId: session.staffId })
+            ? [
+                {
+                  label: "Comandas abertas",
+                  value: o.openOrdersToday.toLocaleString("pt-BR"),
+                  hint: "hoje",
+                },
+              ]
+            : []),
+          ...(canFinance && dash
+            ? [
+                {
+                  label: "Receita no mês",
+                  value: formatMoney(dash.revenueCents),
+                  hint: delta,
+                },
+                {
+                  label: "Ticket médio",
+                  value: formatMoney(dash.ticketAvgCents),
+                  hint: `${dash.closedOrders} comanda(s)`,
+                },
+              ]
+            : dash
+              ? [
+                  {
+                    label: "Agendamentos no mês",
+                    value: dash.appointmentsTotal.toLocaleString("pt-BR"),
+                    hint: `No-show ${dash.noShowRatePct}%`,
+                  },
+                ]
+              : []),
+        ]}
+      />
+
+      {dash && (canFinance || dash.appointmentStatus.length > 0) ? (
+        <div className="dash-grid" style={{ marginTop: 12 }}>
+          {canFinance ? (
+            <section className="panel dash-panel">
+              <div className="panel-toolbar panel-toolbar-split">
+                <strong>Receita no mês</strong>
+                <Link href="/relatorios/financeiro" className="btn btn-outline btn-sm">
+                  Detalhe
+                </Link>
+              </div>
+              <div className="panel-body">
+                <RevenueAreaChart data={dash.revenueSeries} />
+              </div>
+            </section>
+          ) : null}
+          <section className="panel dash-panel">
+            <div className="panel-toolbar panel-toolbar-split">
+              <strong>Agenda no mês</strong>
+              <Link href="/relatorios/agendamentos" className="btn btn-outline btn-sm">
+                Detalhe
+              </Link>
+            </div>
+            <div className="panel-body">
+              <StatusBarChart data={dash.appointmentStatus} />
+            </div>
+          </section>
+          {canFinance ? (
+            <section className="panel dash-panel">
+              <div className="panel-toolbar">
+                <strong>Mix de pagamento</strong>
+              </div>
+              <div className="panel-body">
+                <PaymentMixDonut data={dash.paymentMix} />
+              </div>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
 
       {weekly ? (
-        <>
-          <h2 className="section-title">Insights da semana</h2>
-          <section className="overview-grid">
-            {weekly.cards.map((c) => (
-              <Link key={c.id} href={c.href} className="overview-card">
-                <span className="overview-value">{c.value.toLocaleString("pt-BR")}</span>
-                <span className="overview-label">{c.label}</span>
-                <small>{c.hint}</small>
+        <section className="panel" style={{ marginTop: 12 }}>
+          <div className="panel-toolbar panel-toolbar-split">
+            <strong>O que fazer esta semana</strong>
+            {canAccessRoute("/relatorios/perfil", session.role, {
+              staffId: session.staffId,
+            }) ? (
+              <Link href="/relatorios/perfil" className="btn btn-outline btn-sm">
+                Perfil / recompra
               </Link>
-            ))}
-          </section>
-          <ul className="insight-tips">
-            {weekly.tips.map((t) => (
-              <li key={t}>{t}</li>
-            ))}
-          </ul>
-        </>
+            ) : null}
+          </div>
+          <div className="panel-body">
+            <div className="overview-grid" style={{ marginBottom: 12 }}>
+              {weekly.cards.map((c) => (
+                <Link key={c.id} href={c.href} className="overview-card">
+                  <span className="overview-value">{c.value.toLocaleString("pt-BR")}</span>
+                  <span className="overview-label">{c.label}</span>
+                  <small>{c.hint}</small>
+                </Link>
+              ))}
+            </div>
+            <ul className="insight-tips">
+              {weekly.tips.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
       ) : null}
 
-      {cadastros.length > 0 ? (
+      {reportLinks.length > 0 ? (
         <>
-          <h2 className="section-title">Cadastros</h2>
+          <h2 className="section-title">Relatórios do dia a dia</h2>
           <section className="overview-grid overview-grid-cadastros">
-            {cadastros.map((c) => (
-              <Link key={c.href} href={c.href} className="overview-card">
-                <span className="overview-value">
-                  {c.href === "/clientes"
-                    ? o.clientsActive.toLocaleString("pt-BR")
-                    : c.href.startsWith("/profissionais")
-                      ? o.staff.toLocaleString("pt-BR")
-                      : c.href === "/servicos"
-                        ? o.services.toLocaleString("pt-BR")
-                        : c.href === "/produtos"
-                          ? o.products.toLocaleString("pt-BR")
-                          : o.packages.toLocaleString("pt-BR")}
-                </span>
-                <span className="overview-label">{c.label}</span>
-                {c.hint ? <small>{c.hint}</small> : null}
+            {reportLinks.map((r) => (
+              <Link key={r.href} href={r.href} className="overview-card">
+                <span className="overview-label">{r.label}</span>
+                {r.hint ? <small>{r.hint}</small> : null}
               </Link>
             ))}
           </section>
         </>
       ) : null}
 
-      {operacao.length > 0 ? (
+      {atalhos.length > 0 ? (
         <>
-          <h2 className="section-title">Operação</h2>
+          <h2 className="section-title">Atalhos</h2>
           <section className="quick-links">
-            {operacao.map((l) => (
+            {atalhos.map((l) => (
               <Link key={l.href} href={l.href} className="quick-link">
                 {l.label}
               </Link>

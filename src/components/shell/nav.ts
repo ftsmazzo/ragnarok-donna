@@ -49,6 +49,7 @@ export const NAV: NavItem[] = [
       { label: "Gerencial — Comandas", href: "/relatorios/comandas" },
       { label: "Gerencial — Estoque", href: "/relatorios/estoque" },
       { label: "Gerencial — Perfil", href: "/relatorios/perfil" },
+      { label: "Comissões", href: "/comissoes" },
     ],
   },
   { label: "Conversas IA", href: "/conversas" },

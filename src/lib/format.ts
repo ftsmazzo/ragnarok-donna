@@ -75,6 +75,16 @@ export function labelPaymentMethod(method: string): string {
   return PAYMENT_METHOD[method] ?? method;
 }
 
+const ITEM_TYPE: Record<string, string> = {
+  service: "Serviço",
+  product: "Produto",
+  package: "Pacote",
+};
+
+export function labelItemType(type: string): string {
+  return ITEM_TYPE[type] ?? type;
+}
+
 const WAITLIST_STATUS: Record<string, string> = {
   waiting: "Aguardando",
   notified: "Notificado",

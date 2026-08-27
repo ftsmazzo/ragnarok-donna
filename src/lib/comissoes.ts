@@ -109,6 +109,17 @@ export async function reportCommissions(opts: {
     .where(and(eq(schema.staff.tenantId, tenant.id), isNull(schema.staff.deletedAt)))
     .orderBy(asc(schema.staff.name));
 
+  const byTypeRows = await db
+    .select({
+      itemType: schema.orderItems.itemType,
+      n: count(),
+      commission: sql<number>`coalesce(sum(${commissionExpr}), 0)::int`,
+    })
+    .from(schema.orderItems)
+    .where(itemWhere)
+    .groupBy(schema.orderItems.itemType)
+    .orderBy(desc(sql`sum(${commissionExpr})`));
+
   const total = Number(totals?.n ?? 0);
 
   return {
@@ -116,6 +127,11 @@ export async function reportCommissions(opts: {
     to,
     staffId: opts.staffId ?? "",
     byStaff: byStaff as CommissionStaffRow[],
+    byType: byTypeRows.map((r) => ({
+      itemType: r.itemType,
+      itemCount: Number(r.n),
+      commissionCents: Number(r.commission),
+    })),
     items: items as CommissionItemRow[],
     totalItems: total,
     totalRevenueCents: Number(totals?.revenue ?? 0),

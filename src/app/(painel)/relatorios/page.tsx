@@ -21,11 +21,36 @@ type Props = {
 };
 
 const LINKS = [
-  { href: "/relatorios/agendamentos", title: "Agendamentos", desc: "Tabela detalhada por status" },
-  { href: "/relatorios/financeiro", title: "Financeiro", desc: "Pagamentos e formas" },
-  { href: "/relatorios/comandas", title: "Comandas", desc: "Ticket e volume" },
-  { href: "/relatorios/perfil", title: "Perfil / recompra", desc: "Quem abordar esta semana" },
-  { href: "/relatorios/estoque", title: "Estoque", desc: "Em evolução" },
+  {
+    href: "/relatorios/agendamentos",
+    title: "1 · Agendamentos",
+    desc: "Status, no-show e volume por período",
+  },
+  {
+    href: "/relatorios/financeiro",
+    title: "2 · Financeiro",
+    desc: "Receita, mix de pagamento e caixa",
+  },
+  {
+    href: "/relatorios/comandas",
+    title: "3 · Comandas",
+    desc: "Ticket, volume e status",
+  },
+  {
+    href: "/relatorios/estoque",
+    title: "4 · Estoque",
+    desc: "Saldo, mínimo e vendas de produto",
+  },
+  {
+    href: "/relatorios/perfil",
+    title: "Perfil / recompra",
+    desc: "Quem abordar esta semana",
+  },
+  {
+    href: "/comissoes",
+    title: "Comissões",
+    desc: "Sintético, ranking e analítico",
+  },
 ] as const;
 
 export default async function RelatoriosHubPage({ searchParams }: Props) {
