@@ -1,45 +1,50 @@
-import { PageHeader } from "@/components/shell/PageHeader";
-import { CadastroSearch } from "@/components/cadastro/CadastroSearch";
-import { OrdersTable } from "@/components/comandas/OrdersTable";
-import { SummaryCards } from "@/components/relatorio/SummaryCards";
-import { listOpenOrders } from "@/lib/comandas";
-import { formatMoney } from "@/lib/format";
+import { Suspense } from "react";
+import { ComandasView } from "@/components/comandas/ComandasView";
+import {
+  getOrderDetail,
+  getOrderPermissions,
+  listCatalogForOrders,
+  listOpenOrders,
+} from "@/server/orders";
+import { NotFoundError } from "@/server/errors";
+import { requirePageAccess } from "@/server/permissions/page-access";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; id?: string; novo?: string }>;
 };
 
 export default async function ComandasPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const data = await listOpenOrders({ q: sp.q });
+  await requirePageAccess("/comandas", sp);
+
+  const [data, catalog, permissions] = await Promise.all([
+    listOpenOrders({ q: sp.q }),
+    listCatalogForOrders(),
+    getOrderPermissions(),
+  ]);
+
+  let selectedOrder = null;
+  if (sp.id) {
+    try {
+      selectedOrder = await getOrderDetail(sp.id);
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err;
+    }
+  }
 
   return (
-    <>
-      <PageHeader
-        title="Comandas abertas"
-        subtitle={`${data.total} comanda(s) em aberto · ${formatMoney(data.totalCents)}`}
-        actions={
-          <button type="button" className="btn btn-primary" disabled title="Em breve">
-            + Nova comanda
-          </button>
-        }
+    <Suspense fallback={<p className="panel-empty">Carregando comandas…</p>}>
+      <ComandasView
+        data={data}
+        selectedOrder={selectedOrder}
+        services={catalog.services}
+        products={catalog.products}
+        staff={catalog.staff}
+        permissions={permissions}
+        openNew={sp.novo === "1"}
       />
-
-      <SummaryCards
-        cards={[
-          { label: "Comandas abertas", value: data.total },
-          { label: "Valor em aberto", value: formatMoney(data.totalCents) },
-        ]}
-      />
-
-      <section className="panel" style={{ marginTop: 12 }}>
-        <div className="panel-toolbar">
-          <CadastroSearch action="/comandas" q={data.q} placeholder="Cliente ou código" />
-        </div>
-        <OrdersTable rows={data.rows} showClosed={false} />
-      </section>
-    </>
+    </Suspense>
   );
 }

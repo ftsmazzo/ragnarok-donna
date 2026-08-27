@@ -11,7 +11,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **2 — Profissionais** | ✅ concluído | CRUD + jornada semanal no Drawer |
 | **2.5 — Perfis (RBAC)** | ✅ concluído | Dono / Recepção / Barbeiro + menu + guards + Equipe |
 | **3 — Agenda operacional** | ✅ concluído | Agendar, bloquear, encaixe, status, escopo barbeiro |
-| 4 — Comanda | pendente | Abrir → itens → pagamento |
+| **4 — Comanda** | ✅ concluído | Abrir → itens → pagamento → fechar |
 | 5 — Financeiro real | pendente | Sessão caixa, fluxo, comissões no fechamento |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
 
@@ -35,6 +35,26 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 - Barbeiro: `/profissionais` → minha performance; `/comissoes` → só próprias
 - **Configurações → Equipe de acesso**: alterar papel e vincular barbeiro ↔ profissional
 - Métricas de cancelamento na Performance: só Dono/Admin
+
+---
+
+## Sprint 4 — Comanda ✅
+
+### Entregue
+- **+ Nova comanda** (cliente opcional via busca)
+- Clique na linha abre **Drawer** com itens, pagamentos e saldo
+- Adicionar **serviço** ou **produto** com profissional e desconto no item
+- Comissão provisionada no item (serviço → staff default)
+- Desconto na comanda
+- Registrar pagamento (PIX, dinheiro, débito, crédito…)
+- **Fechar** só com saldo quitado e ao menos 1 item
+- **Cancelar** comanda aberta sem pagamentos
+- Se vinculada a agendamento: status → em atendimento / completed
+- Lógica em `src/server/orders/` · RBAC `orders.write` (Dono/Recepção)
+
+### Próximo (Sprint 5)
+- Sessão de caixa + cash_movements ao fechar
+- Abrir comanda direto do agendamento na agenda
 
 ---
 
