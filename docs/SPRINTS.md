@@ -16,6 +16,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **5.5 — Insights / Upsell** | ✅ concluído | Hub relatórios, Perfil, KPIs semanais, dicas na agenda |
 | **5.6 — Dashboard visual** | ✅ concluído | Gráficos dinâmicos no painel gerencial |
 | **5.7 — Relatórios Barber + Início** | ✅ concluído | 4 gerenciais + comissões + início visual |
+| **5.8 — Vales + fluxo** | ✅ concluído | staff_advances, a pagar líquido, fluxo de caixa |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
 
 ---
@@ -81,9 +82,26 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 - **Início** no mesmo padrão do painel: KPIs do dia/mês, gráficos, ações da semana, atalhos
 
 ### Ainda não (Barber avançado)
-- Vales / auxiliares / bonificações de comissão
 - Movimentação histórica de estoque (entrada/saída manual)
 - Export Excel/PDF
+- Auxiliar / taxas de cartão (ver Sprint 5.8)
+
+---
+
+## Sprint 5.8 — Vales, liquidação e fluxo ✅
+
+### Entregue
+- Tabela `staff_advances` (vale, bônus, desconto, pagamento) — criada no boot de produção
+- Comissões: **a pagar líquido** = comissão − vales − descontos + bônus − pagos
+- Filtro por tipo de item; só itens de **comandas fechadas**
+- Lançar vale/ajuste em Comissões e botão **Vale** no Caixa (debita sessão se aberta)
+- **Fluxo de caixa** `/relatorios/fluxo` (movimentado, disponível, crédito, vales, charts)
+- Recepção pode ver/lançar comissões e vales
+
+### Ainda não
+- Auxiliar (2º profissional no item)
+- Taxas de cartão (bruto vs líquido Barber)
+- Export Excel/PDF / recibo impresso
 
 ---
 

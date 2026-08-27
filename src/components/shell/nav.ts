@@ -36,7 +36,7 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Caixa", href: "/caixa" },
       { label: "Comissões", href: "/comissoes" },
-      { label: "Fluxo de caixa", href: "/modulo/fluxo-caixa" },
+      { label: "Fluxo de caixa", href: "/relatorios/fluxo" },
       { label: "Contas", href: "/modulo/contas" },
     ],
   },
@@ -49,6 +49,7 @@ export const NAV: NavItem[] = [
       { label: "Gerencial — Comandas", href: "/relatorios/comandas" },
       { label: "Gerencial — Estoque", href: "/relatorios/estoque" },
       { label: "Gerencial — Perfil", href: "/relatorios/perfil" },
+      { label: "Fluxo de caixa", href: "/relatorios/fluxo" },
       { label: "Comissões", href: "/comissoes" },
     ],
   },

@@ -42,7 +42,7 @@ const RULES: RouteRule[] = [
   { pattern: "/caixa", roles: ["owner", "admin", "manager"] },
   {
     pattern: "/comissoes",
-    roles: ["owner", "admin", "staff"],
+    roles: ["owner", "admin", "manager", "staff"],
   },
 
   { pattern: "/modulo/fluxo-caixa", roles: ["owner", "admin"] },
@@ -59,6 +59,7 @@ const RULES: RouteRule[] = [
   { pattern: "/relatorios/financeiro", roles: ["owner", "admin"] },
   { pattern: "/relatorios/comandas", roles: ["owner", "admin"] },
   { pattern: "/relatorios/estoque", roles: ["owner", "admin"] },
+  { pattern: "/relatorios/fluxo", roles: ["owner", "admin"] },
   { pattern: "/relatorios/perfil", roles: ["owner", "admin", "manager"] },
   { pattern: "/relatorios", roles: ["owner", "admin", "manager", "readonly"] },
 

@@ -14,13 +14,15 @@ import {
   closeCashSessionAction,
   openCashSessionAction,
 } from "@/app/(painel)/caixa/actions";
+import { CommissionAdvancePanel } from "@/components/comissoes/CommissionAdvancePanel";
 
 type Props = {
   data: CashDaySnapshot;
   permissions: CashPermissions;
+  staffList: { id: string; name: string }[];
 };
 
-export function CaixaView({ data, permissions }: Props) {
+export function CaixaView({ data, permissions, staffList }: Props) {
   const router = useRouter();
   const prev = shiftDateSp(data.date, -1);
   const next = shiftDateSp(data.date, 1);
@@ -83,6 +85,9 @@ export function CaixaView({ data, permissions }: Props) {
                 <button type="button" className="btn btn-outline" onClick={() => setMoveModal("out")}>
                   Sangria
                 </button>
+                {staffList.length > 0 ? (
+                  <CommissionAdvancePanel staffList={staffList} buttonLabel="Vale" />
+                ) : null}
                 <button type="button" className="btn btn-primary" onClick={() => setCloseModal(true)}>
                   Fechar caixa
                 </button>

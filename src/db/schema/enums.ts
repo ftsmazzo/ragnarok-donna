@@ -59,6 +59,20 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "other",
 ]);
 
+/** Vale, bônus, desconto de comissão ou liquidação (pagamento) */
+export const staffAdvanceKindEnum = pgEnum("staff_advance_kind", [
+  "vale",
+  "bonus",
+  "discount",
+  "payout",
+]);
+
+export const staffAdvanceStatusEnum = pgEnum("staff_advance_status", [
+  "open",
+  "settled",
+  "cancelled",
+]);
+
 export const conversationModeEnum = pgEnum("conversation_mode", [
   "ai",
   "human",

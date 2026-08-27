@@ -959,6 +959,31 @@ input {
   gap: 14px;
 }
 
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.muted-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.muted-note a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .form-field {
   display: flex;
   flex-direction: column;

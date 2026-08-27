@@ -85,6 +85,17 @@ export function labelItemType(type: string): string {
   return ITEM_TYPE[type] ?? type;
 }
 
+const ADVANCE_KIND: Record<string, string> = {
+  vale: "Vale / adiantamento",
+  bonus: "Bonificação",
+  discount: "Desconto",
+  payout: "Pagamento de comissão",
+};
+
+export function labelAdvanceKind(kind: string): string {
+  return ADVANCE_KIND[kind] ?? kind;
+}
+
 const WAITLIST_STATUS: Record<string, string> = {
   waiting: "Aguardando",
   notified: "Notificado",

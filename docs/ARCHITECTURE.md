@@ -38,9 +38,9 @@ AppBarber acopla caixa, comanda e relatório. Separamos responsabilidades:
 | **Consumo** | `orders`, `order_items` | O que foi vendido/feito |
 | **Pagamento** | `payments` | Como pagou (PIX, cartão…) |
 | **Caixa** | `cash_sessions`, `cash_movements` | Turno do operador, sangria/suprimento |
-| **Comissão** | `order_items.commission_*` | Calculada no fechamento do item/comanda |
-| **Relatório** | queries read-only | DRE simplificado, por forma, por profissional |
-| **Futuro** | contas a pagar/receber | `/modulo/contas`, fluxo de caixa projetado |
+| **Comissão** | `order_items.commission_*` + `staff_advances` | Provisionada no item; vales/bônus/liquidação no ledger |
+| **Relatório** | queries read-only | DRE simplificado, por forma, por profissional, fluxo |
+| **Futuro** | contas a pagar/receber | `/modulo/contas`, fluxo projetado com taxas |
 
 ### Fluxo alvo (Sprint 4–5)
 

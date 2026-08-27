@@ -17,6 +17,8 @@ import {
   orderStatusEnum,
   paymentMethodEnum,
   softDelete,
+  staffAdvanceKindEnum,
+  staffAdvanceStatusEnum,
   timestamps,
 } from "./enums";
 import { tenants } from "./platform";
@@ -235,4 +237,36 @@ export const loyaltyLedger = pgTable(
     ...timestamps,
   },
   (t) => [index("loyalty_ledger_client_idx").on(t.clientId)]
+);
+
+/**
+ * Vales, bônus, descontos e liquidações de comissão do profissional.
+ * amount_cents sempre positivo; o efeito no “a pagar” depende de kind.
+ */
+export const staffAdvances = pgTable(
+  "staff_advances",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    kind: staffAdvanceKindEnum("kind").notNull(),
+    status: staffAdvanceStatusEnum("status").notNull().default("open"),
+    amountCents: integer("amount_cents").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+    notes: varchar("notes", { length: 240 }),
+    cashMovementId: uuid("cash_movement_id").references(() => cashMovements.id, {
+      onDelete: "set null",
+    }),
+    createdByUserId: uuid("created_by_user_id"),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("staff_advances_tenant_staff_idx").on(t.tenantId, t.staffId),
+    index("staff_advances_tenant_occurred_idx").on(t.tenantId, t.occurredAt),
+  ]
 );

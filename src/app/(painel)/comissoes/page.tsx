@@ -3,9 +3,10 @@ import { Pagination } from "@/components/cadastro/Pagination";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import { PaymentMixDonut, RankingBarChart } from "@/components/relatorio/charts";
-import { reportCommissions } from "@/lib/comissoes";
+import { CommissionAdvancePanel } from "@/components/comissoes/CommissionAdvancePanel";
+import { reportCommissions } from "@/server/commissions";
 import { formatDateTimeSp } from "@/lib/datetime";
-import { formatMoney, labelItemType } from "@/lib/format";
+import { formatMoney, labelAdvanceKind, labelItemType } from "@/lib/format";
 import {
   commissionsScope,
   requireOwnStaffId,
@@ -15,7 +16,13 @@ import {
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ from?: string; to?: string; staff?: string; page?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    to?: string;
+    staff?: string;
+    type?: string;
+    page?: string;
+  }>;
 };
 
 export default async function ComissoesPage({ searchParams }: Props) {
@@ -35,6 +42,7 @@ export default async function ComissoesPage({ searchParams }: Props) {
     from: sp.from,
     to: sp.to,
     staffId: staffFilter,
+    itemType: sp.type,
     page: Number(sp.page) || 1,
   });
 
@@ -48,7 +56,7 @@ export default async function ComissoesPage({ searchParams }: Props) {
         (s.staffName ?? "—").length > 18
           ? `${(s.staffName ?? "").slice(0, 16)}…`
           : (s.staffName ?? "—"),
-      value: s.commissionCents / 100,
+      value: s.netDueCents / 100,
       extra: s.itemCount,
     }));
 
@@ -61,18 +69,26 @@ export default async function ComissoesPage({ searchParams }: Props) {
     <>
       <PageHeader
         title={ownOnly ? "Minhas comissões" : "Comissões"}
-        subtitle={`${data.totalItems.toLocaleString("pt-BR")} item(ns) · ${formatMoney(data.totalCommissionCents)} em comissões`}
+        subtitle={`${data.totalItems.toLocaleString("pt-BR")} item(ns) · a pagar ${formatMoney(data.totalNetDueCents)}`}
         actions={
-          ownOnly ? undefined : (
-            <>
-              <button type="button" className="btn btn-outline" disabled title="Em breve">
-                Excel
-              </button>
-              <button type="button" className="btn btn-outline" disabled title="Em breve">
-                PDF
-              </button>
-            </>
-          )
+          <>
+            {data.canWrite && !ownOnly ? (
+              <CommissionAdvancePanel
+                staffList={data.staffList}
+                defaultStaffId={data.staffId || undefined}
+              />
+            ) : null}
+            {!ownOnly ? (
+              <>
+                <button type="button" className="btn btn-outline" disabled title="Em breve">
+                  Excel
+                </button>
+                <button type="button" className="btn btn-outline" disabled title="Em breve">
+                  PDF
+                </button>
+              </>
+            ) : null}
+          </>
         }
       />
 
@@ -92,25 +108,33 @@ export default async function ComissoesPage({ searchParams }: Props) {
                 </select>
               </label>
             ) : null}
+            <label className="filter-field">
+              <span>Tipo item</span>
+              <select name="type" defaultValue={data.itemType} className="search-input">
+                <option value="all">Todos</option>
+                <option value="service">Serviço</option>
+                <option value="product">Produto</option>
+                <option value="package">Pacote</option>
+              </select>
+            </label>
           </RelatorioFilters>
         </div>
 
         <div className="panel-body-flush">
           <SummaryCards
             cards={[
-              { label: "Faturamento itens", value: formatMoney(data.totalRevenueCents) },
-              { label: "Comissões", value: formatMoney(data.totalCommissionCents) },
-              ...(ownOnly
-                ? []
-                : [{ label: "Profissionais", value: data.byStaff.length }]),
+              { label: "Comissão (itens)", value: formatMoney(data.totalCommissionCents) },
+              { label: "Vales", value: formatMoney(data.totalValeCents) },
+              { label: "Já pago", value: formatMoney(data.totalPayoutCents) },
+              { label: "A pagar", value: formatMoney(data.totalNetDueCents) },
             ]}
           />
 
           <div className="dash-grid" style={{ marginTop: 8 }}>
             {!ownOnly ? (
               <div className="dash-panel-inner">
-                <h3 className="section-title section-title-inset">Ranking de comissão</h3>
-                <RankingBarChart data={ranking} valueLabel="Comissão" />
+                <h3 className="section-title section-title-inset">A pagar por profissional</h3>
+                <RankingBarChart data={ranking} valueLabel="A pagar" />
               </div>
             ) : null}
             <div className="dash-panel-inner">
@@ -121,21 +145,25 @@ export default async function ComissoesPage({ searchParams }: Props) {
 
           {!ownOnly ? (
             <>
-              <h3 className="section-title section-title-inset">Sintético por profissional</h3>
+              <h3 className="section-title section-title-inset">Sintético (líquido)</h3>
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
                       <th>Profissional</th>
                       <th>Itens</th>
-                      <th>Faturamento</th>
                       <th>Comissão</th>
+                      <th>Vales</th>
+                      <th>Bônus</th>
+                      <th>Desc.</th>
+                      <th>Pago</th>
+                      <th>A pagar</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.byStaff.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="table-empty">
+                        <td colSpan={8} className="table-empty">
                           Nenhuma comissão no período.
                         </td>
                       </tr>
@@ -144,8 +172,12 @@ export default async function ComissoesPage({ searchParams }: Props) {
                         <tr key={s.staffId ?? "none"}>
                           <td className="cell-strong">{s.staffName ?? "Sem profissional"}</td>
                           <td>{s.itemCount.toLocaleString("pt-BR")}</td>
-                          <td>{formatMoney(s.revenueCents)}</td>
                           <td>{formatMoney(s.commissionCents)}</td>
+                          <td>{formatMoney(s.valeCents)}</td>
+                          <td>{formatMoney(s.bonusCents)}</td>
+                          <td>{formatMoney(s.discountCents)}</td>
+                          <td>{formatMoney(s.payoutCents)}</td>
+                          <td className="cell-strong">{formatMoney(s.netDueCents)}</td>
                         </tr>
                       ))
                     )}
@@ -155,7 +187,41 @@ export default async function ComissoesPage({ searchParams }: Props) {
             </>
           ) : null}
 
-          <h3 className="section-title section-title-inset">Analítico</h3>
+          <h3 className="section-title section-title-inset">Vales e ajustes</h3>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  {!ownOnly ? <th>Profissional</th> : null}
+                  <th>Tipo</th>
+                  <th>Valor</th>
+                  <th>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.advances.length === 0 ? (
+                  <tr>
+                    <td colSpan={ownOnly ? 4 : 5} className="table-empty">
+                      Nenhum vale ou ajuste no período.
+                    </td>
+                  </tr>
+                ) : (
+                  data.advances.map((a) => (
+                    <tr key={a.id}>
+                      <td>{formatDateTimeSp(a.occurredAt)}</td>
+                      {!ownOnly ? <td>{a.staffName ?? "—"}</td> : null}
+                      <td>{labelAdvanceKind(a.kind)}</td>
+                      <td>{formatMoney(a.amountCents)}</td>
+                      <td>{a.notes ?? "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 className="section-title section-title-inset">Analítico (comandas fechadas)</h3>
           <div className="table-wrap">
             <table className="data-table">
               <thead>
@@ -203,6 +269,7 @@ export default async function ComissoesPage({ searchParams }: Props) {
               from: data.from,
               to: data.to,
               staff: ownOnly ? undefined : data.staffId || undefined,
+              type: data.itemType !== "all" ? data.itemType : undefined,
             }}
           />
         </div>

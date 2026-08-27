@@ -65,6 +65,35 @@ async function runBootstrap() {
   const sql = postgres(dbUrl, { max: 1, connect_timeout: 10 });
 
   try {
+    await sql.unsafe(`
+DO $$ BEGIN
+  CREATE TYPE staff_advance_kind AS ENUM ('vale', 'bonus', 'discount', 'payout');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE TYPE staff_advance_status AS ENUM ('open', 'settled', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+CREATE TABLE IF NOT EXISTS staff_advances (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  staff_id uuid NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  kind staff_advance_kind NOT NULL,
+  status staff_advance_status NOT NULL DEFAULT 'open',
+  amount_cents integer NOT NULL,
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  notes varchar(240),
+  cash_movement_id uuid REFERENCES cash_movements(id) ON DELETE SET NULL,
+  created_by_user_id uuid,
+  settled_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS staff_advances_tenant_staff_idx ON staff_advances (tenant_id, staff_id);
+CREATE INDEX IF NOT EXISTS staff_advances_tenant_occurred_idx ON staff_advances (tenant_id, occurred_at);
+`);
+    console.log("[bootstrap] schema staff_advances ok");
+
     const [{ ok: locked }] = await sql`select pg_try_advisory_lock(${LOCK_KEY}) as ok`;
     if (!locked) {
       console.log("[bootstrap] outro processo em execução, pulando.");

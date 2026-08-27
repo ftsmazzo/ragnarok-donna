@@ -49,7 +49,12 @@ const LINKS = [
   {
     href: "/comissoes",
     title: "Comissões",
-    desc: "Sintético, ranking e analítico",
+    desc: "Sintético líquido, vales e analítico",
+  },
+  {
+    href: "/relatorios/fluxo",
+    title: "Fluxo de caixa",
+    desc: "Movimentado, disponível e mix",
   },
 ] as const;
 
