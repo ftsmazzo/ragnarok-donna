@@ -8,17 +8,28 @@ import {
   type StaffFilter,
 } from "@/server/staff";
 import { NotFoundError } from "@/server/errors";
+import { monthStartSp, todaySp } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ q?: string; filter?: string; id?: string; novo?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    filter?: string;
+    id?: string;
+    novo?: string;
+    from?: string;
+    to?: string;
+  }>;
 };
 
 export default async function ProfissionaisPage({ searchParams }: Props) {
   const sp = await searchParams;
   const filter = (sp.filter as StaffFilter) || "ativos";
   const data = await listStaffMembers({ q: sp.q, filter });
+
+  const perfFrom = sp.from ?? monthStartSp();
+  const perfTo = sp.to ?? todaySp();
 
   let selectedStaff = null;
   let selectedPerformance = null;
@@ -31,6 +42,8 @@ export default async function ProfissionaisPage({ searchParams }: Props) {
       const session = await requireSession();
       selectedStaff = await getStaffMember(sp.id);
       selectedPerformance = await getStaffPerformance(sp.id, {
+        from: perfFrom,
+        to: perfTo,
         includeManagementMetrics: isManagementRole(session.role),
       });
       drawerMode = "edit";

@@ -59,6 +59,11 @@ export function monthStartSp(): string {
   return `${today.slice(0, 8)}01`;
 }
 
+/** N dias atrás (inclusivo: 0 = hoje) */
+export function daysAgoSp(days: number): string {
+  return shiftDateSp(todaySp(), -days);
+}
+
 export function rangeBoundsSp(from: string, to: string) {
   const start = new Date(`${from}T00:00:00-03:00`);
   const end = new Date(`${to}T23:59:59.999-03:00`);

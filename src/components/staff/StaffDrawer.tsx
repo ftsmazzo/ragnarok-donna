@@ -22,6 +22,8 @@ type Props = {
   mode: Mode;
   staff: StaffDetail | null;
   performance: StaffPerformance | null;
+  listFilter?: string;
+  listQ?: string;
   onClose: () => void;
   onSaved: (id: string) => void;
 };
@@ -42,7 +44,16 @@ function commissionPct(bps: number | null): string {
   return String(bps / 100);
 }
 
-export function StaffDrawer({ open, mode, staff, performance, onClose, onSaved }: Props) {
+export function StaffDrawer({
+  open,
+  mode,
+  staff,
+  performance,
+  listFilter,
+  listQ,
+  onClose,
+  onSaved,
+}: Props) {
   const [error, setError] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [tab, setTab] = useState<"cadastro" | "jornada" | "performance">("cadastro");
@@ -346,8 +357,13 @@ export function StaffDrawer({ open, mode, staff, performance, onClose, onSaved }
             </nav>
             {tab === "cadastro" ? cadastroForm : null}
             {tab === "jornada" ? jornadaForm : null}
-            {tab === "performance" && performance ? (
-              <StaffPerformancePanel performance={performance} />
+            {tab === "performance" && performance && staff ? (
+              <StaffPerformancePanel
+                staffId={staff.id}
+                performance={performance}
+                listFilter={listFilter}
+                listQ={listQ}
+              />
             ) : null}
           </>
         ) : (

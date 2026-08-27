@@ -1,11 +1,15 @@
 "use client";
 
 import type { StaffPerformance } from "@/server/staff/performance";
+import { StaffPerformanceFilters } from "@/components/staff/StaffPerformanceFilters";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelOrderStatus } from "@/lib/format";
 
 type Props = {
+  staffId: string;
   performance: StaffPerformance;
+  listFilter?: string;
+  listQ?: string;
 };
 
 function formatPeriod(from: string, to: string) {
@@ -16,13 +20,21 @@ function formatPeriod(from: string, to: string) {
   return `${fmt(from)} – ${fmt(to)}`;
 }
 
-export function StaffPerformancePanel({ performance: p }: Props) {
+export function StaffPerformancePanel({ staffId, performance: p, listFilter, listQ }: Props) {
   const mgmt = p.management;
 
   return (
     <div className="client-profile-section">
+      <StaffPerformanceFilters
+        staffId={staffId}
+        from={p.from}
+        to={p.to}
+        filter={listFilter}
+        q={listQ}
+      />
+
       <p className="client-profile-hint">
-        Período: <strong>{formatPeriod(p.from, p.to)}</strong> (mês corrente)
+        Período: <strong>{formatPeriod(p.from, p.to)}</strong>
       </p>
 
       <div className="client-stats">
@@ -118,7 +130,9 @@ export function StaffPerformancePanel({ performance: p }: Props) {
           </ul>
         </div>
       ) : (
-        <p className="client-profile-empty">Nenhuma comanda com itens deste profissional no período.</p>
+        <p className="client-profile-empty">
+          Nenhuma comanda com itens deste profissional no período.
+        </p>
       )}
     </div>
   );

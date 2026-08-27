@@ -171,6 +171,8 @@ export function ProfissionaisView({
         mode={drawerMode === "new" ? "new" : "edit"}
         staff={drawerMode === "edit" ? selectedStaff : null}
         performance={drawerMode === "edit" ? selectedPerformance : null}
+        listFilter={data.filter}
+        listQ={data.q}
         onClose={closeDrawer}
         onSaved={onSaved}
       />
