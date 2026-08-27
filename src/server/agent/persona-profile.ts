@@ -12,6 +12,7 @@ const DEFAULT_TOOLS = [
   "find_client",
   "list_services",
   "list_slots",
+  "list_client_appointments",
   "book_appointment",
   "cancel_appointment",
   "open_order",
@@ -118,6 +119,8 @@ export async function ensureDefaultAgentProfile(input: {
       persona,
       systemPrompt,
       toolsEnabled: [...DEFAULT_TOOLS],
+      model: process.env.LLM_MODEL?.trim() || "anthropic/claude-sonnet-4.6",
+      temperature: 45,
       isDefault: true,
       isActive: true,
     })

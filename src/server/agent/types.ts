@@ -4,6 +4,7 @@ export const AGENT_TOOL_NAMES = [
   "find_client",
   "list_services",
   "list_slots",
+  "list_client_appointments",
   "book_appointment",
   "cancel_appointment",
   "open_order",

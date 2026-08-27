@@ -79,8 +79,8 @@ Template estruturado em `agent_profiles.persona` (jsonb). `systemPrompt` é **co
 
 - Defaults: `src/server/agent/persona/defaults.ts` (barbearia pré-montada)
 - Compile: `compilePersonaToSystemPrompt()` — usado na humanização LLM
-- Orquestrador: tools/agenda + `humanizeReply` (OpenAI/OpenRouter via `OPENAI_API_KEY` / `OPENROUTER_API_KEY`)
-- Reoferta de serviços já feitos (histórico do cliente) no tom da recepção
+- Runtime: **1 agente** (Donna) = persona + LLM (`OPENROUTER_API_KEY` / `LLM_MODEL`). Orquestrador = loop que carrega skills → tools → responde.
+- Skills (`src/server/agent/skills.ts`) munem o prompt e expõem as tools certas.
 - Tela de edição no painel: próximo passo (Configurações → Agente IA)
 
 

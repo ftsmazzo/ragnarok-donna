@@ -1,4 +1,10 @@
 export { SKILL_CATALOG, TOOL_CATALOG } from "./catalog";
+export {
+  listEnabledSkills,
+  buildToolsForSkills,
+  compileSkillsBlock,
+  skillsUsedFromTools,
+} from "./skills";
 export { listToolDefinitions, executeTool, auditToolCall } from "./tools";
 export { runOrchestrator, getDefaultAgentProfile } from "./orchestrator";
 export { backfillAgentPersona, ensureDefaultAgentProfile } from "./persona-profile";

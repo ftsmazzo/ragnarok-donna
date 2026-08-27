@@ -62,8 +62,8 @@ export const agentProfiles = pgTable(
     persona: jsonb("persona").notNull().default({}),
     /** Tools liberadas: list_slots, book, cancel, waitlist, handoff… */
     toolsEnabled: jsonb("tools_enabled").$type<string[]>().notNull().default([]),
-    model: varchar("model", { length: 80 }).notNull().default("openai/gpt-4.1-mini"),
-    temperature: integer("temperature").notNull().default(40), // /100
+    model: varchar("model", { length: 80 }).notNull().default("anthropic/claude-sonnet-4.6"),
+    temperature: integer("temperature").notNull().default(45), // /100
     isDefault: boolean("is_default").notNull().default(true),
     isActive: boolean("is_active").notNull().default(true),
     meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),

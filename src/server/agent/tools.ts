@@ -1,10 +1,11 @@
-import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import {
   bookAppointmentForAgent,
   cancelAppointmentForAgent,
   listFreeSlotsForTenant,
 } from "./domain-agenda";
+import { dayBoundsSp } from "@/server/agenda/utils";
 import { TOOL_CATALOG } from "./catalog";
 import type { AgentToolName, ToolResult } from "./types";
 
@@ -115,6 +116,117 @@ export async function executeTool(
           )
           .limit(40);
         result = { ok: true, data: { services: rows } };
+        break;
+      }
+      case "list_client_appointments": {
+        const clientId = String(args.clientId ?? "").trim();
+        const phoneRaw = String(args.phoneE164 ?? "").trim();
+        const range = String(args.range ?? "week").toLowerCase(); // today | week | upcoming
+        const db = createDb();
+
+        let resolvedClientId = clientId || null;
+        if (!resolvedClientId && phoneRaw) {
+          const digits = phoneRaw.replace(/\D/g, "");
+          const last11 = (digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits).slice(-11);
+          const e164 = digits.startsWith("55") ? `+${digits}` : `+55${digits}`;
+          const [c] = await db
+            .select({ id: schema.clients.id })
+            .from(schema.clients)
+            .where(
+              and(
+                eq(schema.clients.tenantId, ctx.tenantId),
+                isNull(schema.clients.deletedAt),
+                or(
+                  eq(schema.clients.phoneE164, e164),
+                  sql`right(regexp_replace(coalesce(${schema.clients.phoneE164}, ''), '\\D', '', 'g'), 11) = ${last11}`
+                )
+              )
+            )
+            .limit(1);
+          resolvedClientId = c?.id ?? null;
+        }
+
+        if (!resolvedClientId && ctx.conversationId) {
+          const [conv] = await db
+            .select({ clientId: schema.conversations.clientId })
+            .from(schema.conversations)
+            .where(eq(schema.conversations.id, ctx.conversationId))
+            .limit(1);
+          resolvedClientId = conv?.clientId ?? null;
+        }
+
+        if (!resolvedClientId) {
+          result = { ok: true, data: { appointments: [], note: "cliente não identificado" } };
+          break;
+        }
+
+        const fmt = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Sao_Paulo",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        const today = fmt.format(new Date());
+        let fromDate = today;
+        let toDate = today;
+
+        if (range === "week" || range === "essa_semana" || range === "semana") {
+          // segunda → domingo da semana atual (SP)
+          const wdFmt = new Intl.DateTimeFormat("en-US", {
+            timeZone: "America/Sao_Paulo",
+            weekday: "short",
+          });
+          const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+          const todayWd = map[wdFmt.format(new Date())] ?? new Date().getDay();
+          const mondayOffset = todayWd === 0 ? -6 : 1 - todayWd;
+          const monday = new Date(Date.now() + mondayOffset * 86_400_000);
+          const sunday = new Date(monday.getTime() + 6 * 86_400_000);
+          fromDate = fmt.format(monday);
+          toDate = fmt.format(sunday);
+        } else if (range === "upcoming" || range === "proximos") {
+          const end = new Date(Date.now() + 14 * 86_400_000);
+          toDate = fmt.format(end);
+        }
+
+        const { start } = dayBoundsSp(fromDate);
+        const { end } = dayBoundsSp(toDate);
+
+        const rows = await db
+          .select({
+            id: schema.appointments.id,
+            startsAt: schema.appointments.startsAt,
+            endsAt: schema.appointments.endsAt,
+            status: schema.appointments.status,
+            serviceName: schema.services.name,
+            staffName: schema.staff.name,
+          })
+          .from(schema.appointments)
+          .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
+          .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
+          .where(
+            and(
+              eq(schema.appointments.tenantId, ctx.tenantId),
+              eq(schema.appointments.clientId, resolvedClientId),
+              isNull(schema.appointments.deletedAt),
+              gte(schema.appointments.startsAt, start),
+              lte(schema.appointments.startsAt, end)
+            )
+          )
+          .orderBy(asc(schema.appointments.startsAt))
+          .limit(20);
+
+        const appointments = rows.map((r) => ({
+          id: r.id,
+          when: r.startsAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+          status: r.status,
+          serviceName: r.serviceName,
+          staffName: r.staffName,
+        }));
+
+        result = {
+          ok: true,
+          data: { range, fromDate, toDate, count: appointments.length, appointments },
+        };
         break;
       }
       case "find_client": {
