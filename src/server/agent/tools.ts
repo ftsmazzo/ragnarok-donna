@@ -86,6 +86,28 @@ export async function executeTool(
         };
         break;
       }
+      case "list_services": {
+        const db = createDb();
+        const rows = await db
+          .select({
+            id: schema.services.id,
+            name: schema.services.name,
+            durationMin: schema.services.durationMin,
+            priceCents: schema.services.priceCents,
+          })
+          .from(schema.services)
+          .where(
+            and(
+              eq(schema.services.tenantId, ctx.tenantId),
+              eq(schema.services.isActive, true),
+              eq(schema.services.bookableOnline, true),
+              isNull(schema.services.deletedAt)
+            )
+          )
+          .limit(40);
+        result = { ok: true, data: { services: rows } };
+        break;
+      }
       case "list_followups": {
         result = {
           ok: true,
