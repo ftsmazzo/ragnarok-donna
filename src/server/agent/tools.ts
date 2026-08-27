@@ -836,6 +836,30 @@ export async function executeTool(
         }
         const db = createDb();
         const now = new Date();
+        const [conv] = await db
+          .select({
+            phoneE164: schema.conversations.phoneE164,
+            clientId: schema.conversations.clientId,
+          })
+          .from(schema.conversations)
+          .where(
+            and(
+              eq(schema.conversations.id, ctx.conversationId),
+              eq(schema.conversations.tenantId, ctx.tenantId)
+            )
+          )
+          .limit(1);
+
+        let clientName: string | null = null;
+        if (conv?.clientId) {
+          const [cli] = await db
+            .select({ name: schema.clients.name })
+            .from(schema.clients)
+            .where(eq(schema.clients.id, conv.clientId))
+            .limit(1);
+          clientName = cli?.name ?? null;
+        }
+
         await db
           .update(schema.conversations)
           .set({
@@ -856,7 +880,27 @@ export async function executeTool(
           direction: "system",
           body: "Cliente pediu atendimento humano — aguardando recepção.",
         });
-        result = { ok: true, data: { mode: "human" } };
+
+        const { notifyHandoffRequest } = await import("./handoff-notify");
+        const notify = await notifyHandoffRequest({
+          tenantId: ctx.tenantId,
+          conversationId: ctx.conversationId,
+          clientPhoneE164: conv?.phoneE164 ?? null,
+          clientName,
+        });
+
+        result = {
+          ok: true,
+          data: {
+            mode: "human",
+            staffNotified: notify.ok ? notify.notified : false,
+            notifyNote: notify.ok
+              ? notify.notified
+                ? "Equipe avisada no WhatsApp configurado"
+                : "Sem telefone de alerta configurado — avise a recepção pelo painel"
+              : `Handoff ok; alerta falhou: ${notify.error}`,
+          },
+        };
         break;
       }
       default:

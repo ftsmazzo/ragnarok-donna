@@ -46,6 +46,9 @@ export {
 } from "./inbound";
 export { syncInboxFromEvolution } from "./sync-inbox";
 export { deliverWhatsAppText, getConnectionForTenant } from "./outbound";
+export { getAgentConfig, saveAgentConfig, getHandoffNotifyPhoneE164 } from "./agent-config";
+export type { AgentConfigView, SaveAgentConfigInput } from "./agent-config";
+export { notifyHandoffRequest } from "./handoff-notify";
 export {
   createDefaultPersona,
   mergePersona,

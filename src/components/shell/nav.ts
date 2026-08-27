@@ -67,6 +67,7 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Lista de espera", href: "/lista-espera" },
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
+      { label: "Agente (Donna)", href: "/configuracoes/agente", icon: "✉" },
       { label: "Parâmetros", href: "/configuracoes" },
       { label: "Rodízio", href: "/modulo/rodizio" },
       { label: "Funcionamento", href: "/modulo/funcionamento" },
