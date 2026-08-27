@@ -2,6 +2,8 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { getTenantOverview } from "@/lib/cadastros";
 import { formatDateLabelSp, todaySp } from "@/lib/datetime";
 import { canAccessRoute } from "@/server/permissions/routes";
+import { isManagementRole } from "@/server/permissions/roles";
+import { getWeeklyInsights } from "@/server/insights";
 import { profissionaisHref } from "@/components/shell/nav";
 import type { AppSession } from "@/server/types";
 import Link from "next/link";
@@ -23,12 +25,19 @@ type Props = {
 
 export async function InicioContent({ session, searchParams }: Props) {
   const sp = await searchParams;
-  const o = await getTenantOverview();
+  const showInsights = isManagementRole(session.role);
+  const [o, weekly] = await Promise.all([
+    getTenantOverview(),
+    showInsights ? getWeeklyInsights() : Promise.resolve(null),
+  ]);
   const today = todaySp();
 
   const cadastros = filterLinks(session, [
     { href: "/clientes", label: "Clientes", hint: `${o.clientsActive.toLocaleString("pt-BR")} ativos` },
-    { href: profissionaisHref(session.role, session.staffId), label: session.role === "staff" ? "Minha performance" : "Profissionais" },
+    {
+      href: profissionaisHref(session.role, session.staffId),
+      label: session.role === "staff" ? "Minha performance" : "Profissionais",
+    },
     { href: "/servicos", label: "Serviços" },
     { href: "/produtos", label: "Produtos" },
     { href: "/pacotes", label: "Pacotes" },
@@ -38,8 +47,8 @@ export async function InicioContent({ session, searchParams }: Props) {
     { href: "/agenda", label: "Agenda" },
     { href: "/comandas", label: "Comandas abertas" },
     { href: "/comandas/historico", label: "Histórico de comandas" },
-    { href: "/relatorios/agendamentos", label: "Relatório de agendamentos" },
-    { href: "/relatorios/financeiro", label: "Relatório financeiro" },
+    { href: "/relatorios", label: "Relatórios" },
+    { href: "/relatorios/perfil", label: "Perfil / recompra" },
     { href: "/conversas", label: "Conversas IA" },
     { href: "/comissoes", label: "Comissões" },
     { href: "/caixa", label: "Caixa" },
@@ -102,6 +111,26 @@ export async function InicioContent({ session, searchParams }: Props) {
           </div>
         ) : null}
       </section>
+
+      {weekly ? (
+        <>
+          <h2 className="section-title">Insights da semana</h2>
+          <section className="overview-grid">
+            {weekly.cards.map((c) => (
+              <Link key={c.id} href={c.href} className="overview-card">
+                <span className="overview-value">{c.value.toLocaleString("pt-BR")}</span>
+                <span className="overview-label">{c.label}</span>
+                <small>{c.hint}</small>
+              </Link>
+            ))}
+          </section>
+          <ul className="insight-tips">
+            {weekly.tips.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
 
       {cadastros.length > 0 ? (
         <>

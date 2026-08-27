@@ -43,6 +43,7 @@ export const NAV: NavItem[] = [
   {
     label: "Relatórios",
     children: [
+      { label: "Visão geral", href: "/relatorios" },
       { label: "Agendamentos", href: "/relatorios/agendamentos" },
       { label: "Gerencial — Financeiro", href: "/relatorios/financeiro" },
       { label: "Gerencial — Comandas", href: "/relatorios/comandas" },

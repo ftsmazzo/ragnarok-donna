@@ -13,6 +13,7 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 | **3 — Agenda operacional** | ✅ concluído | Agendar, bloquear, encaixe, status, escopo barbeiro |
 | **4 — Comanda** | ✅ concluído | Abrir → itens → pagamento → fechar |
 | **5 — Financeiro real** | ✅ concluído | Sessão caixa, sangria/suprimento, pagamento → caixa |
+| **5.5 — Insights / Upsell** | ✅ concluído | Hub relatórios, Perfil, KPIs semanais, dicas na agenda |
 | 6 — IA / Donna | pendente | Evolution, conversas, tenant 2 |
 
 ---
@@ -35,6 +36,20 @@ Planejamento controlado. **Tenant ativo de referência:** `ragnaroks` (RagnaroK'
 - Barbeiro: `/profissionais` → minha performance; `/comissoes` → só próprias
 - **Configurações → Equipe de acesso**: alterar papel e vincular barbeiro ↔ profissional
 - Métricas de cancelamento na Performance: só Dono/Admin
+
+---
+
+## Sprint 5.5 — Relatórios, KPIs e Upsell ✅
+
+### Entregue
+- Motor `src/server/insights/` (regras determinísticas com evidência)
+- Hub `/relatorios` + **Perfil** real (serviços/produtos a reoferecer)
+- **Insights da semana** no Início (Dono/Recepção)
+- **Sugestões no atendimento** ao abrir slot na agenda (follow-up / upsell)
+- Defaults: serviço 28d (`returnAfterDays` se cadastrado), produto 60d
+
+### Próximo
+- Donna / Conversas IA consome os mesmos sinais com narrativa
 
 ---
 

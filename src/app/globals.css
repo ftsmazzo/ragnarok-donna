@@ -1479,3 +1479,40 @@ input {
   color: var(--danger);
   font-weight: 600;
 }
+
+.insight-tips {
+  margin: 8px 0 20px;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.upsell-panel {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(107, 91, 149, 0.04);
+}
+
+.upsell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upsell-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.upsell-list li span {
+  color: var(--muted);
+  font-size: 12px;
+}

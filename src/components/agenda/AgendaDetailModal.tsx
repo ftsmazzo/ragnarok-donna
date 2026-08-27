@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import type { AgendaAppointment, AgendaPermissions } from "@/server/agenda/types";
+import type { ClientUpsellTip } from "@/server/insights/types";
 import { formatDateTimeSp, formatTimeSp } from "@/lib/datetime";
 import { formatMoney, labelApptStatus } from "@/lib/format";
 import {
@@ -11,6 +12,7 @@ import {
   updateAppointmentStatusAction,
 } from "@/app/(painel)/agenda/actions";
 import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
+import { getClientUpsellTipsAction } from "@/app/(painel)/agenda/insights-actions";
 
 type Props = {
   open: boolean;
@@ -38,8 +40,32 @@ export function AgendaDetailModal({
 }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
+  const [tips, setTips] = useState<ClientUpsellTip[]>([]);
+  const [tipsLoading, setTipsLoading] = useState(false);
   const [pending, startTransition] = useTransition();
   const isBlock = a.status === "blocked";
+
+  useEffect(() => {
+    if (!open || isBlock || !a.clientId) {
+      setTips([]);
+      return;
+    }
+    let cancelled = false;
+    setTipsLoading(true);
+    getClientUpsellTipsAction(a.clientId)
+      .then((rows) => {
+        if (!cancelled) setTips(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setTips([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTipsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isBlock, a.clientId, a.id]);
 
   function runStatus(status: string) {
     setError("");
@@ -91,6 +117,7 @@ export function AgendaDetailModal({
       open={open}
       onClose={onClose}
       title={isBlock ? "Bloqueio" : "Agendamento"}
+      size="lg"
       footer={
         <>
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
@@ -120,6 +147,28 @@ export function AgendaDetailModal({
       }
     >
       {error ? <div className="form-error">{error}</div> : null}
+
+      {!isBlock && a.clientId ? (
+        <div className="upsell-panel">
+          <h3 className="client-profile-heading">Sugestões para o cliente</h3>
+          {tipsLoading ? (
+            <p className="client-profile-hint">Carregando histórico…</p>
+          ) : tips.length === 0 ? (
+            <p className="client-profile-hint muted">
+              Sem alerta de recompra no momento — mantenha o atendimento de sempre.
+            </p>
+          ) : (
+            <ul className="upsell-list">
+              {tips.map((t) => (
+                <li key={`${t.kind}-${t.catalogId ?? t.catalogName}`}>
+                  <strong>{t.title}</strong>
+                  <span>{t.detail}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
       <dl className="detail-dl">
         <div>
@@ -168,7 +217,10 @@ export function AgendaDetailModal({
         </div>
       </dl>
 
-      {!isBlock && permissions.canUpdateStatus && a.status !== "cancelled" && a.status !== "completed" ? (
+      {!isBlock &&
+      permissions.canUpdateStatus &&
+      a.status !== "cancelled" &&
+      a.status !== "completed" ? (
         <div className="agenda-status-actions">
           <p className="client-profile-hint">Atualizar status</p>
           <div className="agenda-status-buttons">
