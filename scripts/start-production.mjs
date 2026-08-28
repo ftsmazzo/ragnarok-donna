@@ -50,6 +50,21 @@ function spawnScript(scriptName, extraArgs = []) {
   return spawnOnboard([path.join(ROOT, "scripts", scriptName), ...extraArgs]);
 }
 
+function spawnScriptDetached(scriptName, extraArgs = []) {
+  const child = spawn(
+    process.execPath,
+    [path.join(ROOT, "scripts", scriptName), ...extraArgs],
+    {
+      cwd: ROOT,
+      env: { ...process.env, NODE_OPTIONS: process.env.NODE_OPTIONS ?? "--max-old-space-size=2048" },
+      detached: true,
+      stdio: "inherit",
+    }
+  );
+  child.unref();
+  return child;
+}
+
 async function runDonnaBootstrap(sql) {
   const [{ ok: locked }] = await sql`select pg_try_advisory_lock(${DONNA_LOCK_KEY}) as ok`;
   if (!locked) {
@@ -73,9 +88,25 @@ async function runDonnaBootstrap(sql) {
       return;
     }
 
-    // 2) Import pesado em background (não bloqueia login)
-    console.log("[bootstrap:donna] import AppBeleza…");
-    await spawnScript("import-appbarber.mjs", [
+    if (!existing?.id) {
+      console.log("[bootstrap:donna] tenant donna-elegant ainda não existe — import pulado.");
+      return;
+    }
+
+    const [running] = await sql`
+      select id from import_runs
+      where tenant_id = ${existing.id}
+        and status = 'running'
+        and started_at > now() - interval '3 hours'
+      limit 1
+    `;
+    if (running) {
+      console.log("[bootstrap:donna] import já em execução — aguardando.");
+      return;
+    }
+
+    console.log("[bootstrap:donna] import AppBeleza (background)…");
+    spawnScriptDetached("import-appbarber.mjs", [
       "--tenant",
       DONNA_SLUG,
       "--name",
@@ -91,7 +122,7 @@ async function runDonnaBootstrap(sql) {
       "--branch-address",
       "Rua Curitiba, 486 — Catanduva-SP",
     ]);
-    console.log("[bootstrap:donna] import concluído.");
+    console.log("[bootstrap:donna] import disparado em background.");
   } catch (err) {
     console.error("[bootstrap:donna] falhou:", err);
   } finally {
@@ -428,9 +459,7 @@ setImmediate(async () => {
     console.error("[bootstrap]", err.message ?? err);
   });
   await runDonnaEnsureStandalone();
-  withTimeout(runDonnaImportStandalone(), DONNA_BOOTSTRAP_TIMEOUT_MS).catch((err) => {
-    console.error("[bootstrap:donna:import]", err.message ?? err);
-  });
+  await runDonnaImportStandalone();
 });
 
 async function runDonnaEnsureStandalone() {

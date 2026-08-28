@@ -1,3 +1,4 @@
+import { DonnaImportBanner } from "@/components/inicio/DonnaImportBanner";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import {
@@ -15,6 +16,7 @@ import {
   getManagementDashboard,
   getWeeklyInsights,
 } from "@/server/insights";
+import { getDonnaImportStatus } from "@/server/tenant/donna-import";
 import { profissionaisHref } from "@/components/shell/nav";
 import type { AppSession } from "@/server/types";
 import Link from "next/link";
@@ -50,7 +52,7 @@ export async function InicioContent({ session, searchParams }: Props) {
   const week = weekBoundsSp(today);
   const weekTo = today < week.to ? today : week.to;
 
-  const [o, weekly, dashMonth, dashWeek, alerts] = await Promise.all([
+  const [o, weekly, dashMonth, dashWeek, alerts, donnaImport] = await Promise.all([
     getTenantOverview(),
     showInsights ? getWeeklyInsights() : Promise.resolve(null),
     canReports
@@ -60,6 +62,9 @@ export async function InicioContent({ session, searchParams }: Props) {
       ? getManagementDashboard({ from: week.from, to: weekTo })
       : Promise.resolve(null),
     canAlerts ? buildOperationalAlerts() : Promise.resolve(null),
+    session.tenant.slug === "donna-elegant" && isManagementRole(session.role)
+      ? getDonnaImportStatus(session.tenant.id)
+      : Promise.resolve(null),
   ]);
 
   const reportLinks = filterLinks(session, [
@@ -106,6 +111,8 @@ export async function InicioContent({ session, searchParams }: Props) {
           Equipe.
         </div>
       ) : null}
+
+      {donnaImport ? <DonnaImportBanner status={donnaImport} /> : null}
 
       <PageHeader
         title="Início"

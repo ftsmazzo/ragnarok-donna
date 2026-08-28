@@ -8,6 +8,7 @@ import { resolveTenantBrand } from "@/lib/brand";
 import { listUserOrganizations } from "@/server/auth/organizations";
 import { listTenantBranches } from "@/server/context/branch";
 import { requireSession } from "@/server/context/tenant";
+import { ensureDonnaImportIfEmpty } from "@/server/tenant/donna-import";
 
 export default async function PainelLayout({
   children,
@@ -15,6 +16,7 @@ export default async function PainelLayout({
   children: React.ReactNode;
 }) {
   const session = await requireSession();
+  void ensureDonnaImportIfEmpty(session.tenant.id, session.tenant.slug);
   const db = createDb();
   const [tenantRow] = await db
     .select({

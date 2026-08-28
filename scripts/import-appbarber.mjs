@@ -39,6 +39,8 @@ const BRANCH_SLUG = arg("--branch-slug", "unidade-01");
 const BRANCH_NAME = arg("--branch-name", "Unidade 01");
 const BRANCH_ADDRESS = arg("--branch-address", "");
 const EXTERNAL_SOURCE = arg("--source", "appbarber");
+/** Enum import_source no Postgres — appbeleza usa o mesmo bucket que appbarber. */
+const IMPORT_RUN_SOURCE = EXTERNAL_SOURCE === "appbeleza" ? "appbarber" : EXTERNAL_SOURCE;
 const BATCH = Number(arg("--batch", "400"));
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -71,6 +73,7 @@ async function main() {
   const sql = postgres(DATABASE_URL, { max: 1 });
   const stats = {};
   const t0 = Date.now();
+  let runId = null;
 
   try {
     console.log("→ Tenant", TENANT_SLUG);
@@ -112,10 +115,10 @@ async function main() {
 
     const [run] = await sql`
       insert into import_runs (tenant_id, source, status, label, artifact_uri, started_at, stats)
-      values (${tenantId}, ${EXTERNAL_SOURCE}, 'running', ${path.basename(EXPORT_DIR)}, ${EXPORT_DIR}, now(), '{}'::jsonb)
+      values (${tenantId}, ${IMPORT_RUN_SOURCE}, 'running', ${path.basename(EXPORT_DIR)}, ${EXPORT_DIR}, now(), '{}'::jsonb)
       returning id
     `;
-    const runId = run.id;
+    runId = run.id;
 
     // --- Cadastros ---
     const profRows = readJson("profissionais").map((r) => ({
@@ -152,7 +155,7 @@ async function main() {
     for (const name of catNames) {
       await sql`
         insert into service_categories (tenant_id, name, external_source, external_id)
-        values (${tenantId}, ${name}, 'appbarber', ${name})
+        values (${tenantId}, ${name}, ${EXTERNAL_SOURCE}, ${name})
         on conflict (tenant_id, name) do nothing
       `;
     }
@@ -388,7 +391,7 @@ async function main() {
     const orderMap = await loadMap(sql, "orders", tenantId);
     console.log("✓ orders", stats.orders);
 
-    await sql`delete from payments where tenant_id = ${tenantId} and external_source = 'appbarber'`;
+    await sql`delete from payments where tenant_id = ${tenantId} and external_source = ${EXTERNAL_SOURCE}`;
     const payRows = readJson("comandas-historico")
       .filter((r) => mapOrderStatus(r.Status) === "closed" && r.TipoPagamento)
       .map((r) => ({
@@ -459,15 +462,15 @@ async function main() {
         and a.client_id is not null
         and a.deleted_at is null
         and o.deleted_at is null
-        and o.external_source = 'appbarber'
-        and a.external_source = 'appbarber'
+        and o.external_source = ${EXTERNAL_SOURCE}
+        and a.external_source = ${EXTERNAL_SOURCE}
         and coalesce(a.meta->>'comCodigo', '') <> ''
         and o.external_id = a.meta->>'comCodigo'
     `;
     stats.orders_linked_via_agenda = linkedOrders.count;
     console.log("✓ orders ligadas via Com_Codigo", linkedOrders.count);
 
-    await sql`delete from waitlist_entries where tenant_id = ${tenantId} and external_source = 'appbarber'`;
+    await sql`delete from waitlist_entries where tenant_id = ${tenantId} and external_source = ${EXTERNAL_SOURCE}`;
     // --- Extras ---
     const waitRows = readJson("lista-espera", EXTRAS_DIR).map((r) => ({
       tenant_id: tenantId,
@@ -501,6 +504,16 @@ async function main() {
     console.log(JSON.stringify(stats, null, 2));
   } catch (err) {
     console.error("❌ Import falhou:", err);
+    if (runId) {
+      await sql`
+        update import_runs set
+          status = 'failed',
+          error = ${String(err?.message ?? err).slice(0, 4000)},
+          finished_at = now(),
+          updated_at = now()
+        where id = ${runId}
+      `.catch(() => {});
+    }
     process.exitCode = 1;
   } finally {
     await sql.end({ timeout: 5 });
