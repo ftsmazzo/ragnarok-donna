@@ -4,6 +4,7 @@ import { generateTempPassword } from "../auth/generate-password";
 import { hashPassword } from "../auth/password";
 import { AppError, ForbiddenError } from "../errors";
 import { sendMemberInviteEmail } from "../mail/invite";
+import { sendMemberInviteWhatsApp } from "../mail/invite-whatsapp";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
 import { roleRequiresBranch } from "../permissions/roles";
@@ -19,6 +20,8 @@ export type InviteMemberResult =
       tempPassword?: string;
       emailSent?: boolean;
       emailError?: string;
+      whatsappSent?: boolean;
+      whatsappError?: string;
     }
   | { ok: false; error: string };
 
@@ -62,7 +65,9 @@ async function createMemberAccess(input: {
   role: MemberRole;
   branchId: string | null;
   staffId?: string | null;
+  staffPhone?: string | null;
   sendInviteEmail?: boolean;
+  sendInviteWhatsApp?: boolean;
 }): Promise<InviteMemberResult> {
   const session = await requireSession();
   requireCapability(session, "members.manage");
@@ -120,12 +125,32 @@ async function createMemberAccess(input: {
     emailError = mail.error;
   }
 
+  let whatsappSent = false;
+  let whatsappError: string | undefined;
+  if (input.sendInviteWhatsApp && input.staffPhone) {
+    const wa = await sendMemberInviteWhatsApp({
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      tenantSlug: tenant.slug,
+      name: input.name,
+      phone: input.staffPhone,
+      email: input.email,
+      tempPassword: input.password,
+    });
+    whatsappSent = wa.sent;
+    whatsappError = wa.error;
+  }
+
+  const hidePassword = (input.sendInviteEmail && emailSent) || whatsappSent;
+
   return {
     ok: true,
     email: input.email,
-    tempPassword: input.sendInviteEmail ? undefined : input.password,
+    tempPassword: hidePassword ? undefined : input.password,
     emailSent,
     emailError,
+    whatsappSent,
+    whatsappError,
   };
 }
 
@@ -212,6 +237,7 @@ export type ProvisionStaffInput = {
   password?: string;
   email?: string;
   sendInviteEmail?: boolean;
+  sendInviteWhatsApp?: boolean;
 };
 
 /** Cria login de barbeiro a partir do cadastro importado (nome, e-mail, unidade, vínculo). */
@@ -251,7 +277,9 @@ export async function provisionStaffAccess(input: ProvisionStaffInput): Promise<
       role: "staff",
       branchId: staff.branchId,
       staffId: staff.id,
+      staffPhone: staff.phone,
       sendInviteEmail: input.sendInviteEmail ?? true,
+      sendInviteWhatsApp: input.sendInviteWhatsApp ?? true,
     });
   } catch (err) {
     if (err instanceof AppError || err instanceof ForbiddenError) {
@@ -272,6 +300,7 @@ export type BulkProvisionResult =
 
 export async function bulkProvisionStaffAccess(opts?: {
   sendInviteEmail?: boolean;
+  sendInviteWhatsApp?: boolean;
 }): Promise<BulkProvisionResult> {
   try {
     const session = await requireSession();
@@ -313,6 +342,7 @@ export async function bulkProvisionStaffAccess(opts?: {
       const result = await provisionStaffAccess({
         staffId: staff.id,
         sendInviteEmail: opts?.sendInviteEmail ?? true,
+        sendInviteWhatsApp: opts?.sendInviteWhatsApp ?? true,
       });
       results.push(result);
       if (result.ok) created++;

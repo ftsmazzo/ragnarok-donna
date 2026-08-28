@@ -19,11 +19,12 @@ type Props = {
   unlinkedStaff: UnlinkedStaffItem[];
   branches: BranchOption[];
   hasEmailConfig: boolean;
+  whatsappConnected: boolean;
 };
 
 const ROLES: MemberRole[] = ["owner", "admin", "manager", "staff", "readonly"];
 
-export function EquipeView({ members, unlinkedStaff, branches, hasEmailConfig }: Props) {
+export function EquipeView({ members, unlinkedStaff, branches, hasEmailConfig, whatsappConnected }: Props) {
   const [pending, startTransition] = useTransition();
 
   function onRoleChange(membershipId: string, role: MemberRole) {
@@ -46,7 +47,11 @@ export function EquipeView({ members, unlinkedStaff, branches, hasEmailConfig }:
 
   return (
     <>
-      <StaffProvisionPanel staff={unlinkedStaff} hasEmailConfig={hasEmailConfig} />
+      <StaffProvisionPanel
+        staff={unlinkedStaff}
+        hasEmailConfig={hasEmailConfig}
+        whatsappConnected={whatsappConnected}
+      />
 
       <InviteMemberForm branches={branches} hasEmailConfig={hasEmailConfig} />
 

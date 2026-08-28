@@ -11,6 +11,7 @@ import type { UnlinkedStaffItem } from "@/server/members/queries";
 type Props = {
   staff: UnlinkedStaffItem[];
   hasEmailConfig: boolean;
+  whatsappConnected: boolean;
 };
 
 type Feedback = {
@@ -18,7 +19,20 @@ type Feedback = {
   message: string;
 };
 
-export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
+function formatInviteResult(
+  name: string,
+  result: Extract<Awaited<ReturnType<typeof provisionStaffAction>>, { ok: true }>
+): string {
+  let message = `Acesso criado para ${name} (${result.email}).`;
+  if (result.emailSent) message += " E-mail enviado.";
+  else if (result.emailError) message += ` E-mail: ${result.emailError}.`;
+  if (result.whatsappSent) message += " WhatsApp enviado.";
+  else if (result.whatsappError) message += ` WhatsApp: ${result.whatsappError}.`;
+  if (result.tempPassword) message += ` Senha inicial: ${result.tempPassword}`;
+  return message;
+}
+
+export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -28,13 +42,14 @@ export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
   const withEmail = staff.filter((s) => s.email?.trim());
   const withoutEmail = staff.filter((s) => !s.email?.trim());
 
-  function provisionOne(item: UnlinkedStaffItem, sendInviteEmail: boolean) {
+  function provisionOne(item: UnlinkedStaffItem) {
     setFeedback(null);
     startTransition(async () => {
       const result = await provisionStaffAction({
         staffId: item.id,
         email: customEmail[item.id]?.trim() || undefined,
-        sendInviteEmail,
+        sendInviteEmail: hasEmailConfig,
+        sendInviteWhatsApp: whatsappConnected,
       });
 
       if (!result.ok) {
@@ -43,16 +58,10 @@ export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
       }
 
       setExpandedId(null);
-      let message = `Acesso criado para ${item.name} (${result.email}).`;
-      if (result.emailSent) {
-        message += " E-mail de boas-vindas enviado.";
-      } else if (result.tempPassword) {
-        message += ` Senha inicial: ${result.tempPassword}`;
-        if (result.emailError) {
-          message += ` (e-mail não enviado: ${result.emailError})`;
-        }
-      }
-      setFeedback({ kind: "success", message });
+      setFeedback({
+        kind: "success",
+        message: formatInviteResult(item.name, result),
+      });
       router.refresh();
     });
   }
@@ -66,7 +75,9 @@ export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
         return;
       }
 
-      let message = `${result.created} acesso(s) criado(s).`;
+      let message = `${result.created} acesso(s) criado(s) com e-mail`;
+      if (whatsappConnected) message += " e WhatsApp (quando houver celular)";
+      message += ".";
       if (result.skipped.length) {
         message += ` ${result.skipped.length} ignorado(s): ${result.skipped
           .slice(0, 3)
@@ -95,16 +106,15 @@ export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
         <div>
           <h3 className="panel-subtitle">Profissionais sem acesso ({staff.length})</h3>
           <p className="client-profile-hint">
-            Importados do AppBeleza — selecione e crie login com nome, e-mail, unidade e vínculo
-            automáticos.
-            {!hasEmailConfig ? (
-              <>
+            Importados do AppBeleza — um clique cria login, vincula o profissional e envia convite
+            por {hasEmailConfig ? "e-mail" : "—"}
+            {hasEmailConfig && whatsappConnected ? " + " : ""}
+            {whatsappConnected ? "WhatsApp" : hasEmailConfig ? "" : " (senha exibida aqui)"}.
+            {!whatsappConnected ? (
+              <span className="muted">
                 {" "}
-                <span className="muted">
-                  Configure <code>RESEND_API_KEY</code> para enviar senha por e-mail; sem isso a senha
-                  aparece aqui após criar.
-                </span>
-              </>
+                WhatsApp desconectado — pareie em Conversas para enviar pelo Zap.
+              </span>
             ) : null}
           </p>
         </div>
@@ -115,7 +125,7 @@ export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
             disabled={pending}
             onClick={provisionAll}
           >
-            {pending ? "Criando…" : `Criar todos com e-mail (${withEmail.length})`}
+            {pending ? "Criando…" : `Criar todos (${withEmail.length})`}
           </button>
         ) : null}
       </div>
@@ -141,6 +151,7 @@ export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
               <th>Profissional</th>
               <th>Unidade</th>
               <th>E-mail</th>
+              <th>Celular</th>
               <th />
             </tr>
           </thead>
@@ -153,6 +164,7 @@ export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
                   <td className="cell-strong">{s.name}</td>
                   <td>{s.branchName ?? "—"}</td>
                   <td>{email || <span className="muted">Sem e-mail</span>}</td>
+                  <td>{s.phone || <span className="muted">—</span>}</td>
                   <td className="cell-actions">
                     {open ? (
                       <div className="staff-provision-expand">
@@ -172,7 +184,7 @@ export function StaffProvisionPanel({ staff, hasEmailConfig }: Props) {
                           type="button"
                           className="btn btn-primary btn-sm"
                           disabled={pending}
-                          onClick={() => provisionOne(s, hasEmailConfig && !!email)}
+                          onClick={() => provisionOne(s)}
                         >
                           Confirmar acesso
                         </button>

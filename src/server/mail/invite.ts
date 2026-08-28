@@ -14,7 +14,15 @@ export async function sendMemberInviteEmail(
     return { sent: false, error: "RESEND_API_KEY não configurada" };
   }
 
-  const from = process.env.RESEND_FROM?.trim() ?? "Painel <onboarding@resend.dev>";
+  const rawFrom =
+    process.env.RESEND_FROM?.trim() ??
+    process.env.RESEND_FROM_EMAIL?.trim() ??
+    process.env.EMAIL_FROM?.trim();
+  const from = rawFrom?.includes("<")
+    ? rawFrom
+    : rawFrom
+      ? `Painel <${rawFrom}>`
+      : "Painel <onboarding@resend.dev>";
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
   const loginUrl = `${baseUrl}/login/${input.tenantSlug}`;
 
