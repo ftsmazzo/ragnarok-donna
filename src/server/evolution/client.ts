@@ -114,6 +114,31 @@ export async function sendTextMessage(instanceName: string, numberDigits: string
   );
 }
 
+export type MediaMessageKey = {
+  id: string;
+  remoteJid?: string;
+  remoteJidAlt?: string;
+  fromMe?: boolean;
+};
+
+export async function getBase64FromMediaMessage(
+  instanceName: string,
+  key: MediaMessageKey,
+  convertToMp4 = false
+) {
+  return evolutionFetch<{
+    mediaType?: string;
+    mimetype?: string;
+    base64?: string;
+    fileName?: string;
+  }>(`/chat/getBase64FromMediaMessage/${encodeURIComponent(instanceName)}`, {
+    body: {
+      message: { key },
+      convertToMp4,
+    },
+  });
+}
+
 export type EvolutionStoredMessage = {
   id?: string;
   key?: {

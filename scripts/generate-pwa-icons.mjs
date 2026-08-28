@@ -20,3 +20,19 @@ for (const { name, size } of sizes) {
     .toFile(join(root, "public/branding", name));
   console.log(`wrote ${name}`);
 }
+
+// Next.js + iOS leem estes caminhos ao adicionar à tela inicial
+const appIcons = [
+  ["src/app/apple-icon.png", 180],
+  ["src/app/icon.png", 192],
+  ["src/app/pwa/apple-icon.png", 180],
+  ["src/app/pwa/icon.png", 192],
+  ["public/apple-touch-icon.png", 180],
+];
+for (const [rel, size] of appIcons) {
+  await sharp(svg, { density: 300 })
+    .resize(size, size)
+    .png()
+    .toFile(join(root, rel));
+  console.log(`wrote ${rel}`);
+}

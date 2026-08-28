@@ -51,6 +51,17 @@ export function compilePersonaToSystemPrompt(
     "",
     "Expressões naturais (com moderação): " + p.oralidade.expressoes_tipicas.join(", ") + ".",
     "",
+    "Padrões de fala (use com naturalidade, sem forçar):",
+    ...(p.padroes_de_frase.repeticao.usar && p.padroes_de_frase.repeticao.exemplo
+      ? [`- Repetição: ${p.padroes_de_frase.repeticao.exemplo}`]
+      : []),
+    ...(p.padroes_de_frase.pergunta_resposta.usar && p.padroes_de_frase.pergunta_resposta.exemplo
+      ? [`- Pergunta + resposta: ${p.padroes_de_frase.pergunta_resposta.exemplo}`]
+      : []),
+    ...(p.padroes_de_frase.contraste.usar && p.padroes_de_frase.contraste.exemplo
+      ? [`- Contraste: ${p.padroes_de_frase.contraste.exemplo}`]
+      : []),
+    "",
     "Nunca:",
     ...p.descaracteriza.map((d) => `- ${d}`),
     "",

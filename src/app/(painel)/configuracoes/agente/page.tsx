@@ -13,7 +13,7 @@ export default async function AgenteConfigPage() {
     <>
       <PageHeader
         title="Agente (Donna)"
-        subtitle="Personalização e alerta de atendimento humano — por unidade"
+        subtitle="Tom de voz, persona e alerta de atendimento humano — por unidade"
       />
 
       <section className="panel">

@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { resolveTenantBrand } from "@/lib/brand";
-import { PWA_APPLE_ICON, PWA_ICON } from "@/lib/pwa-brand";
 import { requireTenantContext } from "@/server/context/tenant";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -12,15 +11,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: `${brand.displayName} · Conversas`,
-    manifest: "/manifest-conversas.webmanifest?v=3",
+    manifest: "/manifest-conversas.webmanifest",
     appleWebApp: {
       capable: true,
       title: brand.displayName,
       statusBarStyle: "black-translucent",
-    },
-    icons: {
-      icon: [{ url: PWA_ICON, sizes: "192x192", type: "image/png" }],
-      apple: [{ url: PWA_APPLE_ICON, sizes: "180x180", type: "image/png" }],
     },
   };
 }

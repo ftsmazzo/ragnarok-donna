@@ -6,6 +6,7 @@ import { resolveTenantByInstance, syncWhatsAppConnectionByInstance } from "./con
 import { ensureDefaultAgentProfile } from "./persona-profile";
 import { deliverWhatsAppText } from "./outbound";
 import { runOrchestrator } from "./orchestrator";
+import { enrichInboundMessage } from "./media";
 
 type EvolutionWebhookBody = {
   event?: string;
@@ -27,7 +28,10 @@ export type MessageUpsertData = {
   message?: {
     conversation?: string;
     extendedTextMessage?: { text?: string };
-    imageMessage?: { caption?: string };
+    imageMessage?: { caption?: string; mimetype?: string };
+    audioMessage?: { mimetype?: string; ptt?: boolean };
+    videoMessage?: { caption?: string; mimetype?: string };
+    documentMessage?: { caption?: string; fileName?: string; mimetype?: string };
   };
   pushName?: string;
   messageType?: string;
@@ -50,6 +54,8 @@ function extractMessageText(data: MessageUpsertData): string | null {
     m.conversation?.trim() ||
     m.extendedTextMessage?.text?.trim() ||
     m.imageMessage?.caption?.trim() ||
+    m.videoMessage?.caption?.trim() ||
+    m.documentMessage?.caption?.trim() ||
     "";
   return text || null;
 }
@@ -133,6 +139,8 @@ async function persistInbound(input: {
   conversationId: string;
   body: string;
   waMessageId: string;
+  mediaType?: string;
+  meta?: Record<string, unknown>;
 }) {
   const db = createDb();
   const now = new Date();
@@ -144,6 +152,8 @@ async function persistInbound(input: {
       direction: "inbound",
       body: input.body,
       waMessageId: input.waMessageId,
+      mediaType: input.mediaType,
+      meta: input.meta ?? {},
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
@@ -186,8 +196,10 @@ export async function processInboundMessage(
     return "skip";
   }
 
-  const text = extractMessageText(raw);
-  if (!text) return "skip";
+  const enriched = await enrichInboundMessage(instanceName, raw);
+  if (!enriched?.body) return "skip";
+
+  const text = enriched.body;
 
   const waMessageId = raw.key?.id;
   if (!waMessageId) return "skip";
@@ -209,6 +221,8 @@ export async function processInboundMessage(
     conversationId: conv.id,
     body: text,
     waMessageId,
+    mediaType: enriched.mediaType,
+    meta: enriched.meta,
   });
   if (!inserted) return "dup";
 
