@@ -15,7 +15,7 @@ const LOCK_KEY = 8347291;
 const DONNA_LOCK_KEY = 8347292;
 const JSON_BOOTSTRAP_VERSION = 1;
 const BOOTSTRAP_TIMEOUT_MS = 120_000;
-const DONNA_BOOTSTRAP_TIMEOUT_MS = 900_000;
+const DONNA_BOOTSTRAP_TIMEOUT_MS = 1_800_000;
 
 function exportDir() {
   const dir =
@@ -46,13 +46,11 @@ function spawnOnboard(args) {
   });
 }
 
-async function runDonnaBootstrap(sql) {
-  const dir = donnaExportDir();
-  if (!dir) {
-    console.log("[bootstrap:donna] export em data/donna-elegant-export ausente — pulando.");
-    return;
-  }
+function spawnScript(scriptName, extraArgs = []) {
+  return spawnOnboard([path.join(ROOT, "scripts", scriptName), ...extraArgs]);
+}
 
+async function runDonnaBootstrap(sql) {
   const [{ ok: locked }] = await sql`select pg_try_advisory_lock(${DONNA_LOCK_KEY}) as ok`;
   if (!locked) {
     console.log("[bootstrap:donna] outro processo em execução.");
@@ -60,22 +58,40 @@ async function runDonnaBootstrap(sql) {
   }
 
   try {
+    const dir = donnaExportDir();
+    if (!dir) {
+      console.log("[bootstrap:donna] pasta data/donna-elegant-export ausente — import pulado.");
+      return;
+    }
+
     const [existing] = await sql`
       select t.id, (select count(*)::int from clients c where c.tenant_id = t.id) as clients
       from tenants t where t.slug = ${DONNA_SLUG} limit 1
     `;
     if (existing?.clients > 100) {
-      console.log("[bootstrap:donna] já importado —", existing.clients, "clientes.");
+      console.log("[bootstrap:donna] dados já importados —", existing.clients, "clientes.");
       return;
     }
 
-    console.log("[bootstrap:donna] import AppBeleza + unidades + owner…");
-    await spawnOnboard([
-      path.join(ROOT, "scripts/onboard-donna-elegant.mjs"),
+    // 2) Import pesado em background (não bloqueia login)
+    console.log("[bootstrap:donna] import AppBeleza…");
+    await spawnScript("import-appbarber.mjs", [
+      "--tenant",
+      DONNA_SLUG,
+      "--name",
+      "Donna Elegant",
       "--dir",
       dir,
+      "--source",
+      "appbeleza",
+      "--branch-slug",
+      "unidade-01",
+      "--branch-name",
+      "Donna Elegant — Unidade 01",
+      "--branch-address",
+      "Rua Curitiba, 486 — Catanduva-SP",
     ]);
-    console.log("[bootstrap:donna] concluído.");
+    console.log("[bootstrap:donna] import concluído.");
   } catch (err) {
     console.error("[bootstrap:donna] falhou:", err);
   } finally {
@@ -407,16 +423,27 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, () => child.kill(sig));
 }
 
-setImmediate(() => {
+setImmediate(async () => {
   withTimeout(runBootstrap(), BOOTSTRAP_TIMEOUT_MS).catch((err) => {
     console.error("[bootstrap]", err.message ?? err);
   });
-  withTimeout(runDonnaBootstrapStandalone(), DONNA_BOOTSTRAP_TIMEOUT_MS).catch((err) => {
-    console.error("[bootstrap:donna]", err.message ?? err);
+  await runDonnaEnsureStandalone();
+  withTimeout(runDonnaImportStandalone(), DONNA_BOOTSTRAP_TIMEOUT_MS).catch((err) => {
+    console.error("[bootstrap:donna:import]", err.message ?? err);
   });
 });
 
-async function runDonnaBootstrapStandalone() {
+async function runDonnaEnsureStandalone() {
+  if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
+  if (!process.env.DATABASE_URL) return;
+  try {
+    await spawnScript("ensure-donna-access.mjs");
+  } catch (err) {
+    console.error("[bootstrap:donna:access]", err);
+  }
+}
+
+async function runDonnaImportStandalone() {
   if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) return;
