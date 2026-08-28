@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Props = {
   logoSrc?: string | null;
@@ -24,6 +24,11 @@ const sizeClass = {
 export function BrandMark({ logoSrc, mark = "BR", alt, size = "sm", onDark = false }: Props) {
   const [src, setSrc] = useState(logoSrc || null);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setSrc(logoSrc || null);
+    setFailed(false);
+  }, [logoSrc]);
 
   if (src && !failed) {
     return (

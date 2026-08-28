@@ -64,7 +64,12 @@ export function Sidebar({ session }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <BrandMark logoSrc={session.brandLogoSrc} alt={session.tenantName} size="md" />
+        <BrandMark
+          key={session.tenantSlug}
+          logoSrc={session.brandLogoSrc}
+          alt={session.tenantName}
+          size="md"
+        />
         <div>
           <strong className="sidebar-brand-name">{session.tenantName}</strong>
           <small>{session.brandTagline ?? "Painel"}</small>

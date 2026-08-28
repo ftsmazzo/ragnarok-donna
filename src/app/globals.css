@@ -1,6 +1,8 @@
 :root {
   --header: #f39c12;
   --header-ink: #1a1208;
+  --accent: #00a65a;
+  --accent-ink: #ffffff;
   --sidebar: #222d32;
   --sidebar-deep: #1a2226;
   --sidebar-hover: #1e282c;
@@ -20,6 +22,38 @@
   --sidebar-w: 230px;
   --topbar-h: 50px;
   --font: "Quicksand", system-ui, sans-serif;
+}
+
+/* —— Donna Elegant (manual de marca) —— */
+.app-shell.theme-donna-elegant {
+  --header: #9a7b5a;
+  --header-ink: #faf6f0;
+  --accent: #9a7b5a;
+  --accent-ink: #faf6f0;
+  --sidebar: #1c1917;
+  --sidebar-deep: #0f0e0d;
+  --sidebar-hover: #292524;
+  --sidebar-active: #44403c;
+  --sidebar-ink: #d6d3d1;
+  --sidebar-ink-active: #faf6f0;
+  --content-bg: #faf6f0;
+  --line: #e7e5e4;
+  --font: "Lato", system-ui, sans-serif;
+}
+
+.app-shell.theme-donna-elegant .sidebar-brand-name {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  letter-spacing: 0.02em;
+}
+
+.app-shell.theme-donna-elegant .btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.app-shell.theme-ragnaroks {
+  --accent: #735340;
+  --accent-ink: #ffffff;
 }
 
 * {
@@ -328,6 +362,60 @@ input {
   opacity: 0.95;
 }
 
+.topbar-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.topbar-pills-branch {
+  margin-left: 2px;
+}
+
+.topbar-pill {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  opacity: 0.88;
+  transition: background 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.topbar-pill:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.topbar-pill.is-active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--header);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.topbar-pill:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.topbar-pill-branch {
+  font-size: 11px;
+  padding: 5px 10px;
+}
+
+.branch-inauguration-banner {
+  margin-bottom: 12px;
+}
+
 .topbar-search {
   flex: 1;
   max-width: 420px;
@@ -419,8 +507,8 @@ input {
 }
 
 .btn-primary {
-  background: var(--success);
-  color: #fff;
+  background: var(--accent, var(--success));
+  color: var(--accent-ink, #fff);
 }
 
 .btn-danger {
@@ -1732,6 +1820,18 @@ input {
   margin-bottom: 16px;
   padding: 10px 14px;
   border-radius: 6px;
+}
+
+.banner-info {
+  background: #eef6fb;
+  border: 1px solid #b8d9ea;
+  color: #1e3a4c;
+}
+
+.app-shell.theme-donna-elegant .banner-info {
+  background: #f5efe6;
+  border-color: #dbc9b0;
+  color: #44403c;
 }
 
 .order-item-list {

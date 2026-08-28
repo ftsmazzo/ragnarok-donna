@@ -1,4 +1,5 @@
 import { DonnaImportBanner } from "@/components/inicio/DonnaImportBanner";
+import { BranchInaugurationBanner } from "@/components/inicio/BranchInaugurationBanner";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import {
@@ -113,6 +114,10 @@ export async function InicioContent({ session, searchParams }: Props) {
       ) : null}
 
       {donnaImport ? <DonnaImportBanner status={donnaImport} /> : null}
+      <BranchInaugurationBanner
+        tenantSlug={session.tenant.slug}
+        branchSlug={session.branch?.slug}
+      />
 
       <PageHeader
         title="Início"

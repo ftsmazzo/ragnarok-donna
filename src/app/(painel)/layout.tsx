@@ -41,6 +41,13 @@ export default async function PainelLayout({
 
   return (
     <Suspense fallback={<div className="app-shell" />}>
+      {brand.themeClass === "theme-donna-elegant" ? (
+        // eslint-disable-next-line @next/next/no-page-custom-font
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lato:wght@400;500;600&display=swap"
+        />
+      ) : null}
       <AppShell
         session={{
           userName: session.user.name,
@@ -52,6 +59,7 @@ export default async function PainelLayout({
           staffId: session.staffId,
           brandLogoSrc: brand.logoSrc,
           brandTagline: brand.tagline,
+          themeClass: brand.themeClass,
           organizations,
           branches: branches.map((b) => ({ slug: b.slug, name: b.name })),
         }}

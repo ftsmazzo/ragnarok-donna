@@ -17,6 +17,7 @@ export type ShellSession = {
   staffId?: string | null;
   brandLogoSrc?: string | null;
   brandTagline?: string | null;
+  themeClass?: string | null;
   organizations: { slug: string; name: string }[];
   branches: { slug: string; name: string }[];
 };
@@ -37,7 +38,14 @@ export function AppShell({ children, session }: AppShellProps) {
 
   return (
     <div
-      className={`app-shell${collapsed ? " is-collapsed" : ""}${tabletMode ? " is-tablet-mode" : ""}`}
+      className={[
+        "app-shell",
+        collapsed ? "is-collapsed" : "",
+        tabletMode ? "is-tablet-mode" : "",
+        session.themeClass ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <Sidebar session={session} />
       <div className="app-main">

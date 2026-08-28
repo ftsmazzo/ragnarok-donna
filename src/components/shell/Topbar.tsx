@@ -78,37 +78,40 @@ export function Topbar({ onToggleSidebar, session }: TopbarProps) {
 
       <div className="topbar-context">
         {showOrgSwitch ? (
-          <select
-            className="topbar-select"
-            value={session.tenantSlug}
-            disabled={pending}
-            aria-label="Organização"
-            onChange={(e) => switchTenant(e.target.value)}
-          >
+          <div className="topbar-pills" role="group" aria-label="Organização">
             {session.organizations.map((o) => (
-              <option key={o.slug} value={o.slug}>
+              <button
+                key={o.slug}
+                type="button"
+                className={`topbar-pill${o.slug === session.tenantSlug ? " is-active" : ""}`}
+                disabled={pending}
+                onClick={() => switchTenant(o.slug)}
+              >
                 {o.name}
-              </option>
+              </button>
             ))}
-          </select>
+          </div>
         ) : (
           <span className="topbar-org">{session.tenantName}</span>
         )}
 
         {showBranchSwitch ? (
-          <select
-            className="topbar-select topbar-select-branch"
-            value={session.branchSlug ?? ""}
-            disabled={pending}
-            aria-label="Unidade"
-            onChange={(e) => switchBranch(e.target.value)}
-          >
+          <div className="topbar-pills topbar-pills-branch" role="group" aria-label="Unidade">
             {session.branches.map((b) => (
-              <option key={b.slug} value={b.slug}>
-                {b.name}
-              </option>
+              <button
+                key={b.slug}
+                type="button"
+                className={`topbar-pill topbar-pill-branch${
+                  b.slug === session.branchSlug ? " is-active" : ""
+                }`}
+                disabled={pending}
+                onClick={() => switchBranch(b.slug)}
+                title={b.name}
+              >
+                {b.name.replace(/^Donna Elegant — /, "").replace(/^Unidade /, "U")}
+              </button>
             ))}
-          </select>
+          </div>
         ) : session.branchName ? (
           <span className="topbar-branch">{session.branchName}</span>
         ) : null}

@@ -9,7 +9,15 @@ export type TenantBrand = {
   tagline: string;
   logoSrc: string | null;
   faviconSrc: string | null;
+  themeClass: string | null;
 };
+
+/** Classe CSS no app-shell para cores/tipografia da marca. */
+export function resolveTenantThemeClass(tenantSlug: string): string | null {
+  if (/donna/i.test(tenantSlug)) return "theme-donna-elegant";
+  if (/ragnarok/i.test(tenantSlug)) return "theme-ragnaroks";
+  return null;
+}
 
 /** Nome/logo para UI — sem o "S" do AppBarber; prioriza businessProfile. */
 export function resolveTenantBrand(input: {
@@ -27,8 +35,9 @@ export function resolveTenantBrand(input: {
       tagline: profile.tagline,
       logoSrc: profile.brand.logoLocalPath ?? profile.brand.logoUrl ?? null,
       faviconSrc: looksDonna
-        ? "/branding/donna-elegant-icon-192.png"
+        ? "/branding/donna-elegant-logo.png"
         : "/branding/ragnarok-app-icon-192.png",
+      themeClass: resolveTenantThemeClass(input.tenantSlug),
     };
   }
 
@@ -38,7 +47,8 @@ export function resolveTenantBrand(input: {
       displayName: b.nomeFantasia,
       tagline: b.tagline,
       logoSrc: b.brand.logoLocalPath ?? b.brand.logoUrl,
-      faviconSrc: "/branding/donna-elegant-icon-192.png",
+      faviconSrc: "/branding/donna-elegant-logo.png",
+      themeClass: "theme-donna-elegant",
     };
   }
 
@@ -49,6 +59,7 @@ export function resolveTenantBrand(input: {
       tagline: b.tagline,
       logoSrc: b.brand.logoLocalPath ?? b.brand.logoUrl,
       faviconSrc: "/branding/ragnarok-app-icon-192.png",
+      themeClass: "theme-ragnaroks",
     };
   }
 
@@ -60,5 +71,6 @@ export function resolveTenantBrand(input: {
     tagline: "Painel operacional",
     logoSrc: null,
     faviconSrc: null,
+    themeClass: resolveTenantThemeClass(input.tenantSlug),
   };
 }
