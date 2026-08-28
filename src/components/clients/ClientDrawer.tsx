@@ -31,7 +31,9 @@ export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: 
   const [pending, startTransition] = useTransition();
 
   const isEdit = mode === "edit" && client;
-  const isRemoved = Boolean(client?.deletedAt || !client?.isActive);
+  const isRemoved = Boolean(
+    isEdit && client && (client.deletedAt || !client.isActive)
+  );
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
