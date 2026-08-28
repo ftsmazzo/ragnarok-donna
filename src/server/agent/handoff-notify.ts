@@ -2,6 +2,7 @@ import { getConnectionForTenant } from "./outbound";
 import { getHandoffNotifyPhoneE164 } from "./agent-config";
 import { digitsForEvolution } from "@/server/evolution/phone";
 import { sendTextMessage } from "@/server/evolution/client";
+import { sendPushToTenant } from "@/server/pwa/web-push";
 
 /**
  * Avisa a equipe no WhatsApp configurado quando o cliente pede humano.
@@ -35,6 +36,14 @@ export async function notifyHandoffRequest(input: {
     `${who} pediu falar com a equipe.\n` +
     `Tel: ${phoneLabel}\n` +
     `Abra Conversas IA no painel para assumir.`;
+
+  const pushUrl = `/pwa/conversas?filter=human&id=${input.conversationId}`;
+  void sendPushToTenant(input.tenantId, {
+    title: "Barbearia Ragnarok — pediu humano",
+    body: `${who} · ${phoneLabel}`,
+    url: pushUrl,
+    tag: `handoff-${input.conversationId}`,
+  }).catch(() => undefined);
 
   try {
     await sendTextMessage(conn.instanceName, digitsForEvolution(notifyPhone), text);

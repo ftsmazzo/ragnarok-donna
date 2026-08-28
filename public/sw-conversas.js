@@ -1,5 +1,5 @@
 /* Service worker — PWA Conversas + notificações locais */
-const CACHE = "ragnarok-conversas-v4";
+const CACHE = "ragnarok-conversas-v5";
 const ICON = "/branding/ragnarok-app-icon-192.png";
 const PRECACHE = ["/pwa/conversas", ICON, "/manifest-conversas.webmanifest"];
 
@@ -23,6 +23,30 @@ self.addEventListener("fetch", (event) => {
   }
   event.respondWith(
     caches.match(event.request).then((hit) => hit || fetch(event.request).catch(() => hit))
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {
+    title: "Barbearia Ragnarok — pediu humano",
+    body: "Cliente pediu atendimento humano",
+    url: "/pwa/conversas?filter=human",
+    tag: "handoff",
+  };
+  try {
+    if (event.data) payload = { ...payload, ...event.data.json() };
+  } catch {
+    /* ignore */
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: ICON,
+      badge: ICON,
+      tag: payload.tag || "handoff",
+      renotify: true,
+      data: { url: payload.url || "/pwa/conversas?filter=human" },
+    })
   );
 });
 

@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ensurePushSubscription } from "@/lib/pwa-push-subscribe";
 import {
   alertHandoff,
-  handoffItemKey,
-  handoffIso,
   POLL_MS,
   pushTestNotification,
   type HandoffPulseItem,
@@ -37,6 +36,9 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff 
       return;
     }
     setPerm(Notification.permission);
+    if (Notification.permission === "granted") {
+      void ensurePushSubscription();
+    }
   }, []);
 
   useEffect(() => {
@@ -86,6 +88,9 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff 
     if (!("Notification" in window)) return;
     const p = await Notification.requestPermission();
     setPerm(p);
+    if (p === "granted") {
+      await ensurePushSubscription();
+    }
   }
 
   async function testAlert() {
@@ -109,7 +114,7 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff 
         <button type="button" className="btn btn-outline btn-sm" onClick={testAlert}>
           Testar alerta
         </button>
-        <span className="muted-note">Handoff real: banner laranja + vibração.</span>
+        <span className="muted-note">Push ativo — avisa mesmo com app fechado (iOS 16.4+).</span>
       </div>
     );
   }

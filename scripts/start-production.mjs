@@ -114,6 +114,22 @@ CREATE INDEX IF NOT EXISTS outreach_jobs_tenant_client_idx
   ON outreach_jobs (tenant_id, client_id);
 
 ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS persona jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint text NOT NULL,
+  p256dh text NOT NULL,
+  auth text NOT NULL,
+  user_agent varchar(400),
+  last_seen_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_uidx ON push_subscriptions (endpoint);
+CREATE INDEX IF NOT EXISTS push_subscriptions_tenant_idx ON push_subscriptions (tenant_id);
+CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions (user_id);
 `);
     console.log("[bootstrap] schema staff_advances + outreach_jobs + agent_profiles.persona ok");
 
