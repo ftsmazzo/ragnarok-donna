@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
   bulkProvisionStaffAction,
   provisionStaffAction,
@@ -34,20 +34,34 @@ function formatInviteResult(
 
 export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }: Props) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [customEmail, setCustomEmail] = useState<Record<string, string>>({});
+  const [customPassword, setCustomPassword] = useState<Record<string, string>>({});
 
   const withEmail = staff.filter((s) => s.email?.trim());
   const withoutEmail = staff.filter((s) => !s.email?.trim());
 
-  function provisionOne(item: UnlinkedStaffItem) {
+  function openExpand(item: UnlinkedStaffItem) {
+    setExpandedId(item.id);
+    setCustomEmail((prev) => ({
+      ...prev,
+      [item.id]: prev[item.id] ?? item.email?.trim() ?? "",
+    }));
+  }
+
+  async function provisionOne(item: UnlinkedStaffItem) {
     setFeedback(null);
-    startTransition(async () => {
+    setIsSubmitting(true);
+    try {
+      const email = customEmail[item.id]?.trim();
+      const password = customPassword[item.id]?.trim();
+
       const result = await provisionStaffAction({
         staffId: item.id,
-        email: customEmail[item.id]?.trim() || undefined,
+        email: email || undefined,
+        password: password || undefined,
         sendInviteEmail: hasEmailConfig,
         sendInviteWhatsApp: whatsappConnected,
       });
@@ -63,12 +77,15 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
         message: formatInviteResult(item.name, result),
       });
       router.refresh();
-    });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function provisionAll() {
+  async function provisionAll() {
     setFeedback(null);
-    startTransition(async () => {
+    setIsSubmitting(true);
+    try {
       const result = await bulkProvisionStaffAction(hasEmailConfig);
       if (!result.ok) {
         setFeedback({ kind: "error", message: result.error });
@@ -86,7 +103,9 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
       }
       setFeedback({ kind: result.created ? "success" : "info", message });
       router.refresh();
-    });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   if (staff.length === 0) {
@@ -106,8 +125,8 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
         <div>
           <h3 className="panel-subtitle">Profissionais sem acesso ({staff.length})</h3>
           <p className="client-profile-hint">
-            Importados do AppBeleza — um clique cria login, vincula o profissional e envia convite
-            por {hasEmailConfig ? "e-mail" : "—"}
+            Clique em <strong>Criar acesso</strong>, ajuste e-mail/senha se quiser testar, e confirme.
+            Convite por {hasEmailConfig ? "e-mail" : "—"}
             {hasEmailConfig && whatsappConnected ? " + " : ""}
             {whatsappConnected ? "WhatsApp" : hasEmailConfig ? "" : " (senha exibida aqui)"}.
             {!whatsappConnected ? (
@@ -122,10 +141,10 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={pending}
+            disabled={isSubmitting}
             onClick={provisionAll}
           >
-            {pending ? "Criando…" : `Criar todos (${withEmail.length})`}
+            {isSubmitting ? "Criando…" : `Criar todos (${withEmail.length})`}
           </button>
         ) : null}
       </div>
@@ -150,7 +169,7 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
             <tr>
               <th>Profissional</th>
               <th>Unidade</th>
-              <th>E-mail</th>
+              <th>E-mail cadastro</th>
               <th>Celular</th>
               <th />
             </tr>
@@ -167,42 +186,60 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
                   <td>{s.phone || <span className="muted">—</span>}</td>
                   <td className="cell-actions">
                     {open ? (
-                      <div className="staff-provision-expand">
-                        {!email ? (
+                      <div className="staff-provision-expand staff-provision-form">
+                        <label>
+                          E-mail do login
                           <input
                             type="email"
                             className="search-input"
-                            placeholder="E-mail para login"
+                            placeholder="seu@email.com"
                             value={customEmail[s.id] ?? ""}
-                            disabled={pending}
+                            disabled={isSubmitting}
+                            autoComplete="off"
                             onChange={(e) =>
                               setCustomEmail((prev) => ({ ...prev, [s.id]: e.target.value }))
                             }
                           />
-                        ) : null}
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm"
-                          disabled={pending}
-                          onClick={() => provisionOne(s)}
-                        >
-                          Confirmar acesso
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          disabled={pending}
-                          onClick={() => setExpandedId(null)}
-                        >
-                          Cancelar
-                        </button>
+                        </label>
+                        <label>
+                          Senha (opcional)
+                          <input
+                            type="text"
+                            className="search-input"
+                            placeholder="Gera automaticamente"
+                            value={customPassword[s.id] ?? ""}
+                            disabled={isSubmitting}
+                            autoComplete="new-password"
+                            onChange={(e) =>
+                              setCustomPassword((prev) => ({ ...prev, [s.id]: e.target.value }))
+                            }
+                          />
+                        </label>
+                        <div className="staff-provision-actions">
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={isSubmitting}
+                            onClick={() => provisionOne(s)}
+                          >
+                            {isSubmitting ? "Criando…" : "Confirmar acesso"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            disabled={isSubmitting}
+                            onClick={() => setExpandedId(null)}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
                         type="button"
                         className="btn btn-primary btn-sm"
-                        disabled={pending}
-                        onClick={() => setExpandedId(s.id)}
+                        disabled={isSubmitting}
+                        onClick={() => openExpand(s)}
                       >
                         Criar acesso
                       </button>
@@ -217,7 +254,7 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
 
       {withoutEmail.length ? (
         <p className="client-profile-hint muted">
-          {withoutEmail.length} profissional(is) sem e-mail no cadastro — informe ao criar ou
+          {withoutEmail.length} profissional(is) sem e-mail no cadastro — informe ao expandir ou
           cadastre em Profissionais.
         </p>
       ) : null}

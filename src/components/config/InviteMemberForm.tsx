@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { inviteMemberAction } from "@/app/(painel)/configuracoes/equipe/actions";
 import type { MemberRole } from "@/server/types";
 import { ROLE_LABELS } from "@/server/permissions/roles";
@@ -17,11 +17,15 @@ const ROLES: MemberRole[] = ["owner", "admin", "manager", "readonly"];
 
 export function InviteMemberForm({ branches, hasEmailConfig }: Props) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [role, setRole] = useState<MemberRole>("manager");
   const [sendInviteEmail, setSendInviteEmail] = useState(hasEmailConfig);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [branchId, setBranchId] = useState("");
 
   const needsBranch = role === "manager" || role === "readonly";
 
@@ -29,18 +33,18 @@ export function InviteMemberForm({ branches, hasEmailConfig }: Props) {
     setSendInviteEmail(hasEmailConfig);
   }, [hasEmailConfig]);
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    const fd = new FormData(e.currentTarget);
-    startTransition(async () => {
+    setIsSubmitting(true);
+    try {
       const result = await inviteMemberAction({
-        name: String(fd.get("name") ?? ""),
-        email: String(fd.get("email") ?? ""),
-        password: String(fd.get("password") ?? ""),
+        name,
+        email,
+        password,
         role,
-        branchId: String(fd.get("branchId") ?? "") || null,
+        branchId: branchId || null,
         staffId: null,
         sendInviteEmail,
       });
@@ -52,38 +56,64 @@ export function InviteMemberForm({ branches, hasEmailConfig }: Props) {
       if (result.emailSent) msg += " E-mail enviado.";
       else if (result.tempPassword) msg += ` Senha: ${result.tempPassword}`;
       setSuccess(msg);
-      e.currentTarget.reset();
+      setName("");
+      setEmail("");
+      setPassword("");
+      setBranchId("");
       setRole("manager");
       router.refresh();
-    });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
     <form className="invite-member-form" onSubmit={onSubmit}>
-      <h3 className="panel-subtitle">Outros acessos (gerente, admin…)</h3>
+      <h3 className="panel-subtitle">Outros acessos (gerente, admin ou teste manual)</h3>
       <p className="client-profile-hint">
-        Para barbeiros importados, use a lista acima. Aqui cadastre gerentes, admins ou sócios.
+        Use este formulário para criar um login de teste com seu e-mail. Barbeiros importados ficam
+        na lista acima.
       </p>
       {error ? <div className="form-error banner-inline">{error}</div> : null}
       {success ? <div className="banner-success banner-inline">{success}</div> : null}
       <div className="form-grid">
         <label>
           Nome
-          <input name="name" className="search-input" required disabled={pending} />
+          <input
+            name="name"
+            className="search-input"
+            required
+            disabled={isSubmitting}
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </label>
         <label>
           E-mail (login)
-          <input name="email" type="email" className="search-input" required disabled={pending} />
+          <input
+            name="email"
+            type="email"
+            className="search-input"
+            required
+            disabled={isSubmitting}
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </label>
         <label>
           Senha inicial
           <input
             name="password"
-            type="password"
+            type="text"
             minLength={8}
             className="search-input"
             placeholder="Opcional — gera automaticamente"
-            disabled={pending}
+            disabled={isSubmitting}
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
         </label>
         <label>
@@ -91,7 +121,7 @@ export function InviteMemberForm({ branches, hasEmailConfig }: Props) {
           <select
             className="search-input"
             value={role}
-            disabled={pending}
+            disabled={isSubmitting}
             onChange={(e) => setRole(e.target.value as MemberRole)}
           >
             {ROLES.map((r) => (
@@ -104,7 +134,14 @@ export function InviteMemberForm({ branches, hasEmailConfig }: Props) {
         {needsBranch ? (
           <label>
             Unidade
-            <select name="branchId" className="search-input" required disabled={pending}>
+            <select
+              name="branchId"
+              className="search-input"
+              required
+              disabled={isSubmitting}
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+            >
               <option value="">— Selecionar —</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -120,14 +157,14 @@ export function InviteMemberForm({ branches, hasEmailConfig }: Props) {
           <input
             type="checkbox"
             checked={sendInviteEmail}
-            disabled={pending}
+            disabled={isSubmitting}
             onChange={(e) => setSendInviteEmail(e.target.checked)}
           />
           Enviar e-mail com login e senha
         </label>
       ) : null}
-      <button type="submit" className="btn btn-primary" disabled={pending}>
-        {pending ? "Criando…" : "Criar usuário"}
+      <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+        {isSubmitting ? "Criando…" : "Criar usuário"}
       </button>
     </form>
   );

@@ -441,9 +441,41 @@ input {
 .staff-provision-expand {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   justify-content: flex-end;
+  min-width: min(420px, 90vw);
+}
+
+.staff-provision-form {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.staff-provision-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  width: 100%;
+}
+
+.staff-provision-form .search-input {
+  max-width: none;
+  width: 100%;
+}
+
+.staff-provision-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.invite-member-form .search-input {
+  max-width: none;
+  width: 100%;
 }
 
 .checkbox-inline {
