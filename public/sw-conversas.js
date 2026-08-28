@@ -1,6 +1,7 @@
 /* Service worker — PWA Conversas + notificações locais */
-const CACHE = "ragnarok-conversas-v2";
-const PRECACHE = ["/pwa/conversas", "/branding/ragnarok-favicon.png", "/manifest-conversas.webmanifest"];
+const CACHE = "ragnarok-conversas-v3";
+const ICON = "/branding/ragnarok-app-icon-192.png";
+const PRECACHE = ["/pwa/conversas", ICON, "/manifest-conversas.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -17,7 +18,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;
-  if (!url.pathname.startsWith("/pwa/") && url.pathname !== "/branding/ragnarok-favicon.png") {
+  if (!url.pathname.startsWith("/pwa/") && url.pathname !== ICON) {
     return;
   }
   event.respondWith(
@@ -47,8 +48,8 @@ self.addEventListener("message", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || "Atendimento humano", {
       body: data.body || "Cliente pediu falar com a equipe",
-      icon: "/branding/ragnarok-favicon.png",
-      badge: "/branding/ragnarok-favicon.png",
+      icon: ICON,
+      badge: ICON,
       tag: data.tag || "handoff",
       renotify: true,
       data: { url: data.url || "/pwa/conversas?filter=human" },

@@ -24,7 +24,7 @@ export function resolveTenantBrand(input: {
       displayName: profile.nomeFantasia,
       tagline: profile.tagline,
       logoSrc: profile.brand.logoLocalPath ?? profile.brand.logoUrl ?? null,
-      faviconSrc: "/branding/ragnarok-favicon.png",
+      faviconSrc: "/branding/ragnarok-app-icon-192.png",
     };
   }
 
@@ -34,7 +34,7 @@ export function resolveTenantBrand(input: {
       displayName: b.nomeFantasia,
       tagline: b.tagline,
       logoSrc: b.brand.logoLocalPath ?? b.brand.logoUrl,
-      faviconSrc: "/branding/ragnarok-favicon.png",
+      faviconSrc: "/branding/ragnarok-app-icon-192.png",
     };
   }
 

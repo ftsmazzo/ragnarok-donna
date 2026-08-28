@@ -2,83 +2,39 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-
-type PulseItem = {
-  id: string;
-  phoneE164: string;
-  humanRequestedAt: string | null;
-};
-
-const SEEN_KEY = "pwa-handoff-seen";
-const POLL_MS = 5000;
-
-function loadSeen(): Set<string> {
-  if (typeof sessionStorage === "undefined") return new Set();
-  try {
-    const raw = sessionStorage.getItem(SEEN_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveSeen(seen: Set<string>) {
-  try {
-    sessionStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-80)));
-  } catch {
-    /* ignore */
-  }
-}
-
-function itemKey(item: PulseItem): string {
-  return `${item.id}:${item.humanRequestedAt ?? ""}`;
-}
-
-async function showHandoffNotification(item: PulseItem, brandName: string) {
-  const title = `${brandName} — pediu humano`;
-  const body = `${item.phoneE164} · toque para abrir`;
-  const url = `/pwa/conversas?filter=human&id=${item.id}`;
-  const options = {
-    body,
-    icon: "/branding/ragnarok-favicon.png",
-    badge: "/branding/ragnarok-favicon.png",
-    tag: `handoff-${item.id}`,
-    data: { url },
-    vibrate: [180, 90, 180],
-  } as NotificationOptions & { renotify?: boolean; vibrate?: number[] };
-  options.renotify = true;
-
-  if (!("Notification" in window)) return;
-
-  if (Notification.permission === "granted") {
-    if ("serviceWorker" in navigator) {
-      const reg = await navigator.serviceWorker.ready;
-      await reg.showNotification(title, options);
-    } else {
-      new Notification(title, options);
-    }
-  }
-
-  navigator.vibrate?.([180, 90, 180]);
-}
+import {
+  handoffItemKey,
+  POLL_MS,
+  pushHandoffNotification,
+  pushTestNotification,
+  saveNotified,
+  type HandoffPulseItem,
+  vibrateHandoff,
+  wasNotified,
+} from "@/lib/pwa-handoff";
 
 type Props = {
   brandName?: string;
+  onHandoff?: (item: HandoffPulseItem) => void;
 };
 
 /** Registra SW, pede permissão e avisa handoffs pendentes. */
-export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok" }: Props) {
+export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff }: Props) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">("default");
-  const seen = useRef<Set<string>>(loadSeen());
+  const onHandoffRef = useRef(onHandoff);
+  onHandoffRef.current = onHandoff;
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
     navigator.serviceWorker
       .register("/sw-conversas.js", { scope: "/pwa/" })
-      .then(() => setReady(true))
+      .then(async (reg) => {
+        setReady(true);
+        await reg.update().catch(() => undefined);
+      })
       .catch(() => setReady(false));
 
     if (!("Notification" in window)) {
@@ -92,26 +48,30 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok" }: Props) {
     if (!ready) return;
     let cancelled = false;
 
+    async function handleItem(item: HandoffPulseItem) {
+      const key = handoffItemKey(item);
+      if (wasNotified(key)) return;
+
+      vibrateHandoff();
+      onHandoffRef.current?.(item);
+
+      const pushed = await pushHandoffNotification(item, brandName);
+      saveNotified(key);
+      router.refresh();
+
+      if (!pushed && !cancelled) {
+        onHandoffRef.current?.(item);
+      }
+    }
+
     async function tick() {
       try {
         const res = await fetch("/api/agent/handoff-pulse", { cache: "no-store" });
         if (!res.ok || cancelled) return;
 
-        const json = (await res.json()) as { items?: PulseItem[] };
-        const items = json.items ?? [];
-        let fresh = false;
-
-        for (const item of items) {
-          const key = itemKey(item);
-          if (seen.current.has(key)) continue;
-          seen.current.add(key);
-          fresh = true;
-          await showHandoffNotification(item, brandName);
-        }
-
-        if (fresh) {
-          saveSeen(seen.current);
-          router.refresh();
+        const json = (await res.json()) as { items?: HandoffPulseItem[] };
+        for (const item of json.items ?? []) {
+          await handleItem(item);
         }
       } catch {
         /* ignore */
@@ -135,13 +95,28 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok" }: Props) {
     }
   }
 
+  async function testAlert() {
+    vibrateHandoff();
+    const ok = await pushTestNotification(brandName);
+    if (!ok) {
+      onHandoffRef.current?.({
+        id: "test",
+        phoneE164: "Teste de alerta",
+        humanRequestedAt: new Date().toISOString(),
+      });
+    }
+  }
+
   if (perm === "unsupported") return null;
 
   if (perm === "granted") {
     return (
       <div className="pwa-notify-bar pwa-notify-bar--ok">
         <span className="badge is-success">Alertas ativos</span>
-        <span className="muted-note">Aviso quando cliente pedir humano (app aberto ou em segundo plano).</span>
+        <button type="button" className="btn btn-outline btn-sm" onClick={testAlert}>
+          Testar alerta
+        </button>
+        <span className="muted-note">Com o app aberto, o banner laranja também aparece.</span>
       </div>
     );
   }
@@ -152,7 +127,7 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok" }: Props) {
         Ativar alertas
       </button>
       <span className="muted-note">
-        Toque para permitir aviso sonoro/vibratório quando alguém pedir atendimento humano.
+        Permita notificações para aviso quando alguém pedir atendimento humano.
       </span>
     </div>
   );

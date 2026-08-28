@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { resolveTenantBrand } from "@/lib/brand";
+import { PWA_APPLE_ICON, PWA_ICON } from "@/lib/pwa-brand";
 import { requireTenantContext } from "@/server/context/tenant";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -8,7 +9,6 @@ export async function generateMetadata(): Promise<Metadata> {
     tenantName: tenant.name,
     tenantSlug: tenant.slug,
   });
-  const icon = brand.faviconSrc ?? "/branding/ragnarok-favicon.png";
 
   return {
     title: `${brand.displayName} · Conversas`,
@@ -19,8 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
       statusBarStyle: "black-translucent",
     },
     icons: {
-      icon,
-      apple: icon,
+      icon: PWA_ICON,
+      apple: PWA_APPLE_ICON,
     },
   };
 }

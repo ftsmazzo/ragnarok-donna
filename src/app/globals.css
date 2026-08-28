@@ -2307,6 +2307,57 @@ input {
   text-align: center;
 }
 
+.handoff-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(12px + env(safe-area-inset-top)) 12px 12px;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.handoff-overlay-inner {
+  width: min(100%, 420px);
+  background: #fff3e6;
+  border: 2px solid #e87722;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  animation: handoff-pop 0.35s ease-out;
+}
+
+.handoff-overlay-inner strong {
+  display: block;
+  font-size: 1.05rem;
+  color: #5c3d1e;
+}
+
+.handoff-overlay-inner p {
+  margin: 6px 0 12px;
+  font-size: 1rem;
+  color: #333;
+}
+
+.handoff-overlay-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@keyframes handoff-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .app-shell.is-tablet-mode .app-content {
   padding: 10px 12px 24px;
 }

@@ -12,7 +12,9 @@ import {
 } from "@/app/(painel)/conversas/actions";
 import { PwaHandoffWatcher } from "./PwaHandoffWatcher";
 import { PwaInstallBanner } from "./PwaInstallBanner";
+import { HandoffAlertOverlay } from "./HandoffAlertOverlay";
 import { usePwaInboxSync } from "./usePwaInboxSync";
+import { handoffItemKey, saveNotified, type HandoffPulseItem, vibrateHandoff, wasNotified } from "@/lib/pwa-handoff";
 
 type Props = {
   rows: ConversationListItem[];
@@ -51,9 +53,28 @@ export function ConversasMobileApp({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [handoffAlert, setHandoffAlert] = useState<{ id: string; phoneE164: string } | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
 
   usePwaInboxSync(true);
+
+  useEffect(() => {
+    const pendingRow = rows.find(needsAttention);
+    if (!pendingRow?.humanRequestedAt) return;
+    const key = handoffItemKey({
+      id: pendingRow.id,
+      phoneE164: pendingRow.phoneE164,
+      humanRequestedAt: pendingRow.humanRequestedAt.toISOString(),
+    });
+    if (wasNotified(key)) return;
+    setHandoffAlert({ id: pendingRow.id, phoneE164: pendingRow.phoneE164 });
+    vibrateHandoff();
+    saveNotified(key);
+  }, [rows]);
+
+  function onHandoffPulse(item: HandoffPulseItem) {
+    setHandoffAlert({ id: item.id, phoneE164: item.phoneE164 });
+  }
 
   const inChat = Boolean(selected);
 
@@ -118,7 +139,8 @@ export function ConversasMobileApp({
           <PwaInstallBanner brandName={brandName} />
         </>
       ) : null}
-      <PwaHandoffWatcher brandName={brandName} />
+      <PwaHandoffWatcher brandName={brandName} onHandoff={onHandoffPulse} />
+      <HandoffAlertOverlay alert={handoffAlert} onDismiss={() => setHandoffAlert(null)} />
     </>
   );
 
