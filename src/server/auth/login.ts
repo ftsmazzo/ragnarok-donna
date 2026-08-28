@@ -53,11 +53,20 @@ async function loadMemberships(userId: string): Promise<MembershipRow[]> {
 
 function pickMembership(
   memberships: MembershipRow[],
-  tenantSlug?: string
+  tenantSlug?: string,
+  strict = false
 ): MembershipRow | null {
   if (!memberships.length) return null;
 
-  const preferredSlug = tenantSlug ?? process.env.DEFAULT_TENANT_SLUG;
+  if (tenantSlug) {
+    const match =
+      memberships.find((m) => m.tenantSlug === tenantSlug && m.tenantStatus === "active") ??
+      memberships.find((m) => m.tenantSlug === tenantSlug);
+    if (match) return match;
+    if (strict) return null;
+  }
+
+  const preferredSlug = process.env.DEFAULT_TENANT_SLUG;
   if (preferredSlug) {
     const match =
       memberships.find((m) => m.tenantSlug === preferredSlug && m.tenantStatus === "active") ??
@@ -132,9 +141,17 @@ export async function login(input: LoginInput): Promise<LoginResult> {
     return { status: "pick_tenant", tenants };
   }
 
-  const membership = pickMembership(activeMemberships.length ? activeMemberships : memberships, input.tenantSlug);
+  const membership = pickMembership(
+    activeMemberships.length ? activeMemberships : memberships,
+    input.tenantSlug,
+    Boolean(input.tenantSlug)
+  );
   if (!membership) {
-    throw new UnauthorizedError("Organização não encontrada");
+    throw new UnauthorizedError(
+      input.tenantSlug
+        ? "Seu usuário ainda não tem acesso a esta marca. Aguarde o deploy concluir ou fale com o suporte."
+        : "Organização não encontrada"
+    );
   }
 
   const session = await buildSession(

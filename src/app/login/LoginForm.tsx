@@ -6,64 +6,70 @@ import { resolveClientHomePath } from "@/lib/device";
 
 type TenantOption = { slug: string; name: string };
 
-export function LoginForm() {
+type LoginFormProps = {
+  /** Organização escolhida na tela anterior — sempre enviada no login. */
+  tenantSlug: string;
+  orgLabel: string;
+};
+
+export function LoginForm({ tenantSlug, orgLabel }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
-  const orgHint = searchParams.get("org");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [tenantSlug, setTenantSlug] = useState(orgHint ?? "");
   const [tenantOptions, setTenantOptions] = useState<TenantOption[] | null>(null);
+  const [pickedSlug, setPickedSlug] = useState(tenantSlug);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function completeLogin(chosenTenant?: string) {
+  async function completeLogin() {
     const forced = nextParam && nextParam !== "/inicio" && nextParam !== "/" ? nextParam : null;
-    const dest = forced ?? resolveClientHomePath();
-    if (chosenTenant) setTenantSlug(chosenTenant);
-    router.push(dest);
+    router.push(forced ?? resolveClientHomePath());
     router.refresh();
+  }
+
+  async function doLogin(slug: string) {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, tenantSlug: slug }),
+    });
+    const data = (await res.json()) as {
+      error?: string;
+      needsTenantPick?: boolean;
+      tenants?: TenantOption[];
+      ok?: boolean;
+    };
+
+    if (!res.ok) {
+      setError(data.error ?? "Falha no login");
+      return false;
+    }
+
+    if (data.needsTenantPick && data.tenants?.length) {
+      setTenantOptions(data.tenants);
+      setPickedSlug(slug);
+      return false;
+    }
+
+    if (data.ok) {
+      await completeLogin();
+      return true;
+    }
+
+    setError("Falha no login");
+    return false;
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          tenantSlug: tenantSlug || undefined,
-        }),
-      });
-      const data = (await res.json()) as {
-        error?: string;
-        needsTenantPick?: boolean;
-        tenants?: TenantOption[];
-        ok?: boolean;
-      };
-
-      if (!res.ok) {
-        setError(data.error ?? "Falha no login");
-        return;
-      }
-
-      if (data.needsTenantPick && data.tenants?.length) {
-        setTenantOptions(data.tenants);
-        if (!tenantSlug && data.tenants.length === 1) {
-          setTenantSlug(data.tenants[0].slug);
-        }
-        return;
-      }
-
       setTenantOptions(null);
-      await completeLogin(data.ok ? tenantSlug : undefined);
+      await doLogin(tenantSlug);
     } catch {
       setError("Não foi possível conectar. Tente novamente.");
     } finally {
@@ -73,28 +79,15 @@ export function LoginForm() {
 
   async function onPickTenant(e: FormEvent) {
     e.preventDefault();
-    if (!tenantSlug) {
+    if (!pickedSlug) {
       setError("Escolha a organização");
       return;
     }
     setError("");
     setLoading(true);
-
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, tenantSlug }),
-      });
-      const data = (await res.json()) as { error?: string; ok?: boolean };
-
-      if (!res.ok || !data.ok) {
-        setError(data.error ?? "Falha no login");
-        return;
-      }
-
-      setTenantOptions(null);
-      await completeLogin(tenantSlug);
+      const ok = await doLogin(pickedSlug);
+      if (ok) setTenantOptions(null);
     } catch {
       setError("Não foi possível conectar. Tente novamente.");
     } finally {
@@ -107,17 +100,16 @@ export function LoginForm() {
       <form className="login-form" onSubmit={onPickTenant}>
         {error ? <div className="login-error">{error}</div> : null}
         <p className="login-intro">
-          Você tem acesso a mais de uma organização. Escolha qual deseja abrir:
+          Seu usuário tem acesso a mais de uma marca. Confirme qual abrir:
         </p>
         <label className="login-field">
-          <span>Organização</span>
+          <span>Marca</span>
           <select
             className="search-input"
-            value={tenantSlug}
-            onChange={(e) => setTenantSlug(e.target.value)}
+            value={pickedSlug}
+            onChange={(e) => setPickedSlug(e.target.value)}
             required
           >
-            <option value="">— Selecionar —</option>
             {tenantOptions.map((t) => (
               <option key={t.slug} value={t.slug}>
                 {t.name}
@@ -128,17 +120,6 @@ export function LoginForm() {
         <button type="submit" className="btn btn-primary login-submit" disabled={loading}>
           {loading ? "Entrando…" : "Continuar"}
         </button>
-        <button
-          type="button"
-          className="btn btn-ghost login-submit"
-          disabled={loading}
-          onClick={() => {
-            setTenantOptions(null);
-            setTenantSlug(orgHint ?? "");
-          }}
-        >
-          Voltar
-        </button>
       </form>
     );
   }
@@ -146,6 +127,8 @@ export function LoginForm() {
   return (
     <form className="login-form" onSubmit={onSubmit}>
       {error ? <div className="login-error">{error}</div> : null}
+
+      <input type="hidden" name="tenant" value={tenantSlug} />
 
       <label className="login-field">
         <span>E-mail</span>
@@ -172,7 +155,7 @@ export function LoginForm() {
       </label>
 
       <button type="submit" className="btn btn-primary login-submit" disabled={loading}>
-        {loading ? "Entrando…" : "Entrar"}
+        {loading ? "Entrando…" : `Entrar em ${orgLabel}`}
       </button>
     </form>
   );

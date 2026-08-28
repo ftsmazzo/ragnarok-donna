@@ -1,0 +1,32 @@
+{
+  "exportedAt": "2026-08-28T13:51:26.110Z",
+  "source": "sistema.appbeleza.com.br",
+  "purpose": "migração de dados do estabelecimento (cliente autorizado)",
+  "files": [
+    "profissionais",
+    "servicos",
+    "produtos",
+    "pacotes",
+    "clientes",
+    "clientes-removidos",
+    "jornadas",
+    "agenda",
+    "comandas-historico",
+    "comanda-itens"
+  ],
+  "counts": {
+    "profissionais": 13,
+    "servicos": 68,
+    "produtos": 60,
+    "pacotes": 22,
+    "clientes": 1882,
+    "jornadas": 59,
+    "agenda": 10183,
+    "comandas": 15600,
+    "comandaItens": 22850
+  },
+  "agendaRange": {
+    "from": "28/08/2024",
+    "to": "27/10/2026"
+  }
+}

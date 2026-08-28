@@ -21,7 +21,7 @@ function arg(name, fallback) {
 
 const EXPORT_DIR = arg(
   "--dir",
-  "research/export/2026-08-28T13-51-26"
+  "data/donna-elegant-export"
 );
 const DATABASE_URL = process.env.DATABASE_URL;
 const SKIP_IMPORT = args.includes("--skip-import");

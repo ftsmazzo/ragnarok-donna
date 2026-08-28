@@ -10,15 +10,77 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 const TENANT_SLUG = "ragnaroks";
+const DONNA_SLUG = "donna-elegant";
 const LOCK_KEY = 8347291;
+const DONNA_LOCK_KEY = 8347292;
 const JSON_BOOTSTRAP_VERSION = 1;
 const BOOTSTRAP_TIMEOUT_MS = 120_000;
+const DONNA_BOOTSTRAP_TIMEOUT_MS = 900_000;
 
 function exportDir() {
   const dir =
     process.env.APPBARBER_EXPORT_DIR ?? path.join(ROOT, "data/appbarber-export");
   if (!fs.existsSync(path.join(dir, "agenda.json"))) return null;
   return dir;
+}
+
+function donnaExportDir() {
+  const dir =
+    process.env.DONNA_EXPORT_DIR ?? path.join(ROOT, "data/donna-elegant-export");
+  if (!fs.existsSync(path.join(dir, "clientes.json"))) return null;
+  return dir;
+}
+
+function spawnOnboard(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd: ROOT,
+      env: process.env,
+      stdio: "inherit",
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) resolve(undefined);
+      else reject(new Error(`onboard exit ${code}`));
+    });
+  });
+}
+
+async function runDonnaBootstrap(sql) {
+  const dir = donnaExportDir();
+  if (!dir) {
+    console.log("[bootstrap:donna] export em data/donna-elegant-export ausente — pulando.");
+    return;
+  }
+
+  const [{ ok: locked }] = await sql`select pg_try_advisory_lock(${DONNA_LOCK_KEY}) as ok`;
+  if (!locked) {
+    console.log("[bootstrap:donna] outro processo em execução.");
+    return;
+  }
+
+  try {
+    const [existing] = await sql`
+      select t.id, (select count(*)::int from clients c where c.tenant_id = t.id) as clients
+      from tenants t where t.slug = ${DONNA_SLUG} limit 1
+    `;
+    if (existing?.clients > 100) {
+      console.log("[bootstrap:donna] já importado —", existing.clients, "clientes.");
+      return;
+    }
+
+    console.log("[bootstrap:donna] import AppBeleza + unidades + owner…");
+    await spawnOnboard([
+      path.join(ROOT, "scripts/onboard-donna-elegant.mjs"),
+      "--dir",
+      dir,
+    ]);
+    console.log("[bootstrap:donna] concluído.");
+  } catch (err) {
+    console.error("[bootstrap:donna] falhou:", err);
+  } finally {
+    await sql`select pg_advisory_unlock(${DONNA_LOCK_KEY})`.catch(() => {});
+  }
 }
 
 function readJson(name, dir) {
@@ -349,4 +411,25 @@ setImmediate(() => {
   withTimeout(runBootstrap(), BOOTSTRAP_TIMEOUT_MS).catch((err) => {
     console.error("[bootstrap]", err.message ?? err);
   });
+  withTimeout(runDonnaBootstrapStandalone(), DONNA_BOOTSTRAP_TIMEOUT_MS).catch((err) => {
+    console.error("[bootstrap:donna]", err.message ?? err);
+  });
 });
+
+async function runDonnaBootstrapStandalone() {
+  if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) return;
+  let postgres;
+  try {
+    postgres = (await import("postgres")).default;
+  } catch {
+    return;
+  }
+  const sql = postgres(dbUrl, { max: 1, connect_timeout: 10 });
+  try {
+    await runDonnaBootstrap(sql);
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
