@@ -79,16 +79,61 @@ function llmHeaders(cfg: NonNullable<ReturnType<typeof getLlmConfig>>) {
   };
 }
 
+function audioFormatFromMimetype(mimetype: string): string {
+  const m = mimetype.toLowerCase();
+  if (m.includes("ogg")) return "ogg";
+  if (m.includes("mpeg") || m.includes("mp3")) return "mp3";
+  if (m.includes("mp4") || m.includes("m4a")) return "m4a";
+  if (m.includes("wav")) return "wav";
+  if (m.includes("webm")) return "webm";
+  if (m.includes("aac")) return "aac";
+  if (m.includes("flac")) return "flac";
+  return "ogg";
+}
+
 /** Transcreve áudio WhatsApp (OGG/MP3) para texto. */
 export async function transcribeAudio(input: {
   base64: string;
   mimetype: string;
 }): Promise<string | null> {
-  const openAiKey = process.env.OPENAI_API_KEY?.trim();
-  const buffer = Buffer.from(input.base64, "base64");
-  const ext = input.mimetype.includes("mpeg") ? "mp3" : "ogg";
+  const cleanBase64 = input.base64.replace(/^data:[^;]+;base64,/, "");
+  const format = audioFormatFromMimetype(input.mimetype);
+  const sttModel =
+    process.env.LLM_STT_MODEL?.trim() || "openai/whisper-large-v3";
 
+  const cfg = getLlmConfig();
+  if (cfg) {
+    try {
+      const res = await fetch(`${cfg.baseUrl}/audio/transcriptions`, {
+        method: "POST",
+        headers: llmHeaders(cfg),
+        body: JSON.stringify({
+          model: sttModel,
+          language: "pt",
+          input_audio: {
+            data: cleanBase64,
+            format,
+          },
+        }),
+        cache: "no-store",
+      });
+
+      if (res.ok) {
+        const json = (await res.json()) as { text?: string };
+        const text = json.text?.trim();
+        if (text) return text;
+      } else {
+        console.warn("[llm] STT HTTP", res.status, await res.text().catch(() => ""));
+      }
+    } catch (err) {
+      console.warn("[llm] STT falhou", err instanceof Error ? err.message : err);
+    }
+  }
+
+  const openAiKey = process.env.OPENAI_API_KEY?.trim();
   if (openAiKey) {
+    const buffer = Buffer.from(cleanBase64, "base64");
+    const ext = format === "mp3" ? "mp3" : "ogg";
     const form = new FormData();
     form.append("file", new Blob([buffer], { type: input.mimetype }), `audio.${ext}`);
     form.append("model", "whisper-1");
@@ -112,54 +157,7 @@ export async function transcribeAudio(input: {
     }
   }
 
-  const cfg = getLlmConfig();
-  if (!cfg) return null;
-
-  // Fallback OpenRouter: modelos multimodais com áudio inline
-  const audioModel =
-    process.env.LLM_AUDIO_MODEL?.trim() ||
-    (cfg.baseUrl.includes("openrouter") ? "google/gemini-2.5-flash-preview" : cfg.defaultModel);
-
-  try {
-    const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: llmHeaders(cfg),
-      body: JSON.stringify({
-        model: resolveModelId(audioModel),
-        temperature: 0.2,
-        max_tokens: 400,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Transcreva este áudio de WhatsApp em português do Brasil. Responda só com a transcrição literal, sem comentários.",
-              },
-              {
-                type: "image_url",
-                image_url: { url: `data:${input.mimetype};base64,${input.base64}` },
-              },
-            ],
-          },
-        ],
-      }),
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      console.warn("[llm] audio model HTTP", res.status, await res.text().catch(() => ""));
-      return null;
-    }
-
-    const json = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return json.choices?.[0]?.message?.content?.trim() || null;
-  } catch (err) {
-    console.warn("[llm] audio model falhou", err instanceof Error ? err.message : err);
-    return null;
-  }
+  return null;
 }
 
 /** Descreve imagem recebida no WhatsApp (referência visual para a Donna). */

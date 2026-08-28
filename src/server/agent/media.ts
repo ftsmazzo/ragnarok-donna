@@ -26,7 +26,7 @@ function extractPlainText(data: MessageUpsertData): string {
 function detectMediaKind(data: MessageUpsertData): InboundMediaKind | null {
   const mt = (data.messageType ?? "").toLowerCase();
   const m = data.message;
-  if (mt.includes("audio") || m?.audioMessage) return "audio";
+  if (mt.includes("audio") || m?.audioMessage || m?.pttMessage) return "audio";
   if (mt.includes("image") || m?.imageMessage) return "image";
   if (mt.includes("video") || m?.videoMessage) return "video";
   if (mt.includes("document") || m?.documentMessage) return "document";
@@ -84,11 +84,17 @@ export async function enrichInboundMessage(
     }
     const transcription = await transcribeAudio({ base64, mimetype });
     meta.transcription = transcription;
-    const spoken =
-      transcription?.trim() ||
-      "[Áudio recebido — transcrição indisponível. Peça ao cliente para repetir por texto.]";
-    const body = plain ? `${plain}\n[Áudio transcrito]: ${spoken}` : `[Áudio do cliente]: ${spoken}`;
-    return { body, mediaType: "audio", meta };
+    if (transcription?.trim()) {
+      const body = plain ? `${plain}\n${transcription.trim()}` : transcription.trim();
+      return { body, mediaType: "audio", meta: { ...meta, transcribed: true } };
+    }
+    return {
+      body:
+        plain ||
+        "[Áudio recebido — não foi possível transcrever. Peça ao cliente para repetir por texto.]",
+      mediaType: "audio",
+      meta: { ...meta, failed: "transcription" },
+    };
   }
 
   if (kind === "image") {

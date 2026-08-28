@@ -15,7 +15,8 @@ const sizes = [
 
 for (const { name, size } of sizes) {
   await sharp(svg, { density: 300 })
-    .resize(size, size)
+    .resize(size, size, { fit: "contain", background: "#fbf7ee" })
+    .flatten({ background: "#fbf7ee" })
     .png()
     .toFile(join(root, "public/branding", name));
   console.log(`wrote ${name}`);
@@ -29,7 +30,7 @@ const publicIcons = [
 ];
 for (const [rel, size] of publicIcons) {
   await sharp(svg, { density: 300 })
-    .resize(size, size)
+    .resize(size, size, { fit: "contain", background: "#fbf7ee" })
     .flatten({ background: "#fbf7ee" })
     .png()
     .toFile(join(root, rel));

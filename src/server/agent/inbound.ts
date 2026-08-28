@@ -30,6 +30,7 @@ export type MessageUpsertData = {
     extendedTextMessage?: { text?: string };
     imageMessage?: { caption?: string; mimetype?: string };
     audioMessage?: { mimetype?: string; ptt?: boolean };
+    pttMessage?: { mimetype?: string };
     videoMessage?: { caption?: string; mimetype?: string };
     documentMessage?: { caption?: string; fileName?: string; mimetype?: string };
   };
