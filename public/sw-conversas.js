@@ -1,5 +1,5 @@
-/* Service worker — shell PWA Conversas + notificações locais */
-const CACHE = "donna-conversas-v1";
+/* Service worker — PWA Conversas + notificações locais */
+const CACHE = "ragnarok-conversas-v2";
 const PRECACHE = ["/pwa/conversas", "/branding/ragnarok-favicon.png", "/manifest-conversas.webmanifest"];
 
 self.addEventListener("install", (event) => {

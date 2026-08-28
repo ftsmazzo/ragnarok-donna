@@ -1,7 +1,7 @@
 {
-  "name": "Donna Conversas",
-  "short_name": "Donna",
-  "description": "Fila de atendimento WhatsApp — alertas de handoff",
+  "name": "Barbearia Ragnarok",
+  "short_name": "Ragnarok",
+  "description": "Conversas WhatsApp — alertas quando o cliente pedir humano",
   "start_url": "/pwa/conversas",
   "scope": "/pwa/",
   "display": "standalone",
@@ -14,13 +14,19 @@
       "src": "/branding/ragnarok-favicon.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/branding/ragnarok-favicon.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/branding/ragnarok-favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { ConversasMobileApp } from "@/components/pwa/ConversasMobileApp";
+import { resolveTenantBrand } from "@/lib/brand";
 import {
   ensureDefaultAgentProfile,
   getConversation,
@@ -19,10 +20,15 @@ type Props = {
 export default async function PwaConversasPage({ searchParams }: Props) {
   await requirePageAccess("/pwa/conversas");
   const tenant = await requireTenantContext();
+  const brand = resolveTenantBrand({
+    tenantName: tenant.name,
+    tenantSlug: tenant.slug,
+  });
+
   await ensureDefaultAgentProfile({
     tenantId: tenant.id,
     displayName: "Donna",
-    businessName: tenant.name,
+    businessName: brand.displayName,
   });
 
   const sp = await searchParams;
@@ -41,7 +47,12 @@ export default async function PwaConversasPage({ searchParams }: Props) {
 
   return (
     <Suspense fallback={<p className="panel-empty">Carregando…</p>}>
-      <ConversasMobileApp rows={data.rows} filter={filter} selected={selected} />
+      <ConversasMobileApp
+        rows={data.rows}
+        filter={filter}
+        selected={selected}
+        brandName={brand.displayName}
+      />
     </Suspense>
   );
 }

@@ -2,8 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
+type Props = {
+  brandName?: string;
+};
+
 /** Banner de instalação PWA — só no celular, sem forçar. */
-export function PwaInstallBanner() {
+export function PwaInstallBanner({ brandName = "Barbearia Ragnarok" }: Props) {
   const [deferred, setDeferred] = useState<{ prompt: () => Promise<void> } | null>(null);
   const [hidden, setHidden] = useState(false);
   const [iosHint, setIosHint] = useState(false);
@@ -41,8 +45,8 @@ export function PwaInstallBanner() {
     return (
       <div className="pwa-install">
         <div>
-          <strong>Instalar Donna</strong>
-          <p>Atalho na tela inicial — só conversas e alertas.</p>
+          <strong>Instalar {brandName}</strong>
+          <p>Atalho na tela inicial — conversas e alertas de handoff.</p>
         </div>
         <button
           type="button"
@@ -65,8 +69,8 @@ export function PwaInstallBanner() {
     return (
       <div className="pwa-install">
         <div>
-          <strong>Adicionar à tela de início</strong>
-          <p>No Safari: Compartilhar → Adicionar à Tela de Início.</p>
+          <strong>Adicionar {brandName}</strong>
+          <p>No Safari: Compartilhar → Adicionar à Tela de Início (ícone do passarinho).</p>
         </div>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setHidden(true)}>
           Entendi

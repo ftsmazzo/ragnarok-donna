@@ -12,11 +12,13 @@ import {
 } from "@/app/(painel)/conversas/actions";
 import { PwaHandoffWatcher } from "./PwaHandoffWatcher";
 import { PwaInstallBanner } from "./PwaInstallBanner";
+import { usePwaInboxSync } from "./usePwaInboxSync";
 
 type Props = {
   rows: ConversationListItem[];
   filter: "todas" | "ai" | "human";
   selected: ConversationDetail | null;
+  brandName: string;
   basePath?: string;
 };
 
@@ -33,11 +35,16 @@ function directionLabel(dir: ConversationDetail["messages"][number]["direction"]
   }
 }
 
+function needsAttention(row: ConversationListItem): boolean {
+  return row.mode === "human" && Boolean(row.humanRequestedAt) && !row.humanTakenAt;
+}
+
 /** Inbox + chat em tela cheia — pensado para celular. */
 export function ConversasMobileApp({
   rows,
   filter,
   selected,
+  brandName,
   basePath = "/pwa/conversas",
 }: Props) {
   const router = useRouter();
@@ -45,6 +52,8 @@ export function ConversasMobileApp({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const threadRef = useRef<HTMLDivElement>(null);
+
+  usePwaInboxSync(true);
 
   const inChat = Boolean(selected);
 
@@ -93,12 +102,35 @@ export function ConversasMobileApp({
     });
   }
 
+  const shell = (
+    <>
+      {!inChat ? (
+        <>
+          <header className="minbox-head">
+            <div>
+              <strong>{brandName}</strong>
+              <p>Conversas WhatsApp</p>
+            </div>
+            <Link href="/inicio?painel=1" className="minbox-panel-link">
+              Painel
+            </Link>
+          </header>
+          <PwaInstallBanner brandName={brandName} />
+        </>
+      ) : null}
+      <PwaHandoffWatcher brandName={brandName} />
+    </>
+  );
+
   if (inChat && selected) {
     const human = selected.mode === "human";
     const title = selected.clientName ?? selected.phoneE164;
+    const awaiting =
+      human && Boolean(selected.humanRequestedAt) && !selected.humanTakenAt;
 
     return (
       <div className="mchat">
+        {shell}
         <header className="mchat-head">
           <button type="button" className="mchat-back" onClick={() => goList()} aria-label="Voltar">
             ←
@@ -106,7 +138,7 @@ export function ConversasMobileApp({
           <div className="mchat-head-text">
             <strong>{title}</strong>
             <small>
-              {selected.phoneE164} · {human ? "Humano" : "IA"}
+              {selected.phoneE164} · {awaiting ? "Aguardando você" : human ? "Humano" : "IA"}
             </small>
           </div>
           {human ? (
@@ -132,6 +164,9 @@ export function ConversasMobileApp({
 
         <div className="mchat-thread" ref={threadRef}>
           {error ? <p className="form-error">{error}</p> : null}
+          {awaiting ? (
+            <p className="mchat-handoff-banner">Cliente pediu atendimento humano — toque em Assumir.</p>
+          ) : null}
           {selected.messages.length === 0 ? (
             <p className="panel-empty">Sem mensagens.</p>
           ) : (
@@ -183,18 +218,7 @@ export function ConversasMobileApp({
 
   return (
     <div className="minbox">
-      <header className="minbox-head">
-        <div>
-          <strong>Donna</strong>
-          <p>Conversas WhatsApp</p>
-        </div>
-        <Link href="/inicio?painel=1" className="minbox-panel-link">
-          Painel
-        </Link>
-      </header>
-
-      <PwaInstallBanner />
-      <PwaHandoffWatcher />
+      {shell}
 
       <div className="minbox-filters" role="tablist">
         {(
@@ -221,22 +245,31 @@ export function ConversasMobileApp({
         {rows.length === 0 ? (
           <li className="minbox-empty">Nenhuma conversa neste filtro.</li>
         ) : (
-          rows.map((r) => (
-            <li key={r.id}>
-              <button type="button" className="minbox-item" onClick={() => openChat(r.id)}>
-                <span className="minbox-item-top">
-                  <strong>{r.clientName ?? r.phoneE164}</strong>
-                  <span className={`badge${r.mode === "human" ? " is-warn" : " is-muted"}`}>
-                    {r.mode === "human" ? "Humano" : "IA"}
+          rows.map((r) => {
+            const urgent = needsAttention(r);
+            return (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  className={`minbox-item${urgent ? " is-urgent" : ""}`}
+                  onClick={() => openChat(r.id)}
+                >
+                  <span className="minbox-item-top">
+                    <strong>{r.clientName ?? r.phoneE164}</strong>
+                    <span
+                      className={`badge${urgent ? " is-warn" : r.mode === "human" ? " is-muted" : " is-muted"}`}
+                    >
+                      {urgent ? "Pediu humano" : r.mode === "human" ? "Humano" : "IA"}
+                    </span>
                   </span>
-                </span>
-                <span className="minbox-item-preview">{r.preview ?? "—"}</span>
-                <span className="minbox-item-time">
-                  {r.lastMessageAt ? formatDateTimeSp(new Date(r.lastMessageAt)) : "—"}
-                </span>
-              </button>
-            </li>
-          ))
+                  <span className="minbox-item-preview">{r.preview ?? "—"}</span>
+                  <span className="minbox-item-time">
+                    {r.lastMessageAt ? formatDateTimeSp(new Date(r.lastMessageAt)) : "—"}
+                  </span>
+                </button>
+              </li>
+            );
+          })
         )}
       </ul>
     </div>

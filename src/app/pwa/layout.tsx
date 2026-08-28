@@ -1,18 +1,29 @@
 import type { Metadata, Viewport } from "next";
+import { resolveTenantBrand } from "@/lib/brand";
+import { requireTenantContext } from "@/server/context/tenant";
 
-export const metadata: Metadata = {
-  title: "Donna · Conversas",
-  manifest: "/manifest-conversas.webmanifest",
-  appleWebApp: {
-    capable: true,
-    title: "Donna",
-    statusBarStyle: "black-translucent",
-  },
-  icons: {
-    icon: "/branding/ragnarok-favicon.png",
-    apple: "/branding/ragnarok-favicon.png",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await requireTenantContext();
+  const brand = resolveTenantBrand({
+    tenantName: tenant.name,
+    tenantSlug: tenant.slug,
+  });
+  const icon = brand.faviconSrc ?? "/branding/ragnarok-favicon.png";
+
+  return {
+    title: `${brand.displayName} · Conversas`,
+    manifest: "/manifest-conversas.webmanifest",
+    appleWebApp: {
+      capable: true,
+      title: brand.displayName,
+      statusBarStyle: "black-translucent",
+    },
+    icons: {
+      icon,
+      apple: icon,
+    },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#e87722",

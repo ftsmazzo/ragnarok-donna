@@ -14,6 +14,8 @@ export type ConversationListItem = {
   lastMessageAt: Date | null;
   preview: string | null;
   agentName: string | null;
+  humanRequestedAt: Date | null;
+  humanTakenAt: Date | null;
 };
 
 export type ConversationMessage = {
@@ -86,6 +88,8 @@ export async function listConversations(input?: {
       clientId: schema.conversations.clientId,
       clientName: schema.clients.name,
       lastMessageAt: schema.conversations.lastMessageAt,
+      humanRequestedAt: schema.conversations.humanRequestedAt,
+      humanTakenAt: schema.conversations.humanTakenAt,
       agentName: schema.agentProfiles.displayName,
       preview: sql<string | null>`(
         select m.body from ${schema.messages} m
@@ -114,6 +118,8 @@ export async function listConversations(input?: {
       lastMessageAt: r.lastMessageAt,
       preview: r.preview,
       agentName: r.agentName,
+      humanRequestedAt: r.humanRequestedAt,
+      humanTakenAt: r.humanTakenAt,
     })),
     agentReady: Boolean(profile),
     connectionStatus: connection?.status ?? null,
