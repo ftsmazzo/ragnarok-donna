@@ -12,6 +12,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${brand.displayName} · Conversas`,
     manifest: "/manifest-conversas.webmanifest",
+    icons: {
+      apple: [
+        { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      ],
+      icon: [{ url: "/branding/ragnarok-app-icon-192.png", sizes: "192x192", type: "image/png" }],
+    },
     appleWebApp: {
       capable: true,
       title: brand.displayName,

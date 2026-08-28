@@ -16,8 +16,8 @@ export default async function AgenteConfigPage() {
         subtitle="Tom de voz, persona e alerta de atendimento humano — por unidade"
       />
 
-      <section className="panel">
-        <div className="panel-body">
+      <section className="panel" style={{ background: "transparent", border: "none", boxShadow: "none" }}>
+        <div className="panel-body" style={{ padding: 0 }}>
           <AgenteConfigForm initial={config} />
         </div>
       </section>

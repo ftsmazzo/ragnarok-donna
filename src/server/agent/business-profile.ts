@@ -128,7 +128,7 @@ export const RAGNAROK_BUSINESS_PROFILE: BusinessProfile = {
   brand: {
     logoUrl:
       "https://www.barbeariaragnarok.com.br/assets/svg/LOGO-BARBEARIA-RAGNAROK-CATANDUVA-SP.svg",
-    logoLocalPath: "/branding/ragnarok-logo.svg",
+    logoLocalPath: "/branding/ragnarok-logo.png",
     faviconUrl: "https://www.barbeariaragnarok.com.br/assets/img/favicon.png",
     fonts: {
       display: "Oswald",

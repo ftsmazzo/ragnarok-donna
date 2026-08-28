@@ -1,4 +1,6 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
 
 type Props = {
   logoSrc?: string | null;
@@ -8,22 +10,39 @@ type Props = {
   size?: "sm" | "md" | "lg";
 };
 
+const PNG_FALLBACK = "/branding/ragnarok-logo.png";
+
+const sizeClass = {
+  sm: "brand-logo-sm",
+  md: "brand-logo-md",
+  lg: "brand-logo-lg",
+} as const;
+
 /** Logo da unidade (wordmark) ou monograma — shell / login. */
 export function BrandMark({ logoSrc, mark = "BR", alt, size = "sm" }: Props) {
-  if (logoSrc) {
+  const [src, setSrc] = useState(logoSrc || null);
+  const [failed, setFailed] = useState(false);
+
+  if (src && !failed) {
     return (
-      <span className={`brand-logo brand-logo-${size}`}>
-        <Image
-          src={logoSrc}
+      <span className={`brand-logo ${sizeClass[size]}`}>
+        {/* img nativo: SVG via next/image quebra no Safari mobile */}
+        <img
+          src={src}
           alt={alt}
-          width={size === "lg" ? 220 : size === "md" ? 140 : 110}
-          height={size === "lg" ? 72 : size === "md" ? 46 : 36}
           className="brand-logo-img"
-          priority
-          unoptimized={logoSrc.endsWith(".svg")}
+          decoding="async"
+          onError={() => {
+            if (src.endsWith(".svg") && src !== PNG_FALLBACK) {
+              setSrc(PNG_FALLBACK);
+              return;
+            }
+            setFailed(true);
+          }}
         />
       </span>
     );
   }
+
   return <span className="sidebar-brand-mark">{mark}</span>;
 }

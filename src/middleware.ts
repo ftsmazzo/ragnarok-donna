@@ -16,6 +16,23 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+/** PWA, favicon e branding precisam ser públicos (iOS busca ícone sem cookie). */
+function isStaticAsset(pathname: string): boolean {
+  if (pathname.startsWith("/_next/")) return true;
+  if (pathname.startsWith("/branding/")) return true;
+  if (
+    pathname === "/favicon.ico" ||
+    pathname === "/apple-touch-icon.png" ||
+    pathname === "/apple-touch-icon-precomposed.png" ||
+    pathname === "/manifest-conversas.webmanifest" ||
+    pathname === "/sw-conversas.js" ||
+    pathname === "/icon-192.png"
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function deviceHome(request: NextRequest, role: MemberRole, staffId?: string | null): string {
   const ua = request.headers.get("user-agent");
   if (isBarberRole(role) && (isPhoneUserAgent(ua) || isTabletUserAgent(ua))) {
@@ -30,6 +47,10 @@ function deviceHome(request: NextRequest, role: MemberRole, staffId?: string | n
 
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
+
+  if (isStaticAsset(pathname)) {
+    return NextResponse.next();
+  }
 
   if (isPublic(pathname)) {
     return NextResponse.next();

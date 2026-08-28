@@ -51,6 +51,11 @@ export function compilePersonaToSystemPrompt(
     "",
     "Expressões naturais (com moderação): " + p.oralidade.expressoes_tipicas.join(", ") + ".",
     "",
+    "NATURALIDADE (importante): estes pontos são orientação de tom — não é roteiro fixo.",
+    "Varie a forma de falar a cada mensagem. Não repita a mesma frase, expressão ou abertura em respostas seguidas.",
+    "Use histórias da marca e padrões de fala só quando couber; nunca force todas as características numa única resposta.",
+    "Soar humano > soar completo. Respostas curtas e diretas quando o cliente só precisa de uma informação.",
+    "",
     "Padrões de fala (use com naturalidade, sem forçar):",
     ...(p.padroes_de_frase.repeticao.usar && p.padroes_de_frase.repeticao.exemplo
       ? [`- Repetição: ${p.padroes_de_frase.repeticao.exemplo}`]

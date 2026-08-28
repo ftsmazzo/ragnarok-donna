@@ -3,22 +3,19 @@
 import { useState, useTransition } from "react";
 import type { AgentConfigView } from "@/server/agent/agent-config";
 import { saveAgentConfigAction } from "@/app/(painel)/configuracoes/agente/actions";
+import { ConfigSectionCard } from "@/components/config/ConfigSectionCard";
+import { Toggle } from "@/components/ui/Toggle";
 
 type Props = {
   initial: AgentConfigView;
 };
 
-const fieldStyle = { display: "block", marginTop: 12 } as const;
-const gridStyle = {
-  display: "grid",
-  gap: 12,
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-} as const;
-
 export function AgenteConfigForm({ initial }: Props) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [historiaMarcaUsar, setHistoriaMarcaUsar] = useState(initial.historiaMarcaUsar);
+  const [perguntaRespostaUsar, setPerguntaRespostaUsar] = useState(initial.perguntaRespostaUsar);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -38,9 +35,9 @@ export function AgenteConfigForm({ initial }: Props) {
         termosTecnicos: String(fd.get("termosTecnicos") ?? ""),
         termosProibidos: String(fd.get("termosProibidos") ?? ""),
         descaracteriza: String(fd.get("descaracteriza") ?? ""),
-        historiaMarcaUsar: fd.get("historiaMarcaUsar") === "on",
+        historiaMarcaUsar,
         historiaMarcaEpisodios: String(fd.get("historiaMarcaEpisodios") ?? ""),
-        perguntaRespostaUsar: fd.get("perguntaRespostaUsar") === "on",
+        perguntaRespostaUsar,
         perguntaRespostaExemplo: String(fd.get("perguntaRespostaExemplo") ?? ""),
         handoffNotifyPhone: String(fd.get("handoffNotifyPhone") ?? ""),
       });
@@ -53,21 +50,20 @@ export function AgenteConfigForm({ initial }: Props) {
   }
 
   return (
-    <form
-      className="relatorio-filters"
-      style={{ flexDirection: "column", alignItems: "stretch", gap: 20 }}
-      onSubmit={onSubmit}
-    >
-      <p className="client-profile-hint">
-        Estas opções valem <strong>só para esta unidade</strong>. Aqui você ajusta como a Donna
-        fala — tom de voz, vocabulário e histórias da marca. Skills e tools do sistema são globais.
-      </p>
+    <form className="agent-config-form" onSubmit={onSubmit}>
+      <div className="agent-config-intro">
+        <strong>Orientação, não roteiro.</strong> Estes campos definem <em>como</em> a Donna fala
+        — tom, vocabulário e limites. A IA varia as frases a cada conversa; nada aqui vira texto
+        fixo repetido. Skills e tools do sistema são globais; o resto é só desta unidade.
+      </div>
 
-      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="section-title" style={{ marginBottom: 8 }}>
-          Identidade
-        </legend>
-        <div style={gridStyle}>
+      <ConfigSectionCard
+        title="Identidade"
+        description="Nome da agente, do negócio e primeira impressão no WhatsApp."
+        icon="👤"
+        accent="orange"
+      >
+        <div className="config-grid">
           <label className="filter-field">
             <span>Nome da agente</span>
             <input
@@ -89,28 +85,26 @@ export function AgenteConfigForm({ initial }: Props) {
               maxLength={120}
             />
           </label>
+          <label className="filter-field config-span-2">
+            <span>Saudação padrão</span>
+            <input
+              name="greeting"
+              className="search-input"
+              defaultValue={initial.greeting}
+              maxLength={240}
+              placeholder="Olá! Aqui é a Donna, recepção da Barbearia…"
+            />
+          </label>
         </div>
-        <label className="filter-field" style={fieldStyle}>
-          <span>Saudação padrão</span>
-          <input
-            name="greeting"
-            className="search-input"
-            defaultValue={initial.greeting}
-            maxLength={240}
-            placeholder="Olá! Aqui é a Donna, recepção da Barbearia…"
-          />
-        </label>
-      </fieldset>
+      </ConfigSectionCard>
 
-      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="section-title" style={{ marginBottom: 8 }}>
-          Tom de voz
-        </legend>
-        <p className="muted-note" style={{ marginBottom: 8 }}>
-          Como no guia de persona: essência, traços de tom, regra de ouro e o que a agente nunca
-          deve soar.
-        </p>
-        <label className="filter-field" style={fieldStyle}>
+      <ConfigSectionCard
+        title="Tom de voz"
+        description="Essência, traços e regras emocionais — o “jeito” de falar, não frases prontas."
+        icon="🎙️"
+        accent="blue"
+      >
+        <label className="filter-field">
           <span>Essência da voz</span>
           <input
             name="essencia"
@@ -120,7 +114,7 @@ export function AgenteConfigForm({ initial }: Props) {
             placeholder="acolhimento com precisão e pontualidade"
           />
         </label>
-        <label className="filter-field" style={fieldStyle}>
+        <label className="filter-field">
           <span>Traços de tom (separados por vírgula)</span>
           <input
             name="tomTraits"
@@ -129,7 +123,7 @@ export function AgenteConfigForm({ initial }: Props) {
             placeholder="caloroso, direto, ágil, sem enrolação"
           />
         </label>
-        <div style={gridStyle}>
+        <div className="config-grid">
           <label className="filter-field">
             <span>Regra de ouro</span>
             <input
@@ -150,8 +144,8 @@ export function AgenteConfigForm({ initial }: Props) {
             />
           </label>
         </div>
-        <label className="filter-field" style={fieldStyle}>
-          <span>Expressões típicas (vírgula)</span>
+        <label className="filter-field">
+          <span>Expressões típicas (vírgula — usar com moderação)</span>
           <input
             name="expressoesTipicas"
             className="search-input"
@@ -159,15 +153,17 @@ export function AgenteConfigForm({ initial }: Props) {
             placeholder="Perfeito, Combinado, Deixa comigo"
           />
         </label>
-      </fieldset>
+      </ConfigSectionCard>
 
-      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="section-title" style={{ marginBottom: 8 }}>
-          Vocabulário
-        </legend>
-        <div style={gridStyle}>
+      <ConfigSectionCard
+        title="Vocabulário"
+        description="Palavras que reforçam a marca e termos que a agente nunca deve usar."
+        icon="📚"
+        accent="slate"
+      >
+        <div className="config-grid">
           <label className="filter-field">
-            <span>Termos preferidos (vírgula)</span>
+            <span>Termos preferidos</span>
             <input
               name="termosTecnicos"
               className="search-input"
@@ -176,7 +172,7 @@ export function AgenteConfigForm({ initial }: Props) {
             />
           </label>
           <label className="filter-field">
-            <span>Nunca use (vírgula)</span>
+            <span>Nunca use</span>
             <input
               name="termosProibidos"
               className="search-input"
@@ -185,7 +181,7 @@ export function AgenteConfigForm({ initial }: Props) {
             />
           </label>
         </div>
-        <label className="filter-field" style={fieldStyle}>
+        <label className="filter-field">
           <span>O que descaracteriza a agente (uma linha por item)</span>
           <textarea
             name="descaracteriza"
@@ -195,68 +191,77 @@ export function AgenteConfigForm({ initial }: Props) {
             placeholder={"Inventar preço ou duração\nPrometer horário sem consultar a agenda"}
           />
         </label>
-      </fieldset>
+      </ConfigSectionCard>
 
-      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="section-title" style={{ marginBottom: 8 }}>
-          História da marca
-        </legend>
-        <label className="filter-field" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            name="historiaMarcaUsar"
-            defaultChecked={initial.historiaMarcaUsar}
-          />
-          <span>Usar episódios da marca no contexto (quando couber na conversa)</span>
-        </label>
-        <label className="filter-field" style={fieldStyle}>
-          <span>Episódios (uma linha por história — como prova de caráter)</span>
+      <ConfigSectionCard
+        title="História da marca"
+        description="Episódios que humanizam a conversa — só quando couber no contexto."
+        icon="📖"
+        accent="green"
+      >
+        <Toggle
+          id="historiaMarcaUsar"
+          name="historiaMarcaUsar"
+          checked={historiaMarcaUsar}
+          onChange={setHistoriaMarcaUsar}
+          label="Usar histórias da marca"
+          hint="Ligado: a Donna pode citar episódios quando fizer sentido. Desligado: foco só no atendimento."
+        />
+        <label className={`filter-field${historiaMarcaUsar ? "" : " is-collapsed"}`}>
+          <span>Episódios (uma linha por história)</span>
           <textarea
             name="historiaMarcaEpisodios"
             className="search-input"
             defaultValue={initial.historiaMarcaEpisodios}
             rows={5}
+            disabled={!historiaMarcaUsar}
             placeholder={"Desde 2019 elevando o cuidado masculino.\nAtendimento com horário marcado — sem fila."}
           />
         </label>
-      </fieldset>
+      </ConfigSectionCard>
 
-      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="section-title" style={{ marginBottom: 8 }}>
-          Padrão de fala
-        </legend>
-        <label className="filter-field" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            name="perguntaRespostaUsar"
-            defaultChecked={initial.perguntaRespostaUsar}
-          />
-          <span>Usar construção pergunta + resposta</span>
-        </label>
-        <label className="filter-field" style={fieldStyle}>
-          <span>Exemplo de pergunta-resposta</span>
+      <ConfigSectionCard
+        title="Padrão de fala"
+        description="Construções que ajudam a soar natural — sem repetir o mesmo exemplo toda hora."
+        icon="💬"
+        accent="blue"
+      >
+        <Toggle
+          id="perguntaRespostaUsar"
+          name="perguntaRespostaUsar"
+          checked={perguntaRespostaUsar}
+          onChange={setPerguntaRespostaUsar}
+          label="Pergunta + resposta"
+          hint="Ex.: “Quer agendar ou saber o endereço?” — a IA adapta, não copia literal."
+        />
+        <label className={`filter-field${perguntaRespostaUsar ? "" : " is-collapsed"}`}>
+          <span>Exemplo de referência (não é texto fixo)</span>
           <input
             name="perguntaRespostaExemplo"
             className="search-input"
             defaultValue={initial.perguntaRespostaExemplo}
             maxLength={200}
+            disabled={!perguntaRespostaUsar}
             placeholder="Quer agendar, saber endereço ou falar de produto?"
           />
         </label>
-      </fieldset>
+      </ConfigSectionCard>
 
-      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="section-title" style={{ marginBottom: 8 }}>
-          Alerta ao pedir humano
-        </legend>
-        <p className="muted-note" style={{ marginBottom: 8 }}>
-          Quando o cliente pedir especialista/humano, a Donna avisa este WhatsApp pela instância da
-          unidade
-          {initial.whatsappConnected
-            ? ` (conectada: ${initial.whatsappInstance})`
-            : " (WhatsApp ainda desconectado)"}.
+      <ConfigSectionCard
+        title="Alerta ao pedir humano"
+        description="Quando o cliente pedir especialista, avisamos a equipe neste número."
+        icon="🔔"
+        accent="orange"
+      >
+        <p className="muted-note" style={{ margin: 0 }}>
+          Instância WhatsApp da unidade:{" "}
+          {initial.whatsappConnected ? (
+            <strong>{initial.whatsappInstance}</strong>
+          ) : (
+            <span className="badge is-warn">desconectada</span>
+          )}
         </p>
-        <label className="filter-field" style={{ display: "block", maxWidth: 320 }}>
+        <label className="filter-field" style={{ maxWidth: 320 }}>
           <span>Celular da equipe (DDD + número)</span>
           <input
             name="handoffNotifyPhone"
@@ -266,11 +271,11 @@ export function AgenteConfigForm({ initial }: Props) {
             inputMode="tel"
           />
         </label>
-      </fieldset>
+      </ConfigSectionCard>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+      <div className="agent-config-footer">
         <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? "Salvando…" : "Salvar"}
+          {pending ? "Salvando…" : "Salvar configuração"}
         </button>
         {msg ? <span className="badge">{msg}</span> : null}
         {err ? <span className="badge is-warn">{err}</span> : null}

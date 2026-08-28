@@ -21,18 +21,24 @@ for (const { name, size } of sizes) {
   console.log(`wrote ${name}`);
 }
 
-// Next.js + iOS leem estes caminhos ao adicionar à tela inicial
-const appIcons = [
-  ["src/app/apple-icon.png", 180],
-  ["src/app/icon.png", 192],
-  ["src/app/pwa/apple-icon.png", 180],
-  ["src/app/pwa/icon.png", 192],
+// Ícones estáticos em /public — iOS exige acesso público sem auth (middleware).
+const publicIcons = [
   ["public/apple-touch-icon.png", 180],
+  ["public/apple-touch-icon-precomposed.png", 180],
+  ["public/icon-192.png", 192],
 ];
-for (const [rel, size] of appIcons) {
+for (const [rel, size] of publicIcons) {
   await sharp(svg, { density: 300 })
     .resize(size, size)
+    .flatten({ background: "#fbf7ee" })
     .png()
     .toFile(join(root, rel));
   console.log(`wrote ${rel}`);
 }
+
+const logoSvg = readFileSync(join(root, "public/branding/ragnarok-logo.svg"));
+await sharp(logoSvg, { density: 300 })
+  .resize(600, 200, { fit: "inside", background: { r: 255, g: 255, b: 255, alpha: 0 } })
+  .png()
+  .toFile(join(root, "public/branding/ragnarok-logo.png"));
+console.log("wrote ragnarok-logo.png");
