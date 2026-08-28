@@ -10,9 +10,8 @@ export function BranchInaugurationBanner({ branchSlug, tenantSlug }: Props) {
   return (
     <div className="banner-info banner-inline branch-inauguration-banner">
       <strong>Unidade 02 — em inauguração.</strong> Esta unidade já está cadastrada, mas ainda
-      não tem agenda, comandas nem equipe própria. Os dados que você vê hoje são compartilhados
-      no nível da marca (clientes e serviços). Para operação do AppBeleza, use a{" "}
-      <strong>Unidade 01</strong>.
+      não tem equipe, agenda, comandas nem clientes vinculados. O painel aparece vazio até a
+      abertura. Para operação atual, use a <strong>Unidade 01</strong>.
     </div>
   );
 }

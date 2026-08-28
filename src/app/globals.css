@@ -24,21 +24,22 @@
   --font: "Quicksand", system-ui, sans-serif;
 }
 
-/* —— Donna Elegant (manual de marca) —— */
+/* —— Donna Elegant (manual de marca — PDF) —— */
 .app-shell.theme-donna-elegant {
-  --header: #9a7b5a;
-  --header-ink: #faf6f0;
-  --accent: #9a7b5a;
-  --accent-ink: #faf6f0;
-  --sidebar: #1c1917;
+  --header: #3e7454;
+  --header-ink: #ffffff;
+  --accent: #3e7454;
+  --accent-secondary: #412c26;
+  --accent-ink: #ffffff;
+  --sidebar: #221e1f;
   --sidebar-deep: #0f0e0d;
-  --sidebar-hover: #292524;
-  --sidebar-active: #44403c;
+  --sidebar-hover: #2d292a;
+  --sidebar-active: #412c26;
   --sidebar-ink: #d6d3d1;
-  --sidebar-ink-active: #faf6f0;
-  --content-bg: #faf6f0;
+  --sidebar-ink-active: #ffffff;
+  --content-bg: #ffffff;
   --line: #e7e5e4;
-  --font: "Lato", system-ui, sans-serif;
+  --font: "Be Vietnam Pro", system-ui, sans-serif;
 }
 
 .app-shell.theme-donna-elegant .sidebar-brand-name {
@@ -1829,9 +1830,9 @@ input {
 }
 
 .app-shell.theme-donna-elegant .banner-info {
-  background: #f5efe6;
-  border-color: #dbc9b0;
-  color: #44403c;
+  background: #eef4f0;
+  border-color: #b8d4c4;
+  color: #2d4a38;
 }
 
 .order-item-list {

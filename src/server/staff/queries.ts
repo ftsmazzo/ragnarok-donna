@@ -1,6 +1,7 @@
 import { and, asc, count, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { NotFoundError } from "../errors";
+import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
 import { requireTenantContext } from "../context/tenant";
 
 export type StaffFilter = "ativos" | "removidos" | "todos";
@@ -52,11 +53,16 @@ function staffFilterWhere(tenantId: string, filter: StaffFilter) {
 
 export async function listStaffMembers(opts: { q?: string; filter?: StaffFilter }) {
   const tenant = await requireTenantContext();
+  const scope = await resolveBranchScope();
   const db = createDb();
   const filter = opts.filter ?? "ativos";
   const q = opts.q?.trim();
 
-  let where = staffFilterWhere(tenant.id, filter);
+  if (scope.isInactiveBranch) {
+    return { rows: [], total: 0, filter, q: q ?? "" };
+  }
+
+  let where = withBranchScope(scope, schema.staff.branchId, staffFilterWhere(tenant.id, filter));
   if (q) {
     where = and(
       where,

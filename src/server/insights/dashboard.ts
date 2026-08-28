@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { monthStartSp, rangeBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
+import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import { getWeeklyInsights } from "./queries";
@@ -55,6 +56,7 @@ export async function getManagementDashboard(opts?: {
 }): Promise<ManagementDashboard> {
   const session = await requireSession();
   const tenant = await requireTenantContext();
+  const scope = await resolveBranchScope();
   const db = createDb();
   const from = opts?.from ?? monthStartSp();
   const to = opts?.to ?? todaySp();
@@ -62,6 +64,35 @@ export async function getManagementDashboard(opts?: {
   const { prevFrom, prevTo } = previousRange(from, to);
   const prev = rangeBoundsSp(prevFrom, prevTo);
   const canSeeFinance = hasCapability(session.role, "reports.management");
+
+  if (scope.isInactiveBranch) {
+    return {
+      from,
+      to,
+      prevFrom,
+      prevTo,
+      canSeeFinance,
+      revenueCents: 0,
+      prevRevenueCents: 0,
+      revenueDeltaPct: null,
+      closedOrders: 0,
+      ticketAvgCents: 0,
+      appointmentsTotal: 0,
+      noShowRatePct: 0,
+      cancelRatePct: 0,
+      revenueSeries: [],
+      paymentMix: [],
+      appointmentStatus: [],
+      topServices: [],
+      topStaff: [],
+      weeklyTips: [],
+    };
+  }
+
+  const orderBranch = (extra?: ReturnType<typeof and>) =>
+    withBranchScope(scope, schema.orders.branchId, extra);
+  const apptBranch = (extra?: ReturnType<typeof and>) =>
+    withBranchScope(scope, schema.appointments.branchId, extra);
 
   const [
     [revNow],
@@ -79,11 +110,15 @@ export async function getManagementDashboard(opts?: {
         total: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
       })
       .from(schema.payments)
+      .innerJoin(schema.orders, eq(schema.payments.orderId, schema.orders.id))
       .where(
-        and(
-          eq(schema.payments.tenantId, tenant.id),
-          gte(schema.payments.paidAt, start),
-          lte(schema.payments.paidAt, end)
+        orderBranch(
+          and(
+            eq(schema.payments.tenantId, tenant.id),
+            eq(schema.orders.tenantId, tenant.id),
+            gte(schema.payments.paidAt, start),
+            lte(schema.payments.paidAt, end)
+          )
         )
       ),
     db
@@ -91,11 +126,15 @@ export async function getManagementDashboard(opts?: {
         total: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
       })
       .from(schema.payments)
+      .innerJoin(schema.orders, eq(schema.payments.orderId, schema.orders.id))
       .where(
-        and(
-          eq(schema.payments.tenantId, tenant.id),
-          gte(schema.payments.paidAt, prev.start),
-          lte(schema.payments.paidAt, prev.end)
+        orderBranch(
+          and(
+            eq(schema.payments.tenantId, tenant.id),
+            eq(schema.orders.tenantId, tenant.id),
+            gte(schema.payments.paidAt, prev.start),
+            lte(schema.payments.paidAt, prev.end)
+          )
         )
       ),
     db
@@ -105,12 +144,14 @@ export async function getManagementDashboard(opts?: {
       })
       .from(schema.orders)
       .where(
-        and(
-          eq(schema.orders.tenantId, tenant.id),
-          eq(schema.orders.status, "closed"),
-          gte(schema.orders.closedAt, start),
-          lte(schema.orders.closedAt, end),
-          isNull(schema.orders.deletedAt)
+        orderBranch(
+          and(
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.status, "closed"),
+            gte(schema.orders.closedAt, start),
+            lte(schema.orders.closedAt, end),
+            isNull(schema.orders.deletedAt)
+          )
         )
       ),
     db
@@ -120,12 +161,14 @@ export async function getManagementDashboard(opts?: {
       })
       .from(schema.appointments)
       .where(
-        and(
-          eq(schema.appointments.tenantId, tenant.id),
-          gte(schema.appointments.startsAt, start),
-          lte(schema.appointments.startsAt, end),
-          isNull(schema.appointments.deletedAt),
-          sql`${schema.appointments.status} <> 'blocked'`
+        apptBranch(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            gte(schema.appointments.startsAt, start),
+            lte(schema.appointments.startsAt, end),
+            isNull(schema.appointments.deletedAt),
+            sql`${schema.appointments.status} <> 'blocked'`
+          )
         )
       )
       .groupBy(schema.appointments.status),
@@ -135,11 +178,15 @@ export async function getManagementDashboard(opts?: {
         total: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
       })
       .from(schema.payments)
+      .innerJoin(schema.orders, eq(schema.payments.orderId, schema.orders.id))
       .where(
-        and(
-          eq(schema.payments.tenantId, tenant.id),
-          gte(schema.payments.paidAt, start),
-          lte(schema.payments.paidAt, end)
+        orderBranch(
+          and(
+            eq(schema.payments.tenantId, tenant.id),
+            eq(schema.orders.tenantId, tenant.id),
+            gte(schema.payments.paidAt, start),
+            lte(schema.payments.paidAt, end)
+          )
         )
       )
       .groupBy(sql`to_char((${schema.payments.paidAt} at time zone 'America/Sao_Paulo'), 'YYYY-MM-DD')`)
@@ -150,11 +197,15 @@ export async function getManagementDashboard(opts?: {
         total: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
       })
       .from(schema.payments)
+      .innerJoin(schema.orders, eq(schema.payments.orderId, schema.orders.id))
       .where(
-        and(
-          eq(schema.payments.tenantId, tenant.id),
-          gte(schema.payments.paidAt, start),
-          lte(schema.payments.paidAt, end)
+        orderBranch(
+          and(
+            eq(schema.payments.tenantId, tenant.id),
+            eq(schema.orders.tenantId, tenant.id),
+            gte(schema.payments.paidAt, start),
+            lte(schema.payments.paidAt, end)
+          )
         )
       )
       .groupBy(schema.payments.method)
@@ -168,14 +219,16 @@ export async function getManagementDashboard(opts?: {
       .from(schema.orderItems)
       .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
       .where(
-        and(
-          eq(schema.orderItems.tenantId, tenant.id),
-          eq(schema.orders.tenantId, tenant.id),
-          eq(schema.orderItems.itemType, "service"),
-          eq(schema.orders.status, "closed"),
-          gte(schema.orders.closedAt, start),
-          lte(schema.orders.closedAt, end),
-          isNull(schema.orders.deletedAt)
+        orderBranch(
+          and(
+            eq(schema.orderItems.tenantId, tenant.id),
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orderItems.itemType, "service"),
+            eq(schema.orders.status, "closed"),
+            gte(schema.orders.closedAt, start),
+            lte(schema.orders.closedAt, end),
+            isNull(schema.orders.deletedAt)
+          )
         )
       )
       .groupBy(schema.orderItems.description)
@@ -191,14 +244,18 @@ export async function getManagementDashboard(opts?: {
       .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
       .innerJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
       .where(
-        and(
-          eq(schema.orderItems.tenantId, tenant.id),
-          eq(schema.orders.tenantId, tenant.id),
-          eq(schema.orders.status, "closed"),
-          gte(schema.orders.closedAt, start),
-          lte(schema.orders.closedAt, end),
-          isNull(schema.orders.deletedAt),
-          isNull(schema.staff.deletedAt)
+        withBranchScope(
+          scope,
+          schema.staff.branchId,
+          and(
+            eq(schema.orderItems.tenantId, tenant.id),
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.status, "closed"),
+            gte(schema.orders.closedAt, start),
+            lte(schema.orders.closedAt, end),
+            isNull(schema.orders.deletedAt),
+            isNull(schema.staff.deletedAt)
+          )
         )
       )
       .groupBy(schema.staff.name)

@@ -22,7 +22,7 @@ export const LOGIN_BRANDS: LoginBrand[] = [
     name: "Donna Elegant",
     tagline: "Cabelos e unhas · Catanduva-SP",
     logoSrc: "/branding/donna-elegant-logo.png",
-    accent: "#9A7B5A",
+    accent: "#3E7454",
     logoOnDark: true,
   },
 ];

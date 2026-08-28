@@ -18,9 +18,10 @@ export type BusinessBrand = {
   /** Cópia local no app (public/) quando disponível */
   logoLocalPath?: string;
   faviconUrl?: string;
-  fonts: { display: string; body: string; googleFontsCss: string };
+  fonts: { display: string; body: string; googleFontsCss: string; displayFallback?: string };
   colors: {
     primary: string;
+    secondary?: string;
     dark: string;
     darker: string;
     cream: string;
@@ -203,19 +204,21 @@ export const DONNA_ELEGANT_BUSINESS_PROFILE: BusinessProfile = {
   brand: {
     logoUrl: "https://www.donnaelegant.com.br/",
     logoLocalPath: "/branding/donna-elegant-logo.png",
-    fonts: {
-      display: "Cormorant Garamond",
-      body: "Lato",
-      googleFontsCss:
-        "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lato:wght@400;500&display=swap",
-    },
     colors: {
-      primary: "#9A7B5A",
-      dark: "#1C1917",
-      darker: "#0F0E0D",
-      cream: "#FAF6F0",
-      muted: "#78716C",
-      onDark: "#FAF6F0",
+      primary: "#3E7454",
+      secondary: "#412C26",
+      dark: "#221E1F",
+      darker: "#221E1F",
+      cream: "#FFFFFF",
+      muted: "#6D5D58",
+      onDark: "#FFFFFF",
+    },
+    fonts: {
+      display: "Lagency Free",
+      displayFallback: "Cormorant Garamond",
+      body: "Be Vietnam Pro",
+      googleFontsCss:
+        "https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600&family=Cormorant+Garamond:wght@500;600;700&display=swap",
     },
   },
 };

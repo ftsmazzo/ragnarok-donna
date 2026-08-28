@@ -15,6 +15,7 @@ import { schema } from "@/db";
 import { dayBoundsSp } from "./datetime";
 import { getDb } from "./db";
 import { getDefaultTenant } from "./tenant";
+import { resolveBranchScope, withBranchScope } from "@/server/context/branch-scope";
 
 export const PAGE_SIZE = 50;
 
@@ -95,7 +96,12 @@ export type TenantOverview = {
 
 export async function listStaff() {
   const tenant = await getDefaultTenant();
+  const scope = await resolveBranchScope();
   const db = getDb();
+
+  if (scope.isInactiveBranch) {
+    return { rows: [], total: 0 };
+  }
 
   const rows = await db
     .select({
@@ -116,7 +122,13 @@ export async function listStaff() {
       )`.as("schedule_slots"),
     })
     .from(schema.staff)
-    .where(and(eq(schema.staff.tenantId, tenant.id), isNull(schema.staff.deletedAt)))
+    .where(
+      withBranchScope(
+        scope,
+        schema.staff.branchId,
+        and(eq(schema.staff.tenantId, tenant.id), isNull(schema.staff.deletedAt))
+      )
+    )
     .orderBy(asc(schema.staff.name));
 
   return { rows, total: rows.length };
@@ -232,8 +244,51 @@ export async function listPackages(opts: { q?: string }) {
 
 export async function getTenantOverview(): Promise<TenantOverview> {
   const tenant = await getDefaultTenant();
+  const scope = await resolveBranchScope();
   const db = getDb();
   const { start, end } = dayBoundsSp();
+
+  if (scope.isInactiveBranch) {
+    return {
+      tenantName: tenant.name,
+      clients: 0,
+      clientsActive: 0,
+      staff: 0,
+      services: 0,
+      products: 0,
+      packages: 0,
+      appointmentsToday: 0,
+      waitlist: 0,
+      openOrdersToday: 0,
+    };
+  }
+
+  const staffWhere = withBranchScope(
+    scope,
+    schema.staff.branchId,
+    and(eq(schema.staff.tenantId, tenant.id), isNull(schema.staff.deletedAt))
+  );
+  const apptWhere = withBranchScope(
+    scope,
+    schema.appointments.branchId,
+    and(
+      eq(schema.appointments.tenantId, tenant.id),
+      gte(schema.appointments.startsAt, start),
+      lte(schema.appointments.startsAt, end),
+      isNull(schema.appointments.deletedAt)
+    )
+  );
+  const ordersWhere = withBranchScope(
+    scope,
+    schema.orders.branchId,
+    and(
+      eq(schema.orders.tenantId, tenant.id),
+      eq(schema.orders.status, "open"),
+      gte(schema.orders.openedAt, start),
+      lte(schema.orders.openedAt, end),
+      isNull(schema.orders.deletedAt)
+    )
+  );
 
   const [[clients], [clientsActive], [staff], [services], [products], [packages], [apptToday], [waitlist], [openOrders]] =
     await Promise.all([
@@ -251,10 +306,7 @@ export async function getTenantOverview(): Promise<TenantOverview> {
             isNull(schema.clients.deletedAt)
           )
         ),
-      db
-        .select({ n: count() })
-        .from(schema.staff)
-        .where(and(eq(schema.staff.tenantId, tenant.id), isNull(schema.staff.deletedAt))),
+      db.select({ n: count() }).from(schema.staff).where(staffWhere),
       db
         .select({ n: count() })
         .from(schema.services)
@@ -267,38 +319,29 @@ export async function getTenantOverview(): Promise<TenantOverview> {
         .select({ n: count() })
         .from(schema.packages)
         .where(and(eq(schema.packages.tenantId, tenant.id), isNull(schema.packages.deletedAt))),
-      db
-        .select({ n: count() })
-        .from(schema.appointments)
-        .where(
-          and(
-            eq(schema.appointments.tenantId, tenant.id),
-            gte(schema.appointments.startsAt, start),
-            lte(schema.appointments.startsAt, end),
-            isNull(schema.appointments.deletedAt)
-          )
-        ),
-      db
-        .select({ n: count() })
-        .from(schema.waitlistEntries)
-        .where(
-          and(
-            eq(schema.waitlistEntries.tenantId, tenant.id),
-            eq(schema.waitlistEntries.status, "waiting")
-          )
-        ),
-      db
-        .select({ n: count() })
-        .from(schema.orders)
-        .where(
-          and(
-            eq(schema.orders.tenantId, tenant.id),
-            eq(schema.orders.status, "open"),
-            gte(schema.orders.openedAt, start),
-            lte(schema.orders.openedAt, end),
-            isNull(schema.orders.deletedAt)
-          )
-        ),
+      db.select({ n: count() }).from(schema.appointments).where(apptWhere),
+      scope.multiBranch
+        ? db
+            .select({ n: count() })
+            .from(schema.waitlistEntries)
+            .innerJoin(schema.staff, eq(schema.waitlistEntries.staffId, schema.staff.id))
+            .where(
+              and(
+                eq(schema.waitlistEntries.tenantId, tenant.id),
+                eq(schema.waitlistEntries.status, "waiting"),
+                withBranchScope(scope, schema.staff.branchId)
+              )
+            )
+        : db
+            .select({ n: count() })
+            .from(schema.waitlistEntries)
+            .where(
+              and(
+                eq(schema.waitlistEntries.tenantId, tenant.id),
+                eq(schema.waitlistEntries.status, "waiting")
+              )
+            ),
+      db.select({ n: count() }).from(schema.orders).where(ordersWhere),
     ]);
 
   return {

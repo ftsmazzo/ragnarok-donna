@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { NotFoundError } from "../errors";
+import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import type {
@@ -57,13 +58,22 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
   q: string;
 }> {
   const tenant = await requireTenantContext();
+  const scope = await resolveBranchScope();
   const db = createDb();
   const q = opts?.q?.trim();
 
-  let where = and(
-    eq(schema.orders.tenantId, tenant.id),
-    eq(schema.orders.status, "open"),
-    isNull(schema.orders.deletedAt)
+  if (scope.isInactiveBranch) {
+    return { rows: [], total: 0, totalCents: 0, q: q ?? "" };
+  }
+
+  let where = withBranchScope(
+    scope,
+    schema.orders.branchId,
+    and(
+      eq(schema.orders.tenantId, tenant.id),
+      eq(schema.orders.status, "open"),
+      isNull(schema.orders.deletedAt)
+    )
   );
 
   if (q) {
@@ -90,10 +100,14 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
     })
     .from(schema.orders)
     .where(
-      and(
-        eq(schema.orders.tenantId, tenant.id),
-        eq(schema.orders.status, "open"),
-        isNull(schema.orders.deletedAt)
+      withBranchScope(
+        scope,
+        schema.orders.branchId,
+        and(
+          eq(schema.orders.tenantId, tenant.id),
+          eq(schema.orders.status, "open"),
+          isNull(schema.orders.deletedAt)
+        )
       )
     );
 

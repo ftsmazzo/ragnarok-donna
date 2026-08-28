@@ -1,5 +1,6 @@
 import { and, asc, count, eq, gte, ilike, isNull, lte, or } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import { isBarberRole } from "../permissions/roles";
@@ -34,15 +35,33 @@ export async function getAgendaPermissions(): Promise<AgendaPermissions> {
 export async function getAgendaDay(dateStr?: string, staffFilter?: string): Promise<AgendaDayData> {
   const tenant = await requireTenantContext();
   const session = await requireSession();
+  const scope = await resolveBranchScope();
   const perms = await getAgendaPermissions();
   const { date, start, end } = dayBoundsSp(dateStr);
   const db = createDb();
 
-  let staffWhere = and(
-    eq(schema.staff.tenantId, tenant.id),
-    eq(schema.staff.isActive, true),
-    eq(schema.staff.isBookable, true),
-    isNull(schema.staff.deletedAt)
+  if (scope.isInactiveBranch) {
+    return {
+      tenantName: tenant.name,
+      date,
+      staff: [],
+      appointments: [],
+      hours: buildAgendaHours([]),
+      waitlistCount: 0,
+      openOrdersCount: 0,
+      totalAppointments: 0,
+    };
+  }
+
+  let staffWhere = withBranchScope(
+    scope,
+    schema.staff.branchId,
+    and(
+      eq(schema.staff.tenantId, tenant.id),
+      eq(schema.staff.isActive, true),
+      eq(schema.staff.isBookable, true),
+      isNull(schema.staff.deletedAt)
+    )
   );
 
   if (perms.scopedStaffId) {
@@ -61,11 +80,15 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
     .where(staffWhere)
     .orderBy(asc(schema.staff.name));
 
-  let apptWhere = and(
-    eq(schema.appointments.tenantId, tenant.id),
-    gte(schema.appointments.startsAt, start),
-    lte(schema.appointments.startsAt, end),
-    isNull(schema.appointments.deletedAt)
+  let apptWhere = withBranchScope(
+    scope,
+    schema.appointments.branchId,
+    and(
+      eq(schema.appointments.tenantId, tenant.id),
+      gte(schema.appointments.startsAt, start),
+      lte(schema.appointments.startsAt, end),
+      isNull(schema.appointments.deletedAt)
+    )
   );
 
   if (perms.scopedStaffId) {
@@ -112,26 +135,34 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
     orderId: r.orderId,
   }));
 
-  const [waitlistRow] = await db
-    .select({ n: count() })
-    .from(schema.waitlistEntries)
-    .where(
-      and(
-        eq(schema.waitlistEntries.tenantId, tenant.id),
-        eq(schema.waitlistEntries.status, "waiting")
-      )
-    );
+  const [waitlistRow] = scope.isInactiveBranch
+    ? [{ n: 0 }]
+    : await db
+        .select({ n: count() })
+        .from(schema.waitlistEntries)
+        .innerJoin(schema.staff, eq(schema.waitlistEntries.staffId, schema.staff.id))
+        .where(
+          and(
+            eq(schema.waitlistEntries.tenantId, tenant.id),
+            eq(schema.waitlistEntries.status, "waiting"),
+            withBranchScope(scope, schema.staff.branchId)
+          )
+        );
 
   const [ordersRow] = await db
     .select({ n: count() })
     .from(schema.orders)
     .where(
-      and(
-        eq(schema.orders.tenantId, tenant.id),
-        eq(schema.orders.status, "open"),
-        gte(schema.orders.openedAt, start),
-        lte(schema.orders.openedAt, end),
-        isNull(schema.orders.deletedAt)
+      withBranchScope(
+        scope,
+        schema.orders.branchId,
+        and(
+          eq(schema.orders.tenantId, tenant.id),
+          eq(schema.orders.status, "open"),
+          gte(schema.orders.openedAt, start),
+          lte(schema.orders.openedAt, end),
+          isNull(schema.orders.deletedAt)
+        )
       )
     );
 

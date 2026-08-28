@@ -45,7 +45,7 @@ export default async function PainelLayout({
         // eslint-disable-next-line @next/next/no-page-custom-font
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lato:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600&family=Cormorant+Garamond:wght@500;600;700&display=swap"
         />
       ) : null}
       <AppShell
