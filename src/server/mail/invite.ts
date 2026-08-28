@@ -1,3 +1,5 @@
+import { formatResendError, resolveResendFrom } from "./resend-from";
+
 type InviteEmailInput = {
   to: string;
   name: string;
@@ -14,15 +16,7 @@ export async function sendMemberInviteEmail(
     return { sent: false, error: "RESEND_API_KEY não configurada" };
   }
 
-  const rawFrom =
-    process.env.RESEND_FROM?.trim() ??
-    process.env.RESEND_FROM_EMAIL?.trim() ??
-    process.env.EMAIL_FROM?.trim();
-  const from = rawFrom?.includes("<")
-    ? rawFrom
-    : rawFrom
-      ? `Painel <${rawFrom}>`
-      : "Painel <onboarding@resend.dev>";
+  const from = resolveResendFrom();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
   const loginUrl = `${baseUrl}/login/${input.tenantSlug}`;
 
@@ -52,7 +46,7 @@ export async function sendMemberInviteEmail(
 
     if (!res.ok) {
       const body = await res.text();
-      return { sent: false, error: body.slice(0, 200) || res.statusText };
+      return { sent: false, error: formatResendError(body) };
     }
 
     return { sent: true };
