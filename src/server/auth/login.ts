@@ -19,6 +19,7 @@ type MembershipRow = {
   tenantName: string;
   tenantSlug: string;
   tenantStatus: string;
+  branchId: string | null;
 };
 
 async function loadUser(email: string) {
@@ -41,6 +42,7 @@ async function loadMemberships(userId: string): Promise<MembershipRow[]> {
   return db
     .select({
       role: schema.memberships.role,
+      branchId: schema.memberships.branchId,
       tenantId: schema.tenants.id,
       tenantName: schema.tenants.name,
       tenantSlug: schema.tenants.slug,
@@ -91,7 +93,7 @@ async function buildSession(user: SessionUser, membership: MembershipRow): Promi
     staffId = await getStaffIdForUser(membership.tenantId, user.id);
   }
 
-  const branch = await resolveDefaultBranch(membership.tenantId);
+  const branch = await resolveDefaultBranch(membership.tenantId, membership.branchId);
 
   return {
     user,
@@ -101,6 +103,7 @@ async function buildSession(user: SessionUser, membership: MembershipRow): Promi
       slug: membership.tenantSlug,
     },
     branch,
+    branchView: "unit",
     role: membership.role,
     staffId,
   };

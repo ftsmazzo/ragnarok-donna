@@ -9,6 +9,8 @@ export type MemberListItem = {
   name: string;
   email: string;
   role: MemberRole;
+  branchId: string | null;
+  branchName: string | null;
   staffId: string | null;
   staffName: string | null;
   createdAt: Date;
@@ -25,12 +27,15 @@ export async function listTenantMembers(): Promise<MemberListItem[]> {
       name: schema.users.name,
       email: schema.users.email,
       role: schema.memberships.role,
+      branchId: schema.memberships.branchId,
+      branchName: schema.branches.name,
       staffId: schema.staff.id,
       staffName: schema.staff.name,
       createdAt: schema.memberships.createdAt,
     })
     .from(schema.memberships)
     .innerJoin(schema.users, eq(schema.memberships.userId, schema.users.id))
+    .leftJoin(schema.branches, eq(schema.memberships.branchId, schema.branches.id))
     .leftJoin(
       schema.staff,
       and(

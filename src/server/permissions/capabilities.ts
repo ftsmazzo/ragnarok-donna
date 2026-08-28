@@ -64,11 +64,10 @@ const RECEPTION: Capability[] = [
   "appointments.cancel",
   "cash.read",
   "cash.write",
-  "commissions.read_all",
-  "commissions.write",
   "reports.operational",
   "conversations.read",
   "conversations.write",
+  "staff.read",
 ];
 
 const BARBER: Capability[] = [

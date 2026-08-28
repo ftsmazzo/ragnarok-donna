@@ -224,6 +224,9 @@ CREATE INDEX IF NOT EXISTS outreach_jobs_tenant_client_idx
 
 ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS persona jsonb NOT NULL DEFAULT '{}'::jsonb;
 
+ALTER TABLE memberships ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES branches(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS memberships_branch_idx ON memberships (branch_id);
+
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

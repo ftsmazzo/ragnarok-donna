@@ -8,6 +8,8 @@ import { resolveTenantBrand } from "@/lib/brand";
 import { listUserOrganizations } from "@/server/auth/organizations";
 import { listTenantBranches } from "@/server/context/branch";
 import { requireSession } from "@/server/context/tenant";
+import { canSwitchBranches, getMembershipBranchId } from "@/server/members";
+import { isOwnerRole } from "@/server/permissions/roles";
 import { ensureDonnaImportIfEmpty } from "@/server/tenant/donna-import";
 
 export default async function PainelLayout({
@@ -34,10 +36,14 @@ export default async function PainelLayout({
     settings: tenantRow?.settings,
   });
 
-  const [organizations, branches] = await Promise.all([
+  const [organizations, branches, membershipBranchId] = await Promise.all([
     listUserOrganizations(),
     listTenantBranches(session.tenant.id),
+    getMembershipBranchId(session.user.id, session.tenant.id),
   ]);
+
+  const canSwitchBranch = canSwitchBranches(session, membershipBranchId);
+  const showConsolidated = isOwnerRole(session.role) && branches.length > 1;
 
   return (
     <Suspense fallback={<div className="app-shell" />}>
@@ -53,8 +59,14 @@ export default async function PainelLayout({
           userName: session.user.name,
           tenantName: brand.displayName,
           tenantSlug: session.tenant.slug,
-          branchName: session.branch?.name ?? branches[0]?.name ?? null,
+          branchName:
+            session.branchView === "consolidated"
+              ? "Consolidado"
+              : (session.branch?.name ?? branches[0]?.name ?? null),
           branchSlug: session.branch?.slug ?? branches[0]?.slug ?? null,
+          branchView: session.branchView ?? "unit",
+          canSwitchBranch,
+          showConsolidated,
           role: session.role,
           staffId: session.staffId,
           brandLogoSrc: brand.logoSrc,

@@ -4,8 +4,8 @@ import type { MemberRole } from "../types";
 export const ROLE_LABELS: Record<MemberRole, string> = {
   owner: "Dono",
   admin: "Administrador",
-  manager: "Recepção",
-  staff: "Barbeiro",
+  manager: "Gerente",
+  staff: "Barbeiro / Profissional",
   readonly: "Somente leitura",
 };
 
@@ -17,7 +17,7 @@ export function isOwnerRole(role: MemberRole): boolean {
   return role === "owner" || role === "admin";
 }
 
-/** Recepção — operação do dia + conversas IA. */
+/** Gerente — operação da loja (sem gestão financeira/consolidado). */
 export function isReceptionRole(role: MemberRole): boolean {
   return role === "manager";
 }
@@ -25,6 +25,11 @@ export function isReceptionRole(role: MemberRole): boolean {
 /** Barbeiro — escopo do próprio profissional. */
 export function isBarberRole(role: MemberRole): boolean {
   return role === "staff";
+}
+
+/** Gerente ou barbeiro — exige unidade fixa no cadastro. */
+export function roleRequiresBranch(role: MemberRole): boolean {
+  return role === "manager" || role === "staff";
 }
 
 /** Dono, admin ou recepção — visão operacional/gestão parcial. */

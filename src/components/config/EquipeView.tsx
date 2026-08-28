@@ -3,22 +3,36 @@
 import { useTransition } from "react";
 import type { MemberListItem } from "@/server/members/queries";
 import type { MemberRole } from "@/server/types";
-import { ROLE_LABELS } from "@/server/permissions/roles";
-import { linkStaffAction, updateMemberRoleAction } from "@/app/(painel)/configuracoes/equipe/actions";
+import { ROLE_LABELS, roleRequiresBranch } from "@/server/permissions/roles";
+import {
+  linkStaffAction,
+  updateMemberBranchAction,
+  updateMemberRoleAction,
+} from "@/app/(painel)/configuracoes/equipe/actions";
+import { InviteMemberForm } from "./InviteMemberForm";
+
+type BranchOption = { id: string; slug: string; name: string };
 
 type Props = {
   members: MemberListItem[];
   unlinkedStaff: { id: string; name: string }[];
+  branches: BranchOption[];
 };
 
 const ROLES: MemberRole[] = ["owner", "admin", "manager", "staff", "readonly"];
 
-export function EquipeView({ members, unlinkedStaff }: Props) {
+export function EquipeView({ members, unlinkedStaff, branches }: Props) {
   const [pending, startTransition] = useTransition();
 
   function onRoleChange(membershipId: string, role: MemberRole) {
     startTransition(async () => {
       await updateMemberRoleAction(membershipId, role);
+    });
+  }
+
+  function onBranchChange(membershipId: string, branchId: string) {
+    startTransition(async () => {
+      await updateMemberBranchAction(membershipId, branchId || null);
     });
   }
 
@@ -30,11 +44,13 @@ export function EquipeView({ members, unlinkedStaff }: Props) {
 
   return (
     <>
+      <InviteMemberForm branches={branches} unlinkedStaff={unlinkedStaff} />
+
       <p className="client-profile-hint">
-        Defina quem é <strong>Dono</strong>, <strong>Recepção</strong> ou{" "}
-        <strong>Barbeiro</strong>. Recepção opera agenda, clientes, comandas, caixa e{" "}
-        <strong>Conversas IA</strong>. Barbeiros veem só a própria produção quando
-        vinculados a um profissional.
+        <strong>Dono</strong> navega entre unidades e vê consolidado.{" "}
+        <strong>Gerente</strong> opera uma loja (sem relatórios financeiros).{" "}
+        <strong>Barbeiro</strong> vê agenda e comissões próprias quando vinculado ao
+        profissional.
       </p>
 
       <div className="table-wrap">
@@ -43,6 +59,7 @@ export function EquipeView({ members, unlinkedStaff }: Props) {
             <tr>
               <th>Usuário</th>
               <th>Papel</th>
+              <th>Unidade</th>
               <th>Profissional vinculado</th>
             </tr>
           </thead>
@@ -66,6 +83,25 @@ export function EquipeView({ members, unlinkedStaff }: Props) {
                       </option>
                     ))}
                   </select>
+                </td>
+                <td>
+                  {roleRequiresBranch(m.role) || m.role === "readonly" ? (
+                    <select
+                      className="search-input"
+                      defaultValue={m.branchId ?? ""}
+                      disabled={pending}
+                      onChange={(e) => onBranchChange(m.membershipId, e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="muted">Todas</span>
+                  )}
                 </td>
                 <td>
                   {m.role === "staff" ? (
@@ -96,11 +132,6 @@ export function EquipeView({ members, unlinkedStaff }: Props) {
           </tbody>
         </table>
       </div>
-
-      <p className="client-profile-hint muted">
-        Novos logins: crie o usuário no banco ou via seed e adicione membership. Convite
-        por e-mail entra em sprint futura.
-      </p>
     </>
   );
 }

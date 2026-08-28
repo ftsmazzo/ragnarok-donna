@@ -1,3 +1,4 @@
+import { ConsolidatedOverviewPanel } from "@/components/inicio/ConsolidatedOverviewPanel";
 import { DonnaImportBanner } from "@/components/inicio/DonnaImportBanner";
 import { BranchInaugurationBanner } from "@/components/inicio/BranchInaugurationBanner";
 import { PageHeader } from "@/components/shell/PageHeader";
@@ -17,6 +18,7 @@ import {
   getManagementDashboard,
   getWeeklyInsights,
 } from "@/server/insights";
+import { getConsolidatedOverview } from "@/server/insights/consolidated";
 import { getDonnaImportStatus } from "@/server/tenant/donna-import";
 import { profissionaisHref } from "@/components/shell/nav";
 import type { AppSession } from "@/server/types";
@@ -53,19 +55,23 @@ export async function InicioContent({ session, searchParams }: Props) {
   const week = weekBoundsSp(today);
   const weekTo = today < week.to ? today : week.to;
 
-  const [o, weekly, dashMonth, dashWeek, alerts, donnaImport] = await Promise.all([
+  const isConsolidated = session.branchView === "consolidated";
+
+  const [o, weekly, dashMonth, dashWeek, alerts, donnaImport, consolidated] =
+    await Promise.all([
     getTenantOverview(),
-    showInsights ? getWeeklyInsights() : Promise.resolve(null),
-    canReports
+    showInsights && !isConsolidated ? getWeeklyInsights() : Promise.resolve(null),
+    canReports && !isConsolidated
       ? getManagementDashboard({ from: monthFrom, to: today })
       : Promise.resolve(null),
-    canReports
+    canReports && !isConsolidated
       ? getManagementDashboard({ from: week.from, to: weekTo })
       : Promise.resolve(null),
-    canAlerts ? buildOperationalAlerts() : Promise.resolve(null),
+    canAlerts && !isConsolidated ? buildOperationalAlerts() : Promise.resolve(null),
     session.tenant.slug === "donna-elegant" && isManagementRole(session.role)
       ? getDonnaImportStatus(session.tenant.id)
       : Promise.resolve(null),
+    isConsolidated ? getConsolidatedOverview(session.tenant.id) : Promise.resolve(null),
   ]);
 
   const reportLinks = filterLinks(session, [
@@ -113,14 +119,17 @@ export async function InicioContent({ session, searchParams }: Props) {
         </div>
       ) : null}
 
+      {consolidated ? <ConsolidatedOverviewPanel data={consolidated} /> : null}
       {donnaImport ? <DonnaImportBanner status={donnaImport} /> : null}
-      <BranchInaugurationBanner
-        tenantSlug={session.tenant.slug}
-        branchSlug={session.branch?.slug}
-      />
+      {!isConsolidated ? (
+        <BranchInaugurationBanner
+          tenantSlug={session.tenant.slug}
+          branchSlug={session.branch?.slug}
+        />
+      ) : null}
 
       <PageHeader
-        title="Início"
+        title={isConsolidated ? "Início — Consolidado" : "Início"}
         subtitle={`${o.tenantName} · ${formatDateLabelSp(today)}`}
         actions={
           canAccessRoute("/agenda", session.role, { staffId: session.staffId }) ? (
@@ -133,6 +142,9 @@ export async function InicioContent({ session, searchParams }: Props) {
 
       <SummaryCards
         cards={[
+          ...(isConsolidated
+            ? []
+            : [
           ...(canAccessRoute("/agenda", session.role, { staffId: session.staffId })
             ? [
                 {
@@ -173,6 +185,7 @@ export async function InicioContent({ session, searchParams }: Props) {
                   },
                 ]
               : []),
+            ]),
         ]}
       />
 

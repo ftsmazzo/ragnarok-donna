@@ -18,6 +18,9 @@ export type ShellSession = {
   brandLogoSrc?: string | null;
   brandTagline?: string | null;
   themeClass?: string | null;
+  branchView?: "unit" | "consolidated";
+  canSwitchBranch?: boolean;
+  showConsolidated?: boolean;
   organizations: { slug: string; name: string }[];
   branches: { slug: string; name: string }[];
 };

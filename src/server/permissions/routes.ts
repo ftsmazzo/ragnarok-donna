@@ -42,7 +42,7 @@ const RULES: RouteRule[] = [
   { pattern: "/caixa", roles: ["owner", "admin", "manager"] },
   {
     pattern: "/comissoes",
-    roles: ["owner", "admin", "manager", "staff"],
+    roles: ["owner", "admin", "staff"],
   },
 
   { pattern: "/modulo/fluxo-caixa", roles: ["owner", "admin"] },
@@ -62,7 +62,7 @@ const RULES: RouteRule[] = [
   { pattern: "/relatorios/estoque", roles: ["owner", "admin"] },
   { pattern: "/relatorios/fluxo", roles: ["owner", "admin"] },
   { pattern: "/relatorios/perfil", roles: ["owner", "admin", "manager"] },
-  { pattern: "/relatorios", roles: ["owner", "admin", "manager", "readonly"] },
+  { pattern: "/relatorios", roles: ["owner", "admin"] },
   { pattern: "/alertas", roles: ["owner", "admin", "manager"] },
 
   /** Recepção + dono — handoff n8n / WhatsApp. */

@@ -39,7 +39,8 @@ export async function readSession(): Promise<AppSession | null> {
     const { payload } = await jwtVerify(token, getAuthSecret());
     const { user, tenant, role, staffId, branch } = payload as SessionPayload;
     if (!user?.id || !tenant?.id || !role) return null;
-    return { user, tenant, role, staffId: staffId ?? null, branch: branch ?? null };
+    const branchView = (payload as SessionPayload).branchView ?? "unit";
+    return { user, tenant, role, staffId: staffId ?? null, branch: branch ?? null, branchView };
   } catch {
     return null;
   }
@@ -57,7 +58,8 @@ export async function readSessionFromToken(token: string): Promise<AppSession | 
     const { payload } = await jwtVerify(token, getAuthSecret());
     const { user, tenant, role, staffId, branch } = payload as SessionPayload;
     if (!user?.id || !tenant?.id || !role) return null;
-    return { user, tenant, role, staffId: staffId ?? null, branch: branch ?? null };
+    const branchView = (payload as SessionPayload).branchView ?? "unit";
+    return { user, tenant, role, staffId: staffId ?? null, branch: branch ?? null, branchView };
   } catch {
     return null;
   }

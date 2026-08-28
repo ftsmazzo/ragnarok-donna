@@ -28,6 +28,8 @@ export type AppSession = {
   role: MemberRole;
   /** Profissional vinculado — barbeiro (staff). */
   staffId?: string | null;
+  /** unit = uma unidade; consolidated = visão comparativa multi-unidade (dono). */
+  branchView?: "unit" | "consolidated";
 };
 
 export type TenantPickOption = {

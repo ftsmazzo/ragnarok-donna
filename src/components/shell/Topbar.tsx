@@ -6,6 +6,8 @@ import { hasCapability } from "@/server/permissions/capabilities";
 import { roleLabel } from "@/server/permissions/roles";
 import type { MemberRole } from "@/server/types";
 
+const CONSOLIDATED_SLUG = "_consolidado";
+
 type OrgOption = { slug: string; name: string };
 type BranchOption = { slug: string; name: string };
 
@@ -15,6 +17,9 @@ type ShellSession = {
   tenantSlug: string;
   branchName?: string | null;
   branchSlug?: string | null;
+  branchView?: "unit" | "consolidated";
+  canSwitchBranch?: boolean;
+  showConsolidated?: boolean;
   role: MemberRole;
   organizations: OrgOption[];
   branches: BranchOption[];
@@ -30,7 +35,13 @@ export function Topbar({ onToggleSidebar, session }: TopbarProps) {
   const [pending, startTransition] = useTransition();
   const showCash = hasCapability(session.role, "cash.read");
   const showOrgSwitch = session.organizations.length > 1;
-  const showBranchSwitch = session.branches.length > 1;
+  const isConsolidated = session.branchView === "consolidated";
+  const showBranchNav =
+    session.canSwitchBranch && (session.branches.length > 1 || session.showConsolidated);
+
+  function branchPillLabel(name: string) {
+    return name.replace(/^Donna Elegant — /, "").replace(/^Unidade /, "U");
+  }
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -54,7 +65,9 @@ export function Topbar({ onToggleSidebar, session }: TopbarProps) {
   }
 
   function switchBranch(slug: string) {
-    if (slug === session.branchSlug) return;
+    const active =
+      slug === CONSOLIDATED_SLUG ? isConsolidated : !isConsolidated && slug === session.branchSlug;
+    if (active) return;
     startTransition(async () => {
       const res = await fetch("/api/auth/switch-branch", {
         method: "POST",
@@ -95,22 +108,35 @@ export function Topbar({ onToggleSidebar, session }: TopbarProps) {
           <span className="topbar-org">{session.tenantName}</span>
         )}
 
-        {showBranchSwitch ? (
+        {showBranchNav ? (
           <div className="topbar-pills topbar-pills-branch" role="group" aria-label="Unidade">
             {session.branches.map((b) => (
               <button
                 key={b.slug}
                 type="button"
                 className={`topbar-pill topbar-pill-branch${
-                  b.slug === session.branchSlug ? " is-active" : ""
+                  !isConsolidated && b.slug === session.branchSlug ? " is-active" : ""
                 }`}
                 disabled={pending}
                 onClick={() => switchBranch(b.slug)}
                 title={b.name}
               >
-                {b.name.replace(/^Donna Elegant — /, "").replace(/^Unidade /, "U")}
+                {branchPillLabel(b.name)}
               </button>
             ))}
+            {session.showConsolidated ? (
+              <button
+                type="button"
+                className={`topbar-pill topbar-pill-branch topbar-pill-consolidated${
+                  isConsolidated ? " is-active" : ""
+                }`}
+                disabled={pending}
+                onClick={() => switchBranch(CONSOLIDATED_SLUG)}
+                title="Comparativo entre unidades"
+              >
+                Consolidado
+              </button>
+            ) : null}
           </div>
         ) : session.branchName ? (
           <span className="topbar-branch">{session.branchName}</span>
