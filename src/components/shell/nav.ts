@@ -68,6 +68,7 @@ export const NAV: NavItem[] = [
       { label: "Lista de espera", href: "/lista-espera" },
       { label: "Dados da empresa", href: "/configuracoes/empresa", icon: "⌂" },
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
+      { label: "Minha conta", href: "/configuracoes/conta" },
       { label: "Agente (Donna)", href: "/configuracoes/agente", icon: "✉" },
       { label: "App celular (PWA)", href: "/pwa/conversas", icon: "▣" },
       { label: "Parâmetros", href: "/configuracoes" },

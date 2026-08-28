@@ -1,11 +1,11 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { createDb } from "@/db";
-import { schema } from "@/db";
-import { getStaffIdForUser } from "../permissions/staff-scope";
+import { createDb, schema } from "@/db";
+import { resolveDefaultBranch } from "../context/branch";
 import { UnauthorizedError } from "../errors";
-import type { AppSession } from "../types";
+import { getStaffIdForUser } from "../permissions/staff-scope";
+import type { AppSession, LoginResult, SessionUser, TenantPickOption } from "../types";
 import { verifyPassword } from "./password";
-import { setSessionCookie } from "./session";
+import { setSessionCookie, readSession } from "./session";
 
 export type LoginInput = {
   email: string;
@@ -13,14 +13,15 @@ export type LoginInput = {
   tenantSlug?: string;
 };
 
-export async function login(input: LoginInput): Promise<AppSession> {
-  const email = input.email.trim().toLowerCase();
-  const password = input.password;
+type MembershipRow = {
+  role: AppSession["role"];
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  tenantStatus: string;
+};
 
-  if (!email || !password) {
-    throw new UnauthorizedError("E-mail e senha são obrigatórios");
-  }
-
+async function loadUser(email: string) {
   const db = createDb();
   const [user] = await db
     .select({
@@ -32,17 +33,12 @@ export async function login(input: LoginInput): Promise<AppSession> {
     .from(schema.users)
     .where(and(eq(schema.users.email, email), isNull(schema.users.deletedAt)))
     .limit(1);
+  return user ?? null;
+}
 
-  if (!user) {
-    throw new UnauthorizedError("Credenciais inválidas");
-  }
-
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) {
-    throw new UnauthorizedError("Credenciais inválidas");
-  }
-
-  const memberships = await db
+async function loadMemberships(userId: string): Promise<MembershipRow[]> {
+  const db = createDb();
+  return db
     .select({
       role: schema.memberships.role,
       tenantId: schema.tenants.id,
@@ -52,26 +48,33 @@ export async function login(input: LoginInput): Promise<AppSession> {
     })
     .from(schema.memberships)
     .innerJoin(schema.tenants, eq(schema.memberships.tenantId, schema.tenants.id))
-    .where(
-      and(
-        eq(schema.memberships.userId, user.id),
-        isNull(schema.tenants.deletedAt)
-      )
-    );
+    .where(and(eq(schema.memberships.userId, userId), isNull(schema.tenants.deletedAt)));
+}
 
-  if (!memberships.length) {
-    throw new UnauthorizedError("Usuário sem acesso a nenhuma unidade");
+function pickMembership(
+  memberships: MembershipRow[],
+  tenantSlug?: string
+): MembershipRow | null {
+  if (!memberships.length) return null;
+
+  const preferredSlug = tenantSlug ?? process.env.DEFAULT_TENANT_SLUG;
+  if (preferredSlug) {
+    const match =
+      memberships.find((m) => m.tenantSlug === preferredSlug && m.tenantStatus === "active") ??
+      memberships.find((m) => m.tenantSlug === preferredSlug);
+    if (match) return match;
   }
 
-  const preferredSlug = input.tenantSlug ?? process.env.DEFAULT_TENANT_SLUG ?? "ragnaroks";
-  const membership =
-    memberships.find((m) => m.tenantSlug === preferredSlug && m.tenantStatus === "active") ??
-    memberships.find((m) => m.tenantSlug === preferredSlug) ??
+  return (
     memberships.find((m) => m.tenantStatus === "active") ??
-    memberships[0];
+    memberships.find((m) => m.tenantStatus === "trialing") ??
+    memberships[0]
+  );
+}
 
+async function buildSession(user: SessionUser, membership: MembershipRow): Promise<AppSession> {
   if (membership.tenantStatus !== "active" && membership.tenantStatus !== "trialing") {
-    throw new UnauthorizedError("Unidade inativa ou suspensa");
+    throw new UnauthorizedError("Organização inativa ou suspensa");
   }
 
   let staffId: string | null = null;
@@ -79,17 +82,83 @@ export async function login(input: LoginInput): Promise<AppSession> {
     staffId = await getStaffIdForUser(membership.tenantId, user.id);
   }
 
-  const session: AppSession = {
-    user: { id: user.id, name: user.name, email: user.email },
+  const branch = await resolveDefaultBranch(membership.tenantId);
+
+  return {
+    user,
     tenant: {
       id: membership.tenantId,
       name: membership.tenantName,
       slug: membership.tenantSlug,
     },
+    branch,
     role: membership.role,
     staffId,
   };
+}
 
+export async function login(input: LoginInput): Promise<LoginResult> {
+  const email = input.email.trim().toLowerCase();
+  const password = input.password;
+
+  if (!email || !password) {
+    throw new UnauthorizedError("E-mail e senha são obrigatórios");
+  }
+
+  const user = await loadUser(email);
+  if (!user) {
+    throw new UnauthorizedError("Credenciais inválidas");
+  }
+
+  const ok = await verifyPassword(password, user.passwordHash);
+  if (!ok) {
+    throw new UnauthorizedError("Credenciais inválidas");
+  }
+
+  const memberships = await loadMemberships(user.id);
+  if (!memberships.length) {
+    throw new UnauthorizedError("Usuário sem acesso a nenhuma organização");
+  }
+
+  const activeMemberships = memberships.filter(
+    (m) => m.tenantStatus === "active" || m.tenantStatus === "trialing"
+  );
+
+  if (!input.tenantSlug && activeMemberships.length > 1) {
+    const tenants: TenantPickOption[] = activeMemberships.map((m) => ({
+      slug: m.tenantSlug,
+      name: m.tenantName,
+    }));
+    return { status: "pick_tenant", tenants };
+  }
+
+  const membership = pickMembership(activeMemberships.length ? activeMemberships : memberships, input.tenantSlug);
+  if (!membership) {
+    throw new UnauthorizedError("Organização não encontrada");
+  }
+
+  const session = await buildSession(
+    { id: user.id, name: user.name, email: user.email },
+    membership
+  );
+
+  await setSessionCookie(session);
+  return { status: "ok", session };
+}
+
+export async function switchTenant(tenantSlug: string): Promise<AppSession> {
+  const current = await readSession();
+  if (!current) {
+    throw new UnauthorizedError();
+  }
+
+  const memberships = await loadMemberships(current.user.id);
+  const membership = memberships.find((m) => m.tenantSlug === tenantSlug);
+  if (!membership) {
+    throw new UnauthorizedError("Sem acesso a esta organização");
+  }
+
+  const session = await buildSession(current.user, membership);
   await setSessionCookie(session);
   return session;
 }

@@ -147,6 +147,79 @@ export const RAGNAROK_BUSINESS_PROFILE: BusinessProfile = {
   },
 };
 
+/** Donna Elegant — salão Catanduva (identidade: site + manual de marca). */
+export const DONNA_ELEGANT_BUSINESS_PROFILE: BusinessProfile = {
+  version: 1,
+  sourceUrl: "https://www.donnaelegant.com.br/",
+  nomeFantasia: "Donna Elegant",
+  tagline: "Cabelos e unhas que falam por você",
+  slogan: "Hora marcada de verdade.",
+  cidade: "Catanduva",
+  estado: "SP",
+  endereco: {
+    logradouro: "Rua Curitiba, 486",
+    bairro: "Centro",
+    cidade: "Catanduva",
+    uf: "SP",
+    textoCompleto: "Rua Curitiba, 486 — Catanduva-SP",
+  },
+  email: null,
+  telefoneFixoHint: null,
+  redes: {
+    instagram: "https://www.instagram.com/donna_elegant_esmalteria/",
+  },
+  avaliacaoGoogle: {
+    nota: 4.9,
+    texto: "4,9 no Google · +1756 clientes em Catanduva",
+  },
+  desdeAno: 2004,
+  diferenciais: [
+    "Hora marcada de verdade — sem fila, sem surpresa",
+    "Podologia integrada à esmalteria — única em Catanduva",
+    "Mais de 20 anos de experiência",
+    "Especialistas em loiro, cachos e unhas",
+  ],
+  sobre: [
+    "Salão de beleza em Catanduva: cabeleireira e esmalteria no mesmo lugar.",
+    "Você agenda, chega e é atendida na hora — cabelo, unhas e pés resolvidos.",
+    "Equipe especializada em loiro, mechas, cachos, gel, molde F1 e podologia.",
+  ],
+  servicosSite: [
+    "Loiro e mechas",
+    "Cachos e transição",
+    "Corte feminino",
+    "Escova e progressiva",
+    "Unhas em gel",
+    "Molde F1",
+    "Pedicure",
+    "Podologia",
+    "Sobrancelha",
+  ],
+  horarios: [
+    { days: "Segunda a Sexta", open: "09:00", close: "19:00" },
+    { days: "Sábado", open: "08:00", close: "17:00" },
+    { days: "Domingo", open: null, close: null, note: "Fechado" },
+  ],
+  brand: {
+    logoUrl: "https://www.donnaelegant.com.br/",
+    logoLocalPath: "/branding/donna-elegant-logo.png",
+    fonts: {
+      display: "Cormorant Garamond",
+      body: "Lato",
+      googleFontsCss:
+        "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lato:wght@400;500&display=swap",
+    },
+    colors: {
+      primary: "#9A7B5A",
+      dark: "#1C1917",
+      darker: "#0F0E0D",
+      cream: "#FAF6F0",
+      muted: "#78716C",
+      onDark: "#FAF6F0",
+    },
+  },
+};
+
 export function formatHoursForAgent(hours: BusinessHoursDay[]): string {
   return hours
     .map((h) => {

@@ -5,6 +5,8 @@ import { eq } from "drizzle-orm";
 import { AppShell } from "@/components/shell/AppShell";
 import { createDb, schema } from "@/db";
 import { resolveTenantBrand } from "@/lib/brand";
+import { listUserOrganizations } from "@/server/auth/organizations";
+import { listTenantBranches } from "@/server/context/branch";
 import { requireSession } from "@/server/context/tenant";
 
 export default async function PainelLayout({
@@ -30,6 +32,11 @@ export default async function PainelLayout({
     settings: tenantRow?.settings,
   });
 
+  const [organizations, branches] = await Promise.all([
+    listUserOrganizations(),
+    listTenantBranches(session.tenant.id),
+  ]);
+
   return (
     <Suspense fallback={<div className="app-shell" />}>
       <AppShell
@@ -37,10 +44,14 @@ export default async function PainelLayout({
           userName: session.user.name,
           tenantName: brand.displayName,
           tenantSlug: session.tenant.slug,
+          branchName: session.branch?.name ?? branches[0]?.name ?? null,
+          branchSlug: session.branch?.slug ?? branches[0]?.slug ?? null,
           role: session.role,
           staffId: session.staffId,
           brandLogoSrc: brand.logoSrc,
           brandTagline: brand.tagline,
+          organizations,
+          branches: branches.map((b) => ({ slug: b.slug, name: b.name })),
         }}
       >
         {children}

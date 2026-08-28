@@ -8,11 +8,17 @@
 import bcrypt from "bcryptjs";
 import postgres from "postgres";
 
+const args = process.argv.slice(2);
+function arg(name, fallback) {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : fallback;
+}
+
 const DATABASE_URL = process.env.DATABASE_URL;
 const EMAIL = (process.env.SEED_OWNER_EMAIL ?? "admin@ragnaroks.local").toLowerCase();
 const PASSWORD = process.env.SEED_OWNER_PASSWORD;
 const NAME = process.env.SEED_OWNER_NAME ?? "Administrador";
-const TENANT_SLUG = "ragnaroks";
+const TENANT_SLUG = process.env.SEED_TENANT_SLUG ?? arg("--tenant", "ragnaroks");
 
 if (!DATABASE_URL) {
   console.error("DATABASE_URL obrigatória");

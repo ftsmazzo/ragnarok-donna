@@ -35,6 +35,10 @@ const EXTRAS_DIR = path.resolve(
 );
 const TENANT_SLUG = arg("--tenant", "ragnaroks");
 const TENANT_NAME = arg("--name", "RagnaroK's Barbearia");
+const BRANCH_SLUG = arg("--branch-slug", "unidade-01");
+const BRANCH_NAME = arg("--branch-name", "Unidade 01");
+const BRANCH_ADDRESS = arg("--branch-address", "");
+const EXTERNAL_SOURCE = arg("--source", "appbarber");
 const BATCH = Number(arg("--batch", "400"));
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -58,7 +62,7 @@ function chunk(arr, size) {
 async function loadMap(sql, table, tenantId) {
   const rows = await sql`
     select id, external_id from ${sql(table)}
-    where tenant_id = ${tenantId} and external_source = 'appbarber'
+    where tenant_id = ${tenantId} and external_source = ${EXTERNAL_SOURCE}
   `;
   return new Map(rows.map((r) => [String(r.external_id), r.id]));
 }
@@ -89,15 +93,26 @@ async function main() {
     `;
 
     const [branch] = await sql`
-      insert into branches (tenant_id, name, slug, is_active, external_source, external_id)
-      values (${tenantId}, ${TENANT_NAME}, 'principal', true, 'appbarber', 'main')
-      on conflict (tenant_id, slug) do update set name = excluded.name
+      insert into branches (tenant_id, name, slug, address, is_active, external_source, external_id)
+      values (
+        ${tenantId},
+        ${BRANCH_NAME},
+        ${BRANCH_SLUG},
+        ${BRANCH_ADDRESS || null},
+        true,
+        ${EXTERNAL_SOURCE},
+        'main'
+      )
+      on conflict (tenant_id, slug) do update set
+        name = excluded.name,
+        address = coalesce(excluded.address, branches.address),
+        updated_at = now()
       returning id
     `;
 
     const [run] = await sql`
       insert into import_runs (tenant_id, source, status, label, artifact_uri, started_at, stats)
-      values (${tenantId}, 'appbarber', 'running', ${path.basename(EXPORT_DIR)}, ${EXPORT_DIR}, now(), '{}'::jsonb)
+      values (${tenantId}, ${EXTERNAL_SOURCE}, 'running', ${path.basename(EXPORT_DIR)}, ${EXPORT_DIR}, now(), '{}'::jsonb)
       returning id
     `;
     const runId = run.id;
@@ -115,7 +130,7 @@ async function main() {
       is_active: true,
       default_commission_bps: null,
       meta: { gestor: r.PAF_Gestor === "1" },
-      external_source: "appbarber",
+      external_source: EXTERNAL_SOURCE,
       external_id: String(r.Pes_Codigo),
     }));
     for (const batch of chunk(profRows, BATCH)) {
@@ -155,7 +170,7 @@ async function main() {
       commission_bps: parseCommissionBps(r.Ser_Comissao),
       is_active: true,
       bookable_online: r.Ser_Usa_App === "1",
-      external_source: "appbarber",
+      external_source: EXTERNAL_SOURCE,
       external_id: String(r.Ser_Codigo),
     }));
     for (const batch of chunk(svcRows, BATCH)) {
@@ -183,7 +198,7 @@ async function main() {
       for_internal_use: r.Uso === "Sim",
       commission_bps: parseCommissionBps(r.Comissao),
       is_active: true,
-      external_source: "appbarber",
+      external_source: EXTERNAL_SOURCE,
       external_id: String(r.Codigo),
     }));
     for (const batch of chunk(prodRows, BATCH)) {
@@ -219,7 +234,7 @@ async function main() {
       is_active: true,
       bookable_online: String(r.CodDisponivel) === "1",
       items: pkgItemsByCode.get(String(r.Codigo)) ?? [],
-      external_source: "appbarber",
+      external_source: EXTERNAL_SOURCE,
       external_id: String(r.Codigo),
     }));
     for (const batch of chunk(pkgRows, BATCH)) {
@@ -255,7 +270,7 @@ async function main() {
           end_time: fim,
           slot_index: idx,
           is_active: true,
-          external_source: "appbarber",
+          external_source: EXTERNAL_SOURCE,
           external_id: `${r.Pes_Codigo}-${weekday}-${idx}`,
         });
       }
@@ -289,7 +304,7 @@ async function main() {
         loyalty_points: Number(r.Pontos || r.Total_Pontos) || 0,
         is_active: !row.removed,
         deleted_at: row.removed ? new Date() : null,
-        external_source: "appbarber",
+        external_source: EXTERNAL_SOURCE,
         external_id: extId,
       });
     }
@@ -326,7 +341,7 @@ async function main() {
         codCliente: r.codCliente ? String(r.codCliente) : null,
         title: r.title || null,
       },
-      external_source: "appbarber",
+      external_source: EXTERNAL_SOURCE,
       external_id: String(r.id),
     }));
     for (const batch of chunk(apptRows, BATCH)) {
@@ -357,7 +372,7 @@ async function main() {
         profissional: r.Profissional || null,
         appbarberClientCode: r.CodigoCliente ? String(r.CodigoCliente) : null,
       },
-      external_source: "appbarber",
+      external_source: EXTERNAL_SOURCE,
       external_id: String(r.Codigo),
     }));
     for (const batch of chunk(orderRows, BATCH)) {
@@ -383,7 +398,7 @@ async function main() {
         amount_cents: parseMoney(r.Valor),
         paid_at: parseDateBr(r.DataFinaliza) ?? parseDateBr(r.DataCadastro) ?? new Date(),
         meta: { raw: r.TipoPagamento },
-        external_source: "appbarber",
+        external_source: EXTERNAL_SOURCE,
         external_id: String(r.Codigo),
       }))
       .filter((r) => r.order_id);
@@ -414,7 +429,7 @@ async function main() {
           total_cents: parseMoney(r.ValorTotal || r.Valor),
           commission_bps: parseCommissionBps(r.ComissaoPrincipal),
           performed_at: parseDateBr(r.Data),
-          external_source: "appbarber",
+          external_source: EXTERNAL_SOURCE,
           external_id: String(r.CodItem),
         };
       })
@@ -463,7 +478,7 @@ async function main() {
       desired_date: parseDateBr(r.LEs_Data),
       status: r.LEs_Enviado === "Sim" ? "notified" : "waiting",
       notes: cleanStr(r.LEs_Descricao, 2000),
-      external_source: "appbarber",
+      external_source: EXTERNAL_SOURCE,
       external_id: String(r.LEs_Codigo),
     }));
     for (const batch of chunk(waitRows, BATCH)) {

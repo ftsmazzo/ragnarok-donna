@@ -1,4 +1,5 @@
 import {
+  DONNA_ELEGANT_BUSINESS_PROFILE,
   RAGNAROK_BUSINESS_PROFILE,
   readBusinessProfileFromSettings,
 } from "@/server/agent/business-profile";
@@ -18,13 +19,26 @@ export function resolveTenantBrand(input: {
 }): TenantBrand {
   const profile = readBusinessProfileFromSettings(input.settings);
   const looksRagnarok = /ragnarok/i.test(input.tenantSlug) || /ragnarok/i.test(input.tenantName);
+  const looksDonna = /donna/i.test(input.tenantSlug) || /donna/i.test(input.tenantName);
 
   if (profile) {
     return {
       displayName: profile.nomeFantasia,
       tagline: profile.tagline,
       logoSrc: profile.brand.logoLocalPath ?? profile.brand.logoUrl ?? null,
-      faviconSrc: "/branding/ragnarok-app-icon-192.png",
+      faviconSrc: looksDonna
+        ? "/branding/donna-elegant-icon-192.png"
+        : "/branding/ragnarok-app-icon-192.png",
+    };
+  }
+
+  if (looksDonna) {
+    const b = DONNA_ELEGANT_BUSINESS_PROFILE;
+    return {
+      displayName: b.nomeFantasia,
+      tagline: b.tagline,
+      logoSrc: b.brand.logoLocalPath ?? b.brand.logoUrl,
+      faviconSrc: "/branding/donna-elegant-icon-192.png",
     };
   }
 

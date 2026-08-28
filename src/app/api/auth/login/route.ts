@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAppError, login, logout } from "@/server";
+import { isAppError, login } from "@/server";
 
 export async function POST(request: Request) {
   try {
@@ -9,13 +9,24 @@ export async function POST(request: Request) {
       tenantSlug?: string;
     };
 
-    const session = await login({
+    const result = await login({
       email: body.email ?? "",
       password: body.password ?? "",
       tenantSlug: body.tenantSlug,
     });
 
-    return NextResponse.json({ ok: true, tenant: session.tenant.slug });
+    if (result.status === "pick_tenant") {
+      return NextResponse.json({
+        needsTenantPick: true,
+        tenants: result.tenants,
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      tenant: result.session.tenant.slug,
+      branch: result.session.branch?.slug ?? null,
+    });
   } catch (err) {
     if (isAppError(err)) {
       return NextResponse.json({ error: err.message }, { status: err.status });

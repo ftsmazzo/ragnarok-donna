@@ -37,9 +37,9 @@ export async function readSession(): Promise<AppSession | null> {
 
   try {
     const { payload } = await jwtVerify(token, getAuthSecret());
-    const { user, tenant, role, staffId } = payload as SessionPayload;
+    const { user, tenant, role, staffId, branch } = payload as SessionPayload;
     if (!user?.id || !tenant?.id || !role) return null;
-    return { user, tenant, role, staffId: staffId ?? null };
+    return { user, tenant, role, staffId: staffId ?? null, branch: branch ?? null };
   } catch {
     return null;
   }
@@ -55,9 +55,9 @@ export async function verifySessionToken(token: string): Promise<boolean> {
 export async function readSessionFromToken(token: string): Promise<AppSession | null> {
   try {
     const { payload } = await jwtVerify(token, getAuthSecret());
-    const { user, tenant, role, staffId } = payload as SessionPayload;
+    const { user, tenant, role, staffId, branch } = payload as SessionPayload;
     if (!user?.id || !tenant?.id || !role) return null;
-    return { user, tenant, role, staffId: staffId ?? null };
+    return { user, tenant, role, staffId: staffId ?? null, branch: branch ?? null };
   } catch {
     return null;
   }

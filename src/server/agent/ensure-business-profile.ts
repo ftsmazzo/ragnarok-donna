@@ -1,6 +1,7 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import {
+  DONNA_ELEGANT_BUSINESS_PROFILE,
   RAGNAROK_BUSINESS_PROFILE,
   readBusinessProfileFromSettings,
   type BusinessProfile,
@@ -78,14 +79,72 @@ function ragnarokPersonaPatch(businessName: string): PersonaPatch {
   };
 }
 
-/** Grava branding + dados da unidade em tenants.settings e refresca persona Donna. */
+function donnaElegantPersonaPatch(businessName: string): PersonaPatch {
+  return {
+    cliente: {
+      nome_negocio: businessName,
+      segmento: "salão",
+      agente_representa: "recepção",
+    },
+    persona: {
+      essencia: "acolhimento elegante, hora marcada e cuidado completo",
+      tom: { tracos: ["acolhedora", "segura", "clara", "premium sem frieza"] },
+      historia_marca: {
+        usar: true,
+        episodios: [
+          "Mais de 20 anos cuidando de cabelos e unhas em Catanduva.",
+          "Hora marcada de verdade — você chega e é atendida.",
+          "Especialistas em loiro, cachos, unhas em gel, molde F1 e podologia integrada.",
+          "Única esmalteria de Catanduva com podóloga no mesmo atendimento.",
+        ],
+      },
+      vocabulario: {
+        termos_tecnicos: [
+          "mechas",
+          "balayage",
+          "gel",
+          "molde F1",
+          "podologia",
+          "cachos",
+          "transição capilar",
+          "hora marcada",
+        ],
+        termos_proibidos: ["bot", "inteligência artificial", "assistente virtual", "chatbot"],
+      },
+      oralidade: {
+        saudacao_padrao: `Olá! Aqui é a Donna, recepção da ${businessName}.`,
+        expressoes_tipicas: ["Perfeito", "Combinado", "Vai ficar linda", "Deixa comigo"],
+        forma_de_tratamento: "você",
+      },
+      tema_emocional_central: "Autoestima, pontualidade e experiência completa num só lugar",
+      regra_de_ouro: "Hora marcada é hora respeitada",
+      descaracteriza: [
+        "Inventar preço ou duração",
+        "Prometer horário sem consultar a agenda",
+        "Usar linguagem robótica",
+        "Ignorar pedido de atendimento humano",
+      ],
+    },
+  };
+}
+
+function personaPatchForProfile(profile: BusinessProfile, businessName: string): PersonaPatch {
+  if (/donna/i.test(profile.nomeFantasia) || /salão|salao|esmalteria/i.test(profile.tagline)) {
+    return donnaElegantPersonaPatch(businessName);
+  }
+  return ragnarokPersonaPatch(businessName);
+}
+
+function defaultProfileForTenant(slug: string, name: string): BusinessProfile {
+  if (/donna/i.test(slug) || /donna/i.test(name)) return DONNA_ELEGANT_BUSINESS_PROFILE;
+  return RAGNAROK_BUSINESS_PROFILE;
+}
 export async function ensureBusinessProfile(input: {
   tenantId: string;
   profile?: BusinessProfile;
   force?: boolean;
 }): Promise<{ ok: true; applied: boolean; profile: BusinessProfile } | { ok: false; error: string }> {
   const db = createDb();
-  const profile = input.profile ?? RAGNAROK_BUSINESS_PROFILE;
 
   const [tenant] = await db
     .select({
@@ -99,6 +158,9 @@ export async function ensureBusinessProfile(input: {
     .limit(1);
 
   if (!tenant) return { ok: false, error: "tenant não encontrado" };
+
+  const profile =
+    input.profile ?? defaultProfileForTenant(tenant.slug, tenant.name);
 
   const existing = readBusinessProfileFromSettings(tenant.settings);
   if (existing && !input.force) {
@@ -126,7 +188,7 @@ export async function ensureBusinessProfile(input: {
     .where(eq(schema.tenants.id, input.tenantId));
 
   const [branch] = await db
-    .select({ id: schema.branches.id })
+    .select({ id: schema.branches.id, slug: schema.branches.slug })
     .from(schema.branches)
     .where(
       and(
@@ -135,13 +197,22 @@ export async function ensureBusinessProfile(input: {
         isNull(schema.branches.deletedAt)
       )
     )
+    .orderBy(asc(schema.branches.slug))
     .limit(1);
 
-  if (branch) {
+  if (branch && branch.slug === "unidade-01") {
     await db
       .update(schema.branches)
       .set({
-        name: profile.nomeFantasia,
+        name: "Donna Elegant — Unidade 01",
+        address: profile.endereco.textoCompleto,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.branches.id, branch.id));
+  } else if (branch) {
+    await db
+      .update(schema.branches)
+      .set({
         address: profile.endereco.textoCompleto,
         updatedAt: new Date(),
       })
@@ -149,13 +220,14 @@ export async function ensureBusinessProfile(input: {
   }
 
   const businessName = profile.nomeFantasia;
+  const patch = personaPatchForProfile(profile, businessName);
   const base = createDefaultPersona({
     businessName,
     agentDisplayName: "Donna",
-    essencia: "acolhimento com precisão e pontualidade",
-    regraDeOuro: "Hora marcada é hora respeitada",
+    essencia: patch.persona?.essencia ?? "acolhimento com precisão",
+    regraDeOuro: patch.persona?.regra_de_ouro ?? "Hora marcada é hora respeitada",
   });
-  const persona = mergePersona(base, ragnarokPersonaPatch(businessName));
+  const persona = mergePersona(base, patch);
   const systemPrompt = compilePersonaToSystemPrompt(persona, "Donna");
 
   const [agent] = await db
@@ -200,9 +272,12 @@ export async function ensureBusinessProfileIfMissing(tenantId: string) {
   if (!tenant) return null;
   const current = readBusinessProfileFromSettings(tenant.settings);
   if (current) return current;
-  const looksRagnarok =
-    /ragnarok/i.test(tenant.slug || "") || /ragnarok/i.test(tenant.name || "");
-  if (!looksRagnarok) return null;
+  const looksKnown =
+    /ragnarok/i.test(tenant.slug || "") ||
+    /ragnarok/i.test(tenant.name || "") ||
+    /donna/i.test(tenant.slug || "") ||
+    /donna/i.test(tenant.name || "");
+  if (!looksKnown) return null;
   const result = await ensureBusinessProfile({ tenantId, force: false });
   return result.ok ? result.profile : null;
 }

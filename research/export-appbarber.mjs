@@ -9,10 +9,17 @@ import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
 
-const EMAIL = process.env.APPBARBER_EMAIL;
-const PASS = process.env.APPBARBER_PASS;
+const EMAIL = process.env.APPBARBER_EMAIL ?? process.env.APPBELEZA_EMAIL;
+const PASS = process.env.APPBARBER_PASS ?? process.env.APPBELEZA_PASS;
+/** AppBarber ou AppBeleza — mesma API, host diferente */
+const SYSTEM_BASE = (
+  process.env.APPBARBER_BASE_URL ??
+  process.env.APPBELEZA_BASE_URL ??
+  "https://sistema.appbarber.com.br"
+).replace(/\/$/, "");
+
 if (!EMAIL || !PASS) {
-  console.error("Defina APPBARBER_EMAIL e APPBARBER_PASS");
+  console.error("Defina APPBARBER_EMAIL/APPBARBER_PASS ou APPBELEZA_EMAIL/APPBELEZA_PASS");
   process.exit(1);
 }
 
@@ -61,7 +68,10 @@ async function dismiss(page) {
 }
 
 async function login(page) {
-  await page.goto("https://sistema.appbarber.com.br/", {
+  const loginUrl = SYSTEM_BASE.includes("appbeleza")
+    ? `${SYSTEM_BASE}/login.php`
+    : `${SYSTEM_BASE}/`;
+  await page.goto(loginUrl, {
     waitUntil: "domcontentloaded",
   });
   await page.waitForTimeout(1500);
@@ -172,7 +182,7 @@ async function exportAgendaRange(request, profissionais, from, to) {
     try {
       const json = await fetchJson(
         request,
-        "https://sistema.appbarber.com.br/pages/actions/buscaAgenda3.php",
+        `${SYSTEM_BASE}/pages/actions/buscaAgenda3.php`,
         {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -220,7 +230,7 @@ async function exportComandaItens(request, comandaCodigos) {
     try {
       const json = await fetchJson(
         request,
-        `https://sistema.appbarber.com.br/pages/cadastros/buscaItensComanda.php?codigo=${encodeURIComponent(codigo)}`
+        `${SYSTEM_BASE}/pages/cadastros/buscaItensComanda.php?codigo=${encodeURIComponent(codigo)}`
       );
       const rows = (json.data || []).map(stripHtmlFields);
       for (const r of rows) all.push({ ...r, ComandaCodigo: codigo });
@@ -236,7 +246,7 @@ async function exportComandaItens(request, comandaCodigos) {
 async function main() {
   const manifest = {
     exportedAt: new Date().toISOString(),
-    source: "sistema.appbarber.com.br",
+    source: SYSTEM_BASE.replace(/^https?:\/\//, ""),
     purpose: "migração de dados do estabelecimento (cliente autorizado)",
     files: [],
   };
@@ -256,7 +266,7 @@ async function main() {
   console.log("Profissionais…");
   const profJson = await fetchJson(
     request,
-    "https://sistema.appbarber.com.br/pages/cadastros/buscaProfissionais.php"
+    `${SYSTEM_BASE}/pages/cadastros/buscaProfissionais.php`
   );
   const profissionais = profJson.profissionais || profJson.data || [];
   saveJson("profissionais", profissionais);
@@ -266,7 +276,7 @@ async function main() {
   console.log("Serviços…");
   const servJson = await fetchJson(
     request,
-    "https://sistema.appbarber.com.br/pages/cadastros/buscaServicosv2.php"
+    `${SYSTEM_BASE}/pages/cadastros/buscaServicosv2.php`
   );
   const servicos = (servJson.data || []).map(stripHtmlFields);
   saveJson("servicos", servicos);
@@ -276,7 +286,7 @@ async function main() {
   console.log("Produtos…");
   const produtos = await fetchDataTableAll(
     request,
-    "https://sistema.appbarber.com.br/pages/cadastros/buscaProdutos.php?disponivelVenda=0",
+    `${SYSTEM_BASE}/pages/cadastros/buscaProdutos.php?disponivelVenda=0`,
     { method: "GET", pageSize: 200 }
   );
   saveJson("produtos", produtos);
@@ -286,7 +296,7 @@ async function main() {
   console.log("Pacotes…");
   const pacotes = await fetchDataTableAll(
     request,
-    "https://sistema.appbarber.com.br/pages/cadastros/buscaPacotes.php",
+    `${SYSTEM_BASE}/pages/cadastros/buscaPacotes.php`,
     { method: "POST", form: { disponivel: "" }, pageSize: 200 }
   );
   saveJson("pacotes", pacotes);
@@ -296,7 +306,7 @@ async function main() {
   console.log("Clientes (ativos)…");
   const clientes = await fetchDataTableAll(
     request,
-    "https://sistema.appbarber.com.br/pages/cadastros/buscaClientes_v4.php",
+    `${SYSTEM_BASE}/pages/cadastros/buscaClientes_v4.php`,
     { method: "GET", pageSize: 500 }
   );
   saveJson("clientes", clientes);
@@ -307,7 +317,7 @@ async function main() {
   try {
     const remJson = await fetchJson(
       request,
-      "https://sistema.appbarber.com.br/pages/cadastros/buscaClientesRemovidos.php?tipo=1"
+      `${SYSTEM_BASE}/pages/cadastros/buscaClientesRemovidos.php?tipo=1`
     );
     const removidos = (remJson.data || []).map(stripHtmlFields);
     saveJson("clientes-removidos", removidos);
@@ -329,7 +339,7 @@ async function main() {
       try {
         const j = await fetchJson(
           request,
-          "https://sistema.appbarber.com.br/pages/actions/buscaJornadaProfissionais.php",
+          `${SYSTEM_BASE}/pages/actions/buscaJornadaProfissionais.php`,
           {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -381,7 +391,7 @@ async function main() {
     try {
       const json = await fetchJson(
         request,
-        "https://sistema.appbarber.com.br/pages/cadastros/buscaComandasHistoricov2.php",
+        `${SYSTEM_BASE}/pages/cadastros/buscaComandasHistoricov2.php`,
         {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -395,7 +405,7 @@ async function main() {
         // re-fetch with DataTables paging for this window
         chunk = await fetchDataTableAll(
           request,
-          "https://sistema.appbarber.com.br/pages/cadastros/buscaComandasHistoricov2.php",
+          `${SYSTEM_BASE}/pages/cadastros/buscaComandasHistoricov2.php`,
           {
             method: "POST",
             form: {

@@ -12,6 +12,8 @@
     "db:push": "drizzle-kit push --force",
     "db:studio": "drizzle-kit studio",
     "import:appbarber": "node scripts/import-appbarber.mjs",
+    "onboard:donna-elegant": "node scripts/onboard-donna-elegant.mjs",
+    "link:owner": "node scripts/link-owner.mjs",
     "backfill:client-links": "node scripts/backfill-client-links.mjs",
     "seed:owner": "node scripts/seed-owner.mjs"
   },

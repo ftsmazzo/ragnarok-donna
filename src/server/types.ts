@@ -13,14 +13,31 @@ export type SessionTenant = {
   slug: string;
 };
 
+export type SessionBranch = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
 /** Payload da sessão autenticada (JWT + contexto de execução). */
 export type AppSession = {
   user: SessionUser;
   tenant: SessionTenant;
+  /** Unidade/filial ativa dentro do tenant. */
+  branch?: SessionBranch | null;
   role: MemberRole;
   /** Profissional vinculado — barbeiro (staff). */
   staffId?: string | null;
 };
+
+export type TenantPickOption = {
+  slug: string;
+  name: string;
+};
+
+export type LoginResult =
+  | { status: "ok"; session: AppSession }
+  | { status: "pick_tenant"; tenants: TenantPickOption[] };
 
 export type TenantContext = SessionTenant & {
   timezone: string;

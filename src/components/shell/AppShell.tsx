@@ -11,10 +11,14 @@ export type ShellSession = {
   userName: string;
   tenantName: string;
   tenantSlug: string;
+  branchName?: string | null;
+  branchSlug?: string | null;
   role: MemberRole;
   staffId?: string | null;
   brandLogoSrc?: string | null;
   brandTagline?: string | null;
+  organizations: { slug: string; name: string }[];
+  branches: { slug: string; name: string }[];
 };
 
 type AppShellProps = {
