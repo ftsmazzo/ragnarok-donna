@@ -1,9 +1,13 @@
-import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
-import { NotFoundError } from "../errors";
+import { PAGE_SIZE } from "@/lib/cadastros";
+import { rangeBoundsSp, todaySp } from "@/lib/datetime";
+import { ForbiddenError, NotFoundError } from "../errors";
 import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
+import { isBarberRole } from "../permissions/roles";
+import { resolveSessionStaffId } from "../permissions/staff-scope";
 import type {
   CatalogProduct,
   CatalogService,
@@ -20,6 +24,57 @@ export async function getOrderPermissions(): Promise<OrderPermissions> {
     canWrite: hasCapability(session.role, "orders.write"),
     canCancel: hasCapability(session.role, "orders.write"),
   };
+}
+
+/** Comanda vinculada ao profissional (item ou agendamento). */
+function orderBelongsToStaffCondition(staffId: string) {
+  return or(
+    sql`exists (
+      select 1 from ${schema.orderItems}
+      where ${schema.orderItems.orderId} = ${schema.orders.id}
+        and ${schema.orderItems.staffId} = ${staffId}
+    )`,
+    sql`exists (
+      select 1 from ${schema.appointments}
+      where ${schema.appointments.id} = ${schema.orders.appointmentId}
+        and ${schema.appointments.staffId} = ${staffId}
+    )`
+  );
+}
+
+async function resolveBarberStaffFilter(): Promise<string | null | undefined> {
+  const session = await requireSession();
+  if (!isBarberRole(session.role)) return undefined;
+  return resolveSessionStaffId(session);
+}
+
+async function assertOwnOrderAccess(orderId: string): Promise<void> {
+  const staffFilter = await resolveBarberStaffFilter();
+  if (staffFilter === undefined) return;
+  if (!staffFilter) {
+    throw new ForbiddenError(
+      "Conta não vinculada a um profissional. Peça ao dono para vincular em Configurações → Equipe."
+    );
+  }
+
+  const tenant = await requireTenantContext();
+  const db = createDb();
+  const [row] = await db
+    .select({ id: schema.orders.id })
+    .from(schema.orders)
+    .where(
+      and(
+        eq(schema.orders.id, orderId),
+        eq(schema.orders.tenantId, tenant.id),
+        isNull(schema.orders.deletedAt),
+        orderBelongsToStaffCondition(staffFilter)
+      )
+    )
+    .limit(1);
+
+  if (!row) {
+    throw new ForbiddenError("Acesso restrito às suas comandas");
+  }
 }
 
 function orderListSelect() {
@@ -59,10 +114,11 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
 }> {
   const tenant = await requireTenantContext();
   const scope = await resolveBranchScope();
+  const staffFilter = await resolveBarberStaffFilter();
   const db = createDb();
   const q = opts?.q?.trim();
 
-  if (scope.isInactiveBranch) {
+  if (scope.isInactiveBranch || staffFilter === null) {
     return { rows: [], total: 0, totalCents: 0, q: q ?? "" };
   }
 
@@ -75,6 +131,10 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
       isNull(schema.orders.deletedAt)
     )
   );
+
+  if (typeof staffFilter === "string") {
+    where = and(where, orderBelongsToStaffCondition(staffFilter));
+  }
 
   if (q) {
     where = and(
@@ -99,17 +159,7 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
       total: sql<number>`coalesce(sum(${schema.orders.totalCents}), 0)::int`,
     })
     .from(schema.orders)
-    .where(
-      withBranchScope(
-        scope,
-        schema.orders.branchId,
-        and(
-          eq(schema.orders.tenantId, tenant.id),
-          eq(schema.orders.status, "open"),
-          isNull(schema.orders.deletedAt)
-        )
-      )
-    );
+    .where(where);
 
   return {
     rows: rows.map((r) => ({
@@ -124,7 +174,127 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
   };
 }
 
+export async function listOrderHistory(opts: {
+  from?: string;
+  to?: string;
+  status?: OrderStatus | "all";
+  q?: string;
+  page?: number;
+}): Promise<{
+  rows: OrderListItem[];
+  total: number;
+  totalCents: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  from: string;
+  to: string;
+  status: OrderStatus | "all";
+  q: string;
+}> {
+  const tenant = await requireTenantContext();
+  const scope = await resolveBranchScope();
+  const staffFilter = await resolveBarberStaffFilter();
+  const db = createDb();
+  const from = opts.from ?? shiftDaysSp(todaySp(), -30);
+  const to = opts.to ?? todaySp();
+  const { start, end } = rangeBoundsSp(from, to);
+  const status = opts.status ?? "all";
+  const page = Math.max(1, opts.page ?? 1);
+  const q = opts.q?.trim();
+
+  if (scope.isInactiveBranch || staffFilter === null) {
+    return {
+      rows: [],
+      total: 0,
+      totalCents: 0,
+      page,
+      pageSize: PAGE_SIZE,
+      totalPages: 1,
+      from,
+      to,
+      status,
+      q: q ?? "",
+    };
+  }
+
+  let where = withBranchScope(
+    scope,
+    schema.orders.branchId,
+    and(
+      eq(schema.orders.tenantId, tenant.id),
+      gte(schema.orders.openedAt, start),
+      lte(schema.orders.openedAt, end),
+      isNull(schema.orders.deletedAt)
+    )
+  );
+
+  if (typeof staffFilter === "string") {
+    where = and(where, orderBelongsToStaffCondition(staffFilter));
+  }
+
+  if (status !== "all") {
+    where = and(where, eq(schema.orders.status, status));
+  }
+
+  if (q) {
+    where = and(
+      where,
+      or(
+        ilike(schema.clients.name, `%${q}%`),
+        ilike(schema.orders.externalId, `%${q}%`)
+      )
+    );
+  }
+
+  const [totalRow] = await db
+    .select({
+      n: count(),
+      total: sql<number>`coalesce(sum(${schema.orders.totalCents}), 0)::int`,
+    })
+    .from(schema.orders)
+    .leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
+    .where(where);
+
+  const rows = await db
+    .select(orderListSelect())
+    .from(schema.orders)
+    .leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
+    .where(where)
+    .orderBy(desc(schema.orders.openedAt))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE);
+
+  const total = Number(totalRow?.n ?? 0);
+
+  return {
+    rows: rows.map((r) => ({
+      ...r,
+      status: r.status as OrderStatus,
+      itemCount: Number(r.itemCount ?? 0),
+      paidCents: Number(r.paidCents ?? 0),
+    })),
+    total,
+    totalCents: Number(totalRow?.total ?? 0),
+    page,
+    pageSize: PAGE_SIZE,
+    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    from,
+    to,
+    status,
+    q: q ?? "",
+  };
+}
+
+function shiftDaysSp(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T12:00:00-03:00`);
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+}
+
 export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
+  await assertOwnOrderAccess(orderId);
+
   const tenant = await requireTenantContext();
   const db = createDb();
 

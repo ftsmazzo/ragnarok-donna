@@ -3,8 +3,10 @@ import { Pagination } from "@/components/cadastro/Pagination";
 import { OrdersTable } from "@/components/comandas/OrdersTable";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
-import { listOrderHistory, type OrderStatus } from "@/lib/comandas";
 import { formatMoney } from "@/lib/format";
+import { requirePageAccess } from "@/server/permissions/page-access";
+import { listOrderHistory } from "@/server/orders";
+import type { OrderStatus } from "@/server/orders/types";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ type Props = {
 
 export default async function ComandasHistoricoPage({ searchParams }: Props) {
   const sp = await searchParams;
+  await requirePageAccess("/comandas/historico", sp);
   const status = (sp.status as OrderStatus | "all") || "all";
   const data = await listOrderHistory({
     from: sp.from,
@@ -65,7 +68,19 @@ export default async function ComandasHistoricoPage({ searchParams }: Props) {
               { label: "Valor total", value: formatMoney(data.totalCents) },
             ]}
           />
-          <OrdersTable rows={data.rows} />
+          <OrdersTable
+            rows={data.rows.map((r) => ({
+              id: r.id,
+              externalId: r.externalId,
+              clientName: r.clientName,
+              openedAt: r.openedAt,
+              closedAt: r.closedAt,
+              totalCents: r.totalCents,
+              status: r.status,
+              itemCount: r.itemCount,
+              profissional: r.staffLabel,
+            }))}
+          />
         </div>
         <div className="panel-footer">
           <Pagination

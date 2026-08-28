@@ -3,6 +3,7 @@ export {
   getOrderPermissions,
   listCatalogForOrders,
   listOpenOrders,
+  listOrderHistory,
 } from "./queries";
 export {
   addOrderItem,
