@@ -8,6 +8,7 @@ import {
   type StaffFilter,
 } from "@/server/staff";
 import { NotFoundError } from "@/server/errors";
+import { listTenantBranches } from "@/server/context/branch";
 import { monthStartSp, todaySp } from "@/lib/datetime";
 import {
   assertOwnStaffAccess,
@@ -60,7 +61,10 @@ export default async function ProfissionaisPage({ searchParams }: Props) {
   }
 
   const filter = (sp.filter as StaffFilter) || "ativos";
-  const data = await listStaffMembers({ q: sp.q, filter });
+  const [data, branches] = await Promise.all([
+    listStaffMembers({ q: sp.q, filter }),
+    listTenantBranches(session.tenant.id),
+  ]);
 
   let selectedStaff = null;
   let selectedPerformance = null;
@@ -89,6 +93,8 @@ export default async function ProfissionaisPage({ searchParams }: Props) {
         selectedStaff={selectedStaff}
         selectedPerformance={selectedPerformance}
         drawerMode={drawerMode}
+        branches={branches.map((b) => ({ id: b.id, name: b.name }))}
+        defaultBranchId={session.branch?.id ?? branches[0]?.id ?? null}
       />
     </Suspense>
   );

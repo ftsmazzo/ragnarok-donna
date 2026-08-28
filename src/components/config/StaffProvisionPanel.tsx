@@ -8,8 +8,12 @@ import {
 } from "@/app/(painel)/configuracoes/equipe/actions";
 import type { UnlinkedStaffItem } from "@/server/members/queries";
 
+type BranchOption = { id: string; name: string };
+
 type Props = {
   staff: UnlinkedStaffItem[];
+  branches: BranchOption[];
+  defaultBranchId?: string | null;
   hasEmailConfig: boolean;
   whatsappConnected: boolean;
 };
@@ -32,13 +36,20 @@ function formatInviteResult(
   return message;
 }
 
-export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }: Props) {
+export function StaffProvisionPanel({
+  staff,
+  branches,
+  defaultBranchId,
+  hasEmailConfig,
+  whatsappConnected,
+}: Props) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [customEmail, setCustomEmail] = useState<Record<string, string>>({});
   const [customPassword, setCustomPassword] = useState<Record<string, string>>({});
+  const [customBranch, setCustomBranch] = useState<Record<string, string>>({});
 
   const withEmail = staff.filter((s) => s.email?.trim());
   const withoutEmail = staff.filter((s) => !s.email?.trim());
@@ -49,6 +60,12 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
       ...prev,
       [item.id]: prev[item.id] ?? item.email?.trim() ?? "",
     }));
+    if (!item.branchId) {
+      setCustomBranch((prev) => ({
+        ...prev,
+        [item.id]: prev[item.id] ?? defaultBranchId ?? branches[0]?.id ?? "",
+      }));
+    }
   }
 
   async function provisionOne(item: UnlinkedStaffItem) {
@@ -57,11 +74,13 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
     try {
       const email = customEmail[item.id]?.trim();
       const password = customPassword[item.id]?.trim();
+      const branchId = item.branchId ? undefined : customBranch[item.id]?.trim() || undefined;
 
       const result = await provisionStaffAction({
         staffId: item.id,
         email: email || undefined,
         password: password || undefined,
+        branchId,
         sendInviteEmail: hasEmailConfig,
         sendInviteWhatsApp: whatsappConnected,
       });
@@ -180,13 +199,42 @@ export function StaffProvisionPanel({ staff, hasEmailConfig, whatsappConnected }
               const email = s.email?.trim();
               return (
                 <tr key={s.id}>
-                  <td className="cell-strong">{s.name}</td>
+                  <td className="cell-strong">
+                    {s.name}
+                    {!s.branchId ? (
+                      <div className="muted" style={{ fontSize: "0.85em" }}>
+                        Sem unidade — escolha ao criar acesso ou edite em Profissionais
+                      </div>
+                    ) : null}
+                  </td>
                   <td>{s.branchName ?? "—"}</td>
                   <td>{email || <span className="muted">Sem e-mail</span>}</td>
                   <td>{s.phone || <span className="muted">—</span>}</td>
                   <td className="cell-actions">
                     {open ? (
                       <div className="staff-provision-expand staff-provision-form">
+                        {!s.branchId && branches.length ? (
+                          <label>
+                            Unidade
+                            <select
+                              className="search-input"
+                              value={customBranch[s.id] ?? ""}
+                              disabled={isSubmitting}
+                              onChange={(e) =>
+                                setCustomBranch((prev) => ({ ...prev, [s.id]: e.target.value }))
+                              }
+                            >
+                              <option value="" disabled>
+                                Selecionar unidade
+                              </option>
+                              {branches.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
                         <label>
                           E-mail do login
                           <input

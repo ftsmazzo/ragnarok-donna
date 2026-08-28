@@ -49,6 +49,8 @@ export function EquipeView({ members, unlinkedStaff, branches, hasEmailConfig, w
     <>
       <StaffProvisionPanel
         staff={unlinkedStaff}
+        branches={branches}
+        defaultBranchId={branches[0]?.id ?? null}
         hasEmailConfig={hasEmailConfig}
         whatsappConnected={whatsappConnected}
       />

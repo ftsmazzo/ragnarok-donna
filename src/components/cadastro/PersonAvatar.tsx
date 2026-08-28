@@ -16,7 +16,7 @@ export function PersonAvatar({ name, src, size = 36, color }: Props) {
     background: color ?? "var(--info)",
   };
 
-  if (src && src.startsWith("http")) {
+  if (src && (src.startsWith("http") || src.startsWith("data:image/"))) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={src} alt={name} className="avatar" style={style} loading="lazy" />

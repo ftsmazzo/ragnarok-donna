@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { AppError, ForbiddenError, NotFoundError } from "../errors";
+import { requireBranchContext } from "../context/branch";
 import { requireCapability } from "../permissions/guards";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { getStaffMember } from "./queries";
@@ -14,6 +15,8 @@ export type StaffInput = {
   color?: string;
   commissionPct?: string;
   isBookable?: boolean;
+  branchId?: string | null;
+  avatarUrl?: string | null;
 };
 
 export type ScheduleSlotInput = {
@@ -54,7 +57,43 @@ function parseStaffInput(raw: StaffInput): StaffInput & { commissionBps: number 
     color: color || undefined,
     isBookable: raw.isBookable,
     commissionBps,
+    branchId: raw.branchId?.trim() || undefined,
+    avatarUrl:
+      raw.avatarUrl === undefined || raw.avatarUrl === null
+        ? undefined
+        : raw.avatarUrl.trim()
+          ? normalizeAvatarUrl(raw.avatarUrl)
+          : null,
   };
+}
+
+function normalizeAvatarUrl(input: string | null | undefined): string | null {
+  const s = String(input ?? "").trim();
+  if (!s) return null;
+  if (s.startsWith("data:image/")) {
+    if (s.length > 600_000) {
+      throw new AppError("VALIDATION", "Imagem muito grande (máx. ~450 KB)");
+    }
+    return s;
+  }
+  if (/^https?:\/\//i.test(s)) return s.slice(0, 2000);
+  throw new AppError("VALIDATION", "Foto: use um link https:// ou envie um arquivo de imagem");
+}
+
+async function resolveStaffBranchId(explicit?: string | null): Promise<string | null> {
+  if (explicit?.trim()) return explicit.trim();
+  const branch = await requireBranchContext();
+  return branch.id;
+}
+
+async function assertBranchBelongsToTenant(branchId: string, tenantId: string) {
+  const db = createDb();
+  const [row] = await db
+    .select({ id: schema.branches.id })
+    .from(schema.branches)
+    .where(and(eq(schema.branches.id, branchId), eq(schema.branches.tenantId, tenantId)))
+    .limit(1);
+  if (!row) throw new AppError("VALIDATION", "Unidade inválida");
 }
 
 function assertCanWriteAsync() {
@@ -81,16 +120,20 @@ export async function createStaffMember(raw: StaffInput): Promise<ActionResult> 
     const db = createDb();
     const { phone } = normalizePhone(input.phone);
     const email = normalizeEmail(input.email);
+    const branchId = await resolveStaffBranchId(input.branchId);
+    if (branchId) await assertBranchBelongsToTenant(branchId, tenant.id);
 
     const [created] = await db
       .insert(schema.staff)
       .values({
         tenantId: tenant.id,
+        branchId,
         name: input.name,
         nickname: input.nickname ?? null,
         phone,
         email,
         color: input.color ?? null,
+        avatarUrl: input.avatarUrl ?? null,
         defaultCommissionBps: input.commissionBps,
         isBookable: input.isBookable ?? true,
       })
@@ -116,6 +159,20 @@ export async function updateStaffMember(staffId: string, raw: StaffInput): Promi
     const { phone } = normalizePhone(input.phone);
     const email = normalizeEmail(input.email);
 
+    const [existing] = await db
+      .select({ branchId: schema.staff.branchId, avatarUrl: schema.staff.avatarUrl })
+      .from(schema.staff)
+      .where(and(eq(schema.staff.id, staffId), eq(schema.staff.tenantId, tenant.id)))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundError("Profissional não encontrado");
+    }
+
+    const branchId =
+      input.branchId ?? existing.branchId ?? (await resolveStaffBranchId(null));
+    if (branchId) await assertBranchBelongsToTenant(branchId, tenant.id);
+
     const [updated] = await db
       .update(schema.staff)
       .set({
@@ -124,6 +181,8 @@ export async function updateStaffMember(staffId: string, raw: StaffInput): Promi
         phone,
         email,
         color: input.color ?? null,
+        ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+        branchId,
         defaultCommissionBps: input.commissionBps,
         isBookable: input.isBookable ?? true,
         updatedAt: new Date(),
@@ -239,6 +298,41 @@ export async function deactivateStaffMember(staffId: string): Promise<ActionResu
     if (err instanceof ForbiddenError) return { ok: false, error: "Sem permissão" };
     console.error("[deactivateStaffMember]", err);
     return { ok: false, error: "Erro ao inativar profissional" };
+  }
+}
+
+export async function updateStaffBranch(
+  staffId: string,
+  branchId: string | null
+): Promise<ActionResult> {
+  try {
+    await assertCanWriteAsync();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    let resolvedBranchId = branchId?.trim() || null;
+    if (!resolvedBranchId) {
+      resolvedBranchId = (await resolveStaffBranchId(null)) ?? null;
+    }
+    if (resolvedBranchId) await assertBranchBelongsToTenant(resolvedBranchId, tenant.id);
+
+    const [updated] = await db
+      .update(schema.staff)
+      .set({ branchId: resolvedBranchId, updatedAt: new Date() })
+      .where(and(eq(schema.staff.id, staffId), eq(schema.staff.tenantId, tenant.id)))
+      .returning({ id: schema.staff.id });
+
+    if (!updated) {
+      throw new NotFoundError("Profissional não encontrado");
+    }
+
+    return { ok: true, id: updated.id };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof NotFoundError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: "Sem permissão" };
+    console.error("[updateStaffBranch]", err);
+    return { ok: false, error: "Erro ao atualizar unidade" };
   }
 }
 

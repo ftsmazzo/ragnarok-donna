@@ -18,11 +18,15 @@ type ListData = {
   q: string;
 };
 
+type BranchOption = { id: string; name: string };
+
 type Props = {
   data: ListData;
   selectedStaff: StaffDetail | null;
   selectedPerformance: StaffPerformance | null;
   drawerMode: "none" | "new" | "edit";
+  branches: BranchOption[];
+  defaultBranchId?: string | null;
 };
 
 function filterHref(filter: StaffFilter, q?: string) {
@@ -38,6 +42,8 @@ export function ProfissionaisView({
   selectedStaff,
   selectedPerformance,
   drawerMode,
+  branches,
+  defaultBranchId,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -171,6 +177,8 @@ export function ProfissionaisView({
         mode={drawerMode === "new" ? "new" : "edit"}
         staff={drawerMode === "edit" ? selectedStaff : null}
         performance={drawerMode === "edit" ? selectedPerformance : null}
+        branches={branches}
+        defaultBranchId={defaultBranchId}
         listFilter={data.filter}
         listQ={data.q}
         onClose={closeDrawer}

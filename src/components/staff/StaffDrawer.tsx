@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { StaffDetail } from "@/server/staff/queries";
 import type { StaffPerformance } from "@/server/staff/performance";
 import {
@@ -10,6 +10,7 @@ import {
   saveStaffSchedulesAction,
   updateStaffAction,
 } from "@/app/(painel)/profissionais/actions";
+import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import { StaffPerformancePanel } from "@/components/staff/StaffPerformancePanel";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
@@ -17,11 +18,15 @@ import { weekdayLabel } from "@/lib/format";
 
 type Mode = "new" | "edit";
 
+type BranchOption = { id: string; name: string };
+
 type Props = {
   open: boolean;
   mode: Mode;
   staff: StaffDetail | null;
   performance: StaffPerformance | null;
+  branches: BranchOption[];
+  defaultBranchId?: string | null;
   listFilter?: string;
   listQ?: string;
   onClose: () => void;
@@ -49,15 +54,25 @@ export function StaffDrawer({
   mode,
   staff,
   performance,
+  branches,
+  defaultBranchId,
   listFilter,
   listQ,
   onClose,
   onSaved,
 }: Props) {
   const [error, setError] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [tab, setTab] = useState<"cadastro" | "jornada" | "performance">("cadastro");
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (open) {
+      setAvatarUrl(staff?.avatarUrl ?? "");
+      setError("");
+    }
+  }, [open, staff?.id, staff?.avatarUrl]);
 
   const isEdit = mode === "edit" && staff;
   const isRemoved = Boolean(
@@ -126,8 +141,95 @@ export function StaffDrawer({
     });
   }
 
+  function handlePhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Selecione um arquivo de imagem (JPG, PNG ou WebP)");
+      return;
+    }
+    if (file.size > 450_000) {
+      setError("Imagem muito grande (máx. 450 KB)");
+      return;
+    }
+    setError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") setAvatarUrl(reader.result);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
   const cadastroForm = (
     <form id="staff-form" className="form-stack" onSubmit={handleCadastroSubmit}>
+      <input type="hidden" name="avatarUrl" value={avatarUrl} />
+
+      <div className="staff-photo-field">
+        <PersonAvatar
+          name={staff?.name ?? "Novo"}
+          src={avatarUrl}
+          color={staff?.color}
+          size={72}
+        />
+        <div className="staff-photo-actions">
+          <label className="btn btn-outline btn-sm">
+            {avatarUrl ? "Trocar foto" : "Enviar foto"}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              hidden
+              disabled={isRemoved}
+              onChange={handlePhotoFile}
+            />
+          </label>
+          {avatarUrl ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={isRemoved}
+              onClick={() => setAvatarUrl("")}
+            >
+              Remover
+            </button>
+          ) : null}
+          <p className="client-profile-hint muted">
+            JPG ou PNG, até 450 KB. Ou cole um link https:// abaixo.
+          </p>
+          <label className="form-field">
+            <span>URL da foto (opcional)</span>
+            <input
+              type="url"
+              placeholder="https://…"
+              value={avatarUrl.startsWith("data:") ? "" : avatarUrl}
+              disabled={isRemoved}
+              onChange={(e) => setAvatarUrl(e.target.value.trim())}
+            />
+          </label>
+        </div>
+      </div>
+
+      {branches.length ? (
+        <label className="form-field">
+          <span>Unidade *</span>
+          <select
+            name="branchId"
+            required
+            defaultValue={staff?.branchId ?? defaultBranchId ?? ""}
+            disabled={isRemoved}
+          >
+            <option value="" disabled>
+              Selecionar unidade
+            </option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
       <label className="form-field">
         <span>Nome *</span>
         <input

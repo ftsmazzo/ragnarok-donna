@@ -55,5 +55,7 @@ function parseStaffForm(formData: FormData) {
     color: String(formData.get("color") ?? ""),
     commissionPct: String(formData.get("commissionPct") ?? ""),
     isBookable: formData.get("isBookable") === "on",
+    branchId: String(formData.get("branchId") ?? ""),
+    avatarUrl: String(formData.get("avatarUrl") ?? ""),
   };
 }

@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { generateTempPassword } from "../auth/generate-password";
 import { hashPassword } from "../auth/password";
+import { requireBranchContext } from "../context/branch";
 import { AppError, ForbiddenError } from "../errors";
 import { sendMemberInviteEmail } from "../mail/invite";
 import { sendMemberInviteWhatsApp } from "../mail/invite-whatsapp";
@@ -236,6 +237,7 @@ export type ProvisionStaffInput = {
   staffId: string;
   password?: string;
   email?: string;
+  branchId?: string;
   sendInviteEmail?: boolean;
   sendInviteWhatsApp?: boolean;
 };
@@ -266,8 +268,22 @@ export async function provisionStaffAccess(input: ProvisionStaffInput): Promise<
       throw new AppError("VALIDATION", "Senha deve ter no mínimo 8 caracteres");
     }
 
-    if (!staff.branchId) {
-      throw new AppError("VALIDATION", `${staff.name} não está vinculado a uma unidade`);
+    let branchId = staff.branchId;
+    if (!branchId) {
+      branchId = input.branchId?.trim() || (await requireBranchContext()).id;
+      const db = createDb();
+      const [branch] = await db
+        .select({ id: schema.branches.id })
+        .from(schema.branches)
+        .where(and(eq(schema.branches.id, branchId!), eq(schema.branches.tenantId, tenant.id)))
+        .limit(1);
+      if (!branch) {
+        throw new AppError("VALIDATION", "Unidade inválida");
+      }
+      await db
+        .update(schema.staff)
+        .set({ branchId, updatedAt: new Date() })
+        .where(and(eq(schema.staff.id, staff.id), eq(schema.staff.tenantId, tenant.id)));
     }
 
     return createMemberAccess({
@@ -275,7 +291,7 @@ export async function provisionStaffAccess(input: ProvisionStaffInput): Promise<
       email,
       password,
       role: "staff",
-      branchId: staff.branchId,
+      branchId,
       staffId: staff.id,
       staffPhone: staff.phone,
       sendInviteEmail: input.sendInviteEmail ?? true,
@@ -332,10 +348,6 @@ export async function bulkProvisionStaffAccess(opts?: {
     for (const staff of staffRows) {
       if (!staff.email?.trim()) {
         skipped.push({ name: staff.name, reason: "Sem e-mail no cadastro" });
-        continue;
-      }
-      if (!staff.branchId) {
-        skipped.push({ name: staff.name, reason: "Sem unidade vinculada" });
         continue;
       }
 

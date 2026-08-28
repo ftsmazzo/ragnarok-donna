@@ -14,6 +14,7 @@ export type StaffListItem = {
   email: string | null;
   avatarUrl: string | null;
   color: string | null;
+  branchId: string | null;
   isBookable: boolean;
   isActive: boolean;
   defaultCommissionBps: number | null;
@@ -84,6 +85,7 @@ export async function listStaffMembers(opts: { q?: string; filter?: StaffFilter 
       email: schema.staff.email,
       avatarUrl: schema.staff.avatarUrl,
       color: schema.staff.color,
+      branchId: schema.staff.branchId,
       isBookable: schema.staff.isBookable,
       isActive: schema.staff.isActive,
       defaultCommissionBps: schema.staff.defaultCommissionBps,
@@ -119,6 +121,7 @@ export async function getStaffMember(staffId: string): Promise<StaffDetail> {
       email: schema.staff.email,
       avatarUrl: schema.staff.avatarUrl,
       color: schema.staff.color,
+      branchId: schema.staff.branchId,
       isBookable: schema.staff.isBookable,
       isActive: schema.staff.isActive,
       defaultCommissionBps: schema.staff.defaultCommissionBps,
