@@ -34,7 +34,7 @@ export function Topbar({ onToggleSidebar, session }: TopbarProps) {
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push(`/login/${session.tenantSlug}`);
     router.refresh();
   }
 

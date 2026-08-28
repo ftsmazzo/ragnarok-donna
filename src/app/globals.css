@@ -133,6 +133,18 @@ input {
   max-width: 220px;
 }
 
+.brand-logo-on-dark {
+  background: #0d0d0d;
+  border-radius: 10px;
+  padding: 10px 16px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.brand-logo-on-dark .brand-logo-img {
+  max-height: 48px;
+  max-width: 200px;
+}
+
 .sidebar-brand .brand-logo-md .brand-logo-img {
   /* wordmark no fundo escuro da sidebar */
   filter: none;

@@ -8,6 +8,8 @@ type Props = {
   mark?: string;
   alt: string;
   size?: "sm" | "md" | "lg";
+  /** Fundo escuro atrás da logo (login card branco). */
+  onDark?: boolean;
 };
 
 const PNG_FALLBACK = "/branding/ragnarok-logo.png";
@@ -19,13 +21,13 @@ const sizeClass = {
 } as const;
 
 /** Logo da unidade (wordmark) ou monograma — shell / login. */
-export function BrandMark({ logoSrc, mark = "BR", alt, size = "sm" }: Props) {
+export function BrandMark({ logoSrc, mark = "BR", alt, size = "sm", onDark = false }: Props) {
   const [src, setSrc] = useState(logoSrc || null);
   const [failed, setFailed] = useState(false);
 
   if (src && !failed) {
     return (
-      <span className={`brand-logo ${sizeClass[size]}`}>
+      <span className={`brand-logo ${sizeClass[size]}${onDark ? " brand-logo-on-dark" : ""}`}>
         {/* img nativo: SVG via next/image quebra no Safari mobile */}
         <img
           src={src}

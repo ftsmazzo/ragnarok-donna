@@ -1,10 +1,12 @@
-/** Marcas disponíveis no login — cada uma = tenant separado. */
+/** Marca de login por tenant — cada cliente tem rota `/login/{slug}`. */
 export type LoginBrand = {
   slug: string;
   name: string;
   tagline: string;
   logoSrc: string;
   accent: string;
+  /** Logo clara/transparente — exibir sobre fundo escuro no card branco. */
+  logoOnDark?: boolean;
 };
 
 export const LOGIN_BRANDS: LoginBrand[] = [
@@ -21,9 +23,10 @@ export const LOGIN_BRANDS: LoginBrand[] = [
     tagline: "Cabelos e unhas · Catanduva-SP",
     logoSrc: "/branding/donna-elegant-logo.png",
     accent: "#9A7B5A",
+    logoOnDark: true,
   },
 ];
 
-export function loginBrandForSlug(slug: string | null | undefined): LoginBrand {
-  return LOGIN_BRANDS.find((b) => b.slug === slug) ?? LOGIN_BRANDS[0];
+export function getLoginBrand(slug: string): LoginBrand | null {
+  return LOGIN_BRANDS.find((b) => b.slug === slug) ?? null;
 }
