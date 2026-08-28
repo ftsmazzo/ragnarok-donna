@@ -1,5 +1,5 @@
 /* Service worker — PWA Conversas + notificações locais */
-const CACHE = "ragnarok-conversas-v3";
+const CACHE = "ragnarok-conversas-v4";
 const ICON = "/branding/ragnarok-app-icon-192.png";
 const PRECACHE = ["/pwa/conversas", ICON, "/manifest-conversas.webmanifest"];
 

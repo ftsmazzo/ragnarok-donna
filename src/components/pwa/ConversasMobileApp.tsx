@@ -14,7 +14,11 @@ import { PwaHandoffWatcher } from "./PwaHandoffWatcher";
 import { PwaInstallBanner } from "./PwaInstallBanner";
 import { HandoffAlertOverlay } from "./HandoffAlertOverlay";
 import { usePwaInboxSync } from "./usePwaInboxSync";
-import { handoffItemKey, saveNotified, type HandoffPulseItem, vibrateHandoff, wasNotified } from "@/lib/pwa-handoff";
+import {
+  alertHandoff,
+  handoffIso,
+  type HandoffPulseItem,
+} from "@/lib/pwa-handoff";
 
 type Props = {
   rows: ConversationListItem[];
@@ -53,27 +57,37 @@ export function ConversasMobileApp({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [handoffAlert, setHandoffAlert] = useState<{ id: string; phoneE164: string } | null>(null);
+  const [handoffAlert, setHandoffAlert] = useState<HandoffPulseItem | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  const rowsSnapshot = useRef<Map<string, { mode: string; humanRequestedAt: string | null }>>(new Map());
 
   usePwaInboxSync(true);
 
+  // Detecta handoff pela mudança na lista (complementa o pulse)
   useEffect(() => {
-    const pendingRow = rows.find(needsAttention);
-    if (!pendingRow?.humanRequestedAt) return;
-    const key = handoffItemKey({
-      id: pendingRow.id,
-      phoneE164: pendingRow.phoneE164,
-      humanRequestedAt: pendingRow.humanRequestedAt.toISOString(),
-    });
-    if (wasNotified(key)) return;
-    setHandoffAlert({ id: pendingRow.id, phoneE164: pendingRow.phoneE164 });
-    vibrateHandoff();
-    saveNotified(key);
-  }, [rows]);
+    for (const row of rows) {
+      const iso = handoffIso(row.humanRequestedAt);
+      const prev = rowsSnapshot.current.get(row.id);
+      const modeChanged = prev && prev.mode === "ai" && row.mode === "human";
+      const newRequest =
+        iso && prev?.humanRequestedAt && iso !== prev.humanRequestedAt && row.mode === "human";
+      const firstPending = needsAttention(row) && !prev;
+
+      if (modeChanged || newRequest || firstPending) {
+        const item: HandoffPulseItem = {
+          id: row.id,
+          phoneE164: row.phoneE164,
+          humanRequestedAt: iso,
+        };
+        void alertHandoff(item, brandName, setHandoffAlert);
+      }
+
+      rowsSnapshot.current.set(row.id, { mode: row.mode, humanRequestedAt: iso });
+    }
+  }, [rows, brandName]);
 
   function onHandoffPulse(item: HandoffPulseItem) {
-    setHandoffAlert({ id: item.id, phoneE164: item.phoneE164 });
+    setHandoffAlert(item);
   }
 
   const inChat = Boolean(selected);
@@ -148,7 +162,7 @@ export function ConversasMobileApp({
     const human = selected.mode === "human";
     const title = selected.clientName ?? selected.phoneE164;
     const awaiting =
-      human && Boolean(selected.humanRequestedAt) && !selected.humanTakenAt;
+      human && Boolean(handoffIso(selected.humanRequestedAt)) && !selected.humanTakenAt;
 
     return (
       <div className="mchat">

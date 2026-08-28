@@ -12,15 +12,15 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: `${brand.displayName} · Conversas`,
-    manifest: "/manifest-conversas.webmanifest",
+    manifest: "/manifest-conversas.webmanifest?v=3",
     appleWebApp: {
       capable: true,
       title: brand.displayName,
       statusBarStyle: "black-translucent",
     },
     icons: {
-      icon: PWA_ICON,
-      apple: PWA_APPLE_ICON,
+      icon: [{ url: PWA_ICON, sizes: "192x192", type: "image/png" }],
+      apple: [{ url: PWA_APPLE_ICON, sizes: "180x180", type: "image/png" }],
     },
   };
 }

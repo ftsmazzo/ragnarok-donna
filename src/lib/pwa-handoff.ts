@@ -10,34 +10,40 @@ export function handoffItemKey(item: HandoffPulseItem): string {
   return `${item.id}:${item.humanRequestedAt ?? ""}`;
 }
 
-const NOTIFIED_KEY = "pwa-handoff-notified-v2";
-const POLL_MS = 3000;
-export { POLL_MS };
+/** Normaliza Date|string vindo do server component. */
+export function handoffIso(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value.toISOString();
+}
 
-type NotifiedMap = Record<string, string>;
+const DISMISSED_KEY = "pwa-handoff-dismissed-v3";
+export const POLL_MS = 3000;
 
-export function loadNotifiedMap(): NotifiedMap {
-  if (typeof localStorage === "undefined") return {};
+type DismissedMap = Record<string, string>;
+
+export function loadDismissedMap(): DismissedMap {
+  if (typeof sessionStorage === "undefined") return {};
   try {
-    return JSON.parse(localStorage.getItem(NOTIFIED_KEY) ?? "{}") as NotifiedMap;
+    return JSON.parse(sessionStorage.getItem(DISMISSED_KEY) ?? "{}") as DismissedMap;
   } catch {
     return {};
   }
 }
 
-export function saveNotified(key: string) {
+export function dismissHandoff(key: string) {
   try {
-    const map = loadNotifiedMap();
+    const map = loadDismissedMap();
     map[key] = new Date().toISOString();
-    const entries = Object.entries(map).slice(-100);
-    localStorage.setItem(NOTIFIED_KEY, JSON.stringify(Object.fromEntries(entries)));
+    const entries = Object.entries(map).slice(-50);
+    sessionStorage.setItem(DISMISSED_KEY, JSON.stringify(Object.fromEntries(entries)));
   } catch {
     /* ignore */
   }
 }
 
-export function wasNotified(key: string): boolean {
-  return Boolean(loadNotifiedMap()[key]);
+export function wasDismissed(key: string): boolean {
+  return Boolean(loadDismissedMap()[key]);
 }
 
 export async function pushHandoffNotification(
@@ -84,7 +90,7 @@ export async function pushTestNotification(brandName: string): Promise<boolean> 
   return pushHandoffNotification(
     {
       id: "test",
-      phoneE164: "+55 teste",
+      phoneE164: "Teste manual",
       humanRequestedAt: new Date().toISOString(),
     },
     brandName
@@ -93,4 +99,18 @@ export async function pushTestNotification(brandName: string): Promise<boolean> 
 
 export function vibrateHandoff() {
   navigator.vibrate?.([200, 120, 200, 120, 200]);
+}
+
+/** Dispara banner + vibração + push (se permitido). */
+export async function alertHandoff(
+  item: HandoffPulseItem,
+  brandName: string,
+  onBanner: (item: HandoffPulseItem) => void
+): Promise<void> {
+  const key = handoffItemKey(item);
+  if (wasDismissed(key)) return;
+
+  vibrateHandoff();
+  onBanner(item);
+  await pushHandoffNotification(item, brandName);
 }

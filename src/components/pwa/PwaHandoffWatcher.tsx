@@ -3,14 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  alertHandoff,
   handoffItemKey,
+  handoffIso,
   POLL_MS,
-  pushHandoffNotification,
   pushTestNotification,
-  saveNotified,
   type HandoffPulseItem,
   vibrateHandoff,
-  wasNotified,
 } from "@/lib/pwa-handoff";
 
 type Props = {
@@ -18,25 +17,21 @@ type Props = {
   onHandoff?: (item: HandoffPulseItem) => void;
 };
 
-/** Registra SW, pede permissão e avisa handoffs pendentes. */
+/** Sonda handoffs novos e dispara alerta (banner + push). */
 export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff }: Props) {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">("default");
   const onHandoffRef = useRef(onHandoff);
+  const lastPollRef = useRef<string | null>(null);
+  const bootRef = useRef(true);
   onHandoffRef.current = onHandoff;
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-
-    navigator.serviceWorker
-      .register("/sw-conversas.js", { scope: "/pwa/" })
-      .then(async (reg) => {
-        setReady(true);
-        await reg.update().catch(() => undefined);
-      })
-      .catch(() => setReady(false));
-
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/sw-conversas.js", { scope: "/pwa/" }).then((reg) => {
+        void reg.update();
+      });
+    }
     if (!("Notification" in window)) {
       setPerm("unsupported");
       return;
@@ -45,34 +40,35 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff 
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
     let cancelled = false;
 
-    async function handleItem(item: HandoffPulseItem) {
-      const key = handoffItemKey(item);
-      if (wasNotified(key)) return;
-
-      vibrateHandoff();
-      onHandoffRef.current?.(item);
-
-      const pushed = await pushHandoffNotification(item, brandName);
-      saveNotified(key);
-      router.refresh();
-
-      if (!pushed && !cancelled) {
-        onHandoffRef.current?.(item);
+    function sinceParam(): string {
+      if (bootRef.current) {
+        bootRef.current = false;
+        // Primeira sonda: pega handoffs dos últimos 2 min (app acabou de abrir)
+        return new Date(Date.now() - 2 * 60_000).toISOString();
       }
+      return lastPollRef.current ?? new Date(Date.now() - POLL_MS * 2).toISOString();
     }
 
     async function tick() {
+      const since = sinceParam();
+      lastPollRef.current = new Date().toISOString();
+
       try {
-        const res = await fetch("/api/agent/handoff-pulse", { cache: "no-store" });
+        const res = await fetch(
+          `/api/agent/handoff-pulse?since=${encodeURIComponent(since)}`,
+          { cache: "no-store", credentials: "include" }
+        );
         if (!res.ok || cancelled) return;
 
         const json = (await res.json()) as { items?: HandoffPulseItem[] };
+        let any = false;
         for (const item of json.items ?? []) {
-          await handleItem(item);
+          any = true;
+          await alertHandoff(item, brandName, (i) => onHandoffRef.current?.(i));
         }
+        if (any) router.refresh();
       } catch {
         /* ignore */
       }
@@ -84,15 +80,12 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff 
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [ready, brandName, router]);
+  }, [brandName, router]);
 
   async function enable() {
     if (!("Notification" in window)) return;
     const p = await Notification.requestPermission();
     setPerm(p);
-    if (p === "granted" && "serviceWorker" in navigator) {
-      await navigator.serviceWorker.ready;
-    }
   }
 
   async function testAlert() {
@@ -101,7 +94,7 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff 
     if (!ok) {
       onHandoffRef.current?.({
         id: "test",
-        phoneE164: "Teste de alerta",
+        phoneE164: "Teste manual",
         humanRequestedAt: new Date().toISOString(),
       });
     }
@@ -116,7 +109,7 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff 
         <button type="button" className="btn btn-outline btn-sm" onClick={testAlert}>
           Testar alerta
         </button>
-        <span className="muted-note">Com o app aberto, o banner laranja também aparece.</span>
+        <span className="muted-note">Handoff real: banner laranja + vibração.</span>
       </div>
     );
   }
@@ -126,9 +119,7 @@ export function PwaHandoffWatcher({ brandName = "Barbearia Ragnarok", onHandoff 
       <button type="button" className="btn btn-primary btn-sm" onClick={enable}>
         Ativar alertas
       </button>
-      <span className="muted-note">
-        Permita notificações para aviso quando alguém pedir atendimento humano.
-      </span>
+      <span className="muted-note">Permita notificações para aviso de handoff.</span>
     </div>
   );
 }
