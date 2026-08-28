@@ -423,6 +423,43 @@ input {
   border-bottom: 1px solid var(--line);
 }
 
+.staff-provision-panel {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.staff-provision-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.staff-provision-expand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.banner-success {
+  background: color-mix(in srgb, #3e7454 12%, transparent);
+  border: 1px solid color-mix(in srgb, #3e7454 35%, transparent);
+  color: var(--text);
+}
+
 .invite-member-form .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

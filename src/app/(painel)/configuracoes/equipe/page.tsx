@@ -16,11 +16,13 @@ export default async function EquipePage() {
     listTenantBranches(tenant.id),
   ]);
 
+  const hasEmailConfig = Boolean(process.env.RESEND_API_KEY?.trim());
+
   return (
     <>
       <PageHeader
         title="Equipe de acesso"
-        subtitle={`${members.length} usuário(s) · ${branches.length} unidade(s)`}
+        subtitle={`${members.length} usuário(s) · ${unlinkedStaff.length} profissional(is) sem login`}
       />
 
       <section className="panel">
@@ -29,6 +31,7 @@ export default async function EquipePage() {
             members={members}
             unlinkedStaff={unlinkedStaff}
             branches={branches.map((b) => ({ id: b.id, slug: b.slug, name: b.name }))}
+            hasEmailConfig={hasEmailConfig}
           />
         </div>
       </section>

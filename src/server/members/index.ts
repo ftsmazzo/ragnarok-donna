@@ -1,5 +1,21 @@
-export { listTenantMembers, listStaffWithoutUser } from "./queries";
-export { updateMemberRole, linkStaffToUser, inviteMember, updateMemberBranch, type InviteMemberInput } from "./mutations";
+export {
+  listTenantMembers,
+  listStaffWithoutUser,
+  getStaffForProvisioning,
+  type UnlinkedStaffItem,
+} from "./queries";
+export {
+  updateMemberRole,
+  linkStaffToUser,
+  inviteMember,
+  provisionStaffAccess,
+  bulkProvisionStaffAccess,
+  updateMemberBranch,
+  type InviteMemberInput,
+  type InviteMemberResult,
+  type ProvisionStaffInput,
+  type BulkProvisionResult,
+} from "./mutations";
 export {
   canSwitchBranches,
   canUseConsolidatedView,

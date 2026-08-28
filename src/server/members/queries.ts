@@ -16,6 +16,15 @@ export type MemberListItem = {
   createdAt: Date;
 };
 
+export type UnlinkedStaffItem = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  branchId: string | null;
+  branchName: string | null;
+};
+
 export async function listTenantMembers(): Promise<MemberListItem[]> {
   const tenant = await requireTenantContext();
   const db = createDb();
@@ -50,13 +59,21 @@ export async function listTenantMembers(): Promise<MemberListItem[]> {
   return rows;
 }
 
-export async function listStaffWithoutUser(): Promise<{ id: string; name: string }[]> {
+export async function listStaffWithoutUser(): Promise<UnlinkedStaffItem[]> {
   const tenant = await requireTenantContext();
   const db = createDb();
 
   return db
-    .select({ id: schema.staff.id, name: schema.staff.name })
+    .select({
+      id: schema.staff.id,
+      name: schema.staff.name,
+      email: schema.staff.email,
+      phone: schema.staff.phone,
+      branchId: schema.staff.branchId,
+      branchName: schema.branches.name,
+    })
     .from(schema.staff)
+    .leftJoin(schema.branches, eq(schema.staff.branchId, schema.branches.id))
     .where(
       and(
         eq(schema.staff.tenantId, tenant.id),
@@ -66,4 +83,33 @@ export async function listStaffWithoutUser(): Promise<{ id: string; name: string
       )
     )
     .orderBy(asc(schema.staff.name));
+}
+
+export async function getStaffForProvisioning(staffId: string): Promise<UnlinkedStaffItem | null> {
+  const tenant = await requireTenantContext();
+  const db = createDb();
+
+  const [row] = await db
+    .select({
+      id: schema.staff.id,
+      name: schema.staff.name,
+      email: schema.staff.email,
+      phone: schema.staff.phone,
+      branchId: schema.staff.branchId,
+      branchName: schema.branches.name,
+    })
+    .from(schema.staff)
+    .leftJoin(schema.branches, eq(schema.staff.branchId, schema.branches.id))
+    .where(
+      and(
+        eq(schema.staff.id, staffId),
+        eq(schema.staff.tenantId, tenant.id),
+        isNull(schema.staff.userId),
+        isNull(schema.staff.deletedAt),
+        eq(schema.staff.isActive, true)
+      )
+    )
+    .limit(1);
+
+  return row ?? null;
 }

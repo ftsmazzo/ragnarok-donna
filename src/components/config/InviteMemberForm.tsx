@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { inviteMemberAction } from "@/app/(painel)/configuracoes/equipe/actions";
 import type { MemberRole } from "@/server/types";
 import { ROLE_LABELS } from "@/server/permissions/roles";
@@ -10,23 +10,29 @@ type BranchOption = { id: string; slug: string; name: string };
 
 type Props = {
   branches: BranchOption[];
-  unlinkedStaff: { id: string; name: string }[];
+  hasEmailConfig: boolean;
 };
 
-const ROLES: MemberRole[] = ["owner", "admin", "manager", "staff", "readonly"];
+const ROLES: MemberRole[] = ["owner", "admin", "manager", "readonly"];
 
-export function InviteMemberForm({ branches, unlinkedStaff }: Props) {
+export function InviteMemberForm({ branches, hasEmailConfig }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [role, setRole] = useState<MemberRole>("staff");
+  const [success, setSuccess] = useState<string | null>(null);
+  const [role, setRole] = useState<MemberRole>("manager");
+  const [sendInviteEmail, setSendInviteEmail] = useState(hasEmailConfig);
 
-  const needsBranch = role === "manager" || role === "staff";
-  const showStaff = role === "staff";
+  const needsBranch = role === "manager" || role === "readonly";
+
+  useEffect(() => {
+    setSendInviteEmail(hasEmailConfig);
+  }, [hasEmailConfig]);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
     const fd = new FormData(e.currentTarget);
     startTransition(async () => {
       const result = await inviteMemberAction({
@@ -35,26 +41,31 @@ export function InviteMemberForm({ branches, unlinkedStaff }: Props) {
         password: String(fd.get("password") ?? ""),
         role,
         branchId: String(fd.get("branchId") ?? "") || null,
-        staffId: String(fd.get("staffId") ?? "") || null,
+        staffId: null,
+        sendInviteEmail,
       });
       if (!result.ok) {
         setError(result.error);
         return;
       }
+      let msg = `Usuário ${result.email} criado.`;
+      if (result.emailSent) msg += " E-mail enviado.";
+      else if (result.tempPassword) msg += ` Senha: ${result.tempPassword}`;
+      setSuccess(msg);
       e.currentTarget.reset();
-      setRole("staff");
+      setRole("manager");
       router.refresh();
     });
   }
 
   return (
     <form className="invite-member-form" onSubmit={onSubmit}>
-      <h3 className="panel-subtitle">Criar acesso</h3>
+      <h3 className="panel-subtitle">Outros acessos (gerente, admin…)</h3>
       <p className="client-profile-hint">
-        Crie login para sócios, gerentes ou profissionais. Gerente e barbeiro ficam presos à
-        unidade escolhida.
+        Para barbeiros importados, use a lista acima. Aqui cadastre gerentes, admins ou sócios.
       </p>
       {error ? <div className="form-error banner-inline">{error}</div> : null}
+      {success ? <div className="banner-success banner-inline">{success}</div> : null}
       <div className="form-grid">
         <label>
           Nome
@@ -71,7 +82,7 @@ export function InviteMemberForm({ branches, unlinkedStaff }: Props) {
             type="password"
             minLength={8}
             className="search-input"
-            required
+            placeholder="Opcional — gera automaticamente"
             disabled={pending}
           />
         </label>
@@ -103,20 +114,18 @@ export function InviteMemberForm({ branches, unlinkedStaff }: Props) {
             </select>
           </label>
         ) : null}
-        {showStaff ? (
-          <label>
-            Profissional (opcional)
-            <select name="staffId" className="search-input" disabled={pending}>
-              <option value="">— Depois —</option>
-              {unlinkedStaff.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
       </div>
+      {hasEmailConfig ? (
+        <label className="checkbox-inline">
+          <input
+            type="checkbox"
+            checked={sendInviteEmail}
+            disabled={pending}
+            onChange={(e) => setSendInviteEmail(e.target.checked)}
+          />
+          Enviar e-mail com login e senha
+        </label>
+      ) : null}
       <button type="submit" className="btn btn-primary" disabled={pending}>
         {pending ? "Criando…" : "Criar usuário"}
       </button>

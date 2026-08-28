@@ -2,11 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  bulkProvisionStaffAccess,
   inviteMember,
   linkStaffToUser,
+  provisionStaffAccess,
   updateMemberBranch,
   updateMemberRole,
   type InviteMemberInput,
+  type ProvisionStaffInput,
 } from "@/server/members";
 import type { MemberRole } from "@/server/types";
 
@@ -36,6 +39,22 @@ export async function linkStaffAction(membershipId: string, staffId: string) {
 
 export async function inviteMemberAction(input: InviteMemberInput) {
   const result = await inviteMember(input);
+  if (result.ok) {
+    revalidatePath("/configuracoes/equipe");
+  }
+  return result;
+}
+
+export async function provisionStaffAction(input: ProvisionStaffInput) {
+  const result = await provisionStaffAccess(input);
+  if (result.ok) {
+    revalidatePath("/configuracoes/equipe");
+  }
+  return result;
+}
+
+export async function bulkProvisionStaffAction(sendInviteEmail = true) {
+  const result = await bulkProvisionStaffAccess({ sendInviteEmail });
   if (result.ok) {
     revalidatePath("/configuracoes/equipe");
   }

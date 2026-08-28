@@ -1,4 +1,5 @@
 import type { ConsolidatedOverview } from "@/server/insights/consolidated";
+import { formatMoney } from "@/lib/format";
 
 type Props = {
   data: ConsolidatedOverview;
@@ -13,24 +14,36 @@ export function ConsolidatedOverviewPanel({ data }: Props) {
           <div key={b.slug} className="consolidated-card panel">
             <div className="panel-body">
               <strong>{b.name.replace(/^Donna Elegant — /, "")}</strong>
-              <ul className="consolidated-stats">
-                <li>
-                  <span>Profissionais</span>
-                  <strong>{b.staff.toLocaleString("pt-BR")}</strong>
-                </li>
-                <li>
-                  <span>Clientes (cadastro)</span>
-                  <strong>{b.clients.toLocaleString("pt-BR")}</strong>
-                </li>
-                <li>
-                  <span>Agenda hoje</span>
-                  <strong>{b.appointmentsToday.toLocaleString("pt-BR")}</strong>
-                </li>
-                <li>
-                  <span>Comandas abertas</span>
-                  <strong>{b.openOrdersToday.toLocaleString("pt-BR")}</strong>
-                </li>
-              </ul>
+              {b.staff === 0 ? (
+                <p className="client-profile-hint muted">Unidade ainda sem equipe operacional</p>
+              ) : (
+                <ul className="consolidated-stats">
+                  <li>
+                    <span>Profissionais</span>
+                    <strong>{b.staff.toLocaleString("pt-BR")}</strong>
+                  </li>
+                  <li>
+                    <span>Agenda hoje</span>
+                    <strong>{b.appointmentsToday.toLocaleString("pt-BR")}</strong>
+                  </li>
+                  <li>
+                    <span>Clientes hoje</span>
+                    <strong>{b.clientsToday.toLocaleString("pt-BR")}</strong>
+                  </li>
+                  <li>
+                    <span>Comandas abertas</span>
+                    <strong>{b.openOrdersToday.toLocaleString("pt-BR")}</strong>
+                  </li>
+                  <li>
+                    <span>Faturamento hoje</span>
+                    <strong>{formatMoney(b.revenueTodayCents)}</strong>
+                  </li>
+                  <li>
+                    <span>Faturamento mês</span>
+                    <strong>{formatMoney(b.revenueMonthCents)}</strong>
+                  </li>
+                </ul>
+              )}
             </div>
           </div>
         ))}
@@ -47,8 +60,12 @@ export function ConsolidatedOverviewPanel({ data }: Props) {
                 <strong>{data.totals.appointmentsToday.toLocaleString("pt-BR")}</strong>
               </li>
               <li>
-                <span>Comandas abertas</span>
-                <strong>{data.totals.openOrdersToday.toLocaleString("pt-BR")}</strong>
+                <span>Faturamento hoje</span>
+                <strong>{formatMoney(data.totals.revenueTodayCents)}</strong>
+              </li>
+              <li>
+                <span>Faturamento mês</span>
+                <strong>{formatMoney(data.totals.revenueMonthCents)}</strong>
               </li>
             </ul>
           </div>

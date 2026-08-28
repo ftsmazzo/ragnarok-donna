@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import type { MemberListItem } from "@/server/members/queries";
+import type { MemberListItem, UnlinkedStaffItem } from "@/server/members/queries";
 import type { MemberRole } from "@/server/types";
 import { ROLE_LABELS, roleRequiresBranch } from "@/server/permissions/roles";
 import {
@@ -10,18 +10,20 @@ import {
   updateMemberRoleAction,
 } from "@/app/(painel)/configuracoes/equipe/actions";
 import { InviteMemberForm } from "./InviteMemberForm";
+import { StaffProvisionPanel } from "./StaffProvisionPanel";
 
 type BranchOption = { id: string; slug: string; name: string };
 
 type Props = {
   members: MemberListItem[];
-  unlinkedStaff: { id: string; name: string }[];
+  unlinkedStaff: UnlinkedStaffItem[];
   branches: BranchOption[];
+  hasEmailConfig: boolean;
 };
 
 const ROLES: MemberRole[] = ["owner", "admin", "manager", "staff", "readonly"];
 
-export function EquipeView({ members, unlinkedStaff, branches }: Props) {
+export function EquipeView({ members, unlinkedStaff, branches, hasEmailConfig }: Props) {
   const [pending, startTransition] = useTransition();
 
   function onRoleChange(membershipId: string, role: MemberRole) {
@@ -44,13 +46,14 @@ export function EquipeView({ members, unlinkedStaff, branches }: Props) {
 
   return (
     <>
-      <InviteMemberForm branches={branches} unlinkedStaff={unlinkedStaff} />
+      <StaffProvisionPanel staff={unlinkedStaff} hasEmailConfig={hasEmailConfig} />
+
+      <InviteMemberForm branches={branches} hasEmailConfig={hasEmailConfig} />
 
       <p className="client-profile-hint">
         <strong>Dono</strong> navega entre unidades e vê consolidado.{" "}
         <strong>Gerente</strong> opera uma loja (sem relatórios financeiros).{" "}
-        <strong>Barbeiro</strong> vê agenda e comissões próprias quando vinculado ao
-        profissional.
+        <strong>Barbeiro</strong> vê agenda, comandas e comissões próprias.
       </p>
 
       <div className="table-wrap">
