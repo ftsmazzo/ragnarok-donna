@@ -60,7 +60,9 @@ export function StaffDrawer({
   const [pending, startTransition] = useTransition();
 
   const isEdit = mode === "edit" && staff;
-  const isRemoved = Boolean(staff?.deletedAt || !staff?.isActive);
+  const isRemoved = Boolean(
+    isEdit && staff && (staff.deletedAt || !staff.isActive)
+  );
   const schedules = staff?.schedules ?? [];
 
   function handleCadastroSubmit(e: React.FormEvent<HTMLFormElement>) {
