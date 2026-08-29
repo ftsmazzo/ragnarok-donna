@@ -49,8 +49,9 @@ REGRAS:
 10. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
 11. Nunca invente horário, produto, preço ou dia da semana. Nunca diga que é IA/bot.
 12. Resposta final = só o texto do WhatsApp.
-13. LISTA DE ESPERA: se o cliente pediu um horário e list_slots indicar preferredHourOccupied=true (ou a hora não aparecer nos slots), na MESMA mensagem ofereça alternativas E pergunte se quer entrar na lista de espera daquele horário. Nunca responda só com outras horas sem mencionar a espera.
-14. DATAS: para "próxima segunda", "amanhã", "quarta que vem", "1/9" etc. chame resolve_date (ou list_slots com datePhrase). Fale sempre o weekday do CALENDÁRIO / dateLabel da tool. Se o cliente disser "segunda 1/9" e 1/9 for terça, corrija com educação usando o note da tool.
+13. HORÁRIO OCUPADO: primeiro ofereça 2–3 alternativas (outro barbeiro no mesmo horário, outro horário no mesmo dia, outro dia no mesmo horário). Lista de espera SÓ se o cliente recusar as alternativas.
+14. LISTA DE ESPERA: quando o cliente aceitar esperar, chame add_to_waitlist com o telefone da conversa. NUNCA use handoff_human por falha ou sucesso da espera — a Donna resolve sozinha. Se a tool falhar, peça desculpa e tente de novo (ou confirme telefone), sem chamar a equipe.
+15. DATAS: para "próxima segunda", "amanhã", "quarta que vem", "1/9" etc. chame resolve_date (ou list_slots com datePhrase). Fale sempre o weekday do CALENDÁRIO / dateLabel da tool. Se o cliente disser "segunda 1/9" e 1/9 for terça, corrija com educação usando o note da tool.
 `.trim();
 }
 
@@ -166,8 +167,9 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   const toolCallsAudit: OrchestratorResult["toolCalls"] = [];
   const toolsFired: AgentToolName[] = [];
   let handoff = false;
-  /** Se list_slots marcou horário pedido ocupado, garante oferta de espera na resposta final. */
-  let waitlistOfferHour: number | null = null;
+  /** Alternativas calculadas — se a LLM esquecer, anexa na resposta. */
+  let pendingAlternatives: string[] = [];
+  let waitlistAcceptedThisTurn = false;
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -258,21 +260,73 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         if (name === "resolve_date" && !args.phrase) {
           args.phrase = input.userText;
         }
-        if (name === "add_to_waitlist" && !args.phone && !args.phoneE164 && !args.clientId) {
-          args.phone = input.phoneE164;
+        if (name === "add_to_waitlist") {
+          if (!args.phone && !args.phoneE164) args.phone = input.phoneE164;
+          waitlistAcceptedThisTurn = true;
         }
         if (name === "send_whatsapp" && !args.phoneE164) args.phoneE164 = input.phoneE164;
-        const exec = await executeTool(name, toolCtx, args);
+
+        // Lista de espera é 100% Donna — não escalar para humano nesse fluxo
+        if (
+          name === "handoff_human" &&
+          (waitlistAcceptedThisTurn ||
+            /espera|lista de espera|me avisa se liberar|quero sim/i.test(input.userText))
+        ) {
+          const forced = await executeTool("add_to_waitlist", toolCtx, {
+            phone: input.phoneE164,
+            notes: String(args.reason ?? args.notes ?? "cliente pediu lista de espera"),
+            desiredDate: args.desiredDate,
+            staffId: args.staffId,
+            serviceId: args.serviceId,
+            clientId: args.clientId,
+          });
+          toolCallsAudit.push({ name: "add_to_waitlist", ok: forced.ok });
+          toolsFired.push("add_to_waitlist");
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name,
+            content: JSON.stringify(
+              forced.ok
+                ? {
+                    ok: true,
+                    redirected: "add_to_waitlist",
+                    waitlistId: (forced.data as { waitlistId?: string } | undefined)?.waitlistId,
+                    instruction:
+                      "Cliente colocado na espera. Confirme no Zap. NÃO diga que chamou a equipe.",
+                  }
+                : {
+                    ok: false,
+                    error: forced.error,
+                    instruction:
+                      "Tente add_to_waitlist de novo só com phone. NÃO chame handoff_human.",
+                  }
+            ),
+          });
+          continue;
+        }
+
+        let exec = await executeTool(name, toolCtx, args);
+        if (name === "add_to_waitlist" && !exec.ok) {
+          exec = await executeTool("add_to_waitlist", toolCtx, {
+            phone: input.phoneE164,
+            notes: String(args.notes ?? "espera de horário"),
+            desiredDate: args.desiredDate,
+          });
+        }
         toolCallsAudit.push({ name, ok: exec.ok });
         toolsFired.push(name);
         if (name === "handoff_human" && exec.ok) handoff = true;
         if (name === "list_slots" && exec.ok && exec.data && typeof exec.data === "object") {
           const data = exec.data as {
-            waitlistOffer?: boolean;
-            preferredHour?: number | null;
+            alternatives?: { label?: string }[];
+            offerWaitlistOnlyAfterAlternatives?: boolean;
           };
-          if (data.waitlistOffer && data.preferredHour != null) {
-            waitlistOfferHour = Number(data.preferredHour);
+          if (data.offerWaitlistOnlyAfterAlternatives && Array.isArray(data.alternatives)) {
+            pendingAlternatives = data.alternatives
+              .map((a) => a.label)
+              .filter((x): x is string => Boolean(x))
+              .slice(0, 3);
           }
         }
 
@@ -297,11 +351,10 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     }
 
     if (
-      waitlistOfferHour != null &&
-      !/lista de espera|entrar na espera|na espera|fila de espera|me avisa se liberar/i.test(reply)
+      pendingAlternatives.length >= 2 &&
+      !/outro|alternativa|também|posso te|com o |com a /i.test(reply)
     ) {
-      const hh = String(waitlistOfferHour).padStart(2, "0");
-      reply = `${reply}\n\nSe preferir manter as ${hh}h, posso te colocar na lista de espera e te aviso se liberar. Quer?`;
+      reply = `${reply}\n\nPosso te oferecer: ${pendingAlternatives.join("; ")}. Qual prefere? Se nenhuma servir, aí te coloco na lista de espera.`;
     }
 
     return {

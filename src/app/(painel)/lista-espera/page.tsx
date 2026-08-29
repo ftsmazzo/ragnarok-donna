@@ -28,10 +28,9 @@ export default async function ListaEsperaPage({ searchParams }: Props) {
       />
 
       <p className="client-profile-hint banner-info banner-inline" style={{ marginBottom: 12 }}>
-        A espera é gerida pela <strong>Donna</strong>: quando o horário pedido está ocupado, ela
-        sugere alternativas e, se o cliente aceitar esperar, usa a skill{" "}
-        <code>add_to_waitlist</code>. Se alguém cancelar (Zap ou painel), a Donna avisa o primeiro
-        da fila e pergunta se pode agendar.
+        A lista de espera é <strong>só da Donna</strong> (sem intervenção humana no Zap): quando o
+        horário pedido está ocupado, ela oferece 2–3 alternativas; se o cliente recusar, ela
+        coloca na espera. Se alguém cancelar, a Donna avisa o primeiro da fila.
       </p>
       <SummaryCards
         cards={[

@@ -18,13 +18,13 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
    → Liste TODOS os retornados (ou diga que não há). Nunca cite só o mais longe. Nunca invente dia da semana.
 5. Datas: SEMPRE resolve_date com a frase do cliente ("próxima segunda", "amanhã", "1/9", "quarta que vem") ANTES de list_slots/book. Use o date + label retornados — NUNCA invente weekday. Se mismatchWeekday=true, diga o dia correto.
 6. Marcar → list_services → resolve_date → list_slots (passe preferredHour se pediu hora, ex.: 17; datePhrase opcional) → confirme com label da tool → book_appointment.
-7. LISTA DE ESPERA (OBRIGATÓRIO quando o horário pedido NÃO está livre):
-   - Na MESMA mensagem em que avisa que o horário está ocupado e oferece alternativas, SEMPRE pergunte também se quer entrar na lista de espera daquele horário (ex.: "às 17h").
-   - Frase modelo: "O Diego não tem 17h livre. Posso te encaixar às 13h, 14h ou 15h — ou te coloco na lista de espera pra 17h e te aviso se liberar. O que prefere?"
-   - NÃO feche só com alternativas. A espera tem que ser oferecida junto.
-   - Se o cliente aceitar espera (ou disser "pode colocar na espera" / "me avisa se liberar"):
-     → add_to_waitlist com clientId/phone, staffId, serviceId, desiredDate=YYYY-MM-DD, notes="horário desejado HH:00".
-     → Confirme: "Pronto, você está na espera. Se liberar, te chamo no Zap."
+7. QUANDO O HORÁRIO PEDIDO NÃO ESTÁ LIVRE (ordem obrigatória):
+   a) Ofereça 2–3 alternativas do campo alternatives / slots: (i) mesmo dia+hora com OUTRO barbeiro; (ii) outro horário no MESMO dia com o profissional pedido; (iii) OUTRO dia no mesmo horário com o profissional.
+   b) NÃO ofereça lista de espera nessa primeira mensagem — espere o cliente recusar as opções.
+   c) Só se disser não / preferir esperar / "me avisa se liberar":
+      → add_to_waitlist com phone da conversa, staffId, serviceId, desiredDate=YYYY-MM-DD, notes="deseja HH:00 com Nome".
+      → Confirme: "Pronto, você está na espera. Se liberar, te chamo no Zap."
+      → NUNCA chame handoff_human por causa da lista de espera. A espera é 100% da Donna.
 8. Cancelar → list_client_appointments → cancel_appointment com o id.
 9. Endereço / horário / sobre a loja → get_unit_context.
 Nunca invente horário nem dia da semana.`,
@@ -274,7 +274,7 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     function: {
       name: "add_to_waitlist",
       description:
-        "Coloca o cliente na lista de espera do horário desejado. Chame quando o cliente aceitar esperar (ou pedir para avisar se liberar). desiredDate=YYYY-MM-DD; notes deve incluir a hora (ex.: 'deseja 17:00 com Diego').",
+        "Coloca o cliente na lista de espera (Donna resolve sozinha — NUNCA use handoff_human). Chame só depois que o cliente recusou alternativas ou pediu para esperar. Sempre passe phone; desiredDate=YYYY-MM-DD; notes com hora (ex.: 'deseja 17:00 com Diego').",
       parameters: {
         type: "object",
         properties: {

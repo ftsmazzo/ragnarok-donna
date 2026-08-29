@@ -1,3 +1,19 @@
+import {
+  addToWaitlistForAgent,
+  listWaitlistForAgent,
+  promoteWaitlistOnCancel,
+} from "./domain-waitlist";
+import { suggestBookingAlternatives } from "./suggest-alternatives";
+import { describeDate, resolveTemporalPhrase } from "./temporal";
+import { getConnectionForTenant, deliverWhatsAppText } from "./outbound";
+import { dayBoundsSp } from "@/server/agenda/utils";
+import { TOOL_CATALOG } from "./catalog";
+import {
+  formatHoursForAgent,
+  readBusinessProfileFromSettings,
+} from "./business-profile";
+import type { AgentToolName, ToolResult } from "./types";
+import { normalizePhone } from "@/server/clients/normalize";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import {
@@ -18,21 +34,6 @@ import {
   listOpenOrdersForAgent,
   openOrderForAgent,
 } from "./domain-orders";
-import {
-  addToWaitlistForAgent,
-  listWaitlistForAgent,
-  promoteWaitlistOnCancel,
-} from "./domain-waitlist";
-import { describeDate, resolveTemporalPhrase } from "./temporal";
-import { getConnectionForTenant, deliverWhatsAppText } from "./outbound";
-import { dayBoundsSp } from "@/server/agenda/utils";
-import { TOOL_CATALOG } from "./catalog";
-import {
-  formatHoursForAgent,
-  readBusinessProfileFromSettings,
-} from "./business-profile";
-import type { AgentToolName, ToolResult } from "./types";
-import { normalizePhone } from "@/server/clients/normalize";
 
 const ACTIVE_APPOINTMENT_STATUSES = ["scheduled", "confirmed", "arrived", "in_progress"] as const;
 
@@ -803,7 +804,27 @@ export async function executeTool(
           args.preferredHour != null && Number.isFinite(Number(args.preferredHour))
             ? Number(args.preferredHour)
             : null;
-        const staffIdFilter = String(args.staffId ?? "").trim() || null;
+        let staffIdFilter = String(args.staffId ?? args.staffName ?? "").trim() || null;
+        // Resolve nome → id (ex.: "Diego")
+        if (staffIdFilter && !/^[0-9a-f-]{36}$/i.test(staffIdFilter)) {
+          const dbStaff = createDb();
+          const [st] = await dbStaff
+            .select({ id: schema.staff.id })
+            .from(schema.staff)
+            .where(
+              and(
+                eq(schema.staff.tenantId, ctx.tenantId),
+                eq(schema.staff.isActive, true),
+                isNull(schema.staff.deletedAt),
+                or(
+                  ilike(schema.staff.name, `%${staffIdFilter}%`),
+                  ilike(schema.staff.nickname, `%${staffIdFilter}%`)
+                )
+              )
+            )
+            .limit(1);
+          staffIdFilter = st?.id ?? null;
+        }
         let slots = await listFreeSlotsForTenant({
           tenantId: ctx.tenantId,
           date,
@@ -811,12 +832,25 @@ export async function executeTool(
           period,
           limit: Number(args.limit ?? 8),
         });
+        const allDaySlots = slots;
         if (staffIdFilter) {
           slots = slots.filter((s) => s.staffId === staffIdFilter);
         }
         const preferredHourOccupied =
           preferredHour != null &&
           !slots.some((s) => s.hour === preferredHour || s.hour === preferredHour % 24);
+        const staffDayFull = Boolean(staffIdFilter) && slots.length === 0;
+
+        const needsAlternatives = preferredHourOccupied || staffDayFull;
+        const alts = needsAlternatives
+          ? await suggestBookingAlternatives({
+              tenantId: ctx.tenantId,
+              date,
+              preferredHour,
+              preferredStaffId: staffIdFilter,
+              durationMin: Number.isFinite(durationMin) ? durationMin : 30,
+            })
+          : null;
 
         const dateInfo = describeDate(date);
         result = {
@@ -830,7 +864,19 @@ export async function executeTool(
             period,
             preferredHour,
             preferredHourOccupied,
+            staffDayFull,
             slots,
+            otherStaffSameDay:
+              preferredHour != null
+                ? allDaySlots
+                    .filter(
+                      (s) =>
+                        s.hour === preferredHour &&
+                        (!staffIdFilter || s.staffId !== staffIdFilter)
+                    )
+                    .slice(0, 3)
+                : [],
+            alternatives: alts?.alternatives ?? [],
             instruction:
               "Ao falar a data com o cliente, use dateLabel (weekday real). Nunca diga outro dia da semana.",
             ...(resolvedMeta?.mismatchWeekday
@@ -839,11 +885,12 @@ export async function executeTool(
                   note: resolvedMeta.note,
                 }
               : {}),
-            ...(preferredHourOccupied
+            ...(needsAlternatives
               ? {
-                  waitlistOffer: true,
-                  waitlistInstruction:
-                    "OBRIGATÓRIO na resposta ao cliente: (1) diga que o horário pedido não está livre; (2) ofereça 2–3 alternativas dos slots; (3) pergunte se quer entrar na LISTA DE ESPERA daquele horário. Se aceitar, chame add_to_waitlist.",
+                  waitlistOffer: false,
+                  offerWaitlistOnlyAfterAlternatives: true,
+                  flowInstruction:
+                    "OBRIGATÓRIO nesta ordem: (1) diga que o horário/profissional pedido não está livre; (2) ofereça 2–3 itens de `alternatives` (outro barbeiro no mesmo horário, outro horário no mesmo dia, outro dia no mesmo horário); (3) NÃO ofereça lista de espera ainda — só se o cliente recusar as alternativas. Quando aceitar espera, chame add_to_waitlist (sem handoff_human).",
                 }
               : {}),
           },

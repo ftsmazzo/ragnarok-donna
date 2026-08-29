@@ -1,10 +1,89 @@
-import { and, asc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { dayBoundsSp, formatDateSp, formatTimeSp } from "@/lib/datetime";
 import { normalizePhone } from "@/server/clients/normalize";
 import { getConnectionForTenant, deliverWhatsAppText } from "./outbound";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_RE.test(value);
+}
+
+async function resolveStaffId(
+  tenantId: string,
+  raw: string | undefined
+): Promise<string | null> {
+  if (!raw?.trim()) return null;
+  const value = raw.trim();
+  if (isUuid(value)) return value;
+  const db = createDb();
+  const [row] = await db
+    .select({ id: schema.staff.id })
+    .from(schema.staff)
+    .where(
+      and(
+        eq(schema.staff.tenantId, tenantId),
+        eq(schema.staff.isActive, true),
+        isNull(schema.staff.deletedAt),
+        or(
+          ilike(schema.staff.name, `%${value}%`),
+          ilike(schema.staff.nickname, `%${value}%`)
+        )
+      )
+    )
+    .limit(1);
+  return row?.id ?? null;
+}
+
+async function resolveServiceId(
+  tenantId: string,
+  raw: string | undefined
+): Promise<string | null> {
+  if (!raw?.trim()) return null;
+  const value = raw.trim();
+  if (isUuid(value)) return value;
+  const db = createDb();
+  const [row] = await db
+    .select({ id: schema.services.id })
+    .from(schema.services)
+    .where(
+      and(
+        eq(schema.services.tenantId, tenantId),
+        eq(schema.services.isActive, true),
+        isNull(schema.services.deletedAt),
+        ilike(schema.services.name, `%${value}%`)
+      )
+    )
+    .limit(1);
+  return row?.id ?? null;
+}
+
+async function resolveClientId(
+  tenantId: string,
+  raw: string | undefined,
+  phoneE164: string | null
+): Promise<string | null> {
+  if (isUuid(raw)) return raw!;
+  if (!phoneE164) return null;
+  const db = createDb();
+  const last11 = phoneE164.replace(/\D/g, "").slice(-11);
+  const [client] = await db
+    .select({ id: schema.clients.id })
+    .from(schema.clients)
+    .where(
+      and(
+        eq(schema.clients.tenantId, tenantId),
+        isNull(schema.clients.deletedAt),
+        sql`right(regexp_replace(coalesce(${schema.clients.phoneE164}, ''), '\\D', '', 'g'), 11) = ${last11}`
+      )
+    )
+    .limit(1);
+  return client?.id ?? null;
+}
 
 export async function addToWaitlistForAgent(input: {
   tenantId: string;
@@ -17,23 +96,10 @@ export async function addToWaitlistForAgent(input: {
 }): Promise<ActionResult> {
   const db = createDb();
   const { phone, phoneE164 } = normalizePhone(input.phone);
-  let clientId = input.clientId;
 
-  if (!clientId && phoneE164) {
-    const last11 = phoneE164.replace(/\D/g, "").slice(-11);
-    const [client] = await db
-      .select({ id: schema.clients.id })
-      .from(schema.clients)
-      .where(
-        and(
-          eq(schema.clients.tenantId, input.tenantId),
-          isNull(schema.clients.deletedAt),
-          sql`right(regexp_replace(coalesce(${schema.clients.phoneE164}, ''), '\\D', '', 'g'), 11) = ${last11}`
-        )
-      )
-      .limit(1);
-    clientId = client?.id;
-  }
+  const clientId = await resolveClientId(input.tenantId, input.clientId, phoneE164);
+  const staffId = await resolveStaffId(input.tenantId, input.staffId);
+  const serviceId = await resolveServiceId(input.tenantId, input.serviceId);
 
   if (!clientId && !phone && !phoneE164) {
     return { ok: false, error: "Informe cliente ou telefone para a lista de espera" };
@@ -41,25 +107,71 @@ export async function addToWaitlistForAgent(input: {
 
   let desiredDate: Date | null = null;
   if (input.desiredDate?.trim()) {
-    const bounds = dayBoundsSp(input.desiredDate.trim());
-    desiredDate = bounds.start;
+    try {
+      const bounds = dayBoundsSp(input.desiredDate.trim());
+      desiredDate = bounds.start;
+    } catch {
+      desiredDate = null;
+    }
   }
 
-  const [row] = await db
-    .insert(schema.waitlistEntries)
-    .values({
-      tenantId: input.tenantId,
-      clientId: clientId || null,
-      staffId: input.staffId || null,
-      serviceId: input.serviceId || null,
-      phone: phoneE164 || phone || null,
-      desiredDate,
-      status: "waiting",
-      notes: input.notes?.trim().slice(0, 500) || null,
-    })
-    .returning({ id: schema.waitlistEntries.id });
+  try {
+    const [row] = await db
+      .insert(schema.waitlistEntries)
+      .values({
+        tenantId: input.tenantId,
+        clientId: clientId || null,
+        staffId: staffId || null,
+        serviceId: serviceId || null,
+        phone: phoneE164 || phone || null,
+        desiredDate,
+        status: "waiting",
+        notes: input.notes?.trim().slice(0, 500) || null,
+      })
+      .returning({ id: schema.waitlistEntries.id });
 
-  return { ok: true, id: row.id };
+    if (!row?.id) return { ok: false, error: "Falha ao gravar lista de espera" };
+    return { ok: true, id: row.id };
+  } catch (err) {
+    // Último recurso: grava só telefone + notas (sem FKs)
+    try {
+      const [row] = await db
+        .insert(schema.waitlistEntries)
+        .values({
+          tenantId: input.tenantId,
+          clientId: null,
+          staffId: null,
+          serviceId: null,
+          phone: phoneE164 || phone || null,
+          desiredDate,
+          status: "waiting",
+          notes: input.notes?.trim().slice(0, 500) || null,
+        })
+        .returning({ id: schema.waitlistEntries.id });
+      if (!row?.id) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : "Erro ao gravar espera",
+        };
+      }
+      return { ok: true, id: row.id };
+    } catch (err2) {
+      return {
+        ok: false,
+        error: err2 instanceof Error ? err2.message : "Erro ao gravar espera",
+      };
+    }
+  }
+}
+
+/** Zera a lista de espera do tenant (Donna assume daqui pra frente). */
+export async function clearWaitlistForTenant(tenantId: string) {
+  const db = createDb();
+  const deleted = await db
+    .delete(schema.waitlistEntries)
+    .where(eq(schema.waitlistEntries.tenantId, tenantId))
+    .returning({ id: schema.waitlistEntries.id });
+  return { ok: true as const, deleted: deleted.length };
 }
 
 export async function listWaitlistForAgent(input: {
@@ -189,8 +301,8 @@ export async function promoteWaitlistOnCancel(input: {
   });
   const name = entry.clientName?.split(" ")[0] || "Oi";
   const text =
-    `${name}, liberou um horário na *${tenant?.name ?? "unidade"}* em ${dateLabel} às ${timeLabel}. ` +
-    `Posso te agendar nesse horário? Responda *SIM* ou diga outro horário de preferência.`;
+    `${name}, liberou um horário na ${tenant?.name ?? "unidade"} em ${dateLabel} às ${timeLabel}. ` +
+    `Posso te agendar nesse horário? Responda SIM ou diga outro horário de preferência.`;
 
   const conn = await getConnectionForTenant(input.tenantId);
   if (!conn?.instanceName || conn.status !== "connected") {
@@ -201,7 +313,6 @@ export async function promoteWaitlistOnCancel(input: {
     return { promoted: true, entryId: entry.id, error: "WhatsApp desconectado" };
   }
 
-  // Garante conversa para persistir outbound
   const digits = phoneE164.replace(/\D/g, "");
   const e164 = digits.startsWith("55") ? `+${digits}` : `+55${digits}`;
   let [conv] = await db
