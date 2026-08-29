@@ -13,6 +13,17 @@ import {
   cancelAppointmentForAgent,
   listFreeSlotsForTenant,
 } from "./domain-agenda";
+import {
+  addOrderItemForAgent,
+  listOpenOrdersForAgent,
+  openOrderForAgent,
+} from "./domain-orders";
+import {
+  addToWaitlistForAgent,
+  listWaitlistForAgent,
+  promoteWaitlistOnCancel,
+} from "./domain-waitlist";
+import { getConnectionForTenant, deliverWhatsAppText } from "./outbound";
 import { dayBoundsSp } from "@/server/agenda/utils";
 import { TOOL_CATALOG } from "./catalog";
 import {
@@ -20,6 +31,7 @@ import {
   readBusinessProfileFromSettings,
 } from "./business-profile";
 import type { AgentToolName, ToolResult } from "./types";
+import { normalizePhone } from "@/server/clients/normalize";
 
 const ACTIVE_APPOINTMENT_STATUSES = ["scheduled", "confirmed", "arrived", "in_progress"] as const;
 
@@ -820,13 +832,198 @@ export async function executeTool(
           result = { ok: false, error: "appointmentId obrigatório" };
           break;
         }
+        const dbCancel = createDb();
+        const [apptBefore] = await dbCancel
+          .select({
+            id: schema.appointments.id,
+            staffId: schema.appointments.staffId,
+            serviceId: schema.appointments.serviceId,
+            startsAt: schema.appointments.startsAt,
+          })
+          .from(schema.appointments)
+          .where(
+            and(
+              eq(schema.appointments.id, appointmentId),
+              eq(schema.appointments.tenantId, ctx.tenantId)
+            )
+          )
+          .limit(1);
+
         const cancelled = await cancelAppointmentForAgent({
           tenantId: ctx.tenantId,
           appointmentId,
         });
-        result = cancelled.ok
-          ? { ok: true, data: { appointmentId } }
-          : { ok: false, error: cancelled.error };
+        if (!cancelled.ok) {
+          result = { ok: false, error: cancelled.error };
+          break;
+        }
+
+        let waitlistNote: string | undefined;
+        if (apptBefore?.startsAt) {
+          const promo = await promoteWaitlistOnCancel({
+            tenantId: ctx.tenantId,
+            staffId: apptBefore.staffId,
+            serviceId: apptBefore.serviceId,
+            startsAt: apptBefore.startsAt,
+          });
+          if (promo.promoted) {
+            waitlistNote = promo.error
+              ? `Lista de espera notificada (aviso: ${promo.error})`
+              : "Primeiro da lista de espera avisado no WhatsApp";
+          }
+        }
+
+        result = { ok: true, data: { appointmentId, waitlistNote } };
+        break;
+      }
+      case "open_order": {
+        const opened = await openOrderForAgent({
+          tenantId: ctx.tenantId,
+          clientId: String(args.clientId ?? "").trim() || undefined,
+          appointmentId: String(args.appointmentId ?? "").trim() || undefined,
+          notes: String(args.notes ?? "").trim() || undefined,
+        });
+        result = opened.ok
+          ? { ok: true, data: { orderId: opened.id } }
+          : { ok: false, error: opened.error };
+        break;
+      }
+      case "add_order_item": {
+        const orderId = String(args.orderId ?? "").trim();
+        const itemTypeRaw = String(args.itemType ?? "").trim().toLowerCase();
+        const catalogId = String(
+          args.catalogId ?? args.serviceId ?? args.productId ?? ""
+        ).trim();
+        let itemType: "service" | "product" | null =
+          itemTypeRaw === "product" || itemTypeRaw === "service"
+            ? itemTypeRaw
+            : args.productId
+              ? "product"
+              : args.serviceId
+                ? "service"
+                : null;
+        if (!orderId || !catalogId || !itemType) {
+          result = {
+            ok: false,
+            error: "orderId, itemType (service|product) e catalogId são obrigatórios",
+          };
+          break;
+        }
+        const added = await addOrderItemForAgent({
+          tenantId: ctx.tenantId,
+          orderId,
+          itemType,
+          catalogId,
+          staffId: String(args.staffId ?? "").trim() || undefined,
+          qty: args.qty != null ? Number(args.qty) : 1,
+        });
+        result = added.ok
+          ? {
+              ok: true,
+              data: {
+                itemId: added.id,
+                orderTotalCents: added.totalCents,
+                orderTotalLabel: formatMoney(added.totalCents),
+              },
+            }
+          : { ok: false, error: added.error };
+        break;
+      }
+      case "list_open_orders": {
+        const listed = await listOpenOrdersForAgent({
+          tenantId: ctx.tenantId,
+          phoneE164: String(args.phoneE164 ?? args.phone ?? "").trim() || undefined,
+          clientId: String(args.clientId ?? "").trim() || undefined,
+          limit: args.limit != null ? Number(args.limit) : 20,
+        });
+        result = { ok: true, data: listed };
+        break;
+      }
+      case "add_to_waitlist": {
+        const addedWl = await addToWaitlistForAgent({
+          tenantId: ctx.tenantId,
+          clientId: String(args.clientId ?? "").trim() || undefined,
+          phone: String(args.phone ?? args.phoneE164 ?? "").trim() || undefined,
+          staffId: String(args.staffId ?? "").trim() || undefined,
+          serviceId: String(args.serviceId ?? "").trim() || undefined,
+          desiredDate: String(args.desiredDate ?? "").trim() || undefined,
+          notes: String(args.notes ?? "").trim() || undefined,
+        });
+        result = addedWl.ok
+          ? { ok: true, data: { waitlistId: addedWl.id, status: "waiting" } }
+          : { ok: false, error: addedWl.error };
+        break;
+      }
+      case "list_waitlist": {
+        const statusRaw = String(args.status ?? "waiting").trim();
+        const status =
+          statusRaw === "notified" || statusRaw === "all" || statusRaw === "waiting"
+            ? statusRaw
+            : "waiting";
+        const listedWl = await listWaitlistForAgent({
+          tenantId: ctx.tenantId,
+          status,
+          limit: args.limit != null ? Number(args.limit) : 15,
+        });
+        result = { ok: true, data: listedWl };
+        break;
+      }
+      case "send_whatsapp": {
+        const phoneRaw = String(args.phoneE164 ?? args.phone ?? "").trim();
+        const text = String(args.text ?? "").trim();
+        if (!phoneRaw || !text) {
+          result = { ok: false, error: "phoneE164 e text são obrigatórios" };
+          break;
+        }
+        const { phoneE164 } = normalizePhone(phoneRaw);
+        if (!phoneE164) {
+          result = { ok: false, error: "Telefone inválido" };
+          break;
+        }
+        const conn = await getConnectionForTenant(ctx.tenantId);
+        if (!conn?.instanceName || conn.status !== "connected") {
+          result = { ok: false, error: "WhatsApp da unidade desconectado" };
+          break;
+        }
+        const dbSend = createDb();
+        let conversationId = ctx.conversationId;
+        if (!conversationId) {
+          const [existing] = await dbSend
+            .select({ id: schema.conversations.id })
+            .from(schema.conversations)
+            .where(
+              and(
+                eq(schema.conversations.tenantId, ctx.tenantId),
+                eq(schema.conversations.phoneE164, phoneE164)
+              )
+            )
+            .limit(1);
+          if (existing) {
+            conversationId = existing.id;
+          } else {
+            const [created] = await dbSend
+              .insert(schema.conversations)
+              .values({
+                tenantId: ctx.tenantId,
+                phoneE164,
+                mode: "ai",
+                agentProfileId: ctx.agentProfileId ?? null,
+              })
+              .returning({ id: schema.conversations.id });
+            conversationId = created.id;
+          }
+        }
+        const sent = await deliverWhatsAppText({
+          tenantId: ctx.tenantId,
+          instanceName: conn.instanceName,
+          phoneE164,
+          text,
+          conversationId,
+          direction: "outbound_ai",
+        });
+        result = sent.ok
+          ? { ok: true, data: { messageId: sent.messageId, conversationId } }
+          : { ok: false, error: sent.error };
         break;
       }
       case "handoff_human": {

@@ -1,26 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import type { FollowUpRow } from "@/server/insights/types";
 import { buildFollowUpDraft } from "@/lib/followup";
+import { sendFollowUpWhatsAppAction } from "@/app/(painel)/relatorios/followup-actions";
 
 type Props = {
   row: FollowUpRow;
   tenantName: string;
 };
 
-function digitsPhone(phone: string | null): string | null {
-  if (!phone) return null;
-  const d = phone.replace(/\D/g, "");
-  if (d.length < 10) return null;
-  return d.startsWith("55") ? d : `55${d}`;
-}
-
 export function FollowUpActions({ row, tenantName }: Props) {
   const [copied, setCopied] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
   const draft = buildFollowUpDraft(row, tenantName);
-  const wa = digitsPhone(row.phone);
   const donnaHint = encodeURIComponent(
     `Follow-up: ${row.clientName} (${row.daysSince}d sem vir). Pode ajudar a reativar?`
   );
@@ -35,20 +30,33 @@ export function FollowUpActions({ row, tenantName }: Props) {
     }
   }
 
+  function sendZap() {
+    setMsg(null);
+    startTransition(async () => {
+      const result = await sendFollowUpWhatsAppAction(row);
+      if (!result.ok) {
+        setMsg(result.error);
+        return;
+      }
+      setMsg("WhatsApp enviado pela Donna");
+    });
+  }
+
   return (
     <div className="followup-actions">
       <button type="button" className="btn btn-outline btn-sm" onClick={copy} title={draft}>
         {copied ? "Copiado" : "Copiar msg"}
       </button>
-      {wa ? (
-        <a
+      {row.phone ? (
+        <button
+          type="button"
           className="btn btn-primary btn-sm"
-          href={`https://wa.me/${wa}?text=${encodeURIComponent(draft)}`}
-          target="_blank"
-          rel="noreferrer"
+          disabled={pending}
+          onClick={sendZap}
+          title="Envia pelo WhatsApp conectado da unidade (Evolution)"
         >
-          WhatsApp
-        </a>
+          {pending ? "Enviando…" : "Enviar Zap"}
+        </button>
       ) : (
         <span className="badge is-muted" title="Cadastre o telefone do cliente">
           Sem tel.
@@ -61,6 +69,11 @@ export function FollowUpActions({ row, tenantName }: Props) {
       >
         Donna
       </Link>
+      {msg ? (
+        <span className={msg.includes("enviado") ? "badge is-success" : "badge is-warn"}>
+          {msg}
+        </span>
+      ) : null}
     </div>
   );
 }

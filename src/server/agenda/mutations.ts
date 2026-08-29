@@ -265,6 +265,20 @@ export async function updateAppointmentStatus(
         )
       );
 
+    if (status === "cancelled" || status === "no_show") {
+      try {
+        const { promoteWaitlistOnCancel } = await import("@/server/agent/domain-waitlist");
+        await promoteWaitlistOnCancel({
+          tenantId: tenant.id,
+          staffId: appt.staffId,
+          serviceId: appt.serviceId,
+          startsAt: appt.startsAt,
+        });
+      } catch (err) {
+        console.error("[updateAppointmentStatus] waitlist promote", err);
+      }
+    }
+
     return { ok: true, id };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };

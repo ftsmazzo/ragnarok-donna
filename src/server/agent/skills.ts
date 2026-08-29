@@ -17,23 +17,29 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
 4. A tool devolve appointments ORDENADOS do mais próximo ao mais longe + campo label com weekday correto.
    → Liste TODOS os retornados (ou diga que não há). Nunca cite só o mais longe. Nunca invente dia da semana.
 5. Marcar → list_services → list_slots → confirme → book_appointment.
-6. Cancelar → list_client_appointments → cancel_appointment com o id.
-7. Endereço / horário / sobre a loja → get_unit_context (ou use os DADOS DA UNIDADE do system prompt). Nunca cite WhatsApp antigo do site.
+6. Se o horário pedido estiver ocupado: ofereça alternativas com list_slots. Se o cliente aceitar esperar:
+   → add_to_waitlist (clientId/phone, staffId, serviceId, desiredDate). Confirme que entrou na espera.
+7. Cancelar → list_client_appointments → cancel_appointment com o id.
+8. Endereço / horário / sobre a loja → get_unit_context (ou use os DADOS DA UNIDADE do system prompt). Nunca cite WhatsApp antigo do site.
 Nunca invente horário.`,
 
   "skill.order": `SKILL.ORDER — produtos e comanda
 Quando o cliente pergunta sobre produto à venda (balm, pomada, shampoo, óleo, kit…):
 → list_products com query (ex.: "balm", "barba"). Responda com nome + priceLabel.
 Se count=0, diga que não encontrou no estoque de venda e ofereça chamar a equipe — não invente.
-Para comanda na loja: find_client → open_order / add_order_item (se disponíveis).`,
+Recepcão / operação (comandas abertas, valor de comanda, telefone do cliente):
+→ list_open_orders (sem filtro = todas abertas; com phoneE164/clientId = daquele cliente). Use totalOpenLabel e totalLabel.
+Para abrir/lancar: find_client → open_order → add_order_item (itemType service|product + catalogId).`,
 
   "skill.followup": `SKILL.FOLLOWUP — retorno
 Quando for convite de retorno / cliente sumido:
-list_followups / find_client. Não force oferta se o cliente pediu outra coisa.`,
+list_followups / find_client. Para enviar mensagem use send_whatsapp com phoneE164 e texto curto.
+Não force oferta se o cliente pediu outra coisa.`,
 
   "skill.handoff": `SKILL.HANDOFF — humano
 Se pedirem recepção/gerente/humano, ou se você travar:
-chame handoff_human e avise que a equipe vai assumir.`,
+chame handoff_human e avise que a equipe vai assumir.
+Perguntas de operação da recepção (comandas abertas, espera) → list_open_orders / list_waitlist.`,
 };
 
 const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
@@ -183,18 +189,83 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     type: "function",
     function: {
       name: "open_order",
-      description: "Abre comanda (scaffold).",
-      parameters: { type: "object", properties: { clientId: { type: "string" } } },
+      description: "Abre comanda para o cliente (reusa se já houver aberta).",
+      parameters: {
+        type: "object",
+        properties: {
+          clientId: { type: "string" },
+          appointmentId: { type: "string" },
+          notes: { type: "string" },
+        },
+      },
     },
   },
   add_order_item: {
     type: "function",
     function: {
       name: "add_order_item",
-      description: "Adiciona item na comanda (scaffold).",
+      description: "Adiciona serviço ou produto na comanda aberta. Baixa estoque de produto.",
       parameters: {
         type: "object",
-        properties: { orderId: { type: "string" }, serviceId: { type: "string" } },
+        properties: {
+          orderId: { type: "string" },
+          itemType: { type: "string", enum: ["service", "product"] },
+          catalogId: { type: "string", description: "ID do serviço ou produto" },
+          serviceId: { type: "string", description: "Alias de catalogId para serviço" },
+          productId: { type: "string", description: "Alias de catalogId para produto" },
+          staffId: { type: "string" },
+          qty: { type: "number" },
+        },
+        required: ["orderId"],
+      },
+    },
+  },
+  list_open_orders: {
+    type: "function",
+    function: {
+      name: "list_open_orders",
+      description:
+        "Lista comandas abertas com valor. Sem filtro = todas. Com phoneE164 ou clientId = daquele cliente. Use para 'quantas comandas abertas' / 'valor da comanda do telefone X'.",
+      parameters: {
+        type: "object",
+        properties: {
+          phoneE164: { type: "string" },
+          clientId: { type: "string" },
+          limit: { type: "number" },
+        },
+      },
+    },
+  },
+  add_to_waitlist: {
+    type: "function",
+    function: {
+      name: "add_to_waitlist",
+      description:
+        "Coloca o cliente na lista de espera quando o horário desejado está ocupado. Use após oferecer alternativas.",
+      parameters: {
+        type: "object",
+        properties: {
+          clientId: { type: "string" },
+          phone: { type: "string" },
+          staffId: { type: "string" },
+          serviceId: { type: "string" },
+          desiredDate: { type: "string", description: "YYYY-MM-DD" },
+          notes: { type: "string" },
+        },
+      },
+    },
+  },
+  list_waitlist: {
+    type: "function",
+    function: {
+      name: "list_waitlist",
+      description: "Consulta a lista de espera.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["waiting", "notified", "all"] },
+          limit: { type: "number" },
+        },
       },
     },
   },
@@ -210,7 +281,7 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     type: "function",
     function: {
       name: "send_whatsapp",
-      description: "Envia WhatsApp (uso interno / follow-up).",
+      description: "Envia WhatsApp via Evolution (follow-up ou aviso).",
       parameters: {
         type: "object",
         properties: { phoneE164: { type: "string" }, text: { type: "string" } },
@@ -246,6 +317,19 @@ export function buildToolsForSkills(input: {
   // Perfis antigos podem não ter list_products no toolsEnabled — libera junto com catálogo.
   if (TOOL_SCHEMAS.list_products && (!input.toolsEnabled?.length || enabled.has("list_services") || enabled.has("list_products"))) {
     names.add("list_products");
+  }
+  // Perfis antigos: libera tools novas de comanda / espera / zap
+  for (const t of [
+    "open_order",
+    "add_order_item",
+    "list_open_orders",
+    "add_to_waitlist",
+    "list_waitlist",
+    "send_whatsapp",
+  ] as AgentToolName[]) {
+    if (TOOL_SCHEMAS[t] && (!input.toolsEnabled?.length || enabled.has("book_appointment") || enabled.has(t))) {
+      names.add(t);
+    }
   }
 
   return [...names].map((n) => TOOL_SCHEMAS[n]);

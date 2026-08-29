@@ -14,7 +14,7 @@ import type {
   ConversationFilter,
   ConversationListItem,
 } from "@/server/agent/conversations";
-import { clearAgentInboxAction, seedDemoConversationAction } from "@/app/(painel)/conversas/actions";
+import { clearAgentInboxAction } from "@/app/(painel)/conversas/actions";
 
 type ListData = {
   rows: ConversationListItem[];
@@ -30,7 +30,6 @@ type Props = {
   toolCount: number;
   skillTitles: { name: string; title: string; description: string }[];
   whatsApp: WhatsAppConnectionView | null;
-  /** Layout enxuto para PWA / celular */
   compact?: boolean;
 };
 
@@ -47,7 +46,7 @@ export function ConversasView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
-  const [seedError, setSeedError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   function filterHref(filter: ConversationFilter) {
     if (filter === "todas") return pathname;
@@ -72,28 +71,15 @@ export function ConversasView({
     router.push(buildUrl({ id: undefined }));
   }
 
-  function seedDemo() {
-    setSeedError(null);
-    startTransition(async () => {
-      const result = await seedDemoConversationAction();
-      if (!result.ok) {
-        setSeedError(result.error);
-        return;
-      }
-      router.push(buildUrl({ id: result.id, filter: undefined }));
-      router.refresh();
-    });
-  }
-
   function clearInbox() {
     if (!window.confirm("Apagar todas as conversas e mensagens deste estabelecimento?")) {
       return;
     }
-    setSeedError(null);
+    setActionError(null);
     startTransition(async () => {
       const result = await clearAgentInboxAction();
       if (!result.ok) {
-        setSeedError(result.error);
+        setActionError(result.error);
         return;
       }
       router.push(pathname);
@@ -116,77 +102,69 @@ export function ConversasView({
               Humanos
             </Link>
           ) : (
-          <div className="header-actions">
-            <Link href="/pwa/conversas" className="btn btn-outline">
-              App celular
-            </Link>
-            <Link href="/relatorios/perfil?tab=retorno" className="btn btn-outline">
-              Lista de retorno
-            </Link>
-            <button
-              type="button"
-              className="btn btn-outline"
-              disabled={pending}
-              onClick={clearInbox}
-            >
-              Limpar inbox
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={pending}
-              onClick={seedDemo}
-            >
-              {pending ? "Criando…" : "Conversa de teste"}
-            </button>
-          </div>
+            <div className="header-actions">
+              <Link href="/pwa/conversas" className="btn btn-outline">
+                App celular
+              </Link>
+              <Link href="/relatorios/perfil?tab=retorno" className="btn btn-outline">
+                Lista de retorno
+              </Link>
+              <button
+                type="button"
+                className="btn btn-outline"
+                disabled={pending}
+                onClick={clearInbox}
+              >
+                Limpar inbox
+              </button>
+            </div>
           )
         }
       />
 
       {!compact ? (
-      <div className="dash-grid" style={{ marginBottom: 12 }}>
-        <WhatsAppConnectPanel initial={whatsApp} />
-        <section className="panel dash-panel">
-          <div className="panel-toolbar">
-            <strong>Agente Donna</strong>
-            <span className="badge is-muted">
-              {data.agentReady ? "Perfil OK" : "Sem perfil"}
-            </span>
-          </div>
-          <div className="panel-body">
-            <p className="muted-note">
-              Perfil: <strong>{data.agentReady ? "Donna (default)" : "ausente"}</strong>
-            </p>
-            <p className="muted-note" style={{ marginTop: 8 }}>
-              Envie uma mensagem para o número conectado — a Donna responde e o thread aparece
-              na inbox.
-            </p>
-            {seedError ? <p className="form-error">{seedError}</p> : null}
-          </div>
-        </section>
-        <section className="panel dash-panel">
-          <div className="panel-toolbar">
-            <strong>Skills / Tools v1</strong>
-          </div>
-          <div className="panel-body">
-            <ul className="insight-tips">
-              {skillTitles.map((s) => (
-                <li key={s.name}>
-                  <strong>{s.title}</strong> — {s.description}
-                </li>
-              ))}
-            </ul>
-            <p className="muted-note" style={{ marginTop: 8 }}>
-              {toolCount} tools no catálogo.
-            </p>
-          </div>
-        </section>
-      </div>
+        <div className="dash-grid" style={{ marginBottom: 12 }}>
+          <WhatsAppConnectPanel initial={whatsApp} />
+          <section className="panel dash-panel">
+            <div className="panel-toolbar">
+              <strong>Agente Donna</strong>
+              <span className="badge is-muted">
+                {data.agentReady ? "Perfil OK" : "Sem perfil"}
+              </span>
+            </div>
+            <div className="panel-body">
+              <p className="muted-note">
+                Perfil: <strong>{data.agentReady ? "Donna (default)" : "ausente"}</strong>
+              </p>
+              <p className="muted-note" style={{ marginTop: 8 }}>
+                Envie uma mensagem para o número conectado — a Donna responde e o thread aparece
+                na inbox.
+              </p>
+              {actionError ? <p className="form-error">{actionError}</p> : null}
+            </div>
+          </section>
+          <section className="panel dash-panel">
+            <div className="panel-toolbar">
+              <strong>Skills / Tools v1</strong>
+            </div>
+            <div className="panel-body">
+              <ul className="insight-tips">
+                {skillTitles.map((s) => (
+                  <li key={s.name}>
+                    <strong>{s.title}</strong> — {s.description}
+                  </li>
+                ))}
+              </ul>
+              <p className="muted-note" style={{ marginTop: 8 }}>
+                {toolCount} tools no catálogo.
+              </p>
+            </div>
+          </section>
+        </div>
       ) : (
         <div style={{ marginBottom: 10 }}>
           <WhatsAppConnectPanel initial={whatsApp} />
-          {seedError ? <p className="form-error">{seedError}</p> : null}
+          {actionError ? <p className="form-error">{actionError}</p> : null}
         </div>
       )}
 
@@ -229,8 +207,8 @@ export function ConversasView({
               {data.rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="table-empty">
-                    Nenhuma conversa ainda. Conecte o WhatsApp acima ou use{" "}
-                    <strong>Conversa de teste</strong>.
+                    Nenhuma conversa ainda. Conecte o WhatsApp e envie uma mensagem para o número
+                    da unidade.
                   </td>
                 </tr>
               ) : (

@@ -217,6 +217,10 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         if (name === "list_client_appointments" && !args.phoneE164 && !args.clientId) {
           args.phoneE164 = input.phoneE164;
         }
+        if (name === "add_to_waitlist" && !args.phone && !args.phoneE164 && !args.clientId) {
+          args.phone = input.phoneE164;
+        }
+        if (name === "send_whatsapp" && !args.phoneE164) args.phoneE164 = input.phoneE164;
         const exec = await executeTool(name, toolCtx, args);
         toolCallsAudit.push({ name, ok: exec.ok });
         toolsFired.push(name);

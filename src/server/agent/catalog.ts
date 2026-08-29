@@ -1,6 +1,6 @@
 import type { AgentSkillDefinition, AgentToolDefinition } from "./types";
 
-/** Catálogo fechado v1 — implementações entram nas fases 6.3+ */
+/** Catálogo fechado v1 */
 export const TOOL_CATALOG: AgentToolDefinition[] = [
   {
     name: "get_unit_context",
@@ -53,6 +53,21 @@ export const TOOL_CATALOG: AgentToolDefinition[] = [
     skills: ["skill.order"],
   },
   {
+    name: "list_open_orders",
+    description: "Lista comandas abertas com valores (geral ou por telefone/cliente)",
+    skills: ["skill.order", "skill.handoff"],
+  },
+  {
+    name: "add_to_waitlist",
+    description: "Insere cliente na lista de espera quando o horário desejado está ocupado",
+    skills: ["skill.schedule"],
+  },
+  {
+    name: "list_waitlist",
+    description: "Consulta a lista de espera (waiting/notified)",
+    skills: ["skill.schedule", "skill.handoff"],
+  },
+  {
     name: "list_followups",
     description: "Lista retorno 60–100d / recorrência parada (insights)",
     skills: ["skill.followup"],
@@ -65,7 +80,7 @@ export const TOOL_CATALOG: AgentToolDefinition[] = [
   {
     name: "send_whatsapp",
     description: "Envia mensagem via Evolution",
-    skills: ["skill.followup"],
+    skills: ["skill.followup", "skill.schedule"],
     needsWhatsApp: true,
   },
 ];
@@ -74,7 +89,7 @@ export const SKILL_CATALOG: AgentSkillDefinition[] = [
   {
     name: "skill.schedule",
     title: "Agendar",
-    description: "Identifica cliente, serviço e horário → grava appointment",
+    description: "Identifica cliente, serviço e horário → grava appointment / espera",
     tools: [
       "get_unit_context",
       "find_client",
@@ -84,24 +99,34 @@ export const SKILL_CATALOG: AgentSkillDefinition[] = [
       "list_client_appointments",
       "book_appointment",
       "cancel_appointment",
+      "add_to_waitlist",
+      "list_waitlist",
+      "send_whatsapp",
     ],
   },
   {
     name: "skill.order",
     title: "Comanda",
-    description: "Catálogo de produtos/serviços e comanda",
-    tools: ["find_client", "list_services", "list_products", "open_order", "add_order_item"],
+    description: "Catálogo, comandas abertas e valores",
+    tools: [
+      "find_client",
+      "list_services",
+      "list_products",
+      "open_order",
+      "add_order_item",
+      "list_open_orders",
+    ],
   },
   {
     name: "skill.followup",
     title: "Follow-up",
-    description: "Usa lista de retorno/recorrência e agenda/envia convite",
+    description: "Usa lista de retorno/recorrência e envia WhatsApp",
     tools: ["list_followups", "find_client", "send_whatsapp"],
   },
   {
     name: "skill.handoff",
     title: "Handoff",
-    description: "Transfere para humano no painel Conversas",
-    tools: ["handoff_human"],
+    description: "Transfere para humano e consulta operação",
+    tools: ["handoff_human", "list_open_orders", "list_waitlist", "list_client_appointments"],
   },
 ];

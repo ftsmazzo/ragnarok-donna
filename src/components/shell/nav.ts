@@ -22,9 +22,6 @@ export const NAV: NavItem[] = [
       { label: "Serviços", href: "/servicos", icon: "★" },
       { label: "Produtos", href: "/produtos", icon: "▣" },
       { label: "Pacotes", href: "/pacotes" },
-      { label: "Clube", href: "/modulo/clube" },
-      { label: "Mensagens", href: "/modulo/mensagens" },
-      { label: "Pesquisa", href: "/modulo/pesquisa" },
     ],
   },
   {
@@ -71,10 +68,6 @@ export const NAV: NavItem[] = [
       { label: "Minha conta", href: "/configuracoes/conta" },
       { label: "Agente (Donna)", href: "/configuracoes/agente", icon: "✉" },
       { label: "App celular (PWA)", href: "/pwa/conversas", icon: "▣" },
-      { label: "Parâmetros", href: "/configuracoes" },
-      { label: "Rodízio", href: "/modulo/rodizio" },
-      { label: "Funcionamento", href: "/modulo/funcionamento" },
-      { label: "Anamnese", href: "/modulo/anamnese" },
     ],
   },
 ];
@@ -107,7 +100,6 @@ export const NAV_CONSOLIDATED: NavItem[] = [
       { label: "Dados da empresa", href: "/configuracoes/empresa", icon: "⌂" },
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
       { label: "Minha conta", href: "/configuracoes/conta" },
-      { label: "Parâmetros", href: "/configuracoes" },
     ],
   },
 ];

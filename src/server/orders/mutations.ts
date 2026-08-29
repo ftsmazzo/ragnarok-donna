@@ -210,6 +210,7 @@ export async function addOrderItem(input: {
           name: schema.products.name,
           priceCents: schema.products.priceCents,
           commissionBps: schema.products.commissionBps,
+          stockQty: schema.products.stockQty,
         })
         .from(schema.products)
         .where(
@@ -221,6 +222,9 @@ export async function addOrderItem(input: {
         )
         .limit(1);
       if (!prod) throw new AppError("VALIDATION", "Produto inválido");
+      if (prod.stockQty < qty) {
+        throw new AppError("VALIDATION", `Estoque insuficiente (${prod.stockQty} un.)`);
+      }
       description = prod.name;
       unitPriceCents = prod.priceCents;
       productId = prod.id;
@@ -275,6 +279,18 @@ export async function addOrderItem(input: {
         performedAt: new Date(),
       })
       .returning({ id: schema.orderItems.id });
+
+    if (productId) {
+      await db
+        .update(schema.products)
+        .set({
+          stockQty: sql`${schema.products.stockQty} - ${qty}`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(schema.products.id, productId), eq(schema.products.tenantId, tenant.id))
+        );
+    }
 
     await recalculateOrderTotal(input.orderId, tenant.id);
     return { ok: true, id: row.id };
