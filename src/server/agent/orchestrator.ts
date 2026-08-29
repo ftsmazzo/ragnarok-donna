@@ -162,6 +162,8 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   const toolCallsAudit: OrchestratorResult["toolCalls"] = [];
   const toolsFired: AgentToolName[] = [];
   let handoff = false;
+  /** Se list_slots marcou horário pedido ocupado, garante oferta de espera na resposta final. */
+  let waitlistOfferHour: number | null = null;
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -219,13 +221,17 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
           args.phoneE164 = input.phoneE164;
         }
         if (name === "list_slots" && (args.preferredHour == null || args.preferredHour === "")) {
-          const hourMatch =
-            input.userText.match(/\b(?:às|as|á)?\s*(\d{1,2})\s*(?:h|:00)?\b/i) ||
-            input.userText.match(/\b(\d{1,2}):00\b/);
-          if (hourMatch) {
-            const h = Number(hourMatch[1]);
-            if (h >= 7 && h <= 22) args.preferredHour = h;
+          // Histórico + msg atual: "as 17" / "17h" / "17:00" (não pegar dia 1/9)
+          const corpus = `${history.join("\n")}\n${input.userText}`;
+          const timeRe =
+            /(?:às|as|á)\s*(\d{1,2})\s*h?\b|(\d{1,2})\s*h\b|(\d{1,2}):00\b/gi;
+          let inferred: number | null = null;
+          let m: RegExpExecArray | null;
+          while ((m = timeRe.exec(corpus))) {
+            const h = Number(m[1] || m[2] || m[3]);
+            if (h >= 7 && h <= 22) inferred = h;
           }
+          if (inferred != null) args.preferredHour = inferred;
         }
         if (name === "add_to_waitlist" && !args.phone && !args.phoneE164 && !args.clientId) {
           args.phone = input.phoneE164;
@@ -235,6 +241,15 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         toolCallsAudit.push({ name, ok: exec.ok });
         toolsFired.push(name);
         if (name === "handoff_human" && exec.ok) handoff = true;
+        if (name === "list_slots" && exec.ok && exec.data && typeof exec.data === "object") {
+          const data = exec.data as {
+            waitlistOffer?: boolean;
+            preferredHour?: number | null;
+          };
+          if (data.waitlistOffer && data.preferredHour != null) {
+            waitlistOfferHour = Number(data.preferredHour);
+          }
+        }
 
         messages.push({
           role: "tool",
@@ -246,7 +261,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       continue;
     }
 
-    const reply = (result.content || "").replace(/\*\*/g, "").trim();
+    let reply = (result.content || "").replace(/\*\*/g, "").trim();
     if (!reply) {
       return {
         reply: "Pode me repetir, por favor? Quero te ajudar certo.",
@@ -254,6 +269,14 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         toolCalls: toolCallsAudit,
         handoff,
       };
+    }
+
+    if (
+      waitlistOfferHour != null &&
+      !/lista de espera|entrar na espera|na espera|fila de espera|me avisa se liberar/i.test(reply)
+    ) {
+      const hh = String(waitlistOfferHour).padStart(2, "0");
+      reply = `${reply}\n\nSe preferir manter as ${hh}h, posso te colocar na lista de espera e te aviso se liberar. Quer?`;
     }
 
     return {
