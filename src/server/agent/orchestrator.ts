@@ -21,6 +21,7 @@ import {
   skillsUsedFromTools,
 } from "./skills";
 import { executeTool } from "./tools";
+import { buildCalendarContext, resolveTemporalPhrase } from "./temporal";
 import type { AgentSkillName, AgentToolName, OrchestratorInput, OrchestratorResult } from "./types";
 
 function readPersona(raw: unknown): AgentPersona | null {
@@ -33,6 +34,8 @@ function runtimeRules(businessName: string, displayName: string, phoneE164: stri
 Você é ${displayName}, recepção da ${businessName}, no WhatsApp.
 Timezone: America/Sao_Paulo. Telefone desta conversa: ${phoneE164}.
 
+${buildCalendarContext()}
+
 REGRAS:
 1. Responda a pergunta real. Não desvie para oferta se pediram outra coisa (ex.: listar agendamentos).
 2. Use as SKILLS e as TOOLS antes de afirmar fato de agenda, preço, histórico ou disponibilidade.
@@ -44,9 +47,10 @@ REGRAS:
 8. Mensagens curtas (1–4 frases), humanas, calorosas. Sem markdown.
 9. Áudio transcrito chega como texto — responda ao que o cliente disse, sem avisar que "não ouve áudio".
 10. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
-11. Nunca invente horário, produto ou preço. Nunca diga que é IA/bot.
+11. Nunca invente horário, produto, preço ou dia da semana. Nunca diga que é IA/bot.
 12. Resposta final = só o texto do WhatsApp.
 13. LISTA DE ESPERA: se o cliente pediu um horário e list_slots indicar preferredHourOccupied=true (ou a hora não aparecer nos slots), na MESMA mensagem ofereça alternativas E pergunte se quer entrar na lista de espera daquele horário. Nunca responda só com outras horas sem mencionar a espera.
+14. DATAS: para "próxima segunda", "amanhã", "quarta que vem", "1/9" etc. chame resolve_date (ou list_slots com datePhrase). Fale sempre o weekday do CALENDÁRIO / dateLabel da tool. Se o cliente disser "segunda 1/9" e 1/9 for terça, corrija com educação usando o note da tool.
 `.trim();
 }
 
@@ -220,18 +224,39 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         if (name === "list_client_appointments" && !args.phoneE164 && !args.clientId) {
           args.phoneE164 = input.phoneE164;
         }
-        if (name === "list_slots" && (args.preferredHour == null || args.preferredHour === "")) {
-          // Histórico + msg atual: "as 17" / "17h" / "17:00" (não pegar dia 1/9)
-          const corpus = `${history.join("\n")}\n${input.userText}`;
-          const timeRe =
-            /(?:às|as|á)\s*(\d{1,2})\s*h?\b|(\d{1,2})\s*h\b|(\d{1,2}):00\b/gi;
-          let inferred: number | null = null;
-          let m: RegExpExecArray | null;
-          while ((m = timeRe.exec(corpus))) {
-            const h = Number(m[1] || m[2] || m[3]);
-            if (h >= 7 && h <= 22) inferred = h;
+        if (name === "list_slots") {
+          const missingDate =
+            !args.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(args.date));
+          if (missingDate && !args.datePhrase) {
+            const inboundOnly = history
+              .filter((l) => l.startsWith("cliente:"))
+              .map((l) => l.replace(/^cliente:\s*/i, ""))
+              .join("\n");
+            const guessed =
+              resolveTemporalPhrase(input.userText) ||
+              resolveTemporalPhrase(`${inboundOnly}\n${input.userText}`);
+            if (guessed) {
+              args.date = guessed.date;
+              args.datePhrase = input.userText;
+            }
           }
-          if (inferred != null) args.preferredHour = inferred;
+          if (args.preferredHour == null || args.preferredHour === "") {
+            const corpus = `${history
+              .filter((l) => l.startsWith("cliente:"))
+              .join("\n")}\n${input.userText}`;
+            const timeRe =
+              /(?:às|as|á)\s*(\d{1,2})\s*h?\b|(\d{1,2})\s*h\b|(\d{1,2}):00\b/gi;
+            let inferred: number | null = null;
+            let m: RegExpExecArray | null;
+            while ((m = timeRe.exec(corpus))) {
+              const h = Number(m[1] || m[2] || m[3]);
+              if (h >= 7 && h <= 22) inferred = h;
+            }
+            if (inferred != null) args.preferredHour = inferred;
+          }
+        }
+        if (name === "resolve_date" && !args.phrase) {
+          args.phrase = input.userText;
         }
         if (name === "add_to_waitlist" && !args.phone && !args.phoneE164 && !args.clientId) {
           args.phone = input.phoneE164;

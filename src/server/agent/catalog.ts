@@ -33,6 +33,12 @@ export const TOOL_CATALOG: AgentToolDefinition[] = [
     skills: ["skill.schedule", "skill.handoff"],
   },
   {
+    name: "resolve_date",
+    description:
+      "Converte frase temporal (próxima segunda, amanhã, 1/9, quarta que vem) em data real + weekday SP",
+    skills: ["skill.schedule"],
+  },
+  {
     name: "book_appointment",
     description: "Cria agendamento na agenda operacional",
     skills: ["skill.schedule"],
@@ -97,6 +103,7 @@ export const SKILL_CATALOG: AgentSkillDefinition[] = [
       "list_products",
       "list_slots",
       "list_client_appointments",
+      "resolve_date",
       "book_appointment",
       "cancel_appointment",
       "add_to_waitlist",

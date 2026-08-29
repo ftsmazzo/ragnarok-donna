@@ -23,6 +23,7 @@ import {
   listWaitlistForAgent,
   promoteWaitlistOnCancel,
 } from "./domain-waitlist";
+import { describeDate, resolveTemporalPhrase } from "./temporal";
 import { getConnectionForTenant, deliverWhatsAppText } from "./outbound";
 import { dayBoundsSp } from "@/server/agenda/utils";
 import { TOOL_CATALOG } from "./catalog";
@@ -770,10 +771,25 @@ export async function executeTool(
         break;
       }
       case "list_slots": {
-        const date = String(args.date ?? "").trim();
+        const datePhrase = String(args.datePhrase ?? args.dayHint ?? "").trim();
+        let date = String(args.date ?? "").trim();
+        let resolvedMeta: ReturnType<typeof resolveTemporalPhrase> = null;
+        if (datePhrase) {
+          resolvedMeta = resolveTemporalPhrase(datePhrase);
+          if (resolvedMeta && (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))) {
+            date = resolvedMeta.date;
+          }
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) && datePhrase) {
+          result = {
+            ok: false,
+            error: `Não entendi a data em "${datePhrase}". Peça DD/MM ou dia da semana (ex.: próxima segunda).`,
+          };
+          break;
+        }
         const durationMin = Number(args.durationMin ?? 30);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-          result = { ok: false, error: "date YYYY-MM-DD obrigatório" };
+          result = { ok: false, error: "date YYYY-MM-DD ou datePhrase obrigatório" };
           break;
         }
         const periodRaw = String(args.period ?? "").toLowerCase();
@@ -802,21 +818,58 @@ export async function executeTool(
           preferredHour != null &&
           !slots.some((s) => s.hour === preferredHour || s.hour === preferredHour % 24);
 
+        const dateInfo = describeDate(date);
         result = {
           ok: true,
           data: {
             date,
+            dateLabel: dateInfo.label,
+            weekday: dateInfo.weekday,
+            weekdayShort: dateInfo.weekdayShort,
+            dateBr: dateInfo.dateBr,
             period,
             preferredHour,
             preferredHourOccupied,
             slots,
+            instruction:
+              "Ao falar a data com o cliente, use dateLabel (weekday real). Nunca diga outro dia da semana.",
+            ...(resolvedMeta?.mismatchWeekday
+              ? {
+                  mismatchWeekday: true,
+                  note: resolvedMeta.note,
+                }
+              : {}),
             ...(preferredHourOccupied
               ? {
                   waitlistOffer: true,
-                  instruction:
+                  waitlistInstruction:
                     "OBRIGATÓRIO na resposta ao cliente: (1) diga que o horário pedido não está livre; (2) ofereça 2–3 alternativas dos slots; (3) pergunte se quer entrar na LISTA DE ESPERA daquele horário. Se aceitar, chame add_to_waitlist.",
                 }
               : {}),
+          },
+        };
+        break;
+      }
+      case "resolve_date": {
+        const phrase = String(args.phrase ?? args.datePhrase ?? args.text ?? "").trim();
+        if (!phrase) {
+          result = { ok: false, error: "phrase obrigatória (ex.: próxima segunda, amanhã, 1/9)" };
+          break;
+        }
+        const resolved = resolveTemporalPhrase(phrase);
+        if (!resolved) {
+          result = {
+            ok: false,
+            error: `Não consegui interpretar "${phrase}". Peça confirmação (DD/MM ou dia da semana).`,
+          };
+          break;
+        }
+        result = {
+          ok: true,
+          data: {
+            ...resolved,
+            instruction:
+              "Use date (YYYY-MM-DD) em list_slots/book_appointment e fale label ao cliente. Se mismatchWeekday, corrija o dia da semana.",
           },
         };
         break;
@@ -849,6 +902,9 @@ export async function executeTool(
                 appointmentId: booked.id,
                 startsAt: booked.startsAt.toISOString(),
                 endsAt: booked.endsAt.toISOString(),
+                hour,
+                ...describeDate(date),
+                confirmationHint: `Confirme com o cliente usando label (weekday real), não invente o dia.`,
               },
             }
           : { ok: false, error: booked.error };

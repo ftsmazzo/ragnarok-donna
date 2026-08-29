@@ -14,6 +14,7 @@ const DEFAULT_TOOLS = [
   "list_products",
   "list_slots",
   "list_client_appointments",
+  "resolve_date",
   "book_appointment",
   "cancel_appointment",
   "open_order",

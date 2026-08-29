@@ -16,17 +16,18 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
    - "antes de DD/MM" → beforeDate=YYYY-MM-DD
 4. A tool devolve appointments ORDENADOS do mais próximo ao mais longe + campo label com weekday correto.
    → Liste TODOS os retornados (ou diga que não há). Nunca cite só o mais longe. Nunca invente dia da semana.
-5. Marcar → list_services → list_slots (passe preferredHour se o cliente pediu hora, ex.: 17) → confirme → book_appointment.
-6. LISTA DE ESPERA (OBRIGATÓRIO quando o horário pedido NÃO está livre):
+5. Datas: SEMPRE resolve_date com a frase do cliente ("próxima segunda", "amanhã", "1/9", "quarta que vem") ANTES de list_slots/book. Use o date + label retornados — NUNCA invente weekday. Se mismatchWeekday=true, diga o dia correto.
+6. Marcar → list_services → resolve_date → list_slots (passe preferredHour se pediu hora, ex.: 17; datePhrase opcional) → confirme com label da tool → book_appointment.
+7. LISTA DE ESPERA (OBRIGATÓRIO quando o horário pedido NÃO está livre):
    - Na MESMA mensagem em que avisa que o horário está ocupado e oferece alternativas, SEMPRE pergunte também se quer entrar na lista de espera daquele horário (ex.: "às 17h").
    - Frase modelo: "O Diego não tem 17h livre. Posso te encaixar às 13h, 14h ou 15h — ou te coloco na lista de espera pra 17h e te aviso se liberar. O que prefere?"
    - NÃO feche só com alternativas. A espera tem que ser oferecida junto.
    - Se o cliente aceitar espera (ou disser "pode colocar na espera" / "me avisa se liberar"):
      → add_to_waitlist com clientId/phone, staffId, serviceId, desiredDate=YYYY-MM-DD, notes="horário desejado HH:00".
      → Confirme: "Pronto, você está na espera. Se liberar, te chamo no Zap."
-7. Cancelar → list_client_appointments → cancel_appointment com o id.
-8. Endereço / horário / sobre a loja → get_unit_context.
-Nunca invente horário.`,
+8. Cancelar → list_client_appointments → cancel_appointment com o id.
+9. Endereço / horário / sobre a loja → get_unit_context.
+Nunca invente horário nem dia da semana.`,
 
   "skill.order": `SKILL.ORDER — produtos e comanda
 Quando o cliente pergunta sobre produto à venda (balm, pomada, shampoo, óleo, kit…):
@@ -124,16 +125,38 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
       },
     },
   },
+  resolve_date: {
+    type: "function",
+    function: {
+      name: "resolve_date",
+      description:
+        "OBRIGATÓRIO para qualquer data relativa ou DD/MM. Converte frase (ex.: 'próxima segunda', 'amanhã', '1/9', 'quarta que vem') em date YYYY-MM-DD + weekday real (America/Sao_Paulo). Use o label retornado ao falar com o cliente.",
+      parameters: {
+        type: "object",
+        properties: {
+          phrase: {
+            type: "string",
+            description: "Trecho temporal do cliente (ex.: próxima segunda, amanhã, dia 1/9)",
+          },
+        },
+        required: ["phrase"],
+      },
+    },
+  },
   list_slots: {
     type: "function",
     function: {
       name: "list_slots",
       description:
-        "Lista horários livres. date=YYYY-MM-DD; period=manha|tarde. Se o cliente pediu uma hora específica, passe preferredHour (0-23). Se preferredHourOccupied=true, a resposta OBRIGA oferecer lista de espera.",
+        "Lista horários livres. Prefira date=YYYY-MM-DD vindo de resolve_date. datePhrase resolve no servidor se date faltar. preferredHour detecta ocupação/espera. Resposta inclui dateLabel (weekday real).",
       parameters: {
         type: "object",
         properties: {
-          date: { type: "string" },
+          date: { type: "string", description: "YYYY-MM-DD (de resolve_date)" },
+          datePhrase: {
+            type: "string",
+            description: "Frase temporal se ainda não tiver date (ex.: próxima segunda)",
+          },
           period: { type: "string", enum: ["manha", "tarde"] },
           durationMin: { type: "number" },
           preferredHour: {
@@ -143,7 +166,6 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
           staffId: { type: "string", description: "Filtrar profissional (ex.: Diego)" },
           limit: { type: "number" },
         },
-        required: ["date"],
       },
     },
   },
@@ -337,6 +359,7 @@ export function buildToolsForSkills(input: {
     "add_to_waitlist",
     "list_waitlist",
     "send_whatsapp",
+    "resolve_date",
   ] as AgentToolName[]) {
     if (TOOL_SCHEMAS[t] && (!input.toolsEnabled?.length || enabled.has("book_appointment") || enabled.has(t))) {
       names.add(t);

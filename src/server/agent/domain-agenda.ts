@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, isNull, lte, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { dayBoundsSp, rangesOverlap, slotRangeSp } from "@/server/agenda/utils";
+import { resolveTemporalPhrase } from "./temporal";
 
 const ACTIVE = ["scheduled", "confirmed", "arrived", "in_progress", "blocked"] as const;
 
@@ -56,28 +57,7 @@ export function nextDateForWeekday(weekday: number, from = new Date()): string {
 
 export function resolveDateFromHint(dayHint: string | null): string | null {
   if (!dayHint) return null;
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  if (dayHint === "hoje") return fmt.format(new Date());
-  if (dayHint === "amanhã") {
-    return fmt.format(new Date(Date.now() + 86_400_000));
-  }
-  const map: Record<string, number> = {
-    domingo: 0,
-    segunda: 1,
-    terça: 2,
-    quarta: 3,
-    quinta: 4,
-    sexta: 5,
-    sábado: 6,
-  };
-  const wd = map[dayHint];
-  if (wd === undefined) return null;
-  return nextDateForWeekday(wd);
+  return resolveTemporalPhrase(dayHint)?.date ?? null;
 }
 
 function parseTimeToMinutes(t: string): number {
