@@ -3,12 +3,21 @@ import { formatMoney } from "@/lib/format";
 
 type Props = {
   data: ConsolidatedOverview;
+  tenantSlug?: string;
 };
 
-export function ConsolidatedOverviewPanel({ data }: Props) {
+export function ConsolidatedOverviewPanel({ data, tenantSlug }: Props) {
+  const isDonna = tenantSlug === "donna-elegant";
   return (
     <div className="consolidated-panel banner-info banner-inline">
-      <h3 className="panel-subtitle">Visão consolidada — comparativo por unidade</h3>
+      <h3 className="panel-subtitle">
+        {isDonna
+          ? "Comparativo Donna — gestão das unidades (não é uma loja)"
+          : "Gestão da rede — comparativo por unidade"}
+      </h3>
+      <p className="client-profile-hint">
+        Aqui você compara U01, U02 e o total. Agenda, comanda e caixa ficam em cada unidade.
+      </p>
       <div className="consolidated-grid">
         {data.branches.map((b) => (
           <div key={b.slug} className="consolidated-card panel">
@@ -49,7 +58,7 @@ export function ConsolidatedOverviewPanel({ data }: Props) {
         ))}
         <div className="consolidated-card panel consolidated-total">
           <div className="panel-body">
-            <strong>Total rede</strong>
+            <strong>{isDonna ? "Total Donna" : "Total rede"}</strong>
             <ul className="consolidated-stats">
               <li>
                 <span>Profissionais</span>
@@ -72,8 +81,7 @@ export function ConsolidatedOverviewPanel({ data }: Props) {
         </div>
       </div>
       <p className="client-profile-hint muted">
-        Operação (agendar, comanda, caixa) continua em uma unidade por vez. Use U01 ou U02 nos
-        botões acima.
+        Para operar o dia a dia, escolha <strong>U01</strong> ou <strong>U02</strong> no topo.
       </p>
     </div>
   );

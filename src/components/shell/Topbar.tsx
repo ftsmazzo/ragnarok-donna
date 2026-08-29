@@ -38,6 +38,8 @@ export function Topbar({ onToggleSidebar, session }: TopbarProps) {
   const isConsolidated = session.branchView === "consolidated";
   const showBranchNav =
     session.canSwitchBranch && (session.branches.length > 1 || session.showConsolidated);
+  const consolidatedLabel =
+    session.tenantSlug === "donna-elegant" ? "Comparativo Donna" : "Gestão da rede";
 
   function branchPillLabel(name: string) {
     return name.replace(/^Donna Elegant — /, "").replace(/^Unidade /, "U");
@@ -109,35 +111,35 @@ export function Topbar({ onToggleSidebar, session }: TopbarProps) {
         )}
 
         {showBranchNav ? (
-          <div className="topbar-pills topbar-pills-branch" role="group" aria-label="Unidade">
-            {session.branches.map((b) => (
-              <button
-                key={b.slug}
-                type="button"
-                className={`topbar-pill topbar-pill-branch${
-                  !isConsolidated && b.slug === session.branchSlug ? " is-active" : ""
-                }`}
-                disabled={pending}
-                onClick={() => switchBranch(b.slug)}
-                title={b.name}
-              >
-                {branchPillLabel(b.name)}
-              </button>
-            ))}
+          <>
+            <div className="topbar-pills topbar-pills-branch" role="group" aria-label="Unidades">
+              {session.branches.map((b) => (
+                <button
+                  key={b.slug}
+                  type="button"
+                  className={`topbar-pill topbar-pill-branch${
+                    !isConsolidated && b.slug === session.branchSlug ? " is-active" : ""
+                  }`}
+                  disabled={pending}
+                  onClick={() => switchBranch(b.slug)}
+                  title={`Operar unidade: ${b.name}`}
+                >
+                  {branchPillLabel(b.name)}
+                </button>
+              ))}
+            </div>
             {session.showConsolidated ? (
               <button
                 type="button"
-                className={`topbar-pill topbar-pill-branch topbar-pill-consolidated${
-                  isConsolidated ? " is-active" : ""
-                }`}
+                className={`topbar-pill topbar-pill-mgmt${isConsolidated ? " is-active" : ""}`}
                 disabled={pending}
                 onClick={() => switchBranch(CONSOLIDATED_SLUG)}
-                title="Comparativo entre unidades"
+                title="Comparativo entre unidades — só gestão, sem operação"
               >
-                Consolidado
+                {consolidatedLabel}
               </button>
             ) : null}
-          </div>
+          </>
         ) : session.branchName ? (
           <span className="topbar-branch">{session.branchName}</span>
         ) : null}

@@ -61,7 +61,9 @@ export default async function PainelLayout({
           tenantSlug: session.tenant.slug,
           branchName:
             session.branchView === "consolidated"
-              ? "Consolidado"
+              ? session.tenant.slug === "donna-elegant"
+                ? "Comparativo Donna"
+                : "Gestão da rede"
               : (session.branch?.name ?? branches[0]?.name ?? null),
           branchSlug: session.branch?.slug ?? branches[0]?.slug ?? null,
           branchView: session.branchView ?? "unit",

@@ -79,19 +79,59 @@ export const NAV: NavItem[] = [
   },
 ];
 
-export function filterNavForRole(role: MemberRole, staffId?: string | null): NavItem[] {
+/**
+ * Menu enxuto da visão consolidada (gestão da rede).
+ * Sem agenda/comanda/caixa — operação é por unidade.
+ */
+export const NAV_CONSOLIDATED: NavItem[] = [
+  { label: "Gestão da rede", href: "/inicio", icon: "⌂" },
+  {
+    label: "Relatórios",
+    icon: "▦",
+    children: [
+      { label: "Visão geral", href: "/relatorios", icon: "▦" },
+      { label: "Alertas", href: "/alertas", icon: "!" },
+      { label: "Agendamentos", href: "/relatorios/agendamentos", icon: "▤" },
+      { label: "Financeiro", href: "/relatorios/financeiro", icon: "$" },
+      { label: "Comandas", href: "/relatorios/comandas", icon: "☰" },
+      { label: "Estoque", href: "/relatorios/estoque", icon: "▣" },
+      { label: "Perfil do cliente", href: "/relatorios/perfil", icon: "☺" },
+      { label: "Fluxo de caixa", href: "/relatorios/fluxo", icon: "↗" },
+    ],
+  },
+  { label: "Comissões", href: "/comissoes", icon: "%" },
+  {
+    label: "Configurações",
+    icon: "⚙",
+    children: [
+      { label: "Dados da empresa", href: "/configuracoes/empresa", icon: "⌂" },
+      { label: "Equipe de acesso", href: "/configuracoes/equipe" },
+      { label: "Minha conta", href: "/configuracoes/conta" },
+      { label: "Parâmetros", href: "/configuracoes" },
+    ],
+  },
+];
+
+export function filterNavForRole(
+  role: MemberRole,
+  staffId?: string | null,
+  opts?: { consolidated?: boolean }
+): NavItem[] {
   const ctx = { staffId };
+  const source = opts?.consolidated ? NAV_CONSOLIDATED : NAV;
 
-  return NAV.map((item) => {
-    if (item.href) {
-      return canAccessRoute(item.href, role, ctx) ? item : null;
-    }
+  return source
+    .map((item) => {
+      if (item.href) {
+        return canAccessRoute(item.href, role, ctx) ? item : null;
+      }
 
-    const children = item.children?.filter((c) => canAccessRoute(c.href, role, ctx));
-    if (!children?.length) return null;
+      const children = item.children?.filter((c) => canAccessRoute(c.href, role, ctx));
+      if (!children?.length) return null;
 
-    return { ...item, children };
-  }).filter((item): item is NavItem => item !== null);
+      return { ...item, children };
+    })
+    .filter((item): item is NavItem => item !== null);
 }
 
 /** Profissionais: barbeiro vai direto para a própria ficha. */

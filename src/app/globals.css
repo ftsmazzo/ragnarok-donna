@@ -199,6 +199,19 @@ input {
   margin-top: 2px;
 }
 
+.sidebar-consolidated-hint {
+  margin: 0;
+  padding: 10px 14px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid #161b1f;
+}
+
+.sidebar.is-consolidated .sidebar-brand {
+  border-bottom-color: rgba(212, 175, 55, 0.35);
+}
+
 .sidebar-nav {
   padding: 8px 0 24px;
   overflow-y: auto;
@@ -551,8 +564,17 @@ input {
   border: 2px solid var(--header);
 }
 
-.topbar-pill-consolidated {
+.topbar-pill-consolidated,
+.topbar-pill-mgmt {
   font-weight: 700;
+  margin-left: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.topbar-pill-mgmt.is-active {
+  background: rgba(255, 255, 255, 0.95);
+  color: #1a1a1a;
 }
 
 .topbar-search {

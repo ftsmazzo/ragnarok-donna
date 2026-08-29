@@ -14,6 +14,7 @@ type ShellSession = {
   staffId?: string | null;
   brandLogoSrc?: string | null;
   brandTagline?: string | null;
+  branchView?: "unit" | "consolidated";
 };
 
 type SidebarProps = {
@@ -45,7 +46,10 @@ function NavLabel({ icon, label }: { icon?: string; label: string }) {
 
 export function Sidebar({ session }: SidebarProps) {
   const pathname = usePathname();
-  const nav = filterNavForRole(session.role, session.staffId);
+  const isConsolidated = session.branchView === "consolidated";
+  const nav = filterNavForRole(session.role, session.staffId, {
+    consolidated: isConsolidated,
+  });
 
   const routeGroup =
     nav.find((item) => item.children && hasActiveChild(pathname, item))?.label ?? null;
@@ -61,8 +65,14 @@ export function Sidebar({ session }: SidebarProps) {
     setOpenLabel((prev) => (prev === label ? null : label));
   }
 
+  const tagline = isConsolidated
+    ? session.tenantSlug === "donna-elegant"
+      ? "Gestão · comparativo das unidades"
+      : "Gestão · comparativo da rede"
+    : (session.brandTagline ?? "Painel");
+
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${isConsolidated ? " is-consolidated" : ""}`}>
       <div className="sidebar-brand">
         <BrandMark
           key={session.tenantSlug}
@@ -72,11 +82,17 @@ export function Sidebar({ session }: SidebarProps) {
         />
         <div>
           <strong className="sidebar-brand-name">{session.tenantName}</strong>
-          <small>{session.brandTagline ?? "Painel"}</small>
+          <small>{tagline}</small>
         </div>
       </div>
 
-      <nav className="sidebar-nav" aria-label="Principal">
+      {isConsolidated ? (
+        <p className="sidebar-consolidated-hint">
+          Visão de gestão. Para agenda, comanda ou caixa, escolha uma unidade no topo.
+        </p>
+      ) : null}
+
+      <nav className="sidebar-nav" aria-label={isConsolidated ? "Gestão da rede" : "Principal"}>
         {nav.map((item) => {
           if (item.href) {
             const active = isActive(pathname, item.href);

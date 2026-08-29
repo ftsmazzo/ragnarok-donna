@@ -119,7 +119,9 @@ export async function InicioContent({ session, searchParams }: Props) {
         </div>
       ) : null}
 
-      {consolidated ? <ConsolidatedOverviewPanel data={consolidated} /> : null}
+      {consolidated ? (
+        <ConsolidatedOverviewPanel data={consolidated} tenantSlug={session.tenant.slug} />
+      ) : null}
       {donnaImport ? <DonnaImportBanner status={donnaImport} /> : null}
       {!isConsolidated ? (
         <BranchInaugurationBanner
@@ -129,9 +131,16 @@ export async function InicioContent({ session, searchParams }: Props) {
       ) : null}
 
       <PageHeader
-        title={isConsolidated ? "Início — Consolidado" : "Início"}
+        title={
+          isConsolidated
+            ? session.tenant.slug === "donna-elegant"
+              ? "Gestão Donna — Comparativo"
+              : "Gestão da rede"
+            : "Início"
+        }
         subtitle={`${o.tenantName} · ${formatDateLabelSp(today)}`}
         actions={
+          !isConsolidated &&
           canAccessRoute("/agenda", session.role, { staffId: session.staffId }) ? (
             <Link href="/agenda" className="btn btn-primary">
               Abrir agenda

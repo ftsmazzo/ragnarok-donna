@@ -58,9 +58,14 @@ export function EquipeView({ members, unlinkedStaff, branches, hasEmailConfig, w
       <InviteMemberForm branches={branches} hasEmailConfig={hasEmailConfig} />
 
       <p className="client-profile-hint">
-        <strong>Dono</strong> navega entre unidades e vê consolidado.{" "}
+        <strong>Dono</strong> navega entre unidades e vê o comparativo da rede.{" "}
         <strong>Gerente</strong> opera uma loja (sem relatórios financeiros).{" "}
         <strong>Barbeiro</strong> vê agenda, comandas e comissões próprias.
+      </p>
+      <p className="client-profile-hint muted">
+        Acesso a outra marca (ex.: Ragnarok e Donna) é por convite separado em cada
+        organização. Quem for sócio só da Ragnarok: crie o usuário aqui na Ragnarok e{" "}
+        <strong>não</strong> convide no painel Donna — assim ele não vê a Donna.
       </p>
 
       <div className="table-wrap">
