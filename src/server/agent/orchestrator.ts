@@ -22,6 +22,7 @@ import {
 } from "./skills";
 import { executeTool } from "./tools";
 import { buildCalendarContext, resolveTemporalPhrase } from "./temporal";
+import { extractWaitlistContextFromThread } from "./waitlist-context";
 import type { AgentSkillName, AgentToolName, OrchestratorInput, OrchestratorResult } from "./types";
 
 function readPersona(raw: unknown): AgentPersona | null {
@@ -158,7 +159,7 @@ function isSoftRefusalOfAlternatives(userText: string, history: string[]): boole
   if (userPickedAlternative(userText)) return false;
   if (userWantsWaitlist(userText)) return false;
 
-  return /depois vejo|vejo depois|deixa|mais tarde|outra hora|outro dia|não me interessa|nao me interessa|nenhuma|não quero|nao quero|não serve|nao serve|pode deixar|deixa quieto|não precisa|nao precisa|obrigad|valeu|vlw|blz|beleza|tá bom|ta bom|tudo bem|tenha uma|ótima tarde|otima tarde|boa tarde|até mais|ate mais|falou|flw/i.test(
+  return /depois vejo|vejo depois|deixa|mais tarde|outra hora|outro dia|não me interessa|nao me interessa|nenhuma|não quero|nao quero|não serve|nao serve|pode deixar|deixa quieto|não precisa|nao precisa|não\.?\s*obrigad|nao\.?\s*obrigad|obrigad|valeu|vlw|blz|beleza|tá bom|ta bom|tudo bem|tenha uma|ótima tarde|otima tarde|até mais|ate mais|falou|flw/i.test(
     userText
   );
 }
@@ -232,12 +233,13 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     };
   }
 
-  // Aceitou espera após oferta → grava direto
+  // Aceitou espera após oferta → grava direto com dados do histórico
   if (
     userWantsWaitlist(input.userText) ||
     (/^(sim|quero|pode|ok|fechado)\b/i.test(input.userText.trim()) &&
       waitlistAlreadyOffered(history))
   ) {
+    const ctx = extractWaitlistContextFromThread(history, input.userText);
     const added = await executeTool(
       "add_to_waitlist",
       {
@@ -247,12 +249,24 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       },
       {
         phone: input.phoneE164,
-        notes: "cliente aceitou lista de espera no Zap",
+        staffId: ctx.staffName ?? undefined,
+        serviceId: ctx.serviceQuery ?? undefined,
+        desiredDate: ctx.desiredDate ?? undefined,
+        notes: ctx.notes,
       }
     );
+    const detail = [
+      ctx.staffName ? `com ${ctx.staffName}` : null,
+      ctx.preferredHour != null
+        ? `às ${String(ctx.preferredHour).padStart(2, "0")}h`
+        : null,
+      ctx.desiredDate ? `(${ctx.desiredDate})` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
     return {
       reply: added.ok
-        ? "Pronto, você está na lista de espera! Se liberar o horário, te chamo aqui no Zap. 👊"
+        ? `Pronto, você está na lista de espera${detail ? ` ${detail}` : ""}! Se liberar, te chamo aqui no Zap. 👊`
         : "Quase consegui te colocar na espera — me confirma rapidinho o horário e o profissional que você queria?",
       skills: ["skill.schedule"],
       toolCalls: [{ name: "add_to_waitlist", ok: added.ok }],
@@ -356,7 +370,12 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
           args.phrase = input.userText;
         }
         if (name === "add_to_waitlist") {
+          const ctx = extractWaitlistContextFromThread(history, input.userText);
           if (!args.phone && !args.phoneE164) args.phone = input.phoneE164;
+          if (!args.staffId && ctx.staffName) args.staffId = ctx.staffName;
+          if (!args.serviceId && ctx.serviceQuery) args.serviceId = ctx.serviceQuery;
+          if (!args.desiredDate && ctx.desiredDate) args.desiredDate = ctx.desiredDate;
+          if (!args.notes || String(args.notes).length < 12) args.notes = ctx.notes;
           waitlistAcceptedThisTurn = true;
         }
         if (name === "send_whatsapp" && !args.phoneE164) args.phoneE164 = input.phoneE164;
@@ -367,13 +386,13 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
           (waitlistAcceptedThisTurn ||
             /espera|lista de espera|me avisa se liberar|quero sim/i.test(input.userText))
         ) {
+          const forcedCtx = extractWaitlistContextFromThread(history, input.userText);
           const forced = await executeTool("add_to_waitlist", toolCtx, {
             phone: input.phoneE164,
-            notes: String(args.reason ?? args.notes ?? "cliente pediu lista de espera"),
-            desiredDate: args.desiredDate,
-            staffId: args.staffId,
-            serviceId: args.serviceId,
-            clientId: args.clientId,
+            staffId: args.staffId || forcedCtx.staffName || undefined,
+            serviceId: args.serviceId || forcedCtx.serviceQuery || undefined,
+            desiredDate: args.desiredDate || forcedCtx.desiredDate || undefined,
+            notes: String(args.reason ?? args.notes ?? forcedCtx.notes),
           });
           toolCallsAudit.push({ name: "add_to_waitlist", ok: forced.ok });
           toolsFired.push("add_to_waitlist");

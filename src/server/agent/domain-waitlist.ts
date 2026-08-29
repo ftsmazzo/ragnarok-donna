@@ -116,6 +116,49 @@ export async function addToWaitlistForAgent(input: {
   }
 
   try {
+    // Se já existe espera aberta deste telefone, completa os campos em vez de duplicar
+    if (phoneE164) {
+      const last11 = phoneE164.replace(/\D/g, "").slice(-11);
+      const [existing] = await db
+        .select({
+          id: schema.waitlistEntries.id,
+          staffId: schema.waitlistEntries.staffId,
+          serviceId: schema.waitlistEntries.serviceId,
+          desiredDate: schema.waitlistEntries.desiredDate,
+          notes: schema.waitlistEntries.notes,
+        })
+        .from(schema.waitlistEntries)
+        .where(
+          and(
+            eq(schema.waitlistEntries.tenantId, input.tenantId),
+            eq(schema.waitlistEntries.status, "waiting"),
+            sql`right(regexp_replace(coalesce(${schema.waitlistEntries.phone}, ''), '\\D', '', 'g'), 11) = ${last11}`
+          )
+        )
+        .orderBy(asc(schema.waitlistEntries.createdAt))
+        .limit(1);
+
+      if (existing) {
+        const [updated] = await db
+          .update(schema.waitlistEntries)
+          .set({
+            clientId: clientId || null,
+            staffId: staffId || existing.staffId,
+            serviceId: serviceId || existing.serviceId,
+            phone: phoneE164 || phone || null,
+            desiredDate: desiredDate ?? existing.desiredDate,
+            notes:
+              input.notes?.trim().slice(0, 500) ||
+              existing.notes ||
+              null,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.waitlistEntries.id, existing.id))
+          .returning({ id: schema.waitlistEntries.id });
+        if (updated?.id) return { ok: true, id: updated.id };
+      }
+    }
+
     const [row] = await db
       .insert(schema.waitlistEntries)
       .values({
