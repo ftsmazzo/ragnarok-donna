@@ -12,7 +12,7 @@ import {
   readBusinessProfileFromSettings,
 } from "./business-profile";
 import { ensureBusinessProfileIfMissing } from "./ensure-business-profile";
-import { chatCompletion, getLlmConfig, type ChatMessage } from "./llm";
+import { chatCompletionWithFallback, getFallbackModel, getLlmConfig, getPrimaryModel, type ChatMessage } from "./llm";
 import { compilePersonaToSystemPrompt, type AgentPersona } from "./persona";
 import {
   buildToolsForSkills,
@@ -288,10 +288,8 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     },
   ];
 
-  const model =
-    process.env.LLM_MODEL?.trim() ||
-    profile?.model ||
-    "anthropic/claude-sonnet-4.6";
+  const model = getPrimaryModel() || profile?.model || undefined;
+  const fallbackModel = getFallbackModel();
   const temperature =
     typeof profile?.temperature === "number" ? Math.min(1, Math.max(0, profile.temperature / 100)) : 0.45;
 
@@ -302,8 +300,9 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   };
 
   for (let step = 0; step < 6; step += 1) {
-    const result = await chatCompletion({
+    const result = await chatCompletionWithFallback({
       model,
+      fallbackModel,
       messages,
       tools,
       temperature,

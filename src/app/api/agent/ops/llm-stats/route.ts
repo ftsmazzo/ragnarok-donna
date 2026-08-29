@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   }
 
   const db = createDb();
-  const model = process.env.LLM_MODEL?.trim() || "anthropic/claude-sonnet-4.6";
+  const model = process.env.LLM_MODEL?.trim() || "anthropic/claude-haiku-4.5";
 
   const tenants = await db
     .select({ id: schema.tenants.id, slug: schema.tenants.slug, name: schema.tenants.name })

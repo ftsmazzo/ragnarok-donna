@@ -124,7 +124,7 @@ export async function ensureDefaultAgentProfile(input: {
       persona,
       systemPrompt,
       toolsEnabled: [...DEFAULT_TOOLS],
-      model: process.env.LLM_MODEL?.trim() || "anthropic/claude-sonnet-4.6",
+      model: process.env.LLM_MODEL?.trim() || "anthropic/claude-haiku-4.5",
       temperature: 45,
       isDefault: true,
       isActive: true,

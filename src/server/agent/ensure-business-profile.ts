@@ -248,7 +248,7 @@ export async function ensureBusinessProfile(input: {
         displayName: "Donna",
         persona,
         systemPrompt,
-        model: process.env.LLM_MODEL?.trim() || "anthropic/claude-sonnet-4.6",
+        model: process.env.LLM_MODEL?.trim() || "anthropic/claude-haiku-4.5",
         updatedAt: new Date(),
       })
       .where(eq(schema.agentProfiles.id, agent.id));

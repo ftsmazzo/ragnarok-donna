@@ -1,8 +1,30 @@
 /**
  * Cliente LLM OpenAI-compatible (OpenRouter / OpenAI) com suporte a tools.
+ * Padrão: Claude Haiku 4.5 (custo). Fallback: Claude Sonnet 4.6 (qualidade).
  */
 
 let llmDisabledReason: string | null = null;
+
+export const DEFAULT_LLM_MODEL = "anthropic/claude-haiku-4.5";
+export const DEFAULT_LLM_FALLBACK_MODEL = "anthropic/claude-sonnet-4.6";
+
+/** Primary = Haiku (custo). Se LLM_MODEL ainda for Sonnet (env legado), ignora e usa Haiku. */
+export function getPrimaryModel(): string {
+  const explicit = process.env.LLM_PRIMARY_MODEL?.trim();
+  if (explicit) return explicit;
+  const fromEnv = process.env.LLM_MODEL?.trim();
+  if (fromEnv && !/claude-sonnet/i.test(fromEnv)) return fromEnv;
+  return DEFAULT_LLM_MODEL;
+}
+
+/** Fallback = Sonnet. Usa LLM_FALLBACK_MODEL, ou LLM_MODEL se for Sonnet (legado), senão default. */
+export function getFallbackModel(): string {
+  const explicit = process.env.LLM_FALLBACK_MODEL?.trim();
+  if (explicit) return explicit;
+  const fromEnv = process.env.LLM_MODEL?.trim();
+  if (fromEnv && /claude-sonnet/i.test(fromEnv)) return fromEnv;
+  return DEFAULT_LLM_FALLBACK_MODEL;
+}
 
 export function getLlmConfig() {
   if (llmDisabledReason) return null;
@@ -12,15 +34,14 @@ export function getLlmConfig() {
     return {
       apiKey: openRouter,
       baseUrl: "https://openrouter.ai/api/v1",
-      // Custo-benefício conversacional (não o mais barato)
-      defaultModel: process.env.LLM_MODEL?.trim() || "anthropic/claude-sonnet-4.6",
+      defaultModel: getPrimaryModel(),
     };
   }
   if (openAi) {
     return {
       apiKey: openAi,
       baseUrl: process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com/v1",
-      defaultModel: process.env.LLM_MODEL?.trim() || "gpt-4.1",
+      defaultModel: process.env.LLM_MODEL?.trim() || "gpt-4.1-mini",
     };
   }
   return null;
@@ -28,7 +49,7 @@ export function getLlmConfig() {
 
 export function resolveModelId(profileModel: string | null | undefined): string {
   const cfg = getLlmConfig();
-  const raw = (profileModel || process.env.LLM_MODEL || cfg?.defaultModel || "anthropic/claude-sonnet-4.6").trim();
+  const raw = (profileModel || getPrimaryModel() || cfg?.defaultModel || DEFAULT_LLM_MODEL).trim();
   if (!cfg) return raw;
   if (cfg.baseUrl.includes("openai.com") && raw.startsWith("openai/")) {
     return raw.slice("openai/".length);
@@ -280,4 +301,47 @@ export async function chatCompletion(input: {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Tenta o modelo principal; se falhar ou vier vazio sem tools, sobe para o fallback (Sonnet).
+ */
+export async function chatCompletionWithFallback(input: {
+  model?: string | null;
+  fallbackModel?: string | null;
+  messages: ChatMessage[];
+  tools?: ChatToolDef[];
+  temperature?: number;
+  maxTokens?: number;
+  timeoutMs?: number;
+}): Promise<ChatCompletionResult | null> {
+  const primary = resolveModelId(input.model || getPrimaryModel());
+  const fallback = resolveModelId(input.fallbackModel || getFallbackModel());
+
+  const primaryResult = await chatCompletion({
+    ...input,
+    model: primary,
+  });
+
+  const primaryOk =
+    primaryResult &&
+    (primaryResult.toolCalls.length > 0 || Boolean(primaryResult.content?.trim()));
+
+  if (primaryOk) return primaryResult;
+
+  if (fallback === primary) return primaryResult;
+
+  console.warn("[llm] fallback →", fallback, {
+    primary,
+    hadResult: Boolean(primaryResult),
+    tools: primaryResult?.toolCalls.length ?? 0,
+    contentLen: primaryResult?.content?.length ?? 0,
+  });
+
+  return chatCompletion({
+    ...input,
+    model: fallback,
+    // Fallback um pouco mais paciente
+    timeoutMs: Math.max(input.timeoutMs ?? 45_000, 55_000),
+  });
 }
