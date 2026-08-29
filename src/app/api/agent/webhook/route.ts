@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { assertWebhookAuthorized, handleEvolutionWebhook } from "@/server/agent/inbound";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+/** Tempo extra se o runtime ainda processar no mesmo request (fallback). */
+export const maxDuration = 90;
 
-/** Webhook Evolution → Donna (MESSAGES_UPSERT, CONNECTION_UPDATE). */
+/**
+ * Webhook Evolution → Donna.
+ * Responde 200 na hora (Evolution não corta a conexão) e processa a IA em background.
+ */
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
@@ -19,16 +23,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const result = await handleEvolutionWebhook(body);
-    return NextResponse.json(result);
-  } catch (err) {
-    console.error("[webhook]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Erro interno" },
-      { status: 500 }
-    );
-  }
+  after(async () => {
+    try {
+      await handleEvolutionWebhook(body);
+    } catch (err) {
+      console.error("[webhook:after]", err);
+    }
+  });
+
+  return NextResponse.json({ ok: true, accepted: true });
 }
 
 export async function GET() {

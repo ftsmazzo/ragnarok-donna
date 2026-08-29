@@ -8,6 +8,23 @@ import { deliverWhatsAppText } from "./outbound";
 import { runOrchestrator } from "./orchestrator";
 import { enrichInboundMessage } from "./media";
 
+/** Serializa respostas por conversa (1 réplica EasyPanel) — não descarta msg enquanto a anterior processa. */
+const replyChains = new Map<string, Promise<void>>();
+
+function enqueueConversationReply(conversationId: string, task: () => Promise<void>) {
+  const prev = replyChains.get(conversationId) ?? Promise.resolve();
+  const next = prev
+    .then(task)
+    .catch((err) => {
+      console.error("[webhook] reply chain", conversationId, err);
+    })
+    .finally(() => {
+      if (replyChains.get(conversationId) === next) replyChains.delete(conversationId);
+    });
+  replyChains.set(conversationId, next);
+  return next;
+}
+
 type EvolutionWebhookBody = {
   event?: string;
   instance?: string;
@@ -229,7 +246,7 @@ export async function processInboundMessage(
 
   if (!shouldReply || conv.mode === "human") return "ok";
 
-  // Evita rajada: mesmo texto em <90s ou outra resposta IA ainda "quente"
+  // Evita rajada do MESMO texto (retry Evolution / double-tap)
   const db = createDb();
   const windowStart = new Date(Date.now() - 90_000);
   const [sameBody] = await db
@@ -250,7 +267,8 @@ export async function processInboundMessage(
     return "dup";
   }
 
-  const hotStart = new Date(Date.now() - 20_000);
+  // Só engole "obrigado/ok" logo após a Donna falar — NUNCA pergunta real
+  const hotStart = new Date(Date.now() - 12_000);
   const [hotOut] = await db
     .select({ id: schema.messages.id })
     .from(schema.messages)
@@ -262,64 +280,53 @@ export async function processInboundMessage(
       )
     )
     .limit(1);
-  if (hotOut) {
-    console.warn("[webhook] skip reply — outbound recente (debounce)", phoneE164);
+  if (hotOut && isShortAck(text)) {
+    console.warn("[webhook] skip reply — ack curto pós-Donna", phoneE164);
     return "ok";
   }
 
-  // Lock curto na conversa (Evolution retries)
-  const [lockRow] = await db
-    .select({ meta: schema.conversations.meta })
-    .from(schema.conversations)
-    .where(eq(schema.conversations.id, conv.id))
-    .limit(1);
-  const lockAtRaw = lockRow?.meta?.replyLockAt;
-  const lockAtMs = lockAtRaw ? Date.parse(String(lockAtRaw)) : 0;
-  const lockHolder = lockRow?.meta?.replyLock;
-  if (
-    lockHolder &&
-    lockHolder !== waMessageId &&
-    Number.isFinite(lockAtMs) &&
-    Date.now() - lockAtMs < 60_000
-  ) {
-    console.warn("[webhook] skip reply — lock ativo", phoneE164);
-    return "ok";
-  }
-  await db
-    .update(schema.conversations)
-    .set({
-      meta: {
-        ...(lockRow?.meta ?? {}),
-        replyLock: waMessageId,
-        replyLockAt: new Date().toISOString(),
-      },
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.conversations.id, conv.id));
+  // Enfileira: se ainda estiver respondendo a msg anterior, esta espera — não some
+  await enqueueConversationReply(conv.id, async () => {
+    const result = await runOrchestrator({
+      tenantId,
+      conversationId: conv.id,
+      phoneE164,
+      userText: text,
+      mode: "ai",
+    });
 
-  const result = await runOrchestrator({
-    tenantId,
-    conversationId: conv.id,
-    phoneE164,
-    userText: text,
-    mode: "ai",
-  });
+    if (!result.reply?.trim()) return;
 
-  if (!result.reply?.trim()) return "ok";
+    const connection = await syncWhatsAppConnectionByInstance(instanceName);
+    if (connection?.status !== "connected") return;
 
-  const connection = await syncWhatsAppConnectionByInstance(instanceName);
-  if (connection?.status !== "connected") return "ok";
-
-  await deliverWhatsAppText({
-    tenantId,
-    instanceName,
-    phoneE164,
-    text: result.reply,
-    conversationId: conv.id,
-    direction: "outbound_ai",
+    await deliverWhatsAppText({
+      tenantId,
+      instanceName,
+      phoneE164,
+      text: result.reply,
+      conversationId: conv.id,
+      direction: "outbound_ai",
+    });
   });
 
   return "ok";
+}
+
+/** "obrigado", "ok", "blz" — não perguntas de agenda/espera. */
+function isShortAck(text: string): boolean {
+  const t = text.trim();
+  if (t.length > 40) return false;
+  if (
+    /lista|espera|hor[aá]rio|agend|marcar|remarcar|cancel|segunda|ter[cç]a|diego|barbeiro|servi[cç]o|pre[cç]o|confirma/i.test(
+      t
+    )
+  ) {
+    return false;
+  }
+  return /^(ok|okay|obrigad\w*|valeu|vlw|blz|beleza|👍|👊|🙏|combinado|fechado|tá|ta|tbm|também|tambem|sim|não|nao|uhum|hm+|kk+|haha+|rsrs+)\.?[!!.]*$/i.test(
+    t
+  );
 }
 
 async function handleConnectionUpdate(instanceName: string, raw: ConnectionUpdateData) {
