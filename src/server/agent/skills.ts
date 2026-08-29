@@ -16,11 +16,16 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
    - "antes de DD/MM" → beforeDate=YYYY-MM-DD
 4. A tool devolve appointments ORDENADOS do mais próximo ao mais longe + campo label com weekday correto.
    → Liste TODOS os retornados (ou diga que não há). Nunca cite só o mais longe. Nunca invente dia da semana.
-5. Marcar → list_services → list_slots → confirme → book_appointment.
-6. Se o horário pedido estiver ocupado: ofereça alternativas com list_slots. Se o cliente aceitar esperar:
-   → add_to_waitlist (clientId/phone, staffId, serviceId, desiredDate). Confirme que entrou na espera.
+5. Marcar → list_services → list_slots (passe preferredHour se o cliente pediu hora, ex.: 17) → confirme → book_appointment.
+6. LISTA DE ESPERA (OBRIGATÓRIO quando o horário pedido NÃO está livre):
+   - Na MESMA mensagem em que avisa que o horário está ocupado e oferece alternativas, SEMPRE pergunte também se quer entrar na lista de espera daquele horário (ex.: "às 17h").
+   - Frase modelo: "O Diego não tem 17h livre. Posso te encaixar às 13h, 14h ou 15h — ou te coloco na lista de espera pra 17h e te aviso se liberar. O que prefere?"
+   - NÃO feche só com alternativas. A espera tem que ser oferecida junto.
+   - Se o cliente aceitar espera (ou disser "pode colocar na espera" / "me avisa se liberar"):
+     → add_to_waitlist com clientId/phone, staffId, serviceId, desiredDate=YYYY-MM-DD, notes="horário desejado HH:00".
+     → Confirme: "Pronto, você está na espera. Se liberar, te chamo no Zap."
 7. Cancelar → list_client_appointments → cancel_appointment com o id.
-8. Endereço / horário / sobre a loja → get_unit_context (ou use os DADOS DA UNIDADE do system prompt). Nunca cite WhatsApp antigo do site.
+8. Endereço / horário / sobre a loja → get_unit_context.
 Nunca invente horário.`,
 
   "skill.order": `SKILL.ORDER — produtos e comanda
@@ -123,13 +128,19 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     type: "function",
     function: {
       name: "list_slots",
-      description: "Lista horários livres. date=YYYY-MM-DD; period=manha|tarde.",
+      description:
+        "Lista horários livres. date=YYYY-MM-DD; period=manha|tarde. Se o cliente pediu uma hora específica, passe preferredHour (0-23). Se preferredHourOccupied=true, a resposta OBRIGA oferecer lista de espera.",
       parameters: {
         type: "object",
         properties: {
           date: { type: "string" },
           period: { type: "string", enum: ["manha", "tarde"] },
           durationMin: { type: "number" },
+          preferredHour: {
+            type: "number",
+            description: "Hora que o cliente pediu (ex.: 17). Usado para detectar ocupação e sugerir espera.",
+          },
+          staffId: { type: "string", description: "Filtrar profissional (ex.: Diego)" },
           limit: { type: "number" },
         },
         required: ["date"],
@@ -241,7 +252,7 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
     function: {
       name: "add_to_waitlist",
       description:
-        "Coloca o cliente na lista de espera quando o horário desejado está ocupado. Use após oferecer alternativas.",
+        "Coloca o cliente na lista de espera do horário desejado. Chame quando o cliente aceitar esperar (ou pedir para avisar se liberar). desiredDate=YYYY-MM-DD; notes deve incluir a hora (ex.: 'deseja 17:00 com Diego').",
       parameters: {
         type: "object",
         properties: {

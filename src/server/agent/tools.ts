@@ -783,14 +783,42 @@ export async function executeTool(
               ? "tarde"
               : "manha"
             : null;
-        const slots = await listFreeSlotsForTenant({
+        const preferredHour =
+          args.preferredHour != null && Number.isFinite(Number(args.preferredHour))
+            ? Number(args.preferredHour)
+            : null;
+        const staffIdFilter = String(args.staffId ?? "").trim() || null;
+        let slots = await listFreeSlotsForTenant({
           tenantId: ctx.tenantId,
           date,
           durationMin: Number.isFinite(durationMin) ? durationMin : 30,
           period,
-          limit: Number(args.limit ?? 5),
+          limit: Number(args.limit ?? 8),
         });
-        result = { ok: true, data: { date, period, slots } };
+        if (staffIdFilter) {
+          slots = slots.filter((s) => s.staffId === staffIdFilter);
+        }
+        const preferredHourOccupied =
+          preferredHour != null &&
+          !slots.some((s) => s.hour === preferredHour || s.hour === preferredHour % 24);
+
+        result = {
+          ok: true,
+          data: {
+            date,
+            period,
+            preferredHour,
+            preferredHourOccupied,
+            slots,
+            ...(preferredHourOccupied
+              ? {
+                  waitlistOffer: true,
+                  instruction:
+                    "OBRIGATÓRIO na resposta ao cliente: (1) diga que o horário pedido não está livre; (2) ofereça 2–3 alternativas dos slots; (3) pergunte se quer entrar na LISTA DE ESPERA daquele horário. Se aceitar, chame add_to_waitlist.",
+                }
+              : {}),
+          },
+        };
         break;
       }
       case "book_appointment": {

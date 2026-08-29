@@ -46,6 +46,7 @@ REGRAS:
 10. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
 11. Nunca invente horário, produto ou preço. Nunca diga que é IA/bot.
 12. Resposta final = só o texto do WhatsApp.
+13. LISTA DE ESPERA: se o cliente pediu um horário e list_slots indicar preferredHourOccupied=true (ou a hora não aparecer nos slots), na MESMA mensagem ofereça alternativas E pergunte se quer entrar na lista de espera daquele horário. Nunca responda só com outras horas sem mencionar a espera.
 `.trim();
 }
 
@@ -216,6 +217,15 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         if (name === "list_client_appointments" && !args.range) args.range = "upcoming";
         if (name === "list_client_appointments" && !args.phoneE164 && !args.clientId) {
           args.phoneE164 = input.phoneE164;
+        }
+        if (name === "list_slots" && (args.preferredHour == null || args.preferredHour === "")) {
+          const hourMatch =
+            input.userText.match(/\b(?:às|as|á)?\s*(\d{1,2})\s*(?:h|:00)?\b/i) ||
+            input.userText.match(/\b(\d{1,2}):00\b/);
+          if (hourMatch) {
+            const h = Number(hourMatch[1]);
+            if (h >= 7 && h <= 22) args.preferredHour = h;
+          }
         }
         if (name === "add_to_waitlist" && !args.phone && !args.phoneE164 && !args.clientId) {
           args.phone = input.phoneE164;
