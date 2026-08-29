@@ -143,7 +143,32 @@ function userPickedAlternative(text: string): boolean {
 }
 
 function userWantsWaitlist(text: string): boolean {
-  return /lista de espera|na espera|me avisa se liberar|pode colocar|coloca na espera|quero sim|pode sim|quero a espera/i.test(
+  return /lista de espera|me avisa se liberar|coloca na espera|quero a espera|pode me colocar na espera|entra na espera/i.test(
+    text
+  );
+}
+
+/** Aceite curto da oferta de espera — NÃO "pode confirmar", "pode ser amanhã", etc. */
+function isStrictWaitlistAccept(text: string, history: string[]): boolean {
+  if (!waitlistAlreadyOffered(history)) return false;
+  const last = lastDonnaMessage(history) || "";
+  // Só se a última fala da Donna foi OFERTA (não confirmação "Pronto, você está…")
+  if (!/quer que eu te coloque na lista|lista de espera do horário|te aviso se liberar|te aviso aqui no Zap\?/i.test(last)) {
+    return false;
+  }
+  if (/Pronto, você está na lista/i.test(last)) return false;
+
+  const t = text.trim();
+  if (t.length > 48) return false;
+  if (/confirm|hora|dia|quando|onde|qual|lista\?|estou|tô na|to na/i.test(t)) return false;
+  if (/^(sim|quero|pode|ok|fechado|isso|uhum|pode ser|pode colocar|coloca)([!.?\s]|$)/i.test(t)) {
+    return true;
+  }
+  return userWantsWaitlist(t);
+}
+
+function isWaitlistStatusQuestion(text: string): boolean {
+  return /confirm|estou na lista|tô na lista|to na lista|entrei na lista|na lista de espera|meu lugar|ainda (estou|tô|to) na espera/i.test(
     text
   );
 }
@@ -233,12 +258,8 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     };
   }
 
-  // Aceitou espera após oferta → grava direto com dados do histórico
-  if (
-    userWantsWaitlist(input.userText) ||
-    (/^(sim|quero|pode|ok|fechado)\b/i.test(input.userText.trim()) &&
-      waitlistAlreadyOffered(history))
-  ) {
+  // Aceitou espera após oferta → grava direto (aceite CURTO; "pode confirmar" NÃO entra aqui)
+  if (isStrictWaitlistAccept(input.userText, history)) {
     const ctx = extractWaitlistContextFromThread(history, input.userText);
     const added = await executeTool(
       "add_to_waitlist",
@@ -270,6 +291,47 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         : "Quase consegui te colocar na espera — me confirma rapidinho o horário e o profissional que você queria?",
       skills: ["skill.schedule"],
       toolCalls: [{ name: "add_to_waitlist", ok: added.ok }],
+    };
+  }
+
+  // "Estou na lista?" / "pode confirmar?" → consulta, não reinsere
+  if (isWaitlistStatusQuestion(input.userText)) {
+    const listed = await executeTool(
+      "list_waitlist",
+      {
+        tenantId: input.tenantId,
+        conversationId: input.conversationId,
+        agentProfileId: profile?.id,
+      },
+      { status: "waiting", limit: 40 }
+    );
+    const entries =
+      listed.ok && listed.data && typeof listed.data === "object"
+        ? ((listed.data as { entries?: { phone?: string | null; notes?: string | null; desiredDate?: string | null; staffName?: string | null }[] })
+            .entries ?? [])
+        : [];
+    const phoneDigits = input.phoneE164.replace(/\D/g, "").slice(-11);
+    const mine = entries.filter((e) => (e.phone || "").replace(/\D/g, "").slice(-11) === phoneDigits);
+    if (mine.length) {
+      const e = mine[0]!;
+      const bits = [
+        e.staffName ? `com ${e.staffName}` : null,
+        e.desiredDate ? `em ${e.desiredDate}` : null,
+        e.notes || null,
+      ]
+        .filter(Boolean)
+        .join(" — ");
+      return {
+        reply: `Sim, você está na lista de espera${bits ? ` (${bits})` : ""}. Se liberar, te aviso aqui no Zap. 👊`,
+        skills: ["skill.schedule"],
+        toolCalls: [{ name: "list_waitlist", ok: true }],
+      };
+    }
+    return {
+      reply:
+        "Não achei você na lista de espera agora. Se quiser, te coloco de novo — me diz o dia, horário e profissional.",
+      skills: ["skill.schedule"],
+      toolCalls: [{ name: "list_waitlist", ok: listed.ok }],
     };
   }
 

@@ -287,6 +287,26 @@ export async function processInboundMessage(
 
   // Enfileira: se ainda estiver respondendo a msg anterior, esta espera — não some
   await enqueueConversationReply(conv.id, async () => {
+    // Revalida ack curto no momento do processamento (evita "vlw" atrasado responder outra coisa)
+    if (isShortAck(text)) {
+      const hot = new Date(Date.now() - 45_000);
+      const [recentAi] = await db
+        .select({ id: schema.messages.id, body: schema.messages.body })
+        .from(schema.messages)
+        .where(
+          and(
+            eq(schema.messages.conversationId, conv.id),
+            eq(schema.messages.direction, "outbound_ai"),
+            gte(schema.messages.createdAt, hot)
+          )
+        )
+        .limit(1);
+      if (recentAi) {
+        console.warn("[webhook] skip reply delayed — ack curto", phoneE164);
+        return;
+      }
+    }
+
     const result = await runOrchestrator({
       tenantId,
       conversationId: conv.id,
@@ -296,6 +316,25 @@ export async function processInboundMessage(
     });
 
     if (!result.reply?.trim()) return;
+
+    // Não reenviar o mesmo texto da Donna em <90s (duplicata de fila/áudio)
+    const dupWindow = new Date(Date.now() - 90_000);
+    const [sameOut] = await db
+      .select({ id: schema.messages.id })
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.conversationId, conv.id),
+          eq(schema.messages.direction, "outbound_ai"),
+          eq(schema.messages.body, result.reply),
+          gte(schema.messages.createdAt, dupWindow)
+        )
+      )
+      .limit(1);
+    if (sameOut) {
+      console.warn("[webhook] skip outbound duplicado", phoneE164);
+      return;
+    }
 
     const connection = await syncWhatsAppConnectionByInstance(instanceName);
     if (connection?.status !== "connected") return;
@@ -324,7 +363,7 @@ function isShortAck(text: string): boolean {
   ) {
     return false;
   }
-  return /^(ok|okay|obrigad\w*|valeu|vlw|blz|beleza|👍|👊|🙏|combinado|fechado|tá|ta|tbm|também|tambem|sim|não|nao|uhum|hm+|kk+|haha+|rsrs+)\.?[!!.]*$/i.test(
+  return /^(ok|okay|obrigad\w*|valeu|vlw|blz|beleza|👍|👊|🙏|combinado|fechado|tá|ta|tbm|também|tambem|uhum|hm+|kk+|haha+|rsrs+)\.?[!!.]*$/i.test(
     t
   );
 }
