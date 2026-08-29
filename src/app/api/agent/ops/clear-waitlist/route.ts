@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { clearWaitlistForTenant } from "@/server/agent/domain-waitlist";
 
@@ -52,7 +52,21 @@ export async function POST(request: Request) {
     const results = [];
     for (const t of allTenants) {
       const r = await clearWaitlistForTenant(t.id);
-      results.push({ slug: t.slug, name: t.name, deleted: r.deleted });
+      const reset = await db
+        .update(schema.conversations)
+        .set({
+          mode: "ai",
+          humanRequestedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(schema.conversations.tenantId, t.id), eq(schema.conversations.mode, "human")))
+        .returning({ id: schema.conversations.id });
+      results.push({
+        slug: t.slug,
+        name: t.name,
+        deleted: r.deleted,
+        conversationsBackToAi: reset.length,
+      });
     }
     return NextResponse.json({ ok: true, results });
   }
@@ -60,7 +74,22 @@ export async function POST(request: Request) {
   const results = [];
   for (const t of tenants) {
     const r = await clearWaitlistForTenant(t.id);
-    results.push({ slug: t.slug, name: t.name, deleted: r.deleted });
+    // Devolve conversas de human → ai (Donna assume a espera sozinha)
+    const reset = await db
+      .update(schema.conversations)
+      .set({
+        mode: "ai",
+        humanRequestedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.conversations.tenantId, t.id), eq(schema.conversations.mode, "human")))
+      .returning({ id: schema.conversations.id });
+    results.push({
+      slug: t.slug,
+      name: t.name,
+      deleted: r.deleted,
+      conversationsBackToAi: reset.length,
+    });
   }
 
   return NextResponse.json({ ok: true, all, results });
