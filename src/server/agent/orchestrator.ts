@@ -49,7 +49,7 @@ REGRAS:
 10. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
 11. Nunca invente horário, produto, preço ou dia da semana. Nunca diga que é IA/bot.
 12. Resposta final = só o texto do WhatsApp.
-13. HORÁRIO OCUPADO: primeiro ofereça 2–3 alternativas (outro barbeiro no mesmo horário, outro horário no mesmo dia, outro dia no mesmo horário). Lista de espera SÓ se o cliente recusar as alternativas.
+13. HORÁRIO OCUPADO: (1) ofereça 2–3 alternativas; (2) se o cliente recusar as alternativas, OFEREÇA a lista de espera ANTES de se despedir; (3) só se recusar também a espera, aí encerre. Nunca diga "até mais" logo após a recusa das alternativas sem mencionar a espera.
 14. LISTA DE ESPERA: quando o cliente aceitar esperar, chame add_to_waitlist com o telefone da conversa. NUNCA use handoff_human por falha ou sucesso da espera — a Donna resolve sozinha. Se a tool falhar, peça desculpa e tente de novo (ou confirme telefone), sem chamar a equipe.
 15. DATAS: para "próxima segunda", "amanhã", "quarta que vem", "1/9" etc. chame resolve_date (ou list_slots com datePhrase). Fale sempre o weekday do CALENDÁRIO / dateLabel da tool. Se o cliente disser "segunda 1/9" e 1/9 for terça, corrija com educação usando o note da tool.
 `.trim();
@@ -355,6 +355,40 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       !/outro|alternativa|também|posso te|com o |com a /i.test(reply)
     ) {
       reply = `${reply}\n\nPosso te oferecer: ${pendingAlternatives.join("; ")}. Qual prefere? Se nenhuma servir, aí te coloco na lista de espera.`;
+    }
+
+    // Recusou alternativas → garantir oferta de espera antes do adeus
+    const lastDonna = [...history].reverse().find((h) => h.startsWith("donna:"));
+    const donnaJustOfferedAlts = Boolean(
+      lastDonna &&
+        /(opções|opcoes|alternativa|\b1\.|às \d{1,2}h com|as \d{1,2}h com|Qual dessas)/i.test(
+          lastDonna
+        )
+    );
+    const waitlistAlreadyOffered = history.some(
+      (h) =>
+        h.startsWith("donna:") &&
+        /lista de espera|te coloco na espera|na espera|te aviso se liberar|me avisa se liberar/i.test(
+          h
+        )
+    );
+    const userRefusedAlts =
+      /não me interessa|nao me interessa|nenhuma|não quero|nao quero|não serve|nao serve|deixa pra l[aá]|pode deixar|não|nao|obrigad/i.test(
+        input.userText
+      ) && !/espera|me avisa|coloca na|lista|quero a |quero a\d|sim|pode colocar/i.test(input.userText);
+    const replyHasWaitlist =
+      /lista de espera|na espera|te coloco na espera|te aviso se liberar|me avisa se liberar/i.test(
+        reply
+      );
+
+    if (
+      donnaJustOfferedAlts &&
+      userRefusedAlts &&
+      !waitlistAlreadyOffered &&
+      !replyHasWaitlist
+    ) {
+      reply =
+        "Sem problema! Antes de encerrar: quer que eu te coloque na lista de espera do horário que você pediu? Se liberar, te aviso aqui no Zap.";
     }
 
     return {
