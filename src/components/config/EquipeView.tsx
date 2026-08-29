@@ -64,8 +64,8 @@ export function EquipeView({ members, unlinkedStaff, branches, hasEmailConfig, w
       </p>
       <p className="client-profile-hint muted">
         Acesso a outra marca (ex.: Ragnarok e Donna) é por convite separado em cada
-        organização. Quem for sócio só da Ragnarok: crie o usuário aqui na Ragnarok e{" "}
-        <strong>não</strong> convide no painel Donna — assim ele não vê a Donna.
+        organização. Sócio só da Donna: convide no painel Donna e{" "}
+        <strong>não</strong> crie membership na Ragnarok — assim ele não vê a Ragnarok.
       </p>
 
       <div className="table-wrap">
