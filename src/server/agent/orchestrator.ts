@@ -108,6 +108,65 @@ function parseToolArgs(raw: string): Record<string, unknown> {
   return {};
 }
 
+function lastDonnaMessage(history: string[]): string | null {
+  return [...history].reverse().find((h) => h.startsWith("donna:")) ?? null;
+}
+
+function donnaOfferedAlternatives(donnaBody: string): boolean {
+  if (/(opções|opcoes) pra|tenho essas opções|Qual (dessas|funciona)/i.test(donnaBody)) {
+    return true;
+  }
+  const hasSlots = /(às|as) \d{1,2}h com/i.test(donnaBody);
+  const hasList = /(?:^|\n)\s*(?:[123][\.\)]|1️⃣|2️⃣|3️⃣)/m.test(donnaBody);
+  return hasSlots && hasList;
+}
+
+function waitlistAlreadyOffered(history: string[]): boolean {
+  return history.some(
+    (h) =>
+      h.startsWith("donna:") &&
+      /lista de espera|te coloco na espera|na espera do horário|te aviso se liberar|me avisa se liberar/i.test(
+        h
+      )
+  );
+}
+
+/** Cliente escolheu uma das opções numeradas / horário concreto. */
+function userPickedAlternative(text: string): boolean {
+  const t = text.trim();
+  if (/^(a\s*)?[123]([.\)]|\s|$)/i.test(t)) return true;
+  if (/\b(primeira|segunda|terceira)\s*(opção|opcao)?\b/i.test(t)) return true;
+  if (/\b(quero|vou|fico|pode)\b.{0,20}\b(com o|com a|às|as)\b/i.test(t)) return true;
+  if (/\b(diogo|diego|barba|corte)\b/i.test(t) && /\b(\d{1,2})\s*h?\b/i.test(t)) return true;
+  return false;
+}
+
+function userWantsWaitlist(text: string): boolean {
+  return /lista de espera|na espera|me avisa se liberar|pode colocar|coloca na espera|quero sim|pode sim|quero a espera/i.test(
+    text
+  );
+}
+
+/**
+ * Recusa suave das alternativas (depois vejo, obrigado, deixa…)
+ * — deve oferecer espera SEM depender do LLM (evita timeout / silêncio).
+ */
+function isSoftRefusalOfAlternatives(userText: string, history: string[]): boolean {
+  const lastDonna = lastDonnaMessage(history);
+  if (!lastDonna || !donnaOfferedAlternatives(lastDonna)) return false;
+  if (waitlistAlreadyOffered(history)) return false;
+  if (userPickedAlternative(userText)) return false;
+  if (userWantsWaitlist(userText)) return false;
+
+  return /depois vejo|vejo depois|deixa|mais tarde|outra hora|outro dia|não me interessa|nao me interessa|nenhuma|não quero|nao quero|não serve|nao serve|pode deixar|deixa quieto|não precisa|nao precisa|obrigad|valeu|vlw|blz|beleza|tá bom|ta bom|tudo bem|tenha uma|ótima tarde|otima tarde|boa tarde|até mais|ate mais|falou|flw/i.test(
+    userText
+  );
+}
+
+function waitlistOfferReply(): string {
+  return "Sem problema! Antes de encerrar: quer que eu te coloque na lista de espera do horário que você pediu? Se liberar, te aviso aqui no Zap.";
+}
+
 /**
  * Runtime LLM-first: persona + skills → tools → resposta conversacional.
  */
@@ -163,6 +222,42 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   const historyBlock = history.length
     ? `Histórico recente:\n${history.join("\n")}`
     : "Histórico: (início da conversa)";
+
+  // Recusou alternativas → oferta de espera imediata (sem LLM = sem silêncio/timeout)
+  if (isSoftRefusalOfAlternatives(input.userText, history)) {
+    return {
+      reply: waitlistOfferReply(),
+      skills: ["skill.schedule"],
+      toolCalls: [],
+    };
+  }
+
+  // Aceitou espera após oferta → grava direto
+  if (
+    userWantsWaitlist(input.userText) ||
+    (/^(sim|quero|pode|ok|fechado)\b/i.test(input.userText.trim()) &&
+      waitlistAlreadyOffered(history))
+  ) {
+    const added = await executeTool(
+      "add_to_waitlist",
+      {
+        tenantId: input.tenantId,
+        conversationId: input.conversationId,
+        agentProfileId: profile?.id,
+      },
+      {
+        phone: input.phoneE164,
+        notes: "cliente aceitou lista de espera no Zap",
+      }
+    );
+    return {
+      reply: added.ok
+        ? "Pronto, você está na lista de espera! Se liberar o horário, te chamo aqui no Zap. 👊"
+        : "Quase consegui te colocar na espera — me confirma rapidinho o horário e o profissional que você queria?",
+      skills: ["skill.schedule"],
+      toolCalls: [{ name: "add_to_waitlist", ok: added.ok }],
+    };
+  }
 
   const toolCallsAudit: OrchestratorResult["toolCalls"] = [];
   const toolsFired: AgentToolName[] = [];
@@ -357,38 +452,18 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       reply = `${reply}\n\nPosso te oferecer: ${pendingAlternatives.join("; ")}. Qual prefere? Se nenhuma servir, aí te coloco na lista de espera.`;
     }
 
-    // Recusou alternativas → garantir oferta de espera antes do adeus
-    const lastDonna = [...history].reverse().find((h) => h.startsWith("donna:"));
-    const donnaJustOfferedAlts = Boolean(
-      lastDonna &&
-        /(opções|opcoes|alternativa|\b1\.|às \d{1,2}h com|as \d{1,2}h com|Qual dessas)/i.test(
-          lastDonna
-        )
-    );
-    const waitlistAlreadyOffered = history.some(
-      (h) =>
-        h.startsWith("donna:") &&
-        /lista de espera|te coloco na espera|na espera|te aviso se liberar|me avisa se liberar/i.test(
-          h
-        )
-    );
-    const userRefusedAlts =
-      /não me interessa|nao me interessa|nenhuma|não quero|nao quero|não serve|nao serve|deixa pra l[aá]|pode deixar|não|nao|obrigad/i.test(
-        input.userText
-      ) && !/espera|me avisa|coloca na|lista|quero a |quero a\d|sim|pode colocar/i.test(input.userText);
-    const replyHasWaitlist =
-      /lista de espera|na espera|te coloco na espera|te aviso se liberar|me avisa se liberar/i.test(
-        reply
-      );
-
-    if (
-      donnaJustOfferedAlts &&
-      userRefusedAlts &&
-      !waitlistAlreadyOffered &&
-      !replyHasWaitlist
+    // Rede de segurança (caso o short-circuit não tenha pegado)
+    if (isSoftRefusalOfAlternatives(input.userText, history)) {
+      reply = waitlistOfferReply();
+    } else if (
+      lastDonnaMessage(history) &&
+      donnaOfferedAlternatives(lastDonnaMessage(history)!) &&
+      !waitlistAlreadyOffered(history) &&
+      !userPickedAlternative(input.userText) &&
+      !/lista de espera|na espera|te aviso se liberar/i.test(reply) &&
+      /até mais|quando quiser|é só chamar|se mudar de ideia|tenha uma|você também/i.test(reply)
     ) {
-      reply =
-        "Sem problema! Antes de encerrar: quer que eu te coloque na lista de espera do horário que você pediu? Se liberar, te aviso aqui no Zap.";
+      reply = waitlistOfferReply();
     }
 
     return {
