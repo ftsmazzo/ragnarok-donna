@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { and, count, eq, gte, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import { getFallbackModel, getPrimaryModel } from "@/server/agent/llm";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,8 @@ export async function GET(request: Request) {
   }
 
   const db = createDb();
-  const model = process.env.LLM_MODEL?.trim() || "anthropic/claude-haiku-4.5";
+  const primaryModel = getPrimaryModel();
+  const fallbackModel = getFallbackModel();
 
   const tenants = await db
     .select({ id: schema.tenants.id, slug: schema.tenants.slug, name: schema.tenants.name })
@@ -73,7 +75,10 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    model,
+    model: primaryModel,
+    primaryModel,
+    fallbackModel,
+    envLlmModel: process.env.LLM_MODEL?.trim() || null,
     totals: {
       conversations: Number(convTotal?.n ?? 0),
       conversationsWithAiReply: conversationsWithAi,
@@ -83,6 +88,6 @@ export async function GET(request: Request) {
       toolCalls: Number(toolsTotal?.n ?? 0),
     },
     byTenant,
-    note: "conversationsWithAiReply = threads que tiveram resposta da Donna (melhor proxy de 'conversa paga').",
+    note: "conversationsWithAiReply = threads que tiveram resposta da Donna (melhor proxy de 'conversa paga'). primaryModel=Haiku; fallback=Sonnet se Haiku falhar.",
   });
 }
