@@ -5,6 +5,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { AgendaDetailModal } from "@/components/agenda/AgendaDetailModal";
 import { AgendaFormModal, type AgendaFormMode } from "@/components/agenda/AgendaFormModal";
+import { MonthCalendar } from "@/components/agenda/MonthCalendar";
 import type {
   AgendaAppointment,
   AgendaDayData,
@@ -17,6 +18,7 @@ import {
   formatTimeSp,
   shiftDateSp,
   shortPersonName,
+  todaySp,
 } from "@/lib/datetime";
 import Link from "next/link";
 import { Fragment } from "react";
@@ -111,7 +113,7 @@ export function AgendaView({
             >
               {tabletMode ? "Modo normal" : "Modo tablet"}
             </Link>
-            <Link href={qs({ date: data.date })} className="btn btn-outline">
+            <Link href={qs({ date: todaySp() })} className="btn btn-outline">
               Hoje
             </Link>
             <Link href={qs({ date: prevDate })} className="btn btn-outline">
@@ -252,6 +254,15 @@ export function AgendaView({
 
         {!tabletMode ? (
         <aside>
+          <div className="side-card side-card-calendar">
+            <h3>Calendário</h3>
+            <div className="body">
+              <MonthCalendar
+                selectedDate={data.date}
+                hrefForDate={(date) => qs({ date })}
+              />
+            </div>
+          </div>
           <div className="side-card">
             <h3>Resumo do dia</h3>
             <div className="body">
@@ -266,6 +277,11 @@ export function AgendaView({
               {data.waitlistCount > 0
                 ? `${data.waitlistCount} cliente(s) aguardando encaixe`
                 : "Nenhum cliente na fila"}
+              <div style={{ marginTop: 8 }}>
+                <Link href="/lista-espera" className="btn btn-outline" style={{ fontSize: 12 }}>
+                  Abrir lista de espera
+                </Link>
+              </div>
             </div>
           </div>
           <div className="side-card">

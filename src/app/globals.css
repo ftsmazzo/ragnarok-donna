@@ -714,8 +714,104 @@ input {
 /* Agenda mock */
 .agenda-layout {
   display: grid;
-  grid-template-columns: 1fr 260px;
+  grid-template-columns: 1fr 280px;
   gap: 12px;
+}
+
+.side-card-calendar .body {
+  padding: 8px 10px 10px;
+}
+
+.month-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.month-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.month-cal-label {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: capitalize;
+}
+
+.month-cal-nav-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 16px;
+}
+
+.month-cal-nav-btn:hover {
+  background: #f7f7f7;
+}
+
+.month-cal-weekdays,
+.month-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.month-cal-weekdays span {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 2px 0;
+}
+
+.month-cal-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border-radius: 4px;
+  color: var(--ink);
+}
+
+.month-cal-day.is-empty {
+  pointer-events: none;
+}
+
+.month-cal-day:not(.is-empty):hover {
+  background: #f3f4f6;
+}
+
+.month-cal-day.is-today:not(.is-selected) {
+  box-shadow: inset 0 0 0 1px var(--info);
+  font-weight: 700;
+}
+
+.month-cal-day.is-selected {
+  background: var(--info);
+  color: #fff;
+  font-weight: 700;
+}
+
+.month-cal-today {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--info);
+  padding: 2px 0 0;
 }
 
 .agenda-grid {

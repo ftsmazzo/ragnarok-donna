@@ -59,6 +59,31 @@ export function monthStartSp(): string {
   return `${today.slice(0, 8)}01`;
 }
 
+/** Primeiro dia do mês de `dateStr` (YYYY-MM-DD), em SP. */
+export function monthStartOfSp(dateStr: string): string {
+  return `${dateStr.slice(0, 8)}01`;
+}
+
+/** Soma/subtrai meses civis preservando o dia quando possível (clamp no fim do mês). */
+export function shiftMonthSp(dateStr: string, months: number): string {
+  const d = parseDateSp(dateStr);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDay));
+  return formatDateSp(d);
+}
+
+/** Rótulo "setembro de 2026" para cabeçalho de calendário. */
+export function formatMonthLabelSp(dateStr: string): string {
+  return parseDateSp(dateStr).toLocaleDateString("pt-BR", {
+    timeZone: TZ,
+    month: "long",
+    year: "numeric",
+  });
+}
+
 /** Segunda → domingo da semana civil em America/Sao_Paulo. */
 export function weekBoundsSp(anchorDate = todaySp()): { from: string; to: string } {
   const label = parseDateSp(anchorDate).toLocaleDateString("en-US", {
