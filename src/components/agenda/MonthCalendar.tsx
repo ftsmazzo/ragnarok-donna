@@ -10,7 +10,7 @@ import {
   todaySp,
 } from "@/lib/datetime";
 
-const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"] as const;
+const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
 
 type Props = {
   selectedDate: string;
@@ -21,7 +21,7 @@ function buildMonthGrid(monthAnchor: string): Array<string | null> {
   const start = parseDateSp(monthStartOfSp(monthAnchor));
   const year = start.getFullYear();
   const month = start.getMonth();
-  const firstWeekday = start.getDay(); // 0 = domingo
+  const firstWeekday = start.getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const cells: Array<string | null> = [];
@@ -69,8 +69,8 @@ export function MonthCalendar({ selectedDate, hrefForDate }: Props) {
       </div>
 
       <div className="month-cal-weekdays">
-        {WEEKDAYS.map((d, i) => (
-          <span key={`${d}-${i}`}>{d}</span>
+        {WEEKDAYS.map((d) => (
+          <span key={d}>{d}</span>
         ))}
       </div>
 
@@ -94,11 +94,9 @@ export function MonthCalendar({ selectedDate, hrefForDate }: Props) {
         })}
       </div>
 
-      {selectedDate !== today ? (
-        <Link href={hrefForDate(today)} className="month-cal-today">
-          Ir para hoje
-        </Link>
-      ) : null}
+      <Link href={hrefForDate(today)} className="month-cal-today">
+        Hoje
+      </Link>
     </div>
   );
 }

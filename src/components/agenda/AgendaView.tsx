@@ -5,7 +5,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { AgendaDetailModal } from "@/components/agenda/AgendaDetailModal";
 import { AgendaFormModal, type AgendaFormMode } from "@/components/agenda/AgendaFormModal";
-import { MonthCalendar } from "@/components/agenda/MonthCalendar";
+import { AgendaAside } from "@/components/agenda/AgendaAside";
 import type {
   AgendaAppointment,
   AgendaDayData,
@@ -253,46 +253,13 @@ export function AgendaView({
         </section>
 
         {!tabletMode ? (
-        <aside>
-          <div className="side-card side-card-calendar">
-            <h3>Calendário</h3>
-            <div className="body">
-              <MonthCalendar
-                selectedDate={data.date}
-                hrefForDate={(date) => qs({ date })}
-              />
-            </div>
-          </div>
-          <div className="side-card">
-            <h3>Resumo do dia</h3>
-            <div className="body">
-              {data.totalAppointments} agendamento(s)
-              <br />
-              {data.staff.length} profissional(is) na grade
-            </div>
-          </div>
-          <div className="side-card">
-            <h3>Lista de espera</h3>
-            <div className="body">
-              {data.waitlistCount > 0
-                ? `${data.waitlistCount} cliente(s) aguardando encaixe`
-                : "Nenhum cliente na fila"}
-              <div style={{ marginTop: 8 }}>
-                <Link href="/lista-espera" className="btn btn-outline" style={{ fontSize: 12 }}>
-                  Abrir lista de espera
-                </Link>
-              </div>
-            </div>
-          </div>
-          <div className="side-card">
-            <h3>Comandas abertas</h3>
-            <div className="body">
-              {data.openOrdersCount > 0
-                ? `${data.openOrdersCount} comanda(s) aberta(s) hoje`
-                : "Nenhuma comanda aberta hoje"}
-            </div>
-          </div>
-        </aside>
+          <AgendaAside
+            data={data}
+            hrefForDate={(date) => qs({ date })}
+            onOpenAppointment={setDetail}
+            canWrite={permissions.canWrite}
+            onBookSlot={(staffId, hour) => openSlot(staffId, hour, "schedule")}
+          />
         ) : (
           <aside className="agenda-tablet-strip">
             <div className="side-card">
@@ -302,6 +269,16 @@ export function AgendaView({
                 <br />
                 agendamentos · toque no horário para ver
               </div>
+            </div>
+            <div className="agenda-aside-actions" style={{ marginTop: 8 }}>
+              <Link href="/lista-espera" className="agenda-aside-btn is-primary">
+                Lista de Espera
+                {data.waitlistCount > 0 ? (
+                  <span className="agenda-aside-btn-count is-on-primary">
+                    {data.waitlistCount}
+                  </span>
+                ) : null}
+              </Link>
             </div>
           </aside>
         )}
