@@ -12,9 +12,10 @@ type Props = {
   rows: PackageRow[];
   total: number;
   q: string;
+  services: Array<{ id: string; name: string }>;
 };
 
-export function PacotesClient({ rows, total, q }: Props) {
+export function PacotesClient({ rows, total, q, services }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PackageRow | null>(null);
 
@@ -86,7 +87,13 @@ export function PacotesClient({ rows, total, q }: Props) {
         </div>
       </section>
 
-      <CatalogDrawer kind="package" open={open} onClose={() => setOpen(false)} pkg={editing} />
+      <CatalogDrawer
+        kind="package"
+        open={open}
+        onClose={() => setOpen(false)}
+        pkg={editing}
+        serviceOptions={services}
+      />
     </>
   );
 }

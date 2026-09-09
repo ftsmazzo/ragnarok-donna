@@ -2292,6 +2292,131 @@ input {
   gap: 4px;
 }
 
+.order-item-actions .is-zero {
+  color: var(--success);
+}
+
+.order-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.order-badge.is-credit {
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+
+.order-badge.is-package {
+  background: #e3f2fd;
+  color: #0d47a1;
+}
+
+.order-wallet {
+  border: 1px solid var(--line);
+  background: #f8fafb;
+  padding: 12px;
+  margin: 0 0 14px;
+}
+
+.order-wallet-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.order-wallet-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.order-wallet-empty,
+.order-wallet-warn {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.order-wallet-warn {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: #fff8e6;
+  border: 1px solid #f0e0b2;
+  color: #6b5a1e;
+}
+
+.order-wallet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.order-wallet-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.order-wallet-list li div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.order-wallet-list li span,
+.order-wallet-list li em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.order-credit-toggle {
+  background: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  padding: 10px 12px;
+  align-items: flex-start;
+}
+
+.package-items-editor {
+  border: 1px solid var(--line);
+  padding: 10px;
+  background: #fafafa;
+}
+
+.package-items-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.package-item-row {
+  display: grid;
+  grid-template-columns: 1fr 72px auto;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.package-item-row select,
+.package-item-row input {
+  width: 100%;
+}
+
 .cell-danger {
   color: var(--danger);
   font-weight: 600;

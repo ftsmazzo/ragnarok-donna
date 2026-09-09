@@ -22,7 +22,7 @@ import {
   timestamps,
 } from "./enums";
 import { tenants } from "./platform";
-import { branches, clients, products, services, staff } from "./shop";
+import { branches, clients, packages, products, services, staff } from "./shop";
 
 /**
  * Agendamento — fonte da verdade de slots (agente consulta/escreve aqui).
@@ -135,6 +135,7 @@ export const orderItems = pgTable(
     itemType: orderItemTypeEnum("item_type").notNull(),
     serviceId: uuid("service_id").references(() => services.id, { onDelete: "set null" }),
     productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
+    packageId: uuid("package_id"),
     staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
     description: varchar("description", { length: 200 }).notNull(),
     qty: integer("qty").notNull().default(1),
@@ -144,6 +145,7 @@ export const orderItems = pgTable(
     commissionBps: integer("commission_bps"),
     commissionCents: integer("commission_cents"),
     performedAt: timestamp("performed_at", { withTimezone: true }),
+    meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
     ...externalRef(),
     ...timestamps,
   },
@@ -155,6 +157,58 @@ export const orderItems = pgTable(
       t.externalSource,
       t.externalId
     ),
+  ]
+);
+
+/**
+ * Pacote vendido a um cliente (carteira).
+ * Créditos por serviço ficam em client_package_credits.
+ */
+export const clientPackages = pgTable(
+  "client_packages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    packageId: uuid("package_id").references(() => packages.id, { onDelete: "set null" }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    orderItemId: uuid("order_item_id"),
+    name: varchar("name", { length: 160 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    purchasedAt: timestamp("purchased_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("client_packages_client_idx").on(t.tenantId, t.clientId),
+    index("client_packages_status_idx").on(t.tenantId, t.status),
+  ]
+);
+
+export const clientPackageCredits = pgTable(
+  "client_package_credits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    clientPackageId: uuid("client_package_id")
+      .notNull()
+      .references(() => clientPackages.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    totalQty: integer("total_qty").notNull().default(1),
+    remainingQty: integer("remaining_qty").notNull().default(1),
+    ...timestamps,
+  },
+  (t) => [
+    index("client_package_credits_pkg_idx").on(t.clientPackageId),
+    index("client_package_credits_service_idx").on(t.tenantId, t.serviceId),
   ]
 );
 

@@ -10,6 +10,7 @@ import { OrderDrawer } from "@/components/comandas/OrderDrawer";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelOrderStatus } from "@/lib/format";
 import type {
+  CatalogPackage,
   CatalogProduct,
   CatalogService,
   CatalogStaff,
@@ -30,6 +31,7 @@ type Props = {
   selectedOrder: OrderDetail | null;
   services: CatalogService[];
   products: CatalogProduct[];
+  packages: CatalogPackage[];
   staff: CatalogStaff[];
   permissions: OrderPermissions;
   openNew: boolean;
@@ -40,6 +42,7 @@ export function ComandasView({
   selectedOrder,
   services,
   products,
+  packages,
   staff,
   permissions,
   openNew,
@@ -166,6 +169,7 @@ export function ComandasView({
           order={selectedOrder}
           services={services}
           products={products}
+          packages={packages}
           staff={staff}
           permissions={permissions}
           onClose={closeDrawer}

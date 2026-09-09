@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Drawer } from "@/components/ui/Drawer";
 import {
   createPackageAction,
@@ -41,7 +41,11 @@ type PackageDefaults = {
   description?: string | null;
   priceCents?: number;
   bookableOnline?: boolean;
+  expiresAfterDays?: number | null;
+  items?: Array<{ serviceId?: string; productId?: string; qty: number }>;
 };
+
+type ServiceOption = { id: string; name: string };
 
 type Props = {
   kind: Kind;
@@ -50,6 +54,7 @@ type Props = {
   product?: ProductDefaults | null;
   service?: ServiceDefaults | null;
   pkg?: PackageDefaults | null;
+  serviceOptions?: ServiceOption[];
 };
 
 function centsToPrice(cents?: number) {
@@ -57,10 +62,31 @@ function centsToPrice(cents?: number) {
   return (cents / 100).toFixed(2);
 }
 
-export function CatalogDrawer({ kind, open, onClose, product, service, pkg }: Props) {
+function linesFromPkg(pkg?: PackageDefaults | null) {
+  const rows = (pkg?.items ?? [])
+    .filter((i) => i.serviceId)
+    .map((i) => ({ serviceId: String(i.serviceId), qty: Math.max(1, i.qty || 1) }));
+  return rows.length > 0 ? rows : [{ serviceId: "", qty: 1 }];
+}
+
+export function CatalogDrawer({
+  kind,
+  open,
+  onClose,
+  product,
+  service,
+  pkg,
+  serviceOptions = [],
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [packageLines, setPackageLines] = useState(linesFromPkg(pkg));
+
+  useEffect(() => {
+    if (!open || kind !== "package") return;
+    setPackageLines(linesFromPkg(pkg));
+  }, [open, kind, pkg?.id]);
 
   const isEdit =
     (kind === "product" && product?.id) ||
@@ -84,6 +110,12 @@ export function CatalogDrawer({ kind, open, onClose, product, service, pkg }: Pr
     e.preventDefault();
     setError("");
     const formData = new FormData(e.currentTarget);
+    if (kind === "package") {
+      formData.set(
+        "itemsJson",
+        JSON.stringify(packageLines.filter((l) => l.serviceId))
+      );
+    }
     startTransition(async () => {
       let result;
       if (kind === "product") {
@@ -114,7 +146,7 @@ export function CatalogDrawer({ kind, open, onClose, product, service, pkg }: Pr
       onClose={onClose}
       title={title}
       subtitle="Catálogo operacional"
-      width={420}
+      width={kind === "package" ? 480 : 420}
       footer={
         <>
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
@@ -241,17 +273,98 @@ export function CatalogDrawer({ kind, open, onClose, product, service, pkg }: Pr
             </label>
             <label className="form-field">
               <span>Descrição</span>
-              <textarea name="description" rows={3} defaultValue={pkg?.description ?? ""} />
+              <textarea name="description" rows={2} defaultValue={pkg?.description ?? ""} />
             </label>
-            <label className="form-field">
-              <span>Preço (R$) *</span>
-              <input
-                name="price"
-                required
-                inputMode="decimal"
-                defaultValue={centsToPrice(pkg?.priceCents)}
-              />
-            </label>
+            <div className="form-row-2">
+              <label className="form-field">
+                <span>Preço (R$) *</span>
+                <input
+                  name="price"
+                  required
+                  inputMode="decimal"
+                  defaultValue={centsToPrice(pkg?.priceCents)}
+                />
+              </label>
+              <label className="form-field">
+                <span>Validade (dias)</span>
+                <input
+                  name="expiresAfterDays"
+                  type="number"
+                  min={0}
+                  placeholder="Sem limite"
+                  defaultValue={pkg?.expiresAfterDays ?? ""}
+                />
+              </label>
+            </div>
+
+            <div className="package-items-editor">
+              <div className="package-items-head">
+                <strong>Serviços inclusos</strong>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() =>
+                    setPackageLines((rows) => [...rows, { serviceId: "", qty: 1 }])
+                  }
+                >
+                  + Serviço
+                </button>
+              </div>
+              {packageLines.map((line, idx) => (
+                <div key={idx} className="package-item-row">
+                  <select
+                    value={line.serviceId}
+                    onChange={(e) =>
+                      setPackageLines((rows) =>
+                        rows.map((r, i) =>
+                          i === idx ? { ...r, serviceId: e.target.value } : r
+                        )
+                      )
+                    }
+                    required
+                  >
+                    <option value="" disabled>
+                      Selecione o serviço…
+                    </option>
+                    {serviceOptions.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={line.qty}
+                    onChange={(e) =>
+                      setPackageLines((rows) =>
+                        rows.map((r, i) =>
+                          i === idx
+                            ? { ...r, qty: Math.max(1, Number(e.target.value) || 1) }
+                            : r
+                        )
+                      )
+                    }
+                    aria-label="Quantidade"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={packageLines.length <= 1}
+                    onClick={() =>
+                      setPackageLines((rows) => rows.filter((_, i) => i !== idx))
+                    }
+                  >
+                    Remover
+                  </button>
+                </div>
+              ))}
+              <p className="client-profile-hint muted">
+                Ex.: Barba Recorrência × 8. Na comanda, cada uso abate 1 crédito a R$ 0.
+              </p>
+            </div>
+
             <label className="form-check">
               <input
                 name="bookableOnline"

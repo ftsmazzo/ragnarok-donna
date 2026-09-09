@@ -159,11 +159,13 @@ export async function openOrder(input: {
 
 export async function addOrderItem(input: {
   orderId: string;
-  itemType: "service" | "product";
+  itemType: "service" | "product" | "package";
   catalogId: string;
   staffId?: string;
   qty?: number;
   discountCents?: number;
+  /** Usar crédito de pacote (serviço a R$ 0; comissão no preço de tabela). */
+  usePackageCredit?: boolean;
 }): Promise<ActionResult> {
   try {
     const session = await requireSession();
@@ -174,6 +176,15 @@ export async function addOrderItem(input: {
     const qty = Math.max(1, Math.min(99, input.qty ?? 1));
     const discountCents = Math.max(0, input.discountCents ?? 0);
     const db = createDb();
+
+    if (input.itemType === "package") {
+      return await addPackageSaleItem({
+        orderId: input.orderId,
+        packageId: input.catalogId,
+        staffId: input.staffId,
+        tenantId: tenant.id,
+      });
+    }
 
     let description = "";
     let unitPriceCents = 0;
@@ -253,12 +264,47 @@ export async function addOrderItem(input: {
     }
 
     const lineGross = unitPriceCents * qty;
-    if (discountCents > lineGross) {
+    let appliedDiscount = discountCents;
+    let totalCents = lineGross - appliedDiscount;
+    let meta: Record<string, unknown> = {};
+    let useCredit = Boolean(input.usePackageCredit && input.itemType === "service" && serviceId);
+
+    if (useCredit) {
+      const [orderRow] = await db
+        .select({ clientId: schema.orders.clientId })
+        .from(schema.orders)
+        .where(and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id)))
+        .limit(1);
+      if (!orderRow?.clientId) {
+        throw new AppError("VALIDATION", "Vincule um cliente à comanda para usar crédito");
+      }
+      if (qty !== 1) {
+        throw new AppError("VALIDATION", "No uso de crédito, adicione 1 unidade por vez");
+      }
+
+      const {
+        debitOneCredit,
+      } = await import("../packages/credits");
+      const debit = await debitOneCredit({
+        tenantId: tenant.id,
+        clientId: orderRow.clientId,
+        serviceId: serviceId!,
+      });
+      appliedDiscount = lineGross;
+      totalCents = 0;
+      meta = {
+        redeemed: true,
+        creditId: debit.creditId,
+        clientPackageId: debit.clientPackageId,
+      };
+      description = `${description} · Pacote`;
+    } else if (appliedDiscount > lineGross) {
       throw new AppError("VALIDATION", "Desconto maior que o valor do item");
     }
-    const totalCents = lineGross - discountCents;
+
     const bps = itemCommissionBps ?? staffCommissionBps;
-    const commission = calcCommission(totalCents, bps);
+    // Pacote: comissão no preço de tabela. Demais: sobre o líquido do item.
+    const commission = calcCommission(useCredit ? lineGross : totalCents, bps);
 
     const [row] = await db
       .insert(schema.orderItems)
@@ -268,15 +314,17 @@ export async function addOrderItem(input: {
         itemType: input.itemType,
         serviceId,
         productId,
+        packageId: null,
         staffId,
         description,
         qty,
         unitPriceCents,
-        discountCents,
+        discountCents: appliedDiscount,
         totalCents,
         commissionBps: commission.commissionBps,
         commissionCents: commission.commissionCents,
         performedAt: new Date(),
+        meta,
       })
       .returning({ id: schema.orderItems.id });
 
@@ -301,6 +349,120 @@ export async function addOrderItem(input: {
   }
 }
 
+async function addPackageSaleItem(input: {
+  orderId: string;
+  packageId: string;
+  staffId?: string;
+  tenantId: string;
+}): Promise<ActionResult> {
+  const db = createDb();
+  const [orderRow] = await db
+    .select({ clientId: schema.orders.clientId })
+    .from(schema.orders)
+    .where(
+      and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, input.tenantId))
+    )
+    .limit(1);
+  if (!orderRow?.clientId) {
+    throw new AppError("VALIDATION", "Vincule um cliente à comanda para vender pacote");
+  }
+
+  const [pkg] = await db
+    .select({
+      id: schema.packages.id,
+      name: schema.packages.name,
+      priceCents: schema.packages.priceCents,
+      expiresAfterDays: schema.packages.expiresAfterDays,
+      items: schema.packages.items,
+    })
+    .from(schema.packages)
+    .where(
+      and(
+        eq(schema.packages.id, input.packageId),
+        eq(schema.packages.tenantId, input.tenantId),
+        eq(schema.packages.isActive, true),
+        isNull(schema.packages.deletedAt)
+      )
+    )
+    .limit(1);
+  if (!pkg) throw new AppError("VALIDATION", "Pacote inválido");
+
+  const { normalizePackageItems, createClientPackageFromSale } = await import(
+    "../packages/credits"
+  );
+  const items = normalizePackageItems(pkg.items)
+    .filter((i): i is { serviceId: string; qty: number } => Boolean(i.serviceId))
+    .map((i) => ({ serviceId: i.serviceId!, qty: i.qty }));
+  if (items.length === 0) {
+    throw new AppError(
+      "VALIDATION",
+      "Configure os serviços deste pacote em Cadastros → Pacotes"
+    );
+  }
+
+  let staffId: string | null = input.staffId || null;
+  if (staffId) {
+    const [st] = await db
+      .select({ id: schema.staff.id })
+      .from(schema.staff)
+      .where(
+        and(
+          eq(schema.staff.id, staffId),
+          eq(schema.staff.tenantId, input.tenantId),
+          isNull(schema.staff.deletedAt)
+        )
+      )
+      .limit(1);
+    if (!st) throw new AppError("VALIDATION", "Profissional inválido");
+  }
+
+  const [row] = await db
+    .insert(schema.orderItems)
+    .values({
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+      itemType: "package",
+      serviceId: null,
+      productId: null,
+      packageId: pkg.id,
+      staffId,
+      description: `Pacote · ${pkg.name}`,
+      qty: 1,
+      unitPriceCents: pkg.priceCents,
+      discountCents: 0,
+      totalCents: pkg.priceCents,
+      commissionBps: null,
+      commissionCents: null,
+      performedAt: new Date(),
+      meta: { packageSale: true },
+    })
+    .returning({ id: schema.orderItems.id });
+
+  const clientPackageId = await createClientPackageFromSale({
+    tenantId: input.tenantId,
+    clientId: orderRow.clientId,
+    packageId: pkg.id,
+    orderId: input.orderId,
+    orderItemId: row.id,
+    packageName: pkg.name,
+    expiresAfterDays: pkg.expiresAfterDays,
+    items,
+  });
+
+  await db
+    .update(schema.orderItems)
+    .set({
+      meta: { packageSale: true, clientPackageId },
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(schema.orderItems.id, row.id), eq(schema.orderItems.tenantId, input.tenantId))
+    );
+
+  await recalculateOrderTotal(input.orderId, input.tenantId);
+  return { ok: true, id: row.id };
+}
+
 export async function removeOrderItem(itemId: string): Promise<ActionResult> {
   try {
     const session = await requireSession();
@@ -312,6 +474,10 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
       .select({
         id: schema.orderItems.id,
         orderId: schema.orderItems.orderId,
+        itemType: schema.orderItems.itemType,
+        productId: schema.orderItems.productId,
+        qty: schema.orderItems.qty,
+        meta: schema.orderItems.meta,
       })
       .from(schema.orderItems)
       .where(
@@ -321,6 +487,39 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
 
     if (!item) throw new AppError("NOT_FOUND", "Item não encontrado");
     await assertOpenOrder(item.orderId, tenant.id);
+
+    const meta = (item.meta ?? {}) as Record<string, unknown>;
+    if (meta.redeemed && typeof meta.creditId === "string" && typeof meta.clientPackageId === "string") {
+      const { restoreOneCredit } = await import("../packages/credits");
+      await restoreOneCredit({
+        tenantId: tenant.id,
+        creditId: meta.creditId,
+        clientPackageId: meta.clientPackageId,
+      });
+    }
+
+    if (meta.packageSale && typeof meta.clientPackageId === "string") {
+      const { cancelClientPackageSale } = await import("../packages/credits");
+      await cancelClientPackageSale({
+        tenantId: tenant.id,
+        clientPackageId: meta.clientPackageId,
+      });
+    }
+
+    if (item.productId) {
+      await db
+        .update(schema.products)
+        .set({
+          stockQty: sql`${schema.products.stockQty} + ${item.qty}`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.products.id, item.productId),
+            eq(schema.products.tenantId, tenant.id)
+          )
+        );
+    }
 
     await db
       .delete(schema.orderItems)

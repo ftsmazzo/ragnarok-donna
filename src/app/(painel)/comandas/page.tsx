@@ -41,6 +41,7 @@ export default async function ComandasPage({ searchParams }: Props) {
         selectedOrder={selectedOrder}
         services={catalog.services}
         products={catalog.products}
+        packages={catalog.packages}
         staff={catalog.staff}
         permissions={permissions}
         openNew={sp.novo === "1"}

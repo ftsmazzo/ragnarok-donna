@@ -9,6 +9,7 @@ import { hasCapability } from "../permissions/capabilities";
 import { isBarberRole } from "../permissions/roles";
 import { resolveSessionStaffId } from "../permissions/staff-scope";
 import type {
+  CatalogPackage,
   CatalogProduct,
   CatalogService,
   CatalogStaff,
@@ -340,7 +341,9 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
       commissionCents: schema.orderItems.commissionCents,
       serviceId: schema.orderItems.serviceId,
       productId: schema.orderItems.productId,
+      packageId: schema.orderItems.packageId,
       performedAt: schema.orderItems.performedAt,
+      meta: schema.orderItems.meta,
     })
     .from(schema.orderItems)
     .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
@@ -368,6 +371,17 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
   const paidCents = payments.reduce((s, p) => s + p.amountCents, 0);
   const due = Math.max(0, order.totalCents - order.discountCents);
 
+  let credits: Awaited<ReturnType<typeof import("../packages/credits").listClientCredits>> =
+    [];
+  if (order.clientId) {
+    const { listClientCredits } = await import("../packages/credits");
+    try {
+      credits = await listClientCredits(order.clientId);
+    } catch {
+      credits = [];
+    }
+  }
+
   return {
     id: order.id,
     externalId: order.externalId,
@@ -380,16 +394,39 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
     totalCents: order.totalCents,
     discountCents: order.discountCents,
     notes: order.notes,
-    items,
+    items: items.map((item) => {
+      const meta = (item.meta ?? {}) as Record<string, unknown>;
+      return {
+        id: item.id,
+        itemType: item.itemType,
+        description: item.description,
+        qty: item.qty,
+        unitPriceCents: item.unitPriceCents,
+        discountCents: item.discountCents,
+        totalCents: item.totalCents,
+        staffId: item.staffId,
+        staffName: item.staffName,
+        commissionBps: item.commissionBps,
+        commissionCents: item.commissionCents,
+        serviceId: item.serviceId,
+        productId: item.productId,
+        packageId: item.packageId,
+        performedAt: item.performedAt,
+        redeemed: Boolean(meta.redeemed),
+        packageSale: Boolean(meta.packageSale),
+      };
+    }),
     payments,
     paidCents,
     balanceCents: due - paidCents,
+    credits,
   };
 }
 
 export async function listCatalogForOrders(): Promise<{
   services: CatalogService[];
   products: CatalogProduct[];
+  packages: CatalogPackage[];
   staff: CatalogStaff[];
 }> {
   const tenant = await requireTenantContext();
@@ -446,5 +483,20 @@ export async function listCatalogForOrders(): Promise<{
       .orderBy(asc(schema.staff.name)),
   ]);
 
-  return { services, products, staff };
+  let packages: CatalogPackage[] = [];
+  try {
+    const { listCatalogPackages } = await import("../packages/credits");
+    const rows = await listCatalogPackages();
+    packages = rows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      priceCents: p.priceCents,
+      expiresAfterDays: p.expiresAfterDays,
+      itemLabel: p.items.map((i) => `${i.qty}× ${i.serviceName}`).join(" · "),
+    }));
+  } catch {
+    packages = [];
+  }
+
+  return { services, products, packages, staff };
 }

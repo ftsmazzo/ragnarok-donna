@@ -76,6 +76,8 @@ export type PackageRow = {
   name: string;
   description: string | null;
   priceCents: number;
+  expiresAfterDays: number | null;
+  items: Array<{ serviceId?: string; productId?: string; qty: number }>;
   itemCount: number;
   isActive: boolean;
   bookableOnline: boolean;
@@ -229,6 +231,8 @@ export async function listPackages(opts: { q?: string }) {
       name: schema.packages.name,
       description: schema.packages.description,
       priceCents: schema.packages.priceCents,
+      expiresAfterDays: schema.packages.expiresAfterDays,
+      items: schema.packages.items,
       itemCount: sql<number>`coalesce(jsonb_array_length(${schema.packages.items}), 0)::int`.as(
         "item_count"
       ),
@@ -239,7 +243,15 @@ export async function listPackages(opts: { q?: string }) {
     .where(where)
     .orderBy(asc(schema.packages.name));
 
-  return { rows, total: rows.length, q: q ?? "" };
+  return {
+    rows: rows.map((r) => ({
+      ...r,
+      items: Array.isArray(r.items) ? r.items : [],
+      itemCount: Number(r.itemCount ?? 0),
+    })),
+    total: rows.length,
+    q: q ?? "",
+  };
 }
 
 export async function getTenantOverview(): Promise<TenantOverview> {

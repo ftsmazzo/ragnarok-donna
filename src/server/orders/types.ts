@@ -29,7 +29,10 @@ export type OrderItemDetail = {
   commissionCents: number | null;
   serviceId: string | null;
   productId: string | null;
+  packageId: string | null;
   performedAt: Date | null;
+  redeemed: boolean;
+  packageSale: boolean;
 };
 
 export type OrderPaymentDetail = {
@@ -55,6 +58,7 @@ export type OrderDetail = {
   payments: OrderPaymentDetail[];
   paidCents: number;
   balanceCents: number;
+  credits: import("../packages/credits").ClientCreditBalance[];
 };
 
 export type CatalogService = {
@@ -69,6 +73,14 @@ export type CatalogProduct = {
   name: string;
   priceCents: number;
   commissionBps: number | null;
+};
+
+export type CatalogPackage = {
+  id: string;
+  name: string;
+  priceCents: number;
+  expiresAfterDays: number | null;
+  itemLabel: string;
 };
 
 export type CatalogStaff = {

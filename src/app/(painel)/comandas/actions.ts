@@ -42,14 +42,24 @@ export async function openOrderFromAppointmentAction(appointmentId: string, clie
 
 export async function addOrderItemAction(formData: FormData) {
   const orderId = String(formData.get("orderId") ?? "");
-  const itemType = String(formData.get("itemType") ?? "service") as "service" | "product";
+  const itemTypeRaw = String(formData.get("itemType") ?? "service");
+  const itemType =
+    itemTypeRaw === "product"
+      ? "product"
+      : itemTypeRaw === "package"
+        ? "package"
+        : "service";
+  const usePackageCredit =
+    String(formData.get("usePackageCredit") ?? "") === "1" ||
+    String(formData.get("usePackageCredit") ?? "") === "on";
   const result = await addOrderItem({
     orderId,
-    itemType: itemType === "product" ? "product" : "service",
+    itemType,
     catalogId: String(formData.get("catalogId") ?? ""),
     staffId: String(formData.get("staffId") ?? "") || undefined,
     qty: Number(formData.get("qty") || 1),
     discountCents: Math.round(Number(formData.get("discountReais") || 0) * 100),
+    usePackageCredit,
   });
   if (result.ok) revalidateOrders(orderId);
   return result;

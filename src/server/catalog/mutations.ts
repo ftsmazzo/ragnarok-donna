@@ -200,12 +200,20 @@ export async function createPackage(input: {
   description?: string;
   price: string;
   bookableOnline?: boolean;
+  expiresAfterDays?: number | null;
+  items?: Array<{ serviceId?: string; productId?: string; qty: number }>;
 }): Promise<ActionResult> {
   try {
     await assertCatalogWrite();
     const tenant = await requireTenantContext();
     const name = input.name.trim();
     if (name.length < 2) throw new AppError("VALIDATION", "Nome obrigatório");
+    const items = (input.items ?? [])
+      .filter((i) => i.serviceId)
+      .map((i) => ({ serviceId: i.serviceId, qty: Math.max(1, i.qty || 1) }));
+    if (items.length === 0) {
+      throw new AppError("VALIDATION", "Inclua ao menos 1 serviço no pacote");
+    }
     const db = createDb();
     const [row] = await db
       .insert(schema.packages)
@@ -214,9 +222,13 @@ export async function createPackage(input: {
         name: name.slice(0, 160),
         description: input.description?.trim().slice(0, 500) || null,
         priceCents: moneyToCents(input.price || "0"),
+        expiresAfterDays:
+          input.expiresAfterDays && input.expiresAfterDays > 0
+            ? input.expiresAfterDays
+            : null,
         bookableOnline: input.bookableOnline !== false,
         isActive: true,
-        items: [],
+        items,
       })
       .returning({ id: schema.packages.id });
     return { ok: true, id: row.id };
@@ -234,6 +246,8 @@ export async function updatePackage(
     description?: string;
     price: string;
     bookableOnline?: boolean;
+    expiresAfterDays?: number | null;
+    items?: Array<{ serviceId?: string; productId?: string; qty: number }>;
   }
 ): Promise<ActionResult> {
   try {
@@ -241,6 +255,12 @@ export async function updatePackage(
     const tenant = await requireTenantContext();
     const name = input.name.trim();
     if (name.length < 2) throw new AppError("VALIDATION", "Nome obrigatório");
+    const items = (input.items ?? [])
+      .filter((i) => i.serviceId)
+      .map((i) => ({ serviceId: i.serviceId, qty: Math.max(1, i.qty || 1) }));
+    if (items.length === 0) {
+      throw new AppError("VALIDATION", "Inclua ao menos 1 serviço no pacote");
+    }
     const db = createDb();
     const [row] = await db
       .update(schema.packages)
@@ -248,7 +268,12 @@ export async function updatePackage(
         name: name.slice(0, 160),
         description: input.description?.trim().slice(0, 500) || null,
         priceCents: moneyToCents(input.price || "0"),
+        expiresAfterDays:
+          input.expiresAfterDays && input.expiresAfterDays > 0
+            ? input.expiresAfterDays
+            : null,
         bookableOnline: input.bookableOnline !== false,
+        items,
         updatedAt: new Date(),
       })
       .where(

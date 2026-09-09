@@ -1,5 +1,5 @@
 import { PacotesClient } from "@/components/cadastro/PacotesClient";
-import { listPackages } from "@/lib/cadastros";
+import { listPackages, listServices } from "@/lib/cadastros";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +9,16 @@ type Props = {
 
 export default async function PacotesPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const data = await listPackages({ q: sp.q });
-  return <PacotesClient rows={data.rows} total={data.total} q={data.q} />;
+  const [data, services] = await Promise.all([
+    listPackages({ q: sp.q }),
+    listServices({}),
+  ]);
+  return (
+    <PacotesClient
+      rows={data.rows}
+      total={data.total}
+      q={data.q}
+      services={services.rows.map((s) => ({ id: s.id, name: s.name }))}
+    />
+  );
 }

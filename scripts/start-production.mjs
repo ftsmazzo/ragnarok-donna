@@ -227,6 +227,39 @@ ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS persona jsonb NOT NULL DEFAU
 ALTER TABLE memberships ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES branches(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS memberships_branch_idx ON memberships (branch_id);
 
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS package_id uuid;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS client_packages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  package_id uuid REFERENCES packages(id) ON DELETE SET NULL,
+  order_id uuid REFERENCES orders(id) ON DELETE SET NULL,
+  order_item_id uuid,
+  name varchar(160) NOT NULL,
+  status varchar(24) NOT NULL DEFAULT 'active',
+  purchased_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS client_packages_client_idx ON client_packages (tenant_id, client_id);
+CREATE INDEX IF NOT EXISTS client_packages_status_idx ON client_packages (tenant_id, status);
+
+CREATE TABLE IF NOT EXISTS client_package_credits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  client_package_id uuid NOT NULL REFERENCES client_packages(id) ON DELETE CASCADE,
+  service_id uuid NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+  total_qty integer NOT NULL DEFAULT 1,
+  remaining_qty integer NOT NULL DEFAULT 1,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS client_package_credits_pkg_idx ON client_package_credits (client_package_id);
+CREATE INDEX IF NOT EXISTS client_package_credits_service_idx ON client_package_credits (tenant_id, service_id);
+
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

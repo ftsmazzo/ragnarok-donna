@@ -65,23 +65,42 @@ export async function updateServiceAction(id: string, formData: FormData) {
   return result;
 }
 
+function parsePackageItems(formData: FormData) {
+  const raw = String(formData.get("itemsJson") ?? "[]");
+  try {
+    const parsed = JSON.parse(raw) as Array<{ serviceId?: string; qty?: number }>;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((i) => i.serviceId)
+      .map((i) => ({ serviceId: String(i.serviceId), qty: Math.max(1, Number(i.qty) || 1) }));
+  } catch {
+    return [];
+  }
+}
+
 export async function createPackageAction(formData: FormData) {
+  const expires = Number(formData.get("expiresAfterDays") || 0);
   const result = await createPackage({
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? ""),
     price: String(formData.get("price") ?? ""),
     bookableOnline: formData.get("bookableOnline") === "on",
+    expiresAfterDays: expires > 0 ? expires : null,
+    items: parsePackageItems(formData),
   });
   if (result.ok) revalidatePath("/pacotes");
   return result;
 }
 
 export async function updatePackageAction(id: string, formData: FormData) {
+  const expires = Number(formData.get("expiresAfterDays") || 0);
   const result = await updatePackage(id, {
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? ""),
     price: String(formData.get("price") ?? ""),
     bookableOnline: formData.get("bookableOnline") === "on",
+    expiresAfterDays: expires > 0 ? expires : null,
+    items: parsePackageItems(formData),
   });
   if (result.ok) revalidatePath("/pacotes");
   return result;

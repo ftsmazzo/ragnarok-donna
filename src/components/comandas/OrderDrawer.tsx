@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
 import type {
+  CatalogPackage,
   CatalogProduct,
   CatalogService,
   CatalogStaff,
@@ -26,17 +27,21 @@ type Props = {
   order: OrderDetail;
   services: CatalogService[];
   products: CatalogProduct[];
+  packages: CatalogPackage[];
   staff: CatalogStaff[];
   permissions: OrderPermissions;
   onClose: () => void;
   onChanged: () => void;
 };
 
+type ItemType = "service" | "product" | "package";
+
 export function OrderDrawer({
   open,
   order,
   services,
   products,
+  packages,
   staff,
   permissions,
   onClose,
@@ -45,12 +50,22 @@ export function OrderDrawer({
   const [error, setError] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [itemType, setItemType] = useState<"service" | "product">("service");
+  const [itemType, setItemType] = useState<ItemType>("service");
+  const [catalogId, setCatalogId] = useState("");
+  const [useCredit, setUseCredit] = useState(true);
   const [pending, startTransition] = useTransition();
   const isOpen = order.status === "open";
   const canEdit = permissions.canWrite && isOpen;
-
   const due = Math.max(0, order.totalCents - order.discountCents);
+  const credits = order.credits ?? [];
+
+  const creditByService = new Map<string, number>();
+  for (const c of credits) {
+    creditByService.set(c.serviceId, (creditByService.get(c.serviceId) ?? 0) + c.remainingQty);
+  }
+  const selectedCreditQty =
+    itemType === "service" && catalogId ? creditByService.get(catalogId) ?? 0 : 0;
+  const willUseCredit = itemType === "service" && useCredit && selectedCreditQty > 0;
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError("");
@@ -70,9 +85,16 @@ export function OrderDrawer({
     const formData = new FormData(form);
     formData.set("orderId", order.id);
     formData.set("itemType", itemType);
+    formData.set("catalogId", catalogId);
+    if (willUseCredit) formData.set("usePackageCredit", "1");
     run(async () => {
       const result = await addOrderItemAction(formData);
-      if (result.ok) form.reset();
+      if (result.ok) {
+        form.reset();
+        setCatalogId("");
+        setItemType("service");
+        setUseCredit(true);
+      }
       return result;
     });
   }
@@ -95,14 +117,15 @@ export function OrderDrawer({
     });
   }
 
-  const catalog = itemType === "service" ? services : products;
+  const catalog =
+    itemType === "service" ? services : itemType === "product" ? products : packages;
 
   return (
     <>
       <Drawer
         open={open}
         onClose={onClose}
-        width={520}
+        width={560}
         title={order.externalId ? `Comanda #${order.externalId}` : "Comanda"}
         subtitle={`${order.clientName ?? "Sem cliente"} · ${labelOrderStatus(order.status)}`}
         footer={
@@ -176,6 +199,41 @@ export function OrderDrawer({
           {order.closedAt ? ` · Fechada ${formatDateTimeSp(order.closedAt)}` : null}
         </p>
 
+        {order.clientId ? (
+          <section className="order-wallet">
+            <div className="order-wallet-head">
+              <strong>Carteira de pacotes</strong>
+              <span>{credits.length > 0 ? `${credits.reduce((s, c) => s + c.remainingQty, 0)} crédito(s)` : "Sem créditos"}</span>
+            </div>
+            {credits.length === 0 ? (
+              <p className="order-wallet-empty">
+                Cliente sem créditos. Venda um pacote abaixo para gerar a carteira.
+              </p>
+            ) : (
+              <ul className="order-wallet-list">
+                {credits.map((c) => (
+                  <li key={c.creditId}>
+                    <div>
+                      <strong>{c.serviceName}</strong>
+                      <span>{c.packageName}</span>
+                    </div>
+                    <em>
+                      {c.remainingQty} rest.
+                      {c.expiresAt
+                        ? ` · até ${formatDateTimeSp(c.expiresAt).slice(0, 10)}`
+                        : ""}
+                    </em>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : (
+          <p className="order-wallet-warn">
+            Comanda sem cliente: não dá para vender/usar pacote. Abra com cliente vinculado.
+          </p>
+        )}
+
         <h3 className="client-profile-heading">Itens</h3>
         {order.items.length === 0 ? (
           <p className="client-profile-empty">Nenhum item ainda.</p>
@@ -184,16 +242,29 @@ export function OrderDrawer({
             {order.items.map((item) => (
               <li key={item.id} className="order-item-row">
                 <div>
-                  <strong>{item.description}</strong>
+                  <strong>
+                    {item.description}
+                    {item.redeemed ? (
+                      <span className="order-badge is-credit">Crédito</span>
+                    ) : null}
+                    {item.packageSale ? (
+                      <span className="order-badge is-package">Venda pacote</span>
+                    ) : null}
+                  </strong>
                   <span className="muted">
                     {item.qty}x · {item.staffName ?? "Sem profissional"}
                     {item.commissionCents != null
                       ? ` · comissão ${formatMoney(item.commissionCents)}`
                       : ""}
+                    {item.redeemed
+                      ? ` · tabela ${formatMoney(item.unitPriceCents)} abatida`
+                      : ""}
                   </span>
                 </div>
                 <div className="order-item-actions">
-                  <strong>{formatMoney(item.totalCents)}</strong>
+                  <strong className={item.redeemed ? "is-zero" : undefined}>
+                    {formatMoney(item.totalCents)}
+                  </strong>
                   {canEdit ? (
                     <button
                       type="button"
@@ -217,30 +288,78 @@ export function OrderDrawer({
                 <span>Tipo</span>
                 <select
                   value={itemType}
-                  onChange={(e) => setItemType(e.target.value as "service" | "product")}
+                  onChange={(e) => {
+                    setItemType(e.target.value as ItemType);
+                    setCatalogId("");
+                  }}
                 >
                   <option value="service">Serviço</option>
                   <option value="product">Produto</option>
+                  <option value="package">Pacote</option>
                 </select>
               </label>
               <label className="form-field">
                 <span>Qtd</span>
-                <input name="qty" type="number" min={1} max={99} defaultValue={1} />
+                <input
+                  name="qty"
+                  type="number"
+                  min={1}
+                  max={99}
+                  defaultValue={1}
+                  disabled={willUseCredit || itemType === "package"}
+                />
               </label>
             </div>
             <label className="form-field">
-              <span>{itemType === "service" ? "Serviço" : "Produto"} *</span>
-              <select name="catalogId" required defaultValue="">
+              <span>
+                {itemType === "service"
+                  ? "Serviço"
+                  : itemType === "product"
+                    ? "Produto"
+                    : "Pacote"}{" "}
+                *
+              </span>
+              <select
+                required
+                value={catalogId}
+                onChange={(e) => setCatalogId(e.target.value)}
+              >
                 <option value="" disabled>
                   Selecione…
                 </option>
                 {catalog.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} · {formatMoney(c.priceCents)}
+                    {"itemLabel" in c && c.itemLabel
+                      ? `${c.name} · ${formatMoney(c.priceCents)} · ${c.itemLabel}`
+                      : `${c.name} · ${formatMoney(c.priceCents)}`}
+                    {itemType === "service" && creditByService.has(c.id)
+                      ? ` · ${creditByService.get(c.id)} créd.`
+                      : ""}
                   </option>
                 ))}
               </select>
             </label>
+
+            {itemType === "service" && selectedCreditQty > 0 ? (
+              <label className="form-check order-credit-toggle">
+                <input
+                  type="checkbox"
+                  checked={useCredit}
+                  onChange={(e) => setUseCredit(e.target.checked)}
+                />
+                <span>
+                  Usar 1 crédito do pacote ({selectedCreditQty} disponível
+                  {selectedCreditQty > 1 ? "s" : ""}) — cobra R$ 0 e mantém comissão da tabela
+                </span>
+              </label>
+            ) : null}
+
+            {itemType === "package" ? (
+              <p className="client-profile-hint">
+                A venda gera a carteira na hora. O cliente paga o valor do pacote nesta comanda.
+              </p>
+            ) : null}
+
             <label className="form-field">
               <span>Profissional</span>
               <select name="staffId" defaultValue="">
@@ -252,12 +371,18 @@ export function OrderDrawer({
                 ))}
               </select>
             </label>
-            <label className="form-field">
-              <span>Desconto no item (R$)</span>
-              <input name="discountReais" type="number" min={0} step={0.01} defaultValue={0} />
-            </label>
-            <button type="submit" className="btn btn-outline" disabled={pending}>
-              + Adicionar item
+            {itemType !== "package" && !willUseCredit ? (
+              <label className="form-field">
+                <span>Desconto no item (R$)</span>
+                <input name="discountReais" type="number" min={0} step={0.01} defaultValue={0} />
+              </label>
+            ) : null}
+            <button type="submit" className="btn btn-outline" disabled={pending || !catalogId}>
+              {itemType === "package"
+                ? "+ Vender pacote"
+                : willUseCredit
+                  ? "+ Lançar com crédito"
+                  : "+ Adicionar item"}
             </button>
           </form>
         ) : null}
