@@ -14,6 +14,8 @@ type WriteInput = {
   staffId: string;
   date: string;
   hour: number;
+  /** 0 ou 30 — início do slot. */
+  minute?: number;
   durationMin: number;
   clientId?: string;
   serviceId?: string;
@@ -107,11 +109,15 @@ function parseWriteInput(raw: WriteInput) {
   if (raw.hour < 6 || raw.hour > 22) {
     throw new AppError("VALIDATION", "Horário fora do expediente");
   }
+  const minute = raw.minute ?? 0;
+  if (minute !== 0 && minute !== 30) {
+    throw new AppError("VALIDATION", "Minuto inválido (use 0 ou 30)");
+  }
   const durationMin = raw.durationMin || 30;
   if (durationMin < 5 || durationMin > 480) {
     throw new AppError("VALIDATION", "Duração inválida");
   }
-  return durationMin;
+  return { durationMin, minute };
 }
 
 async function createSlot(raw: WriteInput): Promise<ActionResult> {
@@ -122,12 +128,12 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
     const tenant = await requireTenantContext();
     await assertStaffBookable(tenant.id, raw.staffId);
 
-    const durationMin = parseWriteInput(raw);
+    const { durationMin, minute } = parseWriteInput(raw);
     const svc = await loadServiceDuration(tenant.id, raw.serviceId, durationMin);
     const finalDuration = raw.isBlock ? durationMin : svc.durationMin;
 
     const start = new Date(
-      `${raw.date}T${String(raw.hour).padStart(2, "0")}:00:00-03:00`
+      `${raw.date}T${String(raw.hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`
     );
     const end = new Date(start.getTime() + finalDuration * 60_000);
 

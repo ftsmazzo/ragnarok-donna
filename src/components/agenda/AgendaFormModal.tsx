@@ -16,6 +16,7 @@ type SlotContext = {
   date: string;
   staffId: string;
   hour: number;
+  minute?: number;
 };
 
 type Props = {
@@ -43,13 +44,15 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
   const title = MODE_TITLE[mode];
   const needsClient = mode !== "block";
   const hourEditable = mode === "encaixe";
+  const minute = slot.minute ?? 0;
+  const timeLabel = `${String(slot.hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
   useEffect(() => {
     if (!open) return;
     setHour(slot.hour);
     setClientId("");
     setError("");
-  }, [open, slot.hour, slot.staffId, slot.date, mode]);
+  }, [open, slot.hour, slot.minute, slot.staffId, slot.date, mode]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,6 +60,7 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
     const formData = new FormData(e.currentTarget);
     formData.set("date", slot.date);
     formData.set("hour", String(hourEditable ? hour : slot.hour));
+    formData.set("minute", String(hourEditable ? 0 : minute));
     if (!formData.get("staffId")) formData.set("staffId", slot.staffId);
     if (needsClient && clientId) formData.set("clientId", clientId);
 
@@ -132,16 +136,14 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
             </select>
           ) : (
             <>
-              <input
-                name="hourDisplay"
-                type="text"
-                readOnly
-                value={`${String(slot.hour).padStart(2, "0")}:00`}
-              />
+              <input name="hourDisplay" type="text" readOnly value={timeLabel} />
               <input type="hidden" name="hour" value={slot.hour} />
+              <input type="hidden" name="minute" value={minute} />
             </>
           )}
         </label>
+
+        {hourEditable ? <input type="hidden" name="minute" value={0} /> : null}
 
         {mode === "block" ? (
           <label className="form-field">

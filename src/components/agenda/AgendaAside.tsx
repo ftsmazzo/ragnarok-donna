@@ -10,6 +10,7 @@ import type {
   AgendaStaff,
 } from "@/server/agenda/types";
 import { formatTimeSp, shortPersonName } from "@/lib/datetime";
+import { freeSlotsForDay } from "@/lib/agenda-free-slots";
 import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 
 type Panel = "available" | "appointments" | null;
@@ -18,49 +19,9 @@ type Props = {
   data: AgendaDayData;
   hrefForDate: (date: string) => string;
   onOpenAppointment: (a: AgendaAppointment) => void;
-  onBookSlot?: (staffId: string, hour: number) => void;
+  onBookSlot?: (staffId: string, hour: number, minute?: number) => void;
   canWrite?: boolean;
 };
-
-type FreeSlot = {
-  key: string;
-  staffId: string;
-  staffName: string;
-  hour: number;
-  label: string;
-};
-
-function overlapsHour(a: AgendaAppointment, date: string, hour: number): boolean {
-  const hh = String(hour).padStart(2, "0");
-  const slotStart = new Date(`${date}T${hh}:00:00-03:00`);
-  const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
-  return a.startsAt < slotEnd && a.endsAt > slotStart;
-}
-
-function freeSlotsForDay(data: AgendaDayData): FreeSlot[] {
-  const active = data.appointments.filter(
-    (a) => a.status !== "cancelled" && a.status !== "no_show"
-  );
-  const out: FreeSlot[] = [];
-  for (const s of data.staff) {
-    for (const hourLabel of data.hours) {
-      const hour = Number(hourLabel.slice(0, 2));
-      const busy = active.some(
-        (a) => a.staffId === s.id && overlapsHour(a, data.date, hour)
-      );
-      if (!busy) {
-        out.push({
-          key: `${s.id}-${hour}`,
-          staffId: s.id,
-          staffName: s.name,
-          hour,
-          label: hourLabel,
-        });
-      }
-    }
-  }
-  return out;
-}
 
 function staffName(staff: AgendaStaff[], id: string | null): string {
   if (!id) return "—";
@@ -76,7 +37,7 @@ export function AgendaAside({
 }: Props) {
   const [panel, setPanel] = useState<Panel>(null);
 
-  const freeSlots = useMemo(() => freeSlotsForDay(data), [data]);
+  const freeSlots = useMemo(() => freeSlotsForDay(data, { stepMin: 60 }), [data]);
   const dayAppointments = useMemo(
     () =>
       [...data.appointments]

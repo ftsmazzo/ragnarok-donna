@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { AgendaDetailModal } from "@/components/agenda/AgendaDetailModal";
 import { AgendaFormModal, type AgendaFormMode } from "@/components/agenda/AgendaFormModal";
 import { AgendaAside } from "@/components/agenda/AgendaAside";
+import { AgendaQuickThinkWidget } from "@/components/agenda/AgendaQuickThinkWidget";
 import { OrderDrawer } from "@/components/comandas/OrderDrawer";
 import type {
   AgendaAppointment,
@@ -88,9 +89,12 @@ export function AgendaView({
   const staffCols = Math.max(data.staff.length, 1);
 
   const [formMode, setFormMode] = useState<AgendaFormMode | null>(null);
-  const [slot, setSlot] = useState<{ date: string; staffId: string; hour: number } | null>(
-    null
-  );
+  const [slot, setSlot] = useState<{
+    date: string;
+    staffId: string;
+    hour: number;
+    minute?: number;
+  } | null>(null);
   const [detail, setDetail] = useState<AgendaAppointment | null>(null);
 
   function refresh() {
@@ -127,8 +131,13 @@ export function AgendaView({
     return qs({ staff: id });
   }
 
-  function openSlot(staffId: string, hour: number, mode: AgendaFormMode) {
-    setSlot({ date: data.date, staffId, hour });
+  function openSlot(
+    staffId: string,
+    hour: number,
+    mode: AgendaFormMode,
+    minute = 0
+  ) {
+    setSlot({ date: data.date, staffId, hour, minute });
     setFormMode(mode);
   }
 
@@ -321,7 +330,9 @@ export function AgendaView({
             hrefForDate={(date) => qs({ date })}
             onOpenAppointment={setDetail}
             canWrite={permissions.canWrite}
-            onBookSlot={(staffId, hour) => openSlot(staffId, hour, "schedule")}
+            onBookSlot={(staffId, hour, minute) =>
+              openSlot(staffId, hour, "schedule", minute ?? 0)
+            }
           />
         ) : (
           <aside className="agenda-tablet-strip">
@@ -346,6 +357,16 @@ export function AgendaView({
           </aside>
         )}
       </div>
+
+      {!tabletMode ? (
+        <AgendaQuickThinkWidget
+          data={data}
+          canWrite={permissions.canWrite}
+          onBookSlot={(staffId, hour, minute) =>
+            openSlot(staffId, hour, "schedule", minute ?? 0)
+          }
+        />
+      ) : null}
 
       {formMode && slot ? (
         <AgendaFormModal

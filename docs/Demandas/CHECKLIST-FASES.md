@@ -22,7 +22,7 @@ Ordem: bloco a bloco, sem pular fase.
 - [x] 2.2 Foto do cliente no agendamento / cadastro
 - [x] 2.3 Encaixe imediato no painel + Donna sem slot passado  
       (encaixe ≠ “estou na barbearia” — ver Fase 4)
-- [ ] 2.4 Widget pensamento rápido (ex.: “Luciano tem 15h / 15h30”)
+- [x] 2.4 Widget pensamento rápido (ex.: “Luciano tem 15h / 15h30”)
 - [ ] 2.5 Suporte diário + vídeo-aulas (escopo)
 
 ## Fase 3 — Disparos WhatsApp

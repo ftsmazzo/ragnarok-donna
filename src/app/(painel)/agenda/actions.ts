@@ -15,6 +15,7 @@ function parseForm(formData: FormData) {
     staffId: String(formData.get("staffId") ?? ""),
     date: String(formData.get("date") ?? ""),
     hour: Number(formData.get("hour")),
+    minute: Number(formData.get("minute") || 0),
     durationMin: Number(formData.get("durationMin") || 30),
     clientId: String(formData.get("clientId") ?? "") || undefined,
     serviceId: String(formData.get("serviceId") ?? "") || undefined,
