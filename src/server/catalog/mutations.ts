@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { AppError, ForbiddenError, NotFoundError } from "../errors";
 import { requireCapability } from "../permissions/guards";
@@ -27,6 +27,7 @@ export async function createProduct(input: {
   stockQty?: string;
   minQty?: string;
   forSale?: boolean;
+  forInternalUse?: boolean;
 }): Promise<ActionResult> {
   try {
     await assertCatalogWrite();
@@ -46,6 +47,7 @@ export async function createProduct(input: {
         stockQty: Math.max(0, Number(input.stockQty) || 0),
         minQty: Math.max(0, Number(input.minQty) || 0),
         forSale: input.forSale !== false,
+        forInternalUse: Boolean(input.forInternalUse),
         isActive: true,
       })
       .returning({ id: schema.products.id });
@@ -69,6 +71,7 @@ export async function updateProduct(
     stockQty?: string;
     minQty?: string;
     forSale?: boolean;
+    forInternalUse?: boolean;
   }
 ): Promise<ActionResult> {
   try {
@@ -88,6 +91,7 @@ export async function updateProduct(
         stockQty: Math.max(0, Number(input.stockQty) || 0),
         minQty: Math.max(0, Number(input.minQty) || 0),
         forSale: input.forSale !== false,
+        forInternalUse: Boolean(input.forInternalUse),
         updatedAt: new Date(),
       })
       .where(
@@ -106,6 +110,61 @@ export async function updateProduct(
     }
     if (err instanceof ForbiddenError) return { ok: false, error: "Sem permissão" };
     return { ok: false, error: "Erro ao salvar produto" };
+  }
+}
+
+/** Baixa estoque de produto marcado como uso interno (sem comanda/venda). */
+export async function consumeInternalStock(input: {
+  productId: string;
+  qty?: number;
+}): Promise<ActionResult> {
+  try {
+    await assertCatalogWrite();
+    const tenant = await requireTenantContext();
+    const qty = Math.max(1, Math.min(999, input.qty ?? 1));
+    const db = createDb();
+
+    const [prod] = await db
+      .select({
+        id: schema.products.id,
+        stockQty: schema.products.stockQty,
+        forInternalUse: schema.products.forInternalUse,
+      })
+      .from(schema.products)
+      .where(
+        and(
+          eq(schema.products.id, input.productId),
+          eq(schema.products.tenantId, tenant.id),
+          isNull(schema.products.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!prod) throw new NotFoundError("Produto não encontrado");
+    if (!prod.forInternalUse) {
+      throw new AppError("VALIDATION", "Produto não marcado como uso interno");
+    }
+    if (prod.stockQty < qty) {
+      throw new AppError("VALIDATION", `Estoque insuficiente (${prod.stockQty} un.)`);
+    }
+
+    await db
+      .update(schema.products)
+      .set({
+        stockQty: sql`${schema.products.stockQty} - ${qty}`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.products.id, prod.id), eq(schema.products.tenantId, tenant.id))
+      );
+
+    return { ok: true, id: prod.id };
+  } catch (err) {
+    if (err instanceof AppError || err instanceof NotFoundError) {
+      return { ok: false, error: err.message };
+    }
+    if (err instanceof ForbiddenError) return { ok: false, error: "Sem permissão" };
+    return { ok: false, error: "Erro ao baixar estoque" };
   }
 }
 

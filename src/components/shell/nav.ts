@@ -30,6 +30,7 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Abertas", href: "/comandas" },
       { label: "Histórico", href: "/comandas/historico" },
+      { label: "Venda / Consumo (celular)", href: "/pwa/consumo" },
     ],
   },
   {

@@ -73,6 +73,7 @@ export type CatalogProduct = {
   name: string;
   priceCents: number;
   commissionBps: number | null;
+  stockQty?: number;
 };
 
 export type CatalogPackage = {

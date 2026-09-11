@@ -57,6 +57,7 @@ export type ProductRow = {
   stockQty: number;
   minQty: number;
   forSale: boolean;
+  forInternalUse: boolean;
   isActive: boolean;
 };
 
@@ -168,6 +169,7 @@ export async function listProducts(opts: { q?: string }) {
       stockQty: schema.products.stockQty,
       minQty: schema.products.minQty,
       forSale: schema.products.forSale,
+      forInternalUse: schema.products.forInternalUse,
       isActive: schema.products.isActive,
     })
     .from(schema.products)

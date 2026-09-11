@@ -25,7 +25,8 @@ export function homePathForUserAgent(
   role?: string
 ): string {
   if (isPhoneUserAgent(ua)) {
-    if (role === "staff" || role === "readonly") return "/agenda?modo=tablet";
+    if (role === "staff") return "/pwa/consumo";
+    if (role === "readonly") return "/agenda?modo=tablet";
     return "/pwa/conversas";
   }
   if (isTabletUserAgent(ua)) {

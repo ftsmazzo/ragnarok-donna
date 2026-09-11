@@ -35,8 +35,9 @@ function isStaticAsset(pathname: string): boolean {
 
 function deviceHome(request: NextRequest, role: MemberRole, staffId?: string | null): string {
   const ua = request.headers.get("user-agent");
-  if (isBarberRole(role) && (isPhoneUserAgent(ua) || isTabletUserAgent(ua))) {
-    return "/agenda?modo=tablet";
+  if (isBarberRole(role)) {
+    if (isPhoneUserAgent(ua)) return "/pwa/consumo";
+    if (isTabletUserAgent(ua)) return "/agenda?modo=tablet";
   }
   const path = homePathForUserAgent(ua, role);
   if (path === "/pwa/conversas" && !canAccessRoute("/pwa/conversas", role, { staffId })) {

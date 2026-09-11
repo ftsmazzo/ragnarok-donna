@@ -24,6 +24,7 @@ type ProductDefaults = {
   stockQty?: number;
   minQty?: number;
   forSale?: boolean;
+  forInternalUse?: boolean;
 };
 
 type ServiceDefaults = {
@@ -211,6 +212,14 @@ export function CatalogDrawer({
                 defaultChecked={product?.forSale ?? true}
               />
               <span>Disponível para venda</span>
+            </label>
+            <label className="form-check">
+              <input
+                name="forInternalUse"
+                type="checkbox"
+                defaultChecked={product?.forInternalUse ?? false}
+              />
+              <span>Uso interno (baixa pela dona, sem venda/desconto)</span>
             </label>
           </>
         ) : null}

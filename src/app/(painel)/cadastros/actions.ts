@@ -5,6 +5,7 @@ import {
   createPackage,
   createProduct,
   createService,
+  consumeInternalStock,
   deactivateCatalogItem,
   updatePackage,
   updateProduct,
@@ -21,6 +22,7 @@ export async function createProductAction(formData: FormData) {
     stockQty: String(formData.get("stockQty") ?? ""),
     minQty: String(formData.get("minQty") ?? ""),
     forSale: formData.get("forSale") === "on",
+    forInternalUse: formData.get("forInternalUse") === "on",
   });
   if (result.ok) revalidatePath("/produtos");
   return result;
@@ -36,6 +38,7 @@ export async function updateProductAction(id: string, formData: FormData) {
     stockQty: String(formData.get("stockQty") ?? ""),
     minQty: String(formData.get("minQty") ?? ""),
     forSale: formData.get("forSale") === "on",
+    forInternalUse: formData.get("forInternalUse") === "on",
   });
   if (result.ok) revalidatePath("/produtos");
   return result;
@@ -116,5 +119,11 @@ export async function deactivateCatalogAction(
     revalidatePath("/servicos");
     revalidatePath("/pacotes");
   }
+  return result;
+}
+
+export async function consumeInternalStockAction(productId: string, qty = 1) {
+  const result = await consumeInternalStock({ productId, qty });
+  if (result.ok) revalidatePath("/produtos");
   return result;
 }

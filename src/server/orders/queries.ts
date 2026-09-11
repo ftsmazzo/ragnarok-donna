@@ -49,7 +49,7 @@ async function resolveBarberStaffFilter(): Promise<string | null | undefined> {
   return resolveSessionStaffId(session);
 }
 
-async function assertOwnOrderAccess(orderId: string): Promise<void> {
+export async function assertOwnOrderAccess(orderId: string): Promise<void> {
   const staffFilter = await resolveBarberStaffFilter();
   if (staffFilter === undefined) return;
   if (!staffFilter) {
@@ -455,6 +455,7 @@ export async function listCatalogForOrders(): Promise<{
         name: schema.products.name,
         priceCents: schema.products.priceCents,
         commissionBps: schema.products.commissionBps,
+        stockQty: schema.products.stockQty,
       })
       .from(schema.products)
       .where(

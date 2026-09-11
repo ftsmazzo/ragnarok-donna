@@ -3,7 +3,9 @@ import { createDb, schema } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
-import { getOrderDetail } from "./queries";
+import { isBarberRole } from "../permissions/roles";
+import { resolveSessionStaffId } from "../permissions/staff-scope";
+import { assertOwnOrderAccess, getOrderDetail } from "./queries";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -66,6 +68,16 @@ async function assertOpenOrder(orderId: string, tenantId: string) {
   return order;
 }
 
+/** Barbeiro: só produtos na própria comanda. Demais roles: write completo. */
+async function assertFullOrderWrite() {
+  const session = await requireSession();
+  requireCapability(session, "orders.write");
+  if (isBarberRole(session.role)) {
+    throw new ForbiddenError("Barbeiro só pode lançar produtos na comanda");
+  }
+  return session;
+}
+
 function calcCommission(
   totalCents: number,
   bps: number | null | undefined
@@ -83,8 +95,7 @@ export async function openOrder(input: {
   notes?: string;
 }): Promise<ActionResult> {
   try {
-    const session = await requireSession();
-    requireCapability(session, "orders.write");
+    const session = await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     const db = createDb();
 
@@ -183,6 +194,22 @@ export async function addOrderItem(input: {
     const tenant = await requireTenantContext();
     await assertOpenOrder(input.orderId, tenant.id);
 
+    const barber = isBarberRole(session.role);
+    let staffIdInput = input.staffId;
+    if (barber) {
+      if (input.itemType !== "product") {
+        throw new ForbiddenError("Barbeiro só pode lançar produtos na comanda");
+      }
+      await assertOwnOrderAccess(input.orderId);
+      const ownStaffId = await resolveSessionStaffId(session);
+      if (!ownStaffId) {
+        throw new ForbiddenError(
+          "Conta não vinculada a um profissional. Peça ao dono para vincular em Configurações → Equipe."
+        );
+      }
+      staffIdInput = ownStaffId;
+    }
+
     const qty = Math.max(1, Math.min(99, input.qty ?? 1));
     const discountCents = Math.max(0, input.discountCents ?? 0);
     const db = createDb();
@@ -191,7 +218,7 @@ export async function addOrderItem(input: {
       return await addPackageSaleItem({
         orderId: input.orderId,
         packageId: input.catalogId,
-        staffId: input.staffId,
+        staffId: staffIdInput,
         tenantId: tenant.id,
       });
     }
@@ -232,6 +259,7 @@ export async function addOrderItem(input: {
           priceCents: schema.products.priceCents,
           commissionBps: schema.products.commissionBps,
           stockQty: schema.products.stockQty,
+          forSale: schema.products.forSale,
         })
         .from(schema.products)
         .where(
@@ -243,6 +271,9 @@ export async function addOrderItem(input: {
         )
         .limit(1);
       if (!prod) throw new AppError("VALIDATION", "Produto inválido");
+      if (!prod.forSale) {
+        throw new AppError("VALIDATION", "Produto não disponível para venda");
+      }
       if (prod.stockQty < qty) {
         throw new AppError("VALIDATION", `Estoque insuficiente (${prod.stockQty} un.)`);
       }
@@ -252,7 +283,7 @@ export async function addOrderItem(input: {
       itemCommissionBps = prod.commissionBps;
     }
 
-    let staffId: string | null = input.staffId || null;
+    let staffId: string | null = staffIdInput || null;
     let staffCommissionBps: number | null = null;
     if (staffId) {
       const [st] = await db
@@ -498,6 +529,13 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
     if (!item) throw new AppError("NOT_FOUND", "Item não encontrado");
     await assertOpenOrder(item.orderId, tenant.id);
 
+    if (isBarberRole(session.role)) {
+      if (item.itemType !== "product") {
+        throw new ForbiddenError("Barbeiro só pode remover produtos");
+      }
+      await assertOwnOrderAccess(item.orderId);
+    }
+
     const meta = (item.meta ?? {}) as Record<string, unknown>;
     if (meta.redeemed && typeof meta.creditId === "string" && typeof meta.clientPackageId === "string") {
       const { restoreOneCredit } = await import("../packages/credits");
@@ -552,8 +590,7 @@ export async function addPayment(input: {
   amountCents: number;
 }): Promise<ActionResult> {
   try {
-    const session = await requireSession();
-    requireCapability(session, "orders.write");
+    await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     await assertOpenOrder(input.orderId, tenant.id);
 
@@ -605,8 +642,7 @@ export async function setOrderDiscount(
   discountCents: number
 ): Promise<ActionResult> {
   try {
-    const session = await requireSession();
-    requireCapability(session, "orders.write");
+    await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     const order = await assertOpenOrder(orderId, tenant.id);
 
@@ -631,8 +667,7 @@ export async function setOrderDiscount(
 
 export async function closeOrder(orderId: string): Promise<ActionResult> {
   try {
-    const session = await requireSession();
-    requireCapability(session, "orders.write");
+    const session = await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     await assertOpenOrder(orderId, tenant.id);
 
@@ -685,7 +720,7 @@ export async function payAndCloseOrder(input: {
   method: string;
 }): Promise<ActionResult> {
   try {
-    requireCapability(await requireSession(), "orders.write");
+    await assertFullOrderWrite();
     const detail = await getOrderDetail(input.orderId);
     if (detail.items.length === 0) {
       throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
@@ -708,8 +743,7 @@ export async function payAndCloseOrder(input: {
 
 export async function cancelOrder(orderId: string): Promise<ActionResult> {
   try {
-    const session = await requireSession();
-    requireCapability(session, "orders.write");
+    const session = await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     await assertOpenOrder(orderId, tenant.id);
 

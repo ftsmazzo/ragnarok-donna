@@ -74,6 +74,8 @@ const BARBER: Capability[] = [
   "appointments.read",
   "appointments.status_own",
   "orders.read",
+  /** Só produtos na própria comanda — mutations restringem o restante. */
+  "orders.write",
   "commissions.read_own",
   "staff.read",
 ];

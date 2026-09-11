@@ -145,6 +145,9 @@ export function AgendaView({
         subtitle={`${dateLabel} · ${data.totalAppointments} agendamento(s)`}
         actions={
           <>
+            <Link href="/pwa/consumo" className="btn btn-primary">
+              Venda / Consumo
+            </Link>
             <Link
               href={tabletMode ? qs({ modo: undefined }) : qs({ modo: "tablet" })}
               className="btn btn-outline"
