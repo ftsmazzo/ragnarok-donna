@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { PwaSupportHost } from "@/components/support/PwaSupportHost";
 import { resolveTenantBrand } from "@/lib/brand";
 import { requireTenantContext } from "@/server/context/tenant";
 
@@ -36,5 +37,10 @@ export const viewport: Viewport = {
 };
 
 export default function PwaLayout({ children }: { children: React.ReactNode }) {
-  return <div className="pwa-shell">{children}</div>;
+  return (
+    <div className="pwa-shell">
+      {children}
+      <PwaSupportHost />
+    </div>
+  );
 }

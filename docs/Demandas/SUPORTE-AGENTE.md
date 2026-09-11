@@ -104,10 +104,10 @@ Tudo eleitoral/redes/marketing da pasta — poluem o modelo e violam a regra de 
 1. Quem atende o handoff humano? (WhatsApp/Telegram da Fábrica, e-mail, ou só fila no painel admin)
 
 ## Ordem de implementação (quando autorizar)
-1. Schema `support_threads` / `support_messages` + bootstrap
-2. UI widget chat no painel
-3. Agente `support` + FAQ inicial (10–20 perguntas)
-4. Handoff humano + alerta
+1. ~~Schema `support_threads` / `support_messages` + bootstrap~~
+2. ~~UI widget chat no painel~~
+3. ~~Agente `support` + FAQ inicial (10–20 perguntas)~~
+4. ~~Handoff humano + alerta~~ (webhook opcional `SUPPORT_HANDOFF_WEBHOOK_URL`; fila no thread)
 5. (Depois) vídeos / base rica
 
-**Status:** escopo travado; **vídeos adiados**; implementação sobe quando priorizarmos após Fase 2 restante / antes da Fase 3.
+**Status:** implementado no painel + PWA (MVP). Vídeos adiados. Handoff humano: thread `human` + log/webhook.

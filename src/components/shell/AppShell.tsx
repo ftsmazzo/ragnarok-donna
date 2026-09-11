@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { SupportChatWidget } from "@/components/support/SupportChatWidget";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
@@ -55,6 +56,7 @@ export function AppShell({ children, session }: AppShellProps) {
         <Topbar session={session} onToggleSidebar={() => setCollapsed((v) => !v)} />
         <main className="app-content">{children}</main>
       </div>
+      <SupportChatWidget role={session.role} variant="painel" />
     </div>
   );
 }

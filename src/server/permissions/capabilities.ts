@@ -24,6 +24,7 @@ export type Capability =
   | "reports.management"
   | "conversations.read"
   | "conversations.write"
+  | "support.use"
   | "settings.read"
   | "settings.write"
   | "members.manage";
@@ -49,6 +50,7 @@ const OWNER: Capability[] = [
   "reports.management",
   "conversations.read",
   "conversations.write",
+  "support.use",
   "settings.read",
   "settings.write",
   "members.manage",
@@ -67,6 +69,7 @@ const RECEPTION: Capability[] = [
   "reports.operational",
   "conversations.read",
   "conversations.write",
+  "support.use",
   "staff.read",
 ];
 
@@ -78,6 +81,7 @@ const BARBER: Capability[] = [
   "orders.write",
   "commissions.read_own",
   "staff.read",
+  "support.use",
 ];
 
 const READONLY: Capability[] = [
