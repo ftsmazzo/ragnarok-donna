@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
 import {
   createClientAction,
@@ -9,6 +9,7 @@ import {
   updateClientAction,
 } from "@/app/(painel)/clientes/actions";
 import { ClientProfilePanel } from "@/components/clients/ClientProfilePanel";
+import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
 import { formatDateTimeSp } from "@/lib/datetime";
@@ -29,11 +30,33 @@ export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: 
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [tab, setTab] = useState<"resumo" | "cadastro" | "agenda" | "comandas" | "consumo">("resumo");
   const [pending, startTransition] = useTransition();
+  const [avatarUrl, setAvatarUrl] = useState("");
 
   const isEdit = mode === "edit" && client;
   const isRemoved = Boolean(
     isEdit && client && (client.deletedAt || !client.isActive)
   );
+
+  useEffect(() => {
+    if (!open) return;
+    setAvatarUrl(client?.avatarUrl ?? "");
+  }, [open, client?.id, client?.avatarUrl]);
+
+  function handlePhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 450_000) {
+      setError("Imagem muito grande (máx. ~450 KB)");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") setAvatarUrl(reader.result);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -109,6 +132,47 @@ export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: 
       ) : null}
 
       <form id="client-form" className="form-stack" onSubmit={handleSubmit}>
+        <input type="hidden" name="avatarUrl" value={avatarUrl} />
+
+        <div className="staff-photo-field">
+          <PersonAvatar name={client?.name ?? "Novo"} src={avatarUrl} size={72} />
+          <div className="staff-photo-actions">
+            <label className="btn btn-outline btn-sm">
+              {avatarUrl ? "Trocar foto" : "Enviar foto"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                hidden
+                disabled={isRemoved}
+                onChange={handlePhotoFile}
+              />
+            </label>
+            {avatarUrl ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={isRemoved}
+                onClick={() => setAvatarUrl("")}
+              >
+                Remover
+              </button>
+            ) : null}
+            <p className="client-profile-hint muted">
+              JPG ou PNG, até 450 KB. Aparece na agenda. Ou cole um link https://.
+            </p>
+            <label className="form-field">
+              <span>URL da foto (opcional)</span>
+              <input
+                type="url"
+                placeholder="https://…"
+                value={avatarUrl.startsWith("data:") ? "" : avatarUrl}
+                disabled={isRemoved}
+                onChange={(e) => setAvatarUrl(e.target.value.trim())}
+              />
+            </label>
+          </div>
+        </div>
+
         <label className="form-field">
           <span>Nome *</span>
           <input

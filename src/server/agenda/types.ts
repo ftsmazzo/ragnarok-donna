@@ -9,6 +9,7 @@ export type AgendaAppointment = {
   staffId: string | null;
   clientId: string | null;
   clientName: string;
+  clientAvatarUrl: string | null;
   serviceId: string | null;
   serviceName: string | null;
   startsAt: Date;

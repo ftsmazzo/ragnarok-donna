@@ -43,6 +43,7 @@ export type ClientDetail = ClientListItem & {
   phoneE164: string | null;
   notes: string | null;
   birthDate: string | null;
+  avatarUrl: string | null;
   tags: string[];
   preferences: Record<string, unknown>;
   createdAt: Date;
@@ -195,6 +196,7 @@ export async function getClient(clientId: string): Promise<ClientDetail> {
       email: schema.clients.email,
       notes: schema.clients.notes,
       birthDate: schema.clients.birthDate,
+      avatarUrl: schema.clients.avatarUrl,
       loyaltyPoints: schema.clients.loyaltyPoints,
       isActive: schema.clients.isActive,
       deletedAt: schema.clients.deletedAt,

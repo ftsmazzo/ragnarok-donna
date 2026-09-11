@@ -229,6 +229,7 @@ CREATE INDEX IF NOT EXISTS memberships_branch_idx ON memberships (branch_id);
 
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS package_id uuid;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS avatar_url text;
 
 DO $$ BEGIN
   ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'pix_key';

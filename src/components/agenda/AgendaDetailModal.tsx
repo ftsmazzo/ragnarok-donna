@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import type { AgendaAppointment, AgendaPermissions } from "@/server/agenda/types";
 import type { ClientUpsellTip } from "@/server/insights/types";
 import { formatDateTimeSp, formatTimeSp } from "@/lib/datetime";
@@ -192,7 +193,10 @@ export function AgendaDetailModal({
           <>
             <div>
               <dt>Cliente</dt>
-              <dd>{a.clientName}</dd>
+              <dd className="agenda-client-dd">
+                <PersonAvatar name={a.clientName} src={a.clientAvatarUrl} size={32} />
+                <span>{a.clientName}</span>
+              </dd>
             </div>
             <div>
               <dt>Serviço</dt>

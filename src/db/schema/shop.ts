@@ -81,6 +81,7 @@ export const clients = pgTable(
     phone: varchar("phone", { length: 32 }),
     phoneE164: varchar("phone_e164", { length: 20 }),
     birthDate: date("birth_date"),
+    avatarUrl: text("avatar_url"),
     notes: text("notes"),
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     loyaltyPoints: integer("loyalty_points").notNull().default(0),

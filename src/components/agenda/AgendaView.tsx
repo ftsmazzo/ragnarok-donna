@@ -31,6 +31,7 @@ import {
 } from "@/lib/datetime";
 import Link from "next/link";
 import { Fragment } from "react";
+import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 
 type Props = {
   data: AgendaDayData;
@@ -263,10 +264,21 @@ export function AgendaView({
                             }}
                             title={`${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)}`}
                           >
-                            <strong>{shortPersonName(a.clientName)}</strong>
-                            {a.isEncaixe ? " · encaixe" : null}
-                            <br />
-                            {a.serviceName ?? (a.status === "blocked" ? "Bloqueio" : "—")}
+                            <span className="slot-main">
+                              {a.status !== "blocked" ? (
+                                <PersonAvatar
+                                  name={a.clientName}
+                                  src={a.clientAvatarUrl}
+                                  size={18}
+                                />
+                              ) : null}
+                              <span>
+                                <strong>{shortPersonName(a.clientName)}</strong>
+                                {a.isEncaixe ? " · encaixe" : null}
+                                <br />
+                                {a.serviceName ?? (a.status === "blocked" ? "Bloqueio" : "—")}
+                              </span>
+                            </span>
                           </div>
                         ))}
                       </div>

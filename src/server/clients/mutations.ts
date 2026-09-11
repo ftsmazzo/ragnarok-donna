@@ -14,9 +14,23 @@ export type ClientInput = {
   birthDate?: string;
   howHeard?: string;
   referredBy?: string;
+  avatarUrl?: string | null;
 };
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
+
+function normalizeAvatarUrl(input: string | null | undefined): string | null {
+  const s = String(input ?? "").trim();
+  if (!s) return null;
+  if (s.startsWith("data:image/")) {
+    if (s.length > 600_000) {
+      throw new AppError("VALIDATION", "Imagem muito grande (máx. ~450 KB)");
+    }
+    return s;
+  }
+  if (/^https?:\/\//i.test(s)) return s.slice(0, 2000);
+  throw new AppError("VALIDATION", "Foto: use um link https:// ou envie um arquivo de imagem");
+}
 
 function parseInput(raw: ClientInput): ClientInput {
   const name = normalizeName(raw.name);
@@ -31,6 +45,12 @@ function parseInput(raw: ClientInput): ClientInput {
     birthDate: raw.birthDate?.trim() || undefined,
     howHeard: raw.howHeard?.trim().slice(0, 80) || undefined,
     referredBy: raw.referredBy?.trim().slice(0, 160) || undefined,
+    avatarUrl:
+      raw.avatarUrl === undefined || raw.avatarUrl === null
+        ? undefined
+        : raw.avatarUrl.trim()
+          ? normalizeAvatarUrl(raw.avatarUrl)
+          : null,
   };
 }
 
@@ -69,6 +89,7 @@ export async function createClient(raw: ClientInput): Promise<ActionResult> {
         email,
         notes: input.notes ?? null,
         birthDate: input.birthDate || null,
+        avatarUrl: input.avatarUrl ?? null,
         preferences: crmPreferences(input),
       })
       .returning({ id: schema.clients.id });
@@ -108,6 +129,7 @@ export async function updateClient(clientId: string, raw: ClientInput): Promise<
         email,
         notes: input.notes ?? null,
         birthDate: input.birthDate || null,
+        ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
         preferences: crmPreferences(input, existing?.preferences ?? {}),
         updatedAt: new Date(),
       })

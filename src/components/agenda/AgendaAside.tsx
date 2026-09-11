@@ -10,6 +10,7 @@ import type {
   AgendaStaff,
 } from "@/server/agenda/types";
 import { formatTimeSp, shortPersonName } from "@/lib/datetime";
+import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 
 type Panel = "available" | "appointments" | null;
 
@@ -186,10 +187,15 @@ export function AgendaAside({
                   <strong>
                     {formatTimeSp(a.startsAt)} – {formatTimeSp(a.endsAt)}
                   </strong>
-                  <span>
-                    {shortPersonName(a.clientName)}
-                    {a.status === "blocked" ? " · Bloqueio" : null}
-                    {a.serviceName ? ` · ${a.serviceName}` : null}
+                  <span className="agenda-side-client">
+                    {a.status !== "blocked" ? (
+                      <PersonAvatar name={a.clientName} src={a.clientAvatarUrl} size={22} />
+                    ) : null}
+                    <span>
+                      {shortPersonName(a.clientName)}
+                      {a.status === "blocked" ? " · Bloqueio" : null}
+                      {a.serviceName ? ` · ${a.serviceName}` : null}
+                    </span>
                   </span>
                   <em>{staffName(data.staff, a.staffId)}</em>
                 </button>

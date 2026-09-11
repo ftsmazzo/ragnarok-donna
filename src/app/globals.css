@@ -1020,6 +1020,29 @@ input {
   margin-bottom: 4px;
 }
 
+.slot-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.slot-main .avatar {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.agenda-client-dd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agenda-side-client {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .slot.block {
   background: var(--slot-block);
 }
