@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
 import type { AgendaPickerService, AgendaStaff } from "@/server/agenda/types";
@@ -37,16 +37,26 @@ const MODE_TITLE: Record<AgendaFormMode, string> = {
 export function AgendaFormModal({ open, mode, slot, staff, services, onClose, onSaved }: Props) {
   const [error, setError] = useState("");
   const [clientId, setClientId] = useState("");
+  const [hour, setHour] = useState(slot.hour);
   const [pending, startTransition] = useTransition();
 
   const title = MODE_TITLE[mode];
   const needsClient = mode !== "block";
+  const hourEditable = mode === "encaixe";
+
+  useEffect(() => {
+    if (!open) return;
+    setHour(slot.hour);
+    setClientId("");
+    setError("");
+  }, [open, slot.hour, slot.staffId, slot.date, mode]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     const formData = new FormData(e.currentTarget);
     formData.set("date", slot.date);
+    formData.set("hour", String(hourEditable ? hour : slot.hour));
     if (!formData.get("staffId")) formData.set("staffId", slot.staffId);
     if (needsClient && clientId) formData.set("clientId", clientId);
 
@@ -90,8 +100,6 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
     >
       {error ? <div className="form-error">{error}</div> : null}
       <form id="agenda-form" className="form-stack" onSubmit={handleSubmit}>
-        <input type="hidden" name="hour" value={slot.hour} />
-
         {staff.length > 1 ? (
           <label className="form-field">
             <span>Profissional *</span>
@@ -109,12 +117,30 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
 
         <label className="form-field">
           <span>Horário *</span>
-          <input
-            name="hourDisplay"
-            type="text"
-            readOnly
-            value={`${String(slot.hour).padStart(2, "0")}:00`}
-          />
+          {hourEditable ? (
+            <select
+              name="hour"
+              value={hour}
+              onChange={(e) => setHour(Number(e.target.value))}
+              required
+            >
+              {Array.from({ length: 15 }, (_, i) => i + 8).map((h) => (
+                <option key={h} value={h}>
+                  {String(h).padStart(2, "0")}:00
+                </option>
+              ))}
+            </select>
+          ) : (
+            <>
+              <input
+                name="hourDisplay"
+                type="text"
+                readOnly
+                value={`${String(slot.hour).padStart(2, "0")}:00`}
+              />
+              <input type="hidden" name="hour" value={slot.hour} />
+            </>
+          )}
         </label>
 
         {mode === "block" ? (
@@ -163,7 +189,7 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
 
         {mode === "encaixe" ? (
           <p className="client-profile-hint muted">
-            Encaixe permite sobrepor horários já ocupados.
+            Encaixe imediato: pode sobrepor horários já ocupados. Ajuste o horário se precisar.
           </p>
         ) : null}
       </form>

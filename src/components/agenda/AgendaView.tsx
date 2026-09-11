@@ -135,7 +135,12 @@ export function AgendaView({
   function openEncaixe() {
     const first = data.staff[0];
     if (!first) return;
-    const hour = Number(data.hours[0]?.slice(0, 2) ?? 9);
+    const gridHours = data.hours.map((h) => Number(h.slice(0, 2))).filter((n) => Number.isFinite(n));
+    let hour = gridHours[0] ?? 9;
+    if (data.date === todaySp() && gridHours.length) {
+      const nowH = hourInSp(new Date());
+      hour = gridHours.find((h) => h >= nowH) ?? gridHours[gridHours.length - 1]!;
+    }
     openSlot(first.id, hour, "encaixe");
   }
 
@@ -232,20 +237,22 @@ export function AgendaView({
                     return (
                       <div
                         key={`${s.id}-${hour}`}
-                        className={`agenda-cell${permissions.canWrite && !hasSlot ? " is-clickable" : ""}`}
+                        className={`agenda-cell${permissions.canWrite ? " is-clickable" : ""}`}
                         onClick={() => {
-                          if (permissions.canWrite && !hasSlot) {
-                            openSlot(s.id, hourNum, "schedule");
-                          }
+                          if (!permissions.canWrite) return;
+                          if (!hasSlot) openSlot(s.id, hourNum, "schedule");
                         }}
                         onContextMenu={(e) => {
                           if (!permissions.canWrite) return;
                           e.preventDefault();
-                          openSlot(s.id, hourNum, "block");
+                          // Célula ocupada → encaixe imediato; vazia → bloqueio
+                          openSlot(s.id, hourNum, hasSlot ? "encaixe" : "block");
                         }}
                         title={
-                          permissions.canWrite && !hasSlot
-                            ? "Clique: agendar · Botão direito: bloquear"
+                          permissions.canWrite
+                            ? hasSlot
+                              ? "Botão direito: encaixe neste horário"
+                              : "Clique: agendar · Botão direito: bloquear"
                             : undefined
                         }
                       >

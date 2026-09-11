@@ -1,5 +1,6 @@
 import { and, asc, eq, gte, inArray, isNull, lte, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import { todaySp } from "@/lib/datetime";
 import { dayBoundsSp, rangesOverlap, slotRangeSp } from "@/server/agenda/utils";
 import { resolveTemporalPhrase } from "./temporal";
 
@@ -152,6 +153,10 @@ export async function listFreeSlotsForTenant(input: {
           hour,
           input.durationMin
         );
+        // Hoje: não oferece horário que já passou (próximo livre real).
+        if (input.date === todaySp() && slotStart.getTime() < Date.now() - 30_000) {
+          continue;
+        }
         const busy = appts.some(
           (a) =>
             a.staffId === st.id &&
