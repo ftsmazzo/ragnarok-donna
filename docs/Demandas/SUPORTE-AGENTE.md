@@ -45,10 +45,17 @@ Misturar os dois no mesmo agente polui a persona e o risco (tools de operação 
 - [ ] Integração Zendesk/Intercom
 - [ ] Suporte por WhatsApp da Fábrica (pode ser fase seguinte do handoff)
 
-## Decisões a fechar antes de codar
+## Decisões travadas
+| Tema | Decisão |
+|------|---------|
+| Canal | Chat no painel (widget), separado da Donna |
+| Público | Dono, recepção **e barbeiros** (`staff`) |
+| Disponibilidade | **7 dias** (agente AI sempre; humano quando a Fábrica estiver online) |
+| Vídeos | Adiados |
+| Handoff humano | Ainda abrir: Zap Fábrica / e-mail / fila admin |
+
+## Decisões ainda em aberto
 1. Quem atende o handoff humano? (WhatsApp/Telegram da Fábrica, e-mail, ou só fila no painel admin)
-2. Horário de suporte (“diário” = comercial 9–18? 7 dias?)
-3. O barbeiro (`staff`) vê o chat de suporte ou só dono/recepção?
 
 ## Ordem de implementação (quando autorizar)
 1. Schema `support_threads` / `support_messages` + bootstrap
