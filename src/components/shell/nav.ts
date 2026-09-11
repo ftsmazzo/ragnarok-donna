@@ -68,6 +68,7 @@ export const NAV: NavItem[] = [
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
       { label: "Minha conta", href: "/configuracoes/conta" },
       { label: "Agente (Donna)", href: "/configuracoes/agente", icon: "✉" },
+      { label: "Disparos WhatsApp", href: "/configuracoes/disparos", icon: "✉" },
       { label: "App celular (PWA)", href: "/pwa/conversas", icon: "▣" },
     ],
   },
@@ -100,6 +101,7 @@ export const NAV_CONSOLIDATED: NavItem[] = [
     children: [
       { label: "Dados da empresa", href: "/configuracoes/empresa", icon: "⌂" },
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
+      { label: "Disparos WhatsApp", href: "/configuracoes/disparos", icon: "✉" },
       { label: "Minha conta", href: "/configuracoes/conta" },
     ],
   },

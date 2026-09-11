@@ -28,12 +28,15 @@ Ordem: bloco a bloco, sem pular fase.
       · Ver `docs/Demandas/SUPORTE-AGENTE.md`
 
 ## Fase 3 — Disparos WhatsApp
-- [ ] Dias 5–6 / 10–11 / 20–21 → clientes 30/60 dias
-- [ ] Confirmação diária + feriado/domingo
-- [ ] Blast semanal / domingo
-- [ ] Agenda vazia de um profissional → disparo só dos clientes dele
-- [ ] Confirmação auto: “ok” no Zap muda status/cor na grade
-- [ ] Alarme/som opcional
+- [x] Dias 5–6 / 10–11 / 20–21 → clientes 30/60 dias
+- [x] Confirmação diária + feriado/domingo
+- [x] Blast semanal / domingo
+- [x] Agenda vazia de um profissional → disparo só dos clientes dele
+- [x] Confirmação auto: “ok” no Zap muda status/cor na grade
+- [x] Alarme/som opcional
+- Doc: `docs/Demandas/DISPAROS.md` · UI: `/configuracoes/disparos`
+- Motor: `POST/GET /api/ops/outreach-tick` (Bearer CRON_SECRET / AUTH_SECRET)
+- **Gate:** validar confirmação + OK→verde com toggle ligado antes de ligar blast/retorno em produção
 
 ## Fase 4 — Regras da casa (NÃO PULAR)
 ### Check-in “cliente está no local” (explícito do cliente)

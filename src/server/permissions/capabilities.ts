@@ -25,6 +25,8 @@ export type Capability =
   | "conversations.read"
   | "conversations.write"
   | "support.use"
+  | "outreach.read"
+  | "outreach.write"
   | "settings.read"
   | "settings.write"
   | "members.manage";
@@ -51,6 +53,8 @@ const OWNER: Capability[] = [
   "conversations.read",
   "conversations.write",
   "support.use",
+  "outreach.read",
+  "outreach.write",
   "settings.read",
   "settings.write",
   "members.manage",
@@ -70,6 +74,8 @@ const RECEPTION: Capability[] = [
   "conversations.read",
   "conversations.write",
   "support.use",
+  "outreach.read",
+  "outreach.write",
   "staff.read",
 ];
 

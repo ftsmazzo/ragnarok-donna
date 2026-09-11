@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { Suspense } from "react";
 import { eq } from "drizzle-orm";
 import { AppShell } from "@/components/shell/AppShell";
+import { ConfirmationSoundHost } from "@/components/outreach/ConfirmationSoundHost";
 import { createDb, schema } from "@/db";
 import { resolveTenantBrand } from "@/lib/brand";
 import { listUserOrganizations } from "@/server/auth/organizations";
@@ -79,6 +80,7 @@ export default async function PainelLayout({
         }}
       >
         {children}
+        <ConfirmationSoundHost />
       </AppShell>
     </Suspense>
   );

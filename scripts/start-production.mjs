@@ -318,8 +318,36 @@ CREATE TABLE IF NOT EXISTS support_messages (
 );
 CREATE INDEX IF NOT EXISTS support_messages_thread_created_idx
   ON support_messages (thread_id, created_at);
+
+CREATE TABLE IF NOT EXISTS tenant_outreach_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  confirmation_enabled boolean NOT NULL DEFAULT false,
+  followup30_enabled boolean NOT NULL DEFAULT false,
+  followup60_enabled boolean NOT NULL DEFAULT false,
+  sunday_blast_enabled boolean NOT NULL DEFAULT false,
+  empty_agenda_enabled boolean NOT NULL DEFAULT false,
+  sound_on_confirm_enabled boolean NOT NULL DEFAULT false,
+  confirmation_send_time varchar(5) NOT NULL DEFAULT '18:00',
+  skip_sundays boolean NOT NULL DEFAULT true,
+  skip_holidays boolean NOT NULL DEFAULT true,
+  custom_closed_dates jsonb NOT NULL DEFAULT '[]'::jsonb,
+  followup_month_days jsonb NOT NULL DEFAULT '[5,6,10,11,20,21]'::jsonb,
+  followup30_days integer NOT NULL DEFAULT 30,
+  followup60_days integer NOT NULL DEFAULT 60,
+  blast_active_within_days integer NOT NULL DEFAULT 120,
+  template_confirmation text NOT NULL DEFAULT '',
+  template_followup30 text NOT NULL DEFAULT '',
+  template_followup60 text NOT NULL DEFAULT '',
+  template_sunday_blast text NOT NULL DEFAULT '',
+  template_empty_agenda text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS tenant_outreach_settings_tenant_uidx
+  ON tenant_outreach_settings (tenant_id);
 `);
-    console.log("[bootstrap] schema staff_advances + outreach_jobs + support_* + agent_profiles.persona ok");
+    console.log("[bootstrap] schema staff_advances + outreach + support_* + agent_profiles.persona ok");
 
     const [{ ok: locked }] = await sql`select pg_try_advisory_lock(${LOCK_KEY}) as ok`;
     if (!locked) {

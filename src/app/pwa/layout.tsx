@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ConfirmationSoundHost } from "@/components/outreach/ConfirmationSoundHost";
 import { PwaSupportHost } from "@/components/support/PwaSupportHost";
 import { resolveTenantBrand } from "@/lib/brand";
 import { requireTenantContext } from "@/server/context/tenant";
@@ -41,6 +42,7 @@ export default function PwaLayout({ children }: { children: React.ReactNode }) {
     <div className="pwa-shell">
       {children}
       <PwaSupportHost />
+      <ConfirmationSoundHost />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { ensureDefaultAgentProfile } from "./persona-profile";
 import { deliverWhatsAppText } from "./outbound";
 import { runOrchestrator } from "./orchestrator";
 import { enrichInboundMessage } from "./media";
+import { tryConfirmAppointmentFromWhatsAppAck } from "@/server/outreach/confirm";
 
 /** Serializa respostas por conversa (1 réplica EasyPanel) — não descarta msg enquanto a anterior processa. */
 const replyChains = new Map<string, Promise<void>>();
@@ -246,6 +247,29 @@ export async function processInboundMessage(
 
   if (!shouldReply || conv.mode === "human") return "ok";
 
+  // Confirmação de horário via OK (Fase 3) — antes de engolir ack curto
+  if (isConfirmationAck(text) || isShortAck(text)) {
+    const conf = await tryConfirmAppointmentFromWhatsAppAck({
+      tenantId,
+      phoneE164,
+      conversationId: conv.id,
+    });
+    if (conf.confirmed) {
+      const connection = await syncWhatsAppConnectionByInstance(instanceName);
+      if (connection?.status === "connected") {
+        await deliverWhatsAppText({
+          tenantId,
+          instanceName,
+          phoneE164,
+          text: "Fechado — horário confirmado. Te esperamos!",
+          conversationId: conv.id,
+          direction: "outbound_ai",
+        });
+      }
+      return "ok";
+    }
+  }
+
   // Evita rajada do MESMO texto (retry Evolution / double-tap)
   const db = createDb();
   const windowStart = new Date(Date.now() - 90_000);
@@ -357,13 +381,22 @@ function isShortAck(text: string): boolean {
   const t = text.trim();
   if (t.length > 40) return false;
   if (
-    /lista|espera|hor[aá]rio|agend|marcar|remarcar|cancel|segunda|ter[cç]a|diego|barbeiro|servi[cç]o|pre[cç]o|confirma/i.test(
+    /lista|espera|hor[aá]rio|agend|marcar|remarcar|cancel|segunda|ter[cç]a|diego|barbeiro|servi[cç]o|pre[cç]o/i.test(
       t
     )
   ) {
     return false;
   }
   return /^(ok|okay|obrigad\w*|valeu|vlw|blz|beleza|👍|👊|🙏|combinado|fechado|tá|ta|tbm|também|tambem|uhum|hm+|kk+|haha+|rsrs+)\.?[!!.]*$/i.test(
+    t
+  );
+}
+
+/** Respostas típicas de confirmação de horário. */
+function isConfirmationAck(text: string): boolean {
+  const t = text.trim();
+  if (t.length > 48) return false;
+  return /^(ok|okay|confirmo|confirmado|confirmada|pode ser|pode|fechado|combinado|beleza|blz|sim|isso)\.?[!]*$/i.test(
     t
   );
 }
