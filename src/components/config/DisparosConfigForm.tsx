@@ -79,7 +79,9 @@ export function DisparosConfigForm({ initial }: Props) {
   return (
     <form className="agent-config-form" onSubmit={onSubmit}>
       <div className="agent-config-intro">
-        <strong>Regras da casa.</strong> Tudo começa desligado. Liga só o que a unidade quer usar.
+        <strong>Regras da casa.</strong> Tudo começa desligado. Enquanto os clientes estiverem no
+        AppBarber, o envio global fica bloqueado no servidor — mesmo com toggle ligado, nada sai
+        no WhatsApp até liberarmos a migração.
         Placeholders: {"{{nome}}"}, {"{{data}}"}, {"{{hora}}"}, {"{{profissional}}"}, {"{{barbearia}}"}.
       </div>
 

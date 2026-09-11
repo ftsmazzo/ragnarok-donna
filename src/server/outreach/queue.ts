@@ -2,6 +2,7 @@ import { and, eq, lte, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { deliverWhatsAppText, getConnectionForTenant } from "@/server/agent/outbound";
 import type { OutreachKind } from "./defaults";
+import { isOutreachDispatchEnabled } from "./kill-switch";
 
 export async function ensureConversationForPhone(input: {
   tenantId: string;
@@ -68,6 +69,10 @@ export async function enqueueOutreachJob(input: {
   meta?: Record<string, unknown>;
   dayKey: string;
 }): Promise<{ id: string; created: boolean }> {
+  if (!isOutreachDispatchEnabled()) {
+    return { id: "", created: false };
+  }
+
   if (await hasOutreachDedupe({
     tenantId: input.tenantId,
     kind: input.kind,
@@ -108,6 +113,10 @@ export async function processPendingOutreachJobs(input: {
   tenantId: string;
   limit?: number;
 }): Promise<{ sent: number; failed: number; skipped: number }> {
+  if (!isOutreachDispatchEnabled()) {
+    return { sent: 0, failed: 0, skipped: 0 };
+  }
+
   const db = createDb();
   const limit = Math.min(40, Math.max(1, input.limit ?? 20));
   const now = new Date();

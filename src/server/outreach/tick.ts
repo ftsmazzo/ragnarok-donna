@@ -1,5 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import { isOutreachDispatchEnabled } from "./kill-switch";
 import { getOutreachSettingsForTenant } from "./settings";
 import { processPendingOutreachJobs } from "./queue";
 import {
@@ -20,12 +21,18 @@ export type OutreachTickResult = {
     emptyAgenda: number;
   };
   processed: { sent: number; failed: number; skipped: number };
+  skippedReason?: string;
 };
 
 export async function runOutreachTick(opts?: {
   tenantSlug?: string | null;
   limitPerTenant?: number;
 }): Promise<OutreachTickResult[]> {
+  if (!isOutreachDispatchEnabled()) {
+    console.info("[outreach] tick ignorado — OUTREACH_DISPATCH_ENABLED off");
+    return [];
+  }
+
   const db = createDb();
   let tenants: { id: string; slug: string; name: string }[];
 

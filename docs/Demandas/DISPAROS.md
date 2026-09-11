@@ -2,16 +2,22 @@
 
 Config por unidade em **Configurações → Disparos WhatsApp** (dono/admin/recepção).
 
+## Kill switch (obrigatório em desenvolvimento)
+
+```text
+OUTREACH_DISPATCH_ENABLED=false   # padrão / seguro — NÃO envia WhatsApp
+OUTREACH_DISPATCH_ENABLED=true    # só depois da migração dos clientes
+```
+
+Sem `true`, o tick responde `skipped` e **nenhuma mensagem sai**, mesmo com toggles ligados.
+Serviço EasyPanel `outreach-cron` fica **parado** até a liberação.
+
+Motivo: clientes ainda no AppBarber — disparo agora gera confusão.
+
 ## Motor
 - Fila: `outreach_jobs`
 - Tick: `POST/GET /api/ops/outreach-tick` (Bearer `CRON_SECRET` | `AUTH_SECRET` | `AGENT_SERVICE_TOKEN`)
-- EasyPanel: criar cron HTTP a cada **10 min** apontando para a URL do app + header Authorization
-
-Exemplo:
-```
-GET https://<host>/api/ops/outreach-tick
-Authorization: Bearer <CRON_SECRET ou AUTH_SECRET>
-```
+- Cron HTTP (quando liberar): a cada ~10 min
 
 ## Kinds
 | kind | Uso |
@@ -23,9 +29,9 @@ Authorization: Bearer <CRON_SECRET ou AUTH_SECRET>
 
 Toggles começam **desligados**.
 
-## Validação recomendada (gate)
-1. Ligar só **Confirmação diária**
-2. Criar horário `scheduled` amanhã com telefone
-3. Rodar tick (ou esperar horário configurado)
-4. Responder `ok` no Zap → slot verde
-5. Só então ligar retorno/blast/agenda vazia
+## Quando liberar produção
+1. Clientes migrados / WhatsApp da unidade no Evolution
+2. `OUTREACH_DISPATCH_ENABLED=true` no EasyPanel
+3. Start do serviço `outreach-cron`
+4. Ligar só **Confirmação diária** e validar OK→verde
+5. Depois retorno/blast/agenda vazia

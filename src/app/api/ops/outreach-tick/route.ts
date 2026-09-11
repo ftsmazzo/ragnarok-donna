@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isOutreachDispatchEnabled } from "@/server/outreach/kill-switch";
 import { runOutreachTick } from "@/server/outreach/tick";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,21 @@ function authorize(request: Request): boolean {
  * Cron EasyPanel — planeja + envia lote de outreach_jobs.
  * Auth: Bearer CRON_SECRET | AUTH_SECRET | AGENT_SERVICE_TOKEN | EVOLUTION_API_KEY
  * Query: ?slug=donna-elegant (opcional)
+ * Kill switch: OUTREACH_DISPATCH_ENABLED=true (padrão off — não dispara enquanto clientes estão no AppBarber)
  */
 async function handle(request: Request) {
   if (!authorize(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isOutreachDispatchEnabled()) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: "OUTREACH_DISPATCH_ENABLED is off — nenhum disparo (clientes ainda no outro sistema)",
+      at: new Date().toISOString(),
+      results: [],
+    });
   }
 
   const url = new URL(request.url);
