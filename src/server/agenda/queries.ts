@@ -112,6 +112,7 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
       orderId: schema.appointments.orderId,
+      meta: schema.appointments.meta,
     })
     .from(schema.appointments)
     .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
@@ -119,21 +120,26 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
     .where(apptWhere)
     .orderBy(asc(schema.appointments.startsAt));
 
-  const appointments: AgendaAppointment[] = rows.map((r) => ({
-    id: r.id,
-    staffId: r.staffId,
-    clientId: r.clientId,
-    clientName: r.clientName ?? (r.status === "blocked" ? "Bloqueio" : "Sem cliente"),
-    serviceId: r.serviceId,
-    serviceName: r.serviceName,
-    startsAt: r.startsAt,
-    endsAt: r.endsAt,
-    status: r.status,
-    isEncaixe: r.isEncaixe,
-    notes: r.notes,
-    priceCents: r.priceCents,
-    orderId: r.orderId,
-  }));
+  const appointments: AgendaAppointment[] = rows.map((r) => {
+    const meta = (r.meta ?? {}) as Record<string, unknown>;
+    return {
+      id: r.id,
+      staffId: r.staffId,
+      clientId: r.clientId,
+      clientName: r.clientName ?? (r.status === "blocked" ? "Bloqueio" : "Sem cliente"),
+      serviceId: r.serviceId,
+      serviceName: r.serviceName,
+      startsAt: r.startsAt,
+      endsAt: r.endsAt,
+      status: r.status,
+      isEncaixe: r.isEncaixe,
+      notes: r.notes,
+      priceCents: r.priceCents,
+      orderId: r.orderId,
+      blockedByName:
+        typeof meta.blockedByName === "string" ? meta.blockedByName : null,
+    };
+  });
 
   const [waitlistRow] = scope.isInactiveBranch
     ? [{ n: 0 }]
@@ -198,6 +204,7 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
       orderId: schema.appointments.orderId,
+      meta: schema.appointments.meta,
     })
     .from(schema.appointments)
     .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
@@ -217,6 +224,7 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
     await assertOwnStaffAccess(session, row.staffId);
   }
 
+  const meta = (row.meta ?? {}) as Record<string, unknown>;
   return {
     id: row.id,
     staffId: row.staffId,
@@ -231,6 +239,8 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
     notes: row.notes,
     priceCents: row.priceCents,
     orderId: row.orderId,
+    blockedByName:
+      typeof meta.blockedByName === "string" ? meta.blockedByName : null,
   };
 }
 

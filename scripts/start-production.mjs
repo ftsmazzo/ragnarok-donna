@@ -230,6 +230,19 @@ CREATE INDEX IF NOT EXISTS memberships_branch_idx ON memberships (branch_id);
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS package_id uuid;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
 
+DO $$ BEGIN
+  ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'pix_key';
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'rede_link';
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'infinity';
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS client_packages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

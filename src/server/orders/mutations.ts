@@ -7,7 +7,17 @@ import { getOrderDetail } from "./queries";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
-const PAYMENT_METHODS = ["cash", "pix", "debit", "credit", "transfer", "other"] as const;
+const PAYMENT_METHODS = [
+  "cash",
+  "pix",
+  "pix_key",
+  "debit",
+  "credit",
+  "transfer",
+  "rede_link",
+  "infinity",
+  "other",
+] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 async function recalculateOrderTotal(orderId: string, tenantId: string) {
@@ -666,6 +676,33 @@ export async function closeOrder(orderId: string): Promise<ActionResult> {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: "Não foi possível fechar a comanda" };
+  }
+}
+
+/** Registra pagamento do saldo restante e fecha a comanda numa só ação. */
+export async function payAndCloseOrder(input: {
+  orderId: string;
+  method: string;
+}): Promise<ActionResult> {
+  try {
+    requireCapability(await requireSession(), "orders.write");
+    const detail = await getOrderDetail(input.orderId);
+    if (detail.items.length === 0) {
+      throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
+    }
+    if (detail.balanceCents > 0) {
+      const pay = await addPayment({
+        orderId: input.orderId,
+        method: input.method,
+        amountCents: detail.balanceCents,
+      });
+      if (!pay.ok) return pay;
+    }
+    return await closeOrder(input.orderId);
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível pagar e fechar" };
   }
 }
 

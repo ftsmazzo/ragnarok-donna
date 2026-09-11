@@ -7,6 +7,7 @@ import {
   cancelOrder,
   closeOrder,
   openOrder,
+  payAndCloseOrder,
   removeOrderItem,
   setOrderDiscount,
 } from "@/server/orders/mutations";
@@ -91,6 +92,16 @@ export async function setOrderDiscountAction(orderId: string, discountReais: num
 
 export async function closeOrderAction(orderId: string) {
   const result = await closeOrder(orderId);
+  if (result.ok) revalidateOrders(orderId);
+  return result;
+}
+
+export async function payAndCloseOrderAction(formData: FormData) {
+  const orderId = String(formData.get("orderId") ?? "");
+  const result = await payAndCloseOrder({
+    orderId,
+    method: String(formData.get("method") ?? "pix"),
+  });
   if (result.ok) revalidateOrders(orderId);
   return result;
 }

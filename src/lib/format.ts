@@ -57,9 +57,12 @@ const APPT_STATUS: Record<string, string> = {
 const PAYMENT_METHOD: Record<string, string> = {
   cash: "Dinheiro",
   pix: "PIX",
+  pix_key: "PIX chave",
   debit: "Débito",
   credit: "Crédito",
   transfer: "Transferência",
+  rede_link: "Link Rede",
+  infinity: "Maquininha Infinity",
   other: "Outro",
 };
 

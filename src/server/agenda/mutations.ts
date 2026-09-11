@@ -138,6 +138,10 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
     }
 
     if (raw.isBlock) {
+      const reason = raw.notes?.trim() || "";
+      if (reason.length < 3) {
+        throw new AppError("VALIDATION", "Informe o motivo do bloqueio");
+      }
       const db = createDb();
       const [row] = await db
         .insert(schema.appointments)
@@ -148,7 +152,13 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
           endsAt: end,
           status: "blocked",
           source: "painel",
-          notes: raw.notes?.trim() || null,
+          notes: reason,
+          meta: {
+            blockedByUserId: session.user.id,
+            blockedByName: session.user.name ?? session.user.email ?? "Usuário",
+            blockedAt: new Date().toISOString(),
+            blockReason: reason,
+          },
         })
         .returning({ id: schema.appointments.id });
       return { ok: true, id: row.id };

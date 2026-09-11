@@ -21,6 +21,8 @@ type Props = {
   permissions: AgendaPermissions;
   onClose: () => void;
   onSaved: () => void;
+  /** Abre a comanda sem sair da agenda. */
+  onOpenComanda?: (orderId: string) => void;
 };
 
 const STATUS_FLOW = [
@@ -37,6 +39,7 @@ export function AgendaDetailModal({
   permissions,
   onClose,
   onSaved,
+  onOpenComanda,
 }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -96,7 +99,7 @@ export function AgendaDetailModal({
   function handleOpenOrder() {
     setError("");
     if (a.orderId) {
-      router.push(`/comandas?id=${a.orderId}`);
+      onOpenComanda?.(a.orderId);
       onClose();
       return;
     }
@@ -108,7 +111,11 @@ export function AgendaDetailModal({
       }
       onSaved();
       onClose();
-      router.push(`/comandas?id=${result.id}`);
+      if (onOpenComanda) {
+        onOpenComanda(result.id);
+      } else {
+        router.push(`/comandas?id=${result.id}`);
+      }
     });
   }
 
@@ -207,8 +214,14 @@ export function AgendaDetailModal({
         ) : null}
         {a.notes ? (
           <div>
-            <dt>Obs.</dt>
+            <dt>{isBlock ? "Motivo" : "Obs."}</dt>
             <dd>{a.notes}</dd>
+          </div>
+        ) : null}
+        {isBlock && a.blockedByName ? (
+          <div>
+            <dt>Bloqueado por</dt>
+            <dd>{a.blockedByName}</dd>
           </div>
         ) : null}
         <div>

@@ -53,9 +53,12 @@ export const orderItemTypeEnum = pgEnum("order_item_type", [
 export const paymentMethodEnum = pgEnum("payment_method", [
   "cash",
   "pix",
+  "pix_key",
   "debit",
   "credit",
   "transfer",
+  "rede_link",
+  "infinity",
   "other",
 ]);
 

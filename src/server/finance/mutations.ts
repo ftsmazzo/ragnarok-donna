@@ -7,7 +7,17 @@ import { findOpenCashSessionId } from "./queries";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
-const PAYMENT_METHODS = ["cash", "pix", "debit", "credit", "transfer", "other"] as const;
+const PAYMENT_METHODS = [
+  "cash",
+  "pix",
+  "pix_key",
+  "debit",
+  "credit",
+  "transfer",
+  "rede_link",
+  "infinity",
+  "other",
+] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export async function openCashSession(input: {

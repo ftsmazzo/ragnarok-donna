@@ -226,17 +226,54 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
         eq(schema.orders.tenantId, tenant.id),
         eq(schema.orders.status, "open"),
         isNull(schema.orders.deletedAt),
-        sql`${schema.orders.openedAt} < now() - interval '1 day'`
+        sql`${schema.orders.openedAt} < now() - interval '1 hour'`
       )
     );
   const openOldN = Number(openOld?.n ?? 0);
   if (openOldN > 0) {
+    const staleRows = await db
+      .select({
+        id: schema.orders.id,
+        clientName: schema.clients.name,
+        openedAt: schema.orders.openedAt,
+        totalCents: schema.orders.totalCents,
+        paidCents: sql<number>`(
+          select coalesce(sum(${schema.payments.amountCents}), 0)::int
+          from ${schema.payments}
+          where ${schema.payments.orderId} = ${schema.orders.id}
+        )`,
+      })
+      .from(schema.orders)
+      .leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
+      .where(
+        and(
+          eq(schema.orders.tenantId, tenant.id),
+          eq(schema.orders.status, "open"),
+          isNull(schema.orders.deletedAt),
+          sql`${schema.orders.openedAt} < now() - interval '1 hour'`
+        )
+      )
+      .orderBy(asc(schema.orders.openedAt))
+      .limit(5);
+
     alerts.push({
       id: "open-orders",
       severity: "warning",
       kind: "open_orders_stale",
-      title: `${openOldN} comanda(s) aberta(s) há mais de 1 dia`,
-      detail: "Feche no Caixa para a receita aparecer nos relatórios.",
+      title: `${openOldN} comanda(s) aberta(s) há mais de 1 hora`,
+      detail:
+        staleRows
+          .map((r) => {
+            const paid = Number(r.paidCents ?? 0);
+            const saldo = Math.max(0, r.totalCents - paid);
+            const nome = r.clientName ?? "Sem cliente";
+            return `${nome}: aberta ${r.openedAt.toLocaleString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+              hour: "2-digit",
+              minute: "2-digit",
+            })} · saldo R$ ${(saldo / 100).toFixed(2).replace(".", ",")}`;
+          })
+          .join(" · ") || "Verifique e finalize o pagamento.",
       count: openOldN,
       href: "/comandas",
       periodLabel: "agora",

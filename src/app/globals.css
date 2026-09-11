@@ -1024,6 +1024,16 @@ input {
   background: var(--slot-block);
 }
 
+.slot.confirmed {
+  box-shadow: inset 0 0 0 2px #16a34a;
+  outline: 2px solid rgba(22, 163, 74, 0.35);
+  outline-offset: -2px;
+}
+
+.slot.active {
+  filter: brightness(1.08);
+}
+
 .slot.muted {
   background: #9ca3af;
   opacity: 0.85;

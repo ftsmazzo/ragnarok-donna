@@ -123,14 +123,43 @@ export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: 
         </label>
 
         <label className="form-field">
-          <span>Telefone / WhatsApp</span>
+          <span>Telefone / WhatsApp *</span>
           <input
             name="phone"
             type="tel"
             maxLength={32}
+            required={!isEdit}
             defaultValue={client?.phone ?? ""}
             disabled={isRemoved}
             placeholder="(11) 98888-0000"
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Por onde conheceu</span>
+          <select
+            name="howHeard"
+            defaultValue={String(client?.preferences?.howHeard ?? "")}
+            disabled={isRemoved}
+          >
+            <option value="">Selecione…</option>
+            <option value="indicacao">Indicação</option>
+            <option value="instagram">Instagram</option>
+            <option value="google">Google</option>
+            <option value="passou_na_frente">Passou na frente</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="outro">Outro</option>
+          </select>
+        </label>
+
+        <label className="form-field">
+          <span>Se foi indicação, de quem?</span>
+          <input
+            name="referredBy"
+            maxLength={160}
+            defaultValue={String(client?.preferences?.referredBy ?? "")}
+            disabled={isRemoved}
+            placeholder="Nome de quem indicou"
           />
         </label>
 

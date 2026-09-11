@@ -6,12 +6,21 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { AgendaDetailModal } from "@/components/agenda/AgendaDetailModal";
 import { AgendaFormModal, type AgendaFormMode } from "@/components/agenda/AgendaFormModal";
 import { AgendaAside } from "@/components/agenda/AgendaAside";
+import { OrderDrawer } from "@/components/comandas/OrderDrawer";
 import type {
   AgendaAppointment,
   AgendaDayData,
   AgendaPermissions,
   AgendaPickerService,
 } from "@/server/agenda/types";
+import type {
+  CatalogPackage,
+  CatalogProduct,
+  CatalogService,
+  CatalogStaff,
+  OrderDetail,
+  OrderPermissions,
+} from "@/server/orders/types";
 import { hourInSp } from "@/lib/datetime";
 import {
   formatDateLabelSp,
@@ -29,11 +38,21 @@ type Props = {
   permissions: AgendaPermissions;
   staffFilter?: string;
   tabletMode?: boolean;
+  orderCatalog?: {
+    services: CatalogService[];
+    products: CatalogProduct[];
+    packages: CatalogPackage[];
+    staff: CatalogStaff[];
+  };
+  orderPermissions?: OrderPermissions;
+  selectedOrder?: OrderDetail | null;
 };
 
 function slotClass(a: AgendaAppointment): string {
   if (a.status === "blocked") return "slot block";
   if (a.status === "no_show" || a.status === "cancelled") return "slot muted";
+  if (a.status === "confirmed") return "slot confirmed";
+  if (a.status === "arrived" || a.status === "in_progress") return "slot active";
   if (a.isEncaixe) return "slot encaixe";
   return "slot";
 }
@@ -57,6 +76,9 @@ export function AgendaView({
   permissions,
   staffFilter,
   tabletMode = false,
+  orderCatalog,
+  orderPermissions,
+  selectedOrder = null,
 }: Props) {
   const router = useRouter();
   const prevDate = shiftDateSp(data.date, -1);
@@ -81,7 +103,23 @@ export function AgendaView({
     if (staff) sp.set("staff", staff);
     const modo = extra && "modo" in extra ? extra.modo : tabletMode ? "tablet" : undefined;
     if (modo) sp.set("modo", modo);
+    const comanda =
+      extra && "comanda" in extra ? extra.comanda : selectedOrder?.id;
+    if (comanda) sp.set("comanda", comanda);
     return `/agenda?${sp.toString()}`;
+  }
+
+  function openComanda(orderId: string) {
+    router.push(qs({ comanda: orderId }));
+  }
+
+  function closeComanda() {
+    const sp = new URLSearchParams();
+    sp.set("date", data.date);
+    if (staffFilter) sp.set("staff", staffFilter);
+    if (tabletMode) sp.set("modo", "tablet");
+    router.push(`/agenda?${sp.toString()}`);
+    router.refresh();
   }
 
   function staffHref(id?: string) {
@@ -241,6 +279,9 @@ export function AgendaView({
               <i style={{ background: "var(--slot)" }} /> Agendado
             </span>
             <span>
+              <i style={{ background: "#16a34a" }} /> Confirmado
+            </span>
+            <span>
               <i style={{ background: "var(--slot-block)" }} /> Bloqueio
             </span>
             <span>
@@ -307,6 +348,21 @@ export function AgendaView({
           permissions={permissions}
           onClose={() => setDetail(null)}
           onSaved={refresh}
+          onOpenComanda={openComanda}
+        />
+      ) : null}
+
+      {selectedOrder && orderCatalog && orderPermissions ? (
+        <OrderDrawer
+          open
+          order={selectedOrder}
+          services={orderCatalog.services}
+          products={orderCatalog.products}
+          packages={orderCatalog.packages}
+          staff={orderCatalog.staff}
+          permissions={orderPermissions}
+          onClose={closeComanda}
+          onChanged={refresh}
         />
       ) : null}
     </>

@@ -146,8 +146,19 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
         )}
 
         <label className="form-field">
-          <span>Observações</span>
-          <textarea name="notes" rows={2} maxLength={500} placeholder="Opcional" />
+          <span>{mode === "block" ? "Motivo do bloqueio *" : "Observações"}</span>
+          <textarea
+            name="notes"
+            rows={2}
+            maxLength={500}
+            required={mode === "block"}
+            minLength={mode === "block" ? 3 : undefined}
+            placeholder={
+              mode === "block"
+                ? "Ex.: almoço, folga, horário pessoal…"
+                : "Opcional"
+            }
+          />
         </label>
 
         {mode === "encaixe" ? (

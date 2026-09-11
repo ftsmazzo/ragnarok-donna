@@ -18,6 +18,7 @@ import {
   addPaymentAction,
   cancelOrderAction,
   closeOrderAction,
+  payAndCloseOrderAction,
   removeOrderItemAction,
   setOrderDiscountAction,
 } from "@/app/(painel)/comandas/actions";
@@ -49,6 +50,7 @@ export function OrderDrawer({
 }: Props) {
   const [error, setError] = useState("");
   const [payOpen, setPayOpen] = useState(false);
+  const [payCloseOpen, setPayCloseOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [itemType, setItemType] = useState<ItemType>("service");
   const [catalogId, setCatalogId] = useState("");
@@ -156,17 +158,18 @@ export function OrderDrawer({
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={pending || order.balanceCents > 0 || order.items.length === 0}
-                  onClick={() => run(() => closeOrderAction(order.id))}
-                  title={
-                    order.balanceCents > 0
-                      ? "Quite o saldo antes de fechar"
-                      : order.items.length === 0
-                        ? "Adicione itens"
-                        : "Fechar comanda"
-                  }
+                  disabled={pending || order.items.length === 0}
+                  onClick={() => {
+                    if (order.balanceCents > 0) setPayCloseOpen(true);
+                    else run(() => closeOrderAction(order.id));
+                  }}
+                  title="Paga o saldo (se houver) e fecha a comanda"
                 >
-                  {pending ? "…" : "Fechar comanda"}
+                  {pending
+                    ? "…"
+                    : order.balanceCents > 0
+                      ? "Pagar e fechar"
+                      : "Fechar comanda"}
                 </button>
               </>
             ) : null}
@@ -454,6 +457,9 @@ export function OrderDrawer({
             <span>Forma *</span>
             <select name="method" required defaultValue="pix">
               <option value="pix">PIX</option>
+              <option value="pix_key">PIX chave</option>
+              <option value="rede_link">Link Rede</option>
+              <option value="infinity">Maquininha Infinity</option>
               <option value="cash">Dinheiro</option>
               <option value="debit">Débito</option>
               <option value="credit">Crédito</option>
@@ -471,6 +477,69 @@ export function OrderDrawer({
               required
               defaultValue={(order.balanceCents / 100).toFixed(2)}
             />
+          </label>
+        </form>
+      </Modal>
+
+      <Modal
+        open={payCloseOpen}
+        onClose={() => setPayCloseOpen(false)}
+        title="Pagar e fechar comanda"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setPayCloseOpen(false)}
+              disabled={pending}
+            >
+              Voltar
+            </button>
+            <button
+              type="submit"
+              form="pay-close-form"
+              className="btn btn-primary"
+              disabled={pending}
+            >
+              {pending ? "…" : "Confirmar e fechar"}
+            </button>
+          </>
+        }
+      >
+        <form
+          id="pay-close-form"
+          className="form-stack"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            formData.set("orderId", order.id);
+            run(async () => {
+              const result = await payAndCloseOrderAction(formData);
+              if (result.ok) {
+                setPayCloseOpen(false);
+                onClose();
+              }
+              return result;
+            });
+          }}
+        >
+          <p className="client-profile-hint">
+            Vai registrar{" "}
+            <strong>{formatMoney(order.balanceCents)}</strong> e fechar a comanda.
+          </p>
+          <label className="form-field">
+            <span>Forma *</span>
+            <select name="method" required defaultValue="pix">
+              <option value="pix">PIX</option>
+              <option value="pix_key">PIX chave</option>
+              <option value="rede_link">Link Rede</option>
+              <option value="infinity">Maquininha Infinity</option>
+              <option value="cash">Dinheiro</option>
+              <option value="debit">Débito</option>
+              <option value="credit">Crédito</option>
+              <option value="transfer">Transferência</option>
+              <option value="other">Outro</option>
+            </select>
           </label>
         </form>
       </Modal>

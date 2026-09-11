@@ -18,6 +18,7 @@ export type AgendaAppointment = {
   notes: string | null;
   priceCents: number | null;
   orderId: string | null;
+  blockedByName: string | null;
 };
 
 export type AgendaDayData = {

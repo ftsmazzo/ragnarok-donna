@@ -12,6 +12,8 @@ export type ClientInput = {
   email?: string;
   notes?: string;
   birthDate?: string;
+  howHeard?: string;
+  referredBy?: string;
 };
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
@@ -27,7 +29,18 @@ function parseInput(raw: ClientInput): ClientInput {
     email: raw.email,
     notes: raw.notes?.trim().slice(0, 2000) || undefined,
     birthDate: raw.birthDate?.trim() || undefined,
+    howHeard: raw.howHeard?.trim().slice(0, 80) || undefined,
+    referredBy: raw.referredBy?.trim().slice(0, 160) || undefined,
   };
+}
+
+function crmPreferences(input: ClientInput, existing?: Record<string, unknown>) {
+  const next = { ...(existing ?? {}) };
+  if (input.howHeard) next.howHeard = input.howHeard;
+  else delete next.howHeard;
+  if (input.referredBy) next.referredBy = input.referredBy;
+  else delete next.referredBy;
+  return next;
 }
 
 function assertCanWriteAsync() {
@@ -56,6 +69,7 @@ export async function createClient(raw: ClientInput): Promise<ActionResult> {
         email,
         notes: input.notes ?? null,
         birthDate: input.birthDate || null,
+        preferences: crmPreferences(input),
       })
       .returning({ id: schema.clients.id });
 
@@ -79,6 +93,12 @@ export async function updateClient(clientId: string, raw: ClientInput): Promise<
     const { phone, phoneE164 } = normalizePhone(input.phone);
     const email = normalizeEmail(input.email);
 
+    const [existing] = await db
+      .select({ preferences: schema.clients.preferences })
+      .from(schema.clients)
+      .where(and(eq(schema.clients.id, clientId), eq(schema.clients.tenantId, tenant.id)))
+      .limit(1);
+
     const [updated] = await db
       .update(schema.clients)
       .set({
@@ -88,6 +108,7 @@ export async function updateClient(clientId: string, raw: ClientInput): Promise<
         email,
         notes: input.notes ?? null,
         birthDate: input.birthDate || null,
+        preferences: crmPreferences(input, existing?.preferences ?? {}),
         updatedAt: new Date(),
       })
       .where(and(eq(schema.clients.id, clientId), eq(schema.clients.tenantId, tenant.id)))

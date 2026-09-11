@@ -21,6 +21,8 @@ export async function createClientAction(formData: FormData): Promise<ActionResu
     email: String(formData.get("email") ?? ""),
     notes: String(formData.get("notes") ?? ""),
     birthDate: String(formData.get("birthDate") ?? ""),
+    howHeard: String(formData.get("howHeard") ?? ""),
+    referredBy: String(formData.get("referredBy") ?? ""),
   });
 }
 
@@ -34,6 +36,8 @@ export async function updateClientAction(
     email: String(formData.get("email") ?? ""),
     notes: String(formData.get("notes") ?? ""),
     birthDate: String(formData.get("birthDate") ?? ""),
+    howHeard: String(formData.get("howHeard") ?? ""),
+    referredBy: String(formData.get("referredBy") ?? ""),
   });
 }
 
