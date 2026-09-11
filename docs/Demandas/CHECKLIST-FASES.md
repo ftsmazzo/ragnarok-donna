@@ -64,4 +64,4 @@ Ordem: bloco a bloco, sem pular fase.
 | Consumo profissional | Preço de venda − 30% |
 | Encaixe imediato | Painel (staff); Donna não sobrepõe |
 | “Estou na barbearia” | Fase 4 — check-in + alerta 5 min sem atendimento |
-| Suporte chat | Agente próprio (≠ Donna); 7 dias; dono + recepção + barbeiro; vídeos depois |
+| Suporte chat | Agente próprio (≠ Donna); 7 dias; dono+recepção+barbeiro; **só** dúvidas de operar o app; vídeos depois |
