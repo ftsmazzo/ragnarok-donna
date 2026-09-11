@@ -23,7 +23,9 @@ Ordem: bloco a bloco, sem pular fase.
 - [x] 2.3 Encaixe imediato no painel + Donna sem slot passado  
       (encaixe ≠ “estou na barbearia” — ver Fase 4)
 - [x] 2.4 Widget pensamento rápido (ex.: “Luciano tem 15h / 15h30”)
-- [ ] 2.5 Suporte diário + vídeo-aulas (escopo)
+- [ ] 2.5 Suporte em chat (estilo AppBarber) + **agente de suporte**  
+      · Vídeo-aulas: **adiado** (outro momento)  
+      · Ver `docs/Demandas/SUPORTE-AGENTE.md`
 
 ## Fase 3 — Disparos WhatsApp
 - [ ] Dias 5–6 / 10–11 / 20–21 → clientes 30/60 dias
