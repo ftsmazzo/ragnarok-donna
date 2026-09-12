@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { rangeBoundsSp, todaySp, weekBoundsSp } from "@/lib/datetime";
 import { requireTenantContext } from "../context/tenant";
@@ -24,6 +24,9 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
   const week = weekBoundsSp(today);
   const weekTo = today < week.to ? today : week.to;
   const { start: weekStart, end: weekEnd } = rangeBoundsSp(week.from, weekTo);
+  // postgres.js + drizzle: Date quebra serialização — sempre ISO string.
+  const weekStartIso = weekStart.toISOString();
+  const weekEndIso = weekEnd.toISOString();
   const alerts: OperationalAlert[] = [];
 
   const lowProducts = await db
@@ -91,8 +94,8 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
       and(
         eq(schema.appointments.tenantId, tenant.id),
         isNull(schema.appointments.deletedAt),
-        gte(schema.appointments.startsAt, weekStart),
-        lte(schema.appointments.startsAt, weekEnd),
+        sql`${schema.appointments.startsAt} >= ${weekStartIso}::timestamptz`,
+        sql`${schema.appointments.startsAt} <= ${weekEndIso}::timestamptz`,
         sql`${schema.appointments.status} <> 'blocked'`
       )
     );
@@ -118,10 +121,6 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
       periodLabel: "esta semana",
     });
   }
-
-  // postgres.js + drizzle execute: Date quebra serialização — usar ISO string.
-  const weekStartIso = weekStart.toISOString();
-  const weekEndIso = weekEnd.toISOString();
 
   const returned = await db.execute(sql`
     with week_activity as (
@@ -328,8 +327,8 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
   }
 
   // Recorrência fechada ~10 dias sem remarcar
-  const recurrenceCutoff = new Date(Date.now() - 10 * 24 * 60 * 60_000);
-  const recurrenceFloor = new Date(Date.now() - 45 * 24 * 60 * 60_000);
+  const recurrenceCutoffIso = new Date(Date.now() - 10 * 24 * 60 * 60_000).toISOString();
+  const recurrenceFloorIso = new Date(Date.now() - 45 * 24 * 60 * 60_000).toISOString();
   const recurrenceRows = await db
     .select({
       clientId: schema.clients.id,
@@ -357,8 +356,8 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
     .groupBy(schema.clients.id, schema.clients.name)
     .having(
       and(
-        lte(sql`max(${schema.appointments.startsAt})`, recurrenceCutoff),
-        gte(sql`max(${schema.appointments.startsAt})`, recurrenceFloor)
+        sql`max(${schema.appointments.startsAt}) <= ${recurrenceCutoffIso}::timestamptz`,
+        sql`max(${schema.appointments.startsAt}) >= ${recurrenceFloorIso}::timestamptz`
       )
     )
     .limit(30);
@@ -380,7 +379,8 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
   }
 
   // Clientes “semanais” (2+ visitas em 21d) sem próximo horário
-  const weeklyLookback = new Date(Date.now() - 21 * 24 * 60 * 60_000);
+  const weeklyLookbackIso = new Date(Date.now() - 21 * 24 * 60 * 60_000).toISOString();
+  const nowIso = new Date().toISOString();
   const weeklyCandidates = await db
     .select({
       clientId: schema.clients.id,
@@ -401,7 +401,7 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
         isNull(schema.clients.deletedAt),
         isNull(schema.appointments.deletedAt),
         eq(schema.appointments.status, "completed"),
-        gte(schema.appointments.startsAt, weeklyLookback)
+        sql`${schema.appointments.startsAt} >= ${weeklyLookbackIso}::timestamptz`
       )
     )
     .groupBy(schema.clients.id, schema.clients.name)
@@ -419,7 +419,7 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
           eq(schema.appointments.clientId, c.clientId),
           isNull(schema.appointments.deletedAt),
           inArray(schema.appointments.status, ["scheduled", "confirmed", "arrived"]),
-          gte(schema.appointments.startsAt, new Date())
+          sql`${schema.appointments.startsAt} >= ${nowIso}::timestamptz`
         )
       )
       .limit(1);
@@ -519,8 +519,8 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
         eq(schema.orderItems.tenantId, tenant.id),
         eq(schema.orders.status, "closed"),
         eq(schema.orderItems.itemType, "product"),
-        gte(schema.orders.closedAt, weekStart),
-        lte(schema.orders.closedAt, weekEnd)
+        sql`${schema.orders.closedAt} >= ${weekStartIso}::timestamptz`,
+        sql`${schema.orders.closedAt} <= ${weekEndIso}::timestamptz`
       )
     )
     .groupBy(schema.orderItems.staffId, schema.staff.name)
