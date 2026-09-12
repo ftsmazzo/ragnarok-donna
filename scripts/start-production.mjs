@@ -236,6 +236,26 @@ ALTER TABLE order_items ADD COLUMN IF NOT EXISTS package_id uuid;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS avatar_url text;
 
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivery_status varchar(24) NOT NULL DEFAULT 'pending';
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at timestamptz;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS replied_at timestamptz;
+CREATE INDEX IF NOT EXISTS messages_wa_delivery_idx ON messages (wa_message_id, delivery_status);
+
+CREATE TABLE IF NOT EXISTS staff_extras_goals (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  staff_id uuid NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  monthly_target_cents integer NOT NULL DEFAULT 0,
+  monthly_target_qty integer,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS staff_extras_goals_tenant_staff_uidx
+  ON staff_extras_goals (tenant_id, staff_id);
+CREATE INDEX IF NOT EXISTS staff_extras_goals_tenant_idx
+  ON staff_extras_goals (tenant_id);
+
 DO $$ BEGIN
   ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'pix_key';
 EXCEPTION WHEN duplicate_object THEN NULL;
