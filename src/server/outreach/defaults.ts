@@ -62,5 +62,7 @@ export type OutreachKind =
   | "followup_inactive"
   | "sunday_blast"
   | "empty_agenda"
+  | "voce_vem"
+  | "delay_reschedule"
   | "manual"
   | "campaign";

@@ -1,5 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import { planDelayAndNoShowMessages } from "@/server/house-rules/delay-planner";
 import { isOutreachDispatchEnabled } from "./kill-switch";
 import { getOutreachSettingsForTenant } from "./settings";
 import { processPendingOutreachJobs } from "./queue";
@@ -19,6 +20,8 @@ export type OutreachTickResult = {
     followup60: number;
     sundayBlast: number;
     emptyAgenda: number;
+    voceVem: number;
+    delayReschedule: number;
   };
   processed: { sent: number; failed: number; skipped: number };
   skippedReason?: string;
@@ -81,6 +84,10 @@ export async function runOutreachTick(opts?: {
       tenantName: tenant.name,
       settings,
     });
+    const delay = await planDelayAndNoShowMessages({
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+    });
 
     const processed = await processPendingOutreachJobs({
       tenantId: tenant.id,
@@ -96,6 +103,8 @@ export async function runOutreachTick(opts?: {
         followup60: followup.enqueued60,
         sundayBlast: blast.enqueued,
         emptyAgenda: empty.enqueued,
+        voceVem: delay.voceVem,
+        delayReschedule: delay.reschedule,
       },
       processed,
     });

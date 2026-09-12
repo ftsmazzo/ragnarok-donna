@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { rangeBoundsSp, todaySp, weekBoundsSp } from "@/lib/datetime";
 import { requireTenantContext } from "../context/tenant";
@@ -277,6 +277,105 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
       count: openOldN,
       href: "/comandas",
       periodLabel: "agora",
+    });
+  }
+
+  // Fase 4 — +5 min do horário e ainda não em atendimento
+  const waitingRows = await db
+    .select({
+      id: schema.appointments.id,
+      startsAt: schema.appointments.startsAt,
+      status: schema.appointments.status,
+      clientName: schema.clients.name,
+      staffName: schema.staff.name,
+    })
+    .from(schema.appointments)
+    .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
+    .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenant.id),
+        inArray(schema.appointments.status, ["scheduled", "confirmed", "arrived"]),
+        isNull(schema.appointments.deletedAt),
+        sql`${schema.appointments.startsAt} < now() - interval '5 minutes'`,
+        sql`(${schema.appointments.startsAt} AT TIME ZONE 'America/Sao_Paulo')::date = ${today}::date`
+      )
+    )
+    .orderBy(asc(schema.appointments.startsAt))
+    .limit(20);
+
+  if (waitingRows.length) {
+    alerts.push({
+      id: "waiting-overdue",
+      severity: "critical",
+      kind: "waiting_overdue",
+      title: `${waitingRows.length} cliente(s) passaram do horário e ainda não foram atendidos`,
+      detail: waitingRows
+        .slice(0, 4)
+        .map((r) => {
+          const hm = r.startsAt.toLocaleTimeString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          return `${r.clientName ?? "Cliente"} ${hm}${r.staffName ? ` · ${r.staffName}` : ""} (${r.status})`;
+        })
+        .join(" · "),
+      count: waitingRows.length,
+      href: `/agenda?date=${today}`,
+      periodLabel: "agora · +5 min",
+    });
+  }
+
+  // Recorrência fechada ~10 dias sem remarcar
+  const recurrenceCutoff = new Date(Date.now() - 10 * 24 * 60 * 60_000);
+  const recurrenceFloor = new Date(Date.now() - 45 * 24 * 60 * 60_000);
+  const recurrenceRows = await db
+    .select({
+      clientId: schema.clients.id,
+      clientName: schema.clients.name,
+      lastAt: sql<Date>`max(${schema.appointments.startsAt})`.as("last_at"),
+    })
+    .from(schema.clients)
+    .innerJoin(
+      schema.appointments,
+      and(
+        eq(schema.appointments.clientId, schema.clients.id),
+        eq(schema.appointments.tenantId, schema.clients.tenantId)
+      )
+    )
+    .innerJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
+    .where(
+      and(
+        eq(schema.clients.tenantId, tenant.id),
+        isNull(schema.clients.deletedAt),
+        isNull(schema.appointments.deletedAt),
+        inArray(schema.appointments.status, ["completed", "confirmed"]),
+        sql`lower(${schema.services.name}) like '%recorr%'`
+      )
+    )
+    .groupBy(schema.clients.id, schema.clients.name)
+    .having(
+      and(
+        lte(sql`max(${schema.appointments.startsAt})`, recurrenceCutoff),
+        gte(sql`max(${schema.appointments.startsAt})`, recurrenceFloor)
+      )
+    )
+    .limit(30);
+
+  if (recurrenceRows.length) {
+    alerts.push({
+      id: "recurrence-unbooked",
+      severity: "warning",
+      kind: "recurrence_unbooked",
+      title: `${recurrenceRows.length} cliente(s) de recorrência sem remarcar (~10 dias)`,
+      detail: recurrenceRows
+        .slice(0, 4)
+        .map((r) => r.clientName)
+        .join(" · "),
+      count: recurrenceRows.length,
+      href: "/relatorios/perfil?tab=recorrencia",
+      periodLabel: "~10 dias",
     });
   }
 

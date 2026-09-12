@@ -75,7 +75,11 @@ export type OperationalAlertKind =
   | "cancellations_week"
   | "renewals_week"
   | "returned_lost_week"
-  | "open_orders_stale";
+  | "open_orders_stale"
+  | "waiting_overdue"
+  | "weekly_clients_unbooked"
+  | "recurrence_unbooked"
+  | "saturday_encaixe";
 
 export type OperationalAlert = {
   id: string;

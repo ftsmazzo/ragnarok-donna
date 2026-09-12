@@ -1,14 +1,18 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import { formatTimeSp } from "@/lib/datetime";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import { requireCapability } from "../permissions/guards";
 import { assertOwnStaffAccess } from "../permissions/staff-scope";
+import { HOUSE_RULES, isLockedStaffName, isLunchTimeHm } from "../house-rules/defaults";
 import { getAppointmentDetail } from "./queries";
 import { rangesOverlap } from "./utils";
 
-export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
+export type ActionResult =
+  | { ok: true; id: string; warning?: string }
+  | { ok: false; error: string };
 
 type WriteInput = {
   staffId: string;
@@ -176,7 +180,7 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
 
     const db = createDb();
     const [client] = await db
-      .select({ id: schema.clients.id })
+      .select({ id: schema.clients.id, preferences: schema.clients.preferences })
       .from(schema.clients)
       .where(
         and(
@@ -187,6 +191,44 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
       )
       .limit(1);
     if (!client) throw new AppError("VALIDATION", "Cliente inválido");
+
+    const [staffRow] = await db
+      .select({ name: schema.staff.name, nickname: schema.staff.nickname })
+      .from(schema.staff)
+      .where(and(eq(schema.staff.id, raw.staffId), eq(schema.staff.tenantId, tenant.id)))
+      .limit(1);
+
+    const warnings: string[] = [];
+    const hm = formatTimeSp(start);
+    const weekday = start.toLocaleDateString("en-US", {
+      timeZone: "America/Sao_Paulo",
+      weekday: "short",
+    });
+
+    if (raw.isEncaixe && isLunchTimeHm(hm)) {
+      throw new AppError(
+        "VALIDATION",
+        `Não encaixar no almoço (${HOUSE_RULES.lunchStartHm}–${HOUSE_RULES.lunchEndHm}). Escolha outro horário.`
+      );
+    }
+
+    if (raw.isEncaixe && HOUSE_RULES.saturdayEncaixeWarn && weekday === "Sat") {
+      warnings.push(
+        "Sábado: encaixe registrado — deixe ~30 min livres fora do almoço se der."
+      );
+    }
+
+    if (isLockedStaffName(staffRow?.name) || isLockedStaffName(staffRow?.nickname)) {
+      const pref = client.preferences as Record<string, unknown> | null;
+      const askedFor =
+        typeof pref?.preferredStaffId === "string" && pref.preferredStaffId === raw.staffId;
+      const noteAsk = /luciano|diogo|pediu|prefer/i.test(raw.notes ?? "");
+      if (!askedFor && !noteAsk) {
+        warnings.push(
+          `${staffRow?.name ?? "Profissional"} costuma atender só a carteira dele — confira se o cliente pediu por ele.`
+        );
+      }
+    }
 
     const [row] = await db
       .insert(schema.appointments)
@@ -202,10 +244,13 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
         isEncaixe: Boolean(raw.isEncaixe),
         priceCents: svc.priceCents,
         notes: raw.notes?.trim() || null,
+        meta: warnings.length
+          ? { houseRuleWarnings: warnings, saturdayEncaixe: weekday === "Sat" && raw.isEncaixe }
+          : {},
       })
       .returning({ id: schema.appointments.id });
 
-    return { ok: true, id: row.id };
+    return { ok: true, id: row.id, warning: warnings[0] };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };

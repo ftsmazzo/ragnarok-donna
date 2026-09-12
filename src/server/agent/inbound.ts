@@ -8,6 +8,7 @@ import { deliverWhatsAppText } from "./outbound";
 import { runOrchestrator } from "./orchestrator";
 import { enrichInboundMessage } from "./media";
 import { tryConfirmAppointmentFromWhatsAppAck } from "@/server/outreach/confirm";
+import { isCheckInPhrase, tryCheckInFromWhatsApp } from "@/server/house-rules/check-in";
 
 /** Serializa respostas por conversa (1 réplica EasyPanel) — não descarta msg enquanto a anterior processa. */
 const replyChains = new Map<string, Promise<void>>();
@@ -262,6 +263,29 @@ export async function processInboundMessage(
           instanceName,
           phoneE164,
           text: "Fechado — horário confirmado. Te esperamos!",
+          conversationId: conv.id,
+          direction: "outbound_ai",
+        });
+      }
+      return "ok";
+    }
+  }
+
+  // Fase 4 — check-in “estou na barbearia” / cheguei
+  if (isCheckInPhrase(text)) {
+    const check = await tryCheckInFromWhatsApp({
+      tenantId,
+      phoneE164,
+      conversationId: conv.id,
+    });
+    if (check.checkedIn) {
+      const connection = await syncWhatsAppConnectionByInstance(instanceName);
+      if (connection?.status === "connected") {
+        await deliverWhatsAppText({
+          tenantId,
+          instanceName,
+          phoneE164,
+          text: "Beleza — já te marquei como chegou. Já já te chamam!",
           conversationId: conv.id,
           direction: "outbound_ai",
         });

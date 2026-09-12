@@ -40,23 +40,26 @@ Ordem: bloco a bloco, sem pular fase.
 
 ## Fase 4 — Regras da casa (NÃO PULAR)
 ### Check-in “cliente está no local” (explícito do cliente)
-- [ ] Cliente marca **“estou na barbearia”** (já tem horário) → check-in / status chegou
-- [ ] Se passar **5 min do horário agendado** e ainda **não foi atendido** → **alerta** para secretaria/equipe
-- [ ] Fluxo Zap se não chega / não responde: “você vem?” → depois orientar remarcação (15 min / regras dela)
+- [x] Cliente marca **“estou na barbearia”** (já tem horário) → check-in / status chegou
+- [x] Se passar **5 min do horário agendado** e ainda **não foi atendido** → **alerta** para secretaria/equipe
+- [x] Fluxo Zap se não chega / não responde: “você vem?” → depois orientar remarcação (15 min / regras dela)  
+      · Zap só com `OUTREACH_DISPATCH_ENABLED=true`
 
 ### Atraso do cliente
-- [ ] Só corte ou só barba: tolerância **15 min** → mensagem de remarcação
-- [ ] Cabelo + barba: tolerância **20 min** → mensagem de remarcação
+- [x] Só corte ou só barba: tolerância **15 min** → mensagem de remarcação
+- [x] Cabelo + barba: tolerância **20 min** → mensagem de remarcação
 
 ### Demais regras Fase 4
-- [ ] Sábado: alerta ao encaixar; deixar ~30 min livres fora do almoço
-- [ ] Luciano / Diogo: só clientes deles ou quem pediu por eles
-- [ ] Não encaixar no almoço; almoços escalonados (3+ profissionais em atendimento)
-- [ ] Mudança de profissional / sem horário desejado → chamar secretaria
+- [x] Sábado: alerta ao encaixar; deixar ~30 min livres fora do almoço (aviso operacional)
+- [x] Luciano / Diogo: aviso ao agendar se não ficou claro que pediu por eles
+- [x] Não encaixar no almoço (12h–14h bloqueado)
+- [ ] Almoços escalonados (3+ profissionais em atendimento) — parcial / agenda manual
+- [ ] Mudança de profissional / sem horário desejado → chamar secretaria (Donna já faz handoff em vários casos)
 - [ ] Alerta clientes semanais sem agendar
-- [ ] Alerta recorrência fechada e não remarcada (~10 dias)
+- [x] Alerta recorrência fechada e não remarcada (~10 dias)
 - [ ] Metas / ranking extras por profissional
 - [ ] Read receipt (visualizou msg) — discovery; não prometer sem viabilidade
+- Doc: `docs/Demandas/FASE4-REGRAS.md`
 
 ## Decisões travadas
 | Tema | Decisão |
