@@ -22,4 +22,6 @@ Kill switch de WhatsApp (`OUTREACH_DISPATCH_ENABLED`) continua valendo: alertas 
 - **Recorrência ~10d:** alerta em `/alertas`
 - **Clientes frequentes sem horário:** 2+ visitas em 21d e sem próximo agendamento → alerta
 - **Extras da semana:** ranking de produtos por profissional em `/alertas` → `/comissoes`
+- **Menu botão direito (AppBarber):** no card da agenda — Abrir/Finalizar comanda, Ausente, Cancelado, Confirmar/Desconfirmar, Sem preferência, Encaixe, Venda, Tag, No Local; mesmas ações no modal de detalhes
+- **Linha temporal:** no dia de hoje, faixa vermelha “agora” atravessa a grade e sobe a cada minuto (fuso SP)
 - **Read receipt:** discovery — não implementar sem viabilidade no canal

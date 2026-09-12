@@ -1,13 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { AgendaDetailModal } from "@/components/agenda/AgendaDetailModal";
 import { AgendaFormModal, type AgendaFormMode } from "@/components/agenda/AgendaFormModal";
+import {
+  AgendaContextMenu,
+  type AgendaCtxTarget,
+} from "@/components/agenda/AgendaContextMenu";
 import { AgendaAside } from "@/components/agenda/AgendaAside";
 import { AgendaQuickThinkWidget } from "@/components/agenda/AgendaQuickThinkWidget";
 import { OrderDrawer } from "@/components/comandas/OrderDrawer";
+import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
+import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
 import type {
   AgendaAppointment,
   AgendaDayData,
@@ -22,17 +29,15 @@ import type {
   OrderDetail,
   OrderPermissions,
 } from "@/server/orders/types";
-import { hourInSp } from "@/lib/datetime";
 import {
   formatDateLabelSp,
   formatTimeSp,
+  hourInSp,
   shiftDateSp,
   shortPersonName,
   todaySp,
 } from "@/lib/datetime";
-import Link from "next/link";
-import { Fragment } from "react";
-import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
+import { useAgendaNow } from "@/components/agenda/useAgendaNow";
 
 type Props = {
   data: AgendaDayData;
@@ -96,6 +101,17 @@ export function AgendaView({
     minute?: number;
   } | null>(null);
   const [detail, setDetail] = useState<AgendaAppointment | null>(null);
+  const [ctx, setCtx] = useState<AgendaCtxTarget | null>(null);
+  const isToday = data.date === todaySp();
+  const now = useAgendaNow(isToday);
+  const nowHourLabel =
+    now && data.hours.includes(`${String(now.hour).padStart(2, "0")}:00`)
+      ? `${String(now.hour).padStart(2, "0")}:00`
+      : null;
+  const nowPct = now ? Math.min(95, Math.max(2, (now.minute / 60) * 100)) : 0;
+  const nowLabel = now
+    ? `${String(now.hour).padStart(2, "0")}:${String(now.minute).padStart(2, "0")}`
+    : "";
 
   function refresh() {
     router.refresh();
@@ -108,8 +124,7 @@ export function AgendaView({
     if (staff) sp.set("staff", staff);
     const modo = extra && "modo" in extra ? extra.modo : tabletMode ? "tablet" : undefined;
     if (modo) sp.set("modo", modo);
-    const comanda =
-      extra && "comanda" in extra ? extra.comanda : selectedOrder?.id;
+    const comanda = extra && "comanda" in extra ? extra.comanda : selectedOrder?.id;
     if (comanda) sp.set("comanda", comanda);
     return `/agenda?${sp.toString()}`;
   }
@@ -131,12 +146,7 @@ export function AgendaView({
     return qs({ staff: id });
   }
 
-  function openSlot(
-    staffId: string,
-    hour: number,
-    mode: AgendaFormMode,
-    minute = 0
-  ) {
+  function openSlot(staffId: string, hour: number, mode: AgendaFormMode, minute = 0) {
     setSlot({ date: data.date, staffId, hour, minute });
     setFormMode(mode);
   }
@@ -144,13 +154,27 @@ export function AgendaView({
   function openEncaixe() {
     const first = data.staff[0];
     if (!first) return;
-    const gridHours = data.hours.map((h) => Number(h.slice(0, 2))).filter((n) => Number.isFinite(n));
+    const gridHours = data.hours
+      .map((h) => Number(h.slice(0, 2)))
+      .filter((n) => Number.isFinite(n));
     let hour = gridHours[0] ?? 9;
     if (data.date === todaySp() && gridHours.length) {
       const nowH = hourInSp(new Date());
       hour = gridHours.find((h) => h >= nowH) ?? gridHours[gridHours.length - 1]!;
     }
     openSlot(first.id, hour, "encaixe");
+  }
+
+  async function openVenda(a: AgendaAppointment) {
+    if (a.orderId) {
+      openComanda(a.orderId);
+      return;
+    }
+    const result = await openOrderFromAppointmentAction(a.id, a.clientId ?? undefined);
+    if (result.ok) {
+      refresh();
+      openComanda(result.id);
+    }
   }
 
   return (
@@ -189,10 +213,7 @@ export function AgendaView({
 
       {data.staff.length > 1 && !permissions.scopedStaffId ? (
         <div className="panel-toolbar" style={{ marginBottom: 12 }}>
-          <Link
-            href={staffHref()}
-            className={`chip${!staffFilter ? " is-on" : ""}`}
-          >
+          <Link href={staffHref()} className={`chip${!staffFilter ? " is-on" : ""}`}>
             Todos
           </Link>
           {data.staff.map((s) => (
@@ -237,16 +258,30 @@ export function AgendaView({
 
               {data.hours.map((hour) => (
                 <Fragment key={hour}>
-                  <div className="agenda-time">{hour}</div>
+                  <div
+                    className={`agenda-time${nowHourLabel === hour ? " is-now" : ""}`}
+                  >
+                    {hour}
+                    {nowHourLabel === hour ? (
+                      <span
+                        className="agenda-now-line"
+                        style={{ top: `${nowPct}%` }}
+                        aria-hidden
+                      >
+                        <span className="agenda-now-badge">{nowLabel}</span>
+                      </span>
+                    ) : null}
+                  </div>
                   {data.staff.map((s) => {
                     const hourNum = Number(hour.slice(0, 2));
                     const slots = slotsForHour(data.appointments, s.id, hour);
                     const hasSlot = slots.length > 0;
+                    const showNow = nowHourLabel === hour;
 
                     return (
                       <div
                         key={`${s.id}-${hour}`}
-                        className={`agenda-cell${permissions.canWrite ? " is-clickable" : ""}`}
+                        className={`agenda-cell${permissions.canWrite ? " is-clickable" : ""}${showNow ? " is-now" : ""}`}
                         onClick={() => {
                           if (!permissions.canWrite) return;
                           if (!hasSlot) openSlot(s.id, hourNum, "schedule");
@@ -254,17 +289,30 @@ export function AgendaView({
                         onContextMenu={(e) => {
                           if (!permissions.canWrite) return;
                           e.preventDefault();
-                          // Célula ocupada → encaixe imediato; vazia → bloqueio
-                          openSlot(s.id, hourNum, hasSlot ? "encaixe" : "block");
+                          if (hasSlot) return;
+                          setCtx({
+                            kind: "cell",
+                            staffId: s.id,
+                            hour: hourNum,
+                            x: e.clientX,
+                            y: e.clientY,
+                          });
                         }}
                         title={
                           permissions.canWrite
                             ? hasSlot
-                              ? "Botão direito: encaixe neste horário"
-                              : "Clique: agendar · Botão direito: bloquear"
+                              ? "Botão direito no horário: ações rápidas"
+                              : "Clique: agendar · Botão direito: menu"
                             : undefined
                         }
                       >
+                        {showNow ? (
+                          <span
+                            className="agenda-now-line"
+                            style={{ top: `${nowPct}%` }}
+                            aria-hidden
+                          />
+                        ) : null}
                         {slots.map((a) => (
                           <div
                             key={a.id}
@@ -278,7 +326,17 @@ export function AgendaView({
                               e.stopPropagation();
                               setDetail(a);
                             }}
-                            title={`${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)}`}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setCtx({
+                                kind: "appointment",
+                                appointment: a,
+                                x: e.clientX,
+                                y: e.clientY,
+                              });
+                            }}
+                            title={`${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)} · botão direito: ações`}
                           >
                             <span className="slot-main">
                               {a.status !== "blocked" ? (
@@ -291,6 +349,9 @@ export function AgendaView({
                               <span>
                                 <strong>{shortPersonName(a.clientName)}</strong>
                                 {a.isEncaixe ? " · encaixe" : null}
+                                {a.noPreference ? " · sem pref." : null}
+                                {a.status === "arrived" ? " · no local" : null}
+                                {a.tags[0] ? ` · #${a.tags[0]}` : null}
                                 <br />
                                 {a.serviceName ?? (a.status === "blocked" ? "Bloqueio" : "—")}
                               </span>
@@ -319,7 +380,9 @@ export function AgendaView({
               <i style={{ background: "#9ca3af" }} /> Cancelado / ausente
             </span>
             {permissions.canWrite ? (
-              <span className="legend-hint">Clique vazio: agendar · Direito: bloquear</span>
+              <span className="legend-hint">
+                Clique: detalhes · Direito: menu (comanda, no local, ausente…)
+              </span>
             ) : null}
           </div>
         </section>
@@ -392,8 +455,21 @@ export function AgendaView({
           onClose={() => setDetail(null)}
           onSaved={refresh}
           onOpenComanda={openComanda}
+          onVenda={openVenda}
         />
       ) : null}
+
+      <AgendaContextMenu
+        target={ctx}
+        date={data.date}
+        permissions={permissions}
+        onClose={() => setCtx(null)}
+        onSaved={refresh}
+        onOpenComanda={openComanda}
+        onOpenForm={(mode, staffId, hour) => openSlot(staffId, hour, mode)}
+        onOpenDetail={(appt) => setDetail(appt)}
+        onVenda={openVenda}
+      />
 
       {selectedOrder && orderCatalog && orderPermissions ? (
         <OrderDrawer

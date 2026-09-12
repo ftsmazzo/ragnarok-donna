@@ -9,7 +9,10 @@ import type { ClientUpsellTip } from "@/server/insights/types";
 import { formatDateTimeSp, formatTimeSp } from "@/lib/datetime";
 import { formatMoney, labelApptStatus } from "@/lib/format";
 import {
+  patchAppointmentMetaAction,
+  payAndCloseFromAgendaAction,
   removeBlockAction,
+  setAppointmentEncaixeAction,
   updateAppointmentStatusAction,
 } from "@/app/(painel)/agenda/actions";
 import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
@@ -22,15 +25,18 @@ type Props = {
   permissions: AgendaPermissions;
   onClose: () => void;
   onSaved: () => void;
-  /** Abre a comanda sem sair da agenda. */
   onOpenComanda?: (orderId: string) => void;
+  onVenda?: (a: AgendaAppointment) => void;
 };
 
-const STATUS_FLOW = [
-  { value: "confirmed", label: "Confirmar" },
-  { value: "arrived", label: "Chegou" },
-  { value: "in_progress", label: "Em atendimento" },
-  { value: "completed", label: "Finalizar" },
+const PAY_METHODS: { value: string; label: string }[] = [
+  { value: "pix", label: "PIX" },
+  { value: "pix_key", label: "PIX chave" },
+  { value: "cash", label: "Dinheiro" },
+  { value: "debit", label: "Débito" },
+  { value: "credit", label: "Crédito" },
+  { value: "rede_link", label: "Link Rede" },
+  { value: "infinity", label: "Infinity" },
 ];
 
 export function AgendaDetailModal({
@@ -41,13 +47,17 @@ export function AgendaDetailModal({
   onClose,
   onSaved,
   onOpenComanda,
+  onVenda,
 }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [tips, setTips] = useState<ClientUpsellTip[]>([]);
   const [tipsLoading, setTipsLoading] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [tagValue, setTagValue] = useState("");
+  const [payMethod, setPayMethod] = useState("pix");
   const isBlock = a.status === "blocked";
+  const closed = a.status === "cancelled" || a.status === "completed" || a.status === "no_show";
 
   useEffect(() => {
     if (!open || isBlock || !a.clientId) {
@@ -71,23 +81,10 @@ export function AgendaDetailModal({
     };
   }, [open, isBlock, a.clientId, a.id]);
 
-  function runStatus(status: string) {
+  function run(fn: () => Promise<{ ok: true } | { ok: false; error: string }>) {
     setError("");
     startTransition(async () => {
-      const result = await updateAppointmentStatusAction(a.id, status, date);
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      onSaved();
-      onClose();
-    });
-  }
-
-  function handleRemoveBlock() {
-    setError("");
-    startTransition(async () => {
-      const result = await removeBlockAction(a.id, date);
+      const result = await fn();
       if (!result.ok) {
         setError(result.error);
         return;
@@ -112,11 +109,8 @@ export function AgendaDetailModal({
       }
       onSaved();
       onClose();
-      if (onOpenComanda) {
-        onOpenComanda(result.id);
-      } else {
-        router.push(`/comandas?id=${result.id}`);
-      }
+      if (onOpenComanda) onOpenComanda(result.id);
+      else router.push(`/comandas?id=${result.id}`);
     });
   }
 
@@ -131,7 +125,7 @@ export function AgendaDetailModal({
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
             Fechar
           </button>
-          {!isBlock && permissions.canOpenOrder && a.status !== "cancelled" ? (
+          {!isBlock && permissions.canOpenOrder && !closed ? (
             <button
               type="button"
               className="btn btn-primary"
@@ -145,7 +139,7 @@ export function AgendaDetailModal({
             <button
               type="button"
               className="btn btn-danger"
-              onClick={handleRemoveBlock}
+              onClick={() => run(() => removeBlockAction(a.id, date))}
               disabled={pending}
             >
               Remover bloqueio
@@ -214,6 +208,18 @@ export function AgendaDetailModal({
                 <dd>Encaixe</dd>
               </div>
             ) : null}
+            {a.noPreference ? (
+              <div>
+                <dt>Preferência</dt>
+                <dd>Sem preferência de profissional</dd>
+              </div>
+            ) : null}
+            {a.tags.length ? (
+              <div>
+                <dt>Tags</dt>
+                <dd>{a.tags.join(" · ")}</dd>
+              </div>
+            ) : null}
           </>
         ) : null}
         {a.notes ? (
@@ -234,31 +240,130 @@ export function AgendaDetailModal({
         </div>
       </dl>
 
-      {!isBlock &&
-      permissions.canUpdateStatus &&
-      a.status !== "cancelled" &&
-      a.status !== "completed" ? (
+      {!isBlock && !closed ? (
         <div className="agenda-status-actions">
-          <p className="client-profile-hint">Atualizar status</p>
+          <p className="client-profile-hint">Ações rápidas (mesmo menu do botão direito)</p>
           <div className="agenda-status-buttons">
-            {STATUS_FLOW.map((s) => (
+            {permissions.canOpenOrder ? (
               <button
-                key={s.value}
                 type="button"
                 className="btn btn-outline btn-sm"
-                disabled={pending || a.status === s.value}
-                onClick={() => runStatus(s.value)}
+                disabled={pending}
+                onClick={handleOpenOrder}
               >
-                {s.label}
+                Abrir Comanda
               </button>
-            ))}
+            ) : null}
+
+            {permissions.canUpdateStatus && a.status !== "arrived" ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() => run(() => updateAppointmentStatusAction(a.id, "arrived", date))}
+              >
+                No Local
+              </button>
+            ) : null}
+
+            {permissions.canUpdateStatus && a.status === "scheduled" ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() => run(() => updateAppointmentStatusAction(a.id, "confirmed", date))}
+              >
+                Confirmar
+              </button>
+            ) : null}
+
+            {permissions.canUpdateStatus && a.status === "confirmed" ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() => run(() => updateAppointmentStatusAction(a.id, "scheduled", date))}
+              >
+                Desconfirmar
+              </button>
+            ) : null}
+
+            {permissions.canUpdateStatus ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={pending || a.status === "in_progress"}
+                  onClick={() =>
+                    run(() => updateAppointmentStatusAction(a.id, "in_progress", date))
+                  }
+                >
+                  Em atendimento
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={pending || a.status === "completed"}
+                  onClick={() =>
+                    run(() => updateAppointmentStatusAction(a.id, "completed", date))
+                  }
+                >
+                  Finalizar horário
+                </button>
+              </>
+            ) : null}
+
+            {permissions.canWrite ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() =>
+                  run(() =>
+                    patchAppointmentMetaAction(a.id, date, {
+                      noPreference: !a.noPreference,
+                    })
+                  )
+                }
+              >
+                {a.noPreference ? "Com preferência" : "Sem Preferência"}
+              </button>
+            ) : null}
+
+            {permissions.canWrite ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() =>
+                  run(() => setAppointmentEncaixeAction(a.id, !a.isEncaixe, date))
+                }
+              >
+                {a.isEncaixe ? "Tirar encaixe" : "Encaixe"}
+              </button>
+            ) : null}
+
+            {permissions.canOpenOrder ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() => {
+                  onVenda?.(a);
+                  onClose();
+                }}
+              >
+                Venda
+              </button>
+            ) : null}
+
             {permissions.canCancel ? (
               <>
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
                   disabled={pending}
-                  onClick={() => runStatus("no_show")}
+                  onClick={() => run(() => updateAppointmentStatusAction(a.id, "no_show", date))}
                 >
                   Ausente
                 </button>
@@ -266,13 +371,68 @@ export function AgendaDetailModal({
                   type="button"
                   className="btn btn-danger btn-sm"
                   disabled={pending}
-                  onClick={() => runStatus("cancelled")}
+                  onClick={() =>
+                    run(() => updateAppointmentStatusAction(a.id, "cancelled", date))
+                  }
                 >
-                  Cancelar
+                  Cancelado
                 </button>
               </>
             ) : null}
           </div>
+
+          {permissions.canWrite ? (
+            <div className="agenda-tag-row">
+              <input
+                className="input"
+                value={tagValue}
+                placeholder="Adicionar tag…"
+                maxLength={40}
+                onChange={(e) => setTagValue(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending || !tagValue.trim()}
+                onClick={() => {
+                  const t = tagValue.trim();
+                  if (!t) return;
+                  run(() => patchAppointmentMetaAction(a.id, date, { addTag: t }));
+                }}
+              >
+                Adicionar Tag
+              </button>
+            </div>
+          ) : null}
+
+          {permissions.canOpenOrder && a.orderId ? (
+            <div className="agenda-pay-row">
+              <label className="form-field" style={{ margin: 0, flex: 1 }}>
+                <span>Finalizar Comanda</span>
+                <select
+                  value={payMethod}
+                  onChange={(e) => setPayMethod(e.target.value)}
+                  disabled={pending}
+                >
+                  {PAY_METHODS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={pending}
+                onClick={() =>
+                  run(() => payAndCloseFromAgendaAction(a.orderId!, payMethod, date))
+                }
+              >
+                Pagar e fechar
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </Modal>

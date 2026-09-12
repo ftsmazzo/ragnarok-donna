@@ -58,6 +58,8 @@ Ordem: bloco a bloco, sem pular fase.
 - [x] Alerta clientes semanais sem agendar (2+ visitas/21d sem próximo horário)
 - [x] Alerta recorrência fechada e não remarcada (~10 dias)
 - [x] Metas / ranking extras por profissional (produtos da semana em `/alertas`)
+- [x] Menu botão direito na agenda (estilo AppBarber) + mesmas ações no modal
+- [x] Linha temporal “agora” na agenda (tempo real, dia de hoje)
 - [ ] Read receipt (visualizou msg) — discovery; não prometer sem viabilidade
 - Doc: `docs/Demandas/FASE4-REGRAS.md`
 

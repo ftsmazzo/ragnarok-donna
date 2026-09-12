@@ -7,9 +7,11 @@ export {
 } from "./queries";
 export {
   createBlock,
+  patchAppointmentMeta,
   removeBlock,
   scheduleAppointment,
   scheduleEncaixe,
+  setAppointmentEncaixe,
   updateAppointmentStatus,
 } from "./mutations";
 export { groupAppointmentsByStaffHour } from "./utils";

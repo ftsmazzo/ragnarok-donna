@@ -317,7 +317,12 @@ export async function updateAppointmentStatus(
       .set({
         status: status as typeof schema.appointments.$inferInsert.status,
         updatedAt: new Date(),
-        confirmedAt: status === "confirmed" ? new Date() : undefined,
+        confirmedAt:
+          status === "confirmed"
+            ? new Date()
+            : status === "scheduled"
+              ? null
+              : undefined,
       })
       .where(
         and(
@@ -375,5 +380,113 @@ export async function removeBlock(id: string): Promise<ActionResult> {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: "Não foi possível remover o bloqueio" };
+  }
+}
+
+export async function patchAppointmentMeta(
+  id: string,
+  patch: { noPreference?: boolean; addTag?: string; clearTags?: boolean }
+): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    if (
+      !hasCapability(session.role, "appointments.write") &&
+      !hasCapability(session.role, "appointments.status_own")
+    ) {
+      throw new ForbiddenError();
+    }
+
+    const appt = await getAppointmentDetail(id);
+    if (appt.status === "blocked") {
+      throw new AppError("VALIDATION", "Bloqueio não aceita tag/preferência");
+    }
+    if (hasCapability(session.role, "appointments.status_own") && !hasCapability(session.role, "appointments.write")) {
+      if (!appt.staffId) throw new ForbiddenError();
+      await assertOwnStaffAccess(session, appt.staffId);
+    }
+
+    const tenant = await requireTenantContext();
+    const db = createDb();
+    const [row] = await db
+      .select({ meta: schema.appointments.meta })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.id, id),
+          eq(schema.appointments.tenantId, tenant.id),
+          isNull(schema.appointments.deletedAt)
+        )
+      )
+      .limit(1);
+    if (!row) throw new AppError("NOT_FOUND", "Agendamento não encontrado");
+
+    const meta = { ...(row.meta ?? {}) } as Record<string, unknown>;
+    if (typeof patch.noPreference === "boolean") {
+      meta.noPreference = patch.noPreference;
+    }
+    if (patch.clearTags) {
+      meta.tags = [];
+    }
+    if (patch.addTag) {
+      const tag = patch.addTag.trim().slice(0, 40);
+      if (!tag) throw new AppError("VALIDATION", "Tag vazia");
+      const prev = Array.isArray(meta.tags)
+        ? meta.tags.filter((t): t is string => typeof t === "string")
+        : [];
+      if (!prev.includes(tag)) prev.push(tag);
+      meta.tags = prev.slice(0, 8);
+    }
+
+    await db
+      .update(schema.appointments)
+      .set({ meta, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.appointments.id, id),
+          eq(schema.appointments.tenantId, tenant.id)
+        )
+      );
+
+    return { ok: true, id };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível atualizar o agendamento" };
+  }
+}
+
+export async function setAppointmentEncaixe(
+  id: string,
+  isEncaixe: boolean
+): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "appointments.write");
+
+    const appt = await getAppointmentDetail(id);
+    if (appt.status === "blocked") {
+      throw new AppError("VALIDATION", "Bloqueio não vira encaixe");
+    }
+    if (["cancelled", "completed", "no_show"].includes(appt.status)) {
+      throw new AppError("VALIDATION", "Status não permite marcar encaixe");
+    }
+
+    const tenant = await requireTenantContext();
+    const db = createDb();
+    await db
+      .update(schema.appointments)
+      .set({ isEncaixe, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.appointments.id, id),
+          eq(schema.appointments.tenantId, tenant.id)
+        )
+      );
+
+    return { ok: true, id };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível marcar encaixe" };
   }
 }

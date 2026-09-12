@@ -20,6 +20,10 @@ export type AgendaAppointment = {
   priceCents: number | null;
   orderId: string | null;
   blockedByName: string | null;
+  /** Cliente sem preferência de profissional (meta). */
+  noPreference: boolean;
+  /** Tags livres do horário (meta). */
+  tags: string[];
 };
 
 export type AgendaDayData = {

@@ -121,27 +121,7 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
     .where(apptWhere)
     .orderBy(asc(schema.appointments.startsAt));
 
-  const appointments: AgendaAppointment[] = rows.map((r) => {
-    const meta = (r.meta ?? {}) as Record<string, unknown>;
-    return {
-      id: r.id,
-      staffId: r.staffId,
-      clientId: r.clientId,
-      clientName: r.clientName ?? (r.status === "blocked" ? "Bloqueio" : "Sem cliente"),
-      clientAvatarUrl: r.clientAvatarUrl ?? null,
-      serviceId: r.serviceId,
-      serviceName: r.serviceName,
-      startsAt: r.startsAt,
-      endsAt: r.endsAt,
-      status: r.status,
-      isEncaixe: r.isEncaixe,
-      notes: r.notes,
-      priceCents: r.priceCents,
-      orderId: r.orderId,
-      blockedByName:
-        typeof meta.blockedByName === "string" ? meta.blockedByName : null,
-    };
-  });
+  const appointments: AgendaAppointment[] = rows.map((r) => mapAgendaAppointment(r));
 
   const [waitlistRow] = scope.isInactiveBranch
     ? [{ n: 0 }]
@@ -227,24 +207,49 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
     await assertOwnStaffAccess(session, row.staffId);
   }
 
-  const meta = (row.meta ?? {}) as Record<string, unknown>;
+  return mapAgendaAppointment(row);
+}
+
+function mapAgendaAppointment(r: {
+  id: string;
+  staffId: string | null;
+  clientId: string | null;
+  clientName: string | null;
+  clientAvatarUrl: string | null;
+  serviceId: string | null;
+  serviceName: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  status: string;
+  isEncaixe: boolean;
+  notes: string | null;
+  priceCents: number | null;
+  orderId: string | null;
+  meta: Record<string, unknown> | null;
+}): AgendaAppointment {
+  const meta = (r.meta ?? {}) as Record<string, unknown>;
+  const rawTags = meta.tags;
+  const tags = Array.isArray(rawTags)
+    ? rawTags.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+    : [];
   return {
-    id: row.id,
-    staffId: row.staffId,
-    clientId: row.clientId,
-    clientName: row.clientName ?? (row.status === "blocked" ? "Bloqueio" : "Sem cliente"),
-    clientAvatarUrl: row.clientAvatarUrl ?? null,
-    serviceId: row.serviceId,
-    serviceName: row.serviceName,
-    startsAt: row.startsAt,
-    endsAt: row.endsAt,
-    status: row.status,
-    isEncaixe: row.isEncaixe,
-    notes: row.notes,
-    priceCents: row.priceCents,
-    orderId: row.orderId,
-    blockedByName:
-      typeof meta.blockedByName === "string" ? meta.blockedByName : null,
+    id: r.id,
+    staffId: r.staffId,
+    clientId: r.clientId,
+    clientName: r.clientName ?? (r.status === "blocked" ? "Bloqueio" : "Sem cliente"),
+    clientAvatarUrl: r.clientAvatarUrl ?? null,
+    serviceId: r.serviceId,
+    serviceName: r.serviceName,
+    startsAt: r.startsAt,
+    endsAt: r.endsAt,
+    status: r.status,
+    isEncaixe: r.isEncaixe,
+    notes: r.notes,
+    priceCents: r.priceCents,
+    orderId: r.orderId,
+    blockedByName: typeof meta.blockedByName === "string" ? meta.blockedByName : null,
+    noPreference: meta.noPreference === true,
+    tags,
   };
 }
 

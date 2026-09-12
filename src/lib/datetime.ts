@@ -25,6 +25,24 @@ export function hourInSp(d: Date): number {
   return Number(h);
 }
 
+export function minuteInSp(d: Date): number {
+  return Number(
+    d.toLocaleString("en-US", {
+      timeZone: TZ,
+      minute: "numeric",
+    })
+  );
+}
+
+/** Relógio SP: data + hora + minuto (para linha “agora” na agenda). */
+export function clockSp(d = new Date()): { date: string; hour: number; minute: number } {
+  return {
+    date: formatDateSp(d),
+    hour: hourInSp(d),
+    minute: minuteInSp(d),
+  };
+}
+
 export function formatTimeSp(d: Date): string {
   return d.toLocaleTimeString("pt-BR", {
     timeZone: TZ,
