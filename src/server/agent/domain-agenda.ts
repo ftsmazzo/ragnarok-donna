@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, isNull, lte, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { todaySp } from "@/lib/datetime";
 import { dayBoundsSp, rangesOverlap, slotRangeSp } from "@/server/agenda/utils";
+import { isLunchTimeHm } from "@/server/house-rules/defaults";
 import { resolveTemporalPhrase } from "./temporal";
 
 const ACTIVE = ["scheduled", "confirmed", "arrived", "in_progress", "blocked"] as const;
@@ -148,6 +149,9 @@ export async function listFreeSlotsForTenant(input: {
       const toH = Math.min(periodEnd, Math.floor((win.endMin - input.durationMin) / 60));
       for (let hour = fromH; hour <= toH; hour += 1) {
         if (hour < 8 || hour > 20) continue;
+        const hm = `${String(hour).padStart(2, "0")}:00`;
+        // Fase 4: não oferecer slots no almoço (12h–14h)
+        if (isLunchTimeHm(hm)) continue;
         const { start: slotStart, end: slotEnd } = slotRangeSp(
           input.date,
           hour,

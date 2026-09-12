@@ -35,7 +35,8 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
       → add_to_waitlist com phone da conversa, staffId, serviceId, desiredDate=YYYY-MM-DD, notes="deseja HH:00 com Nome".
       → Confirme: "Pronto, você está na espera. Se liberar, te chamo no Zap."
       → NUNCA chame handoff_human por causa da lista de espera. A espera é 100% da Donna.
-   e) Só se recusar TAMBÉM a espera → aí se despede com carinho.
+   e) Se recusar TAMBÉM a espera, OU se insistir em trocar de profissional / horário que você não consegue resolver:
+      → handoff_human (secretaria) com motivo curto. Não invente solução.
 8. Cancelar → list_client_appointments → cancel_appointment com o id.
 9. Endereço / horário / sobre a loja → get_unit_context.
 Nunca invente horário nem dia da semana.`,
@@ -56,6 +57,7 @@ Não force oferta se o cliente pediu outra coisa.`,
   "skill.handoff": `SKILL.HANDOFF — humano
 Se pedirem recepção/gerente/humano, ou se você travar:
 chame handoff_human e avise que a equipe vai assumir.
+Mudança de profissional no meio do atendimento / “quero trocar de barbeiro agora” sem slot → handoff_human (secretaria).
 Perguntas de operação da recepção (comandas abertas, espera) → list_open_orders / list_waitlist.`,
 };
 

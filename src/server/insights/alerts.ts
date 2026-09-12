@@ -379,6 +379,173 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
     });
   }
 
+  // Clientes “semanais” (2+ visitas em 21d) sem próximo horário
+  const weeklyLookback = new Date(Date.now() - 21 * 24 * 60 * 60_000);
+  const weeklyCandidates = await db
+    .select({
+      clientId: schema.clients.id,
+      clientName: schema.clients.name,
+      visits: sql<number>`count(*)::int`.as("visits"),
+    })
+    .from(schema.clients)
+    .innerJoin(
+      schema.appointments,
+      and(
+        eq(schema.appointments.clientId, schema.clients.id),
+        eq(schema.appointments.tenantId, schema.clients.tenantId)
+      )
+    )
+    .where(
+      and(
+        eq(schema.clients.tenantId, tenant.id),
+        isNull(schema.clients.deletedAt),
+        isNull(schema.appointments.deletedAt),
+        eq(schema.appointments.status, "completed"),
+        gte(schema.appointments.startsAt, weeklyLookback)
+      )
+    )
+    .groupBy(schema.clients.id, schema.clients.name)
+    .having(sql`count(*) >= 2`)
+    .limit(80);
+
+  const weeklyUnbooked: { clientName: string }[] = [];
+  for (const c of weeklyCandidates) {
+    const [next] = await db
+      .select({ id: schema.appointments.id })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.clientId, c.clientId),
+          isNull(schema.appointments.deletedAt),
+          inArray(schema.appointments.status, ["scheduled", "confirmed", "arrived"]),
+          gte(schema.appointments.startsAt, new Date())
+        )
+      )
+      .limit(1);
+    if (!next) weeklyUnbooked.push({ clientName: c.clientName });
+  }
+
+  if (weeklyUnbooked.length) {
+    alerts.push({
+      id: "weekly-unbooked",
+      severity: "warning",
+      kind: "weekly_clients_unbooked",
+      title: `${weeklyUnbooked.length} cliente(s) frequentes sem próximo horário`,
+      detail: weeklyUnbooked
+        .slice(0, 5)
+        .map((c) => c.clientName)
+        .join(" · "),
+      count: weeklyUnbooked.length,
+      href: "/relatorios/perfil",
+      periodLabel: "21 dias · 2+ visitas",
+    });
+  }
+
+  // Almoços sobrepostos: 3+ profissionais com janela livre 12–14 no mesmo bloco
+  const weekdayNum = new Date(`${today}T12:00:00-03:00`).getDay();
+  const bookableStaff = await db
+    .select({ id: schema.staff.id, name: schema.staff.name })
+    .from(schema.staff)
+    .where(
+      and(
+        eq(schema.staff.tenantId, tenant.id),
+        eq(schema.staff.isActive, true),
+        eq(schema.staff.isBookable, true),
+        isNull(schema.staff.deletedAt)
+      )
+    );
+  if (bookableStaff.length >= 3) {
+    const schedToday = await db
+      .select({
+        staffId: schema.staffSchedules.staffId,
+        slotIndex: schema.staffSchedules.slotIndex,
+        startTime: schema.staffSchedules.startTime,
+        endTime: schema.staffSchedules.endTime,
+      })
+      .from(schema.staffSchedules)
+      .where(
+        and(
+          eq(schema.staffSchedules.tenantId, tenant.id),
+          eq(schema.staffSchedules.weekday, weekdayNum),
+          eq(schema.staffSchedules.isActive, true)
+        )
+      );
+
+    let overlappingLunch = 0;
+    for (const st of bookableStaff) {
+      const slots = schedToday
+        .filter((s) => s.staffId === st.id)
+        .sort((a, b) => a.slotIndex - b.slotIndex);
+      if (slots.length >= 2) {
+        const end1 = String(slots[0].endTime).slice(0, 5);
+        const start2 = String(slots[1].startTime).slice(0, 5);
+        if (end1 <= "12:30" && start2 >= "13:00" && start2 <= "14:30") {
+          overlappingLunch += 1;
+        }
+      } else {
+        // Sem turno partido → assume almoço padrão 12–14
+        overlappingLunch += 1;
+      }
+    }
+    if (overlappingLunch >= 3) {
+      alerts.push({
+        id: "lunch-overlap",
+        severity: "info",
+        kind: "lunch_overlap",
+        title: `${overlappingLunch} profissionais com almoço na mesma faixa — escale os turnos`,
+        detail:
+          "Com 3+ na mesma janela, a agenda trava. Ajuste jornadas (turno 1 / turno 2) em Profissionais.",
+        count: overlappingLunch,
+        href: "/profissionais",
+        periodLabel: "hoje",
+      });
+    }
+  }
+
+  // Ranking extras (produtos) na semana
+  const extras = await db
+    .select({
+      staffId: schema.orderItems.staffId,
+      staffName: schema.staff.name,
+      qty: sql<number>`coalesce(sum(${schema.orderItems.qty}), 0)::int`.as("qty"),
+      cents: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`.as("cents"),
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, tenant.id),
+        eq(schema.orders.status, "closed"),
+        eq(schema.orderItems.itemType, "product"),
+        gte(schema.orders.closedAt, weekStart),
+        lte(schema.orders.closedAt, weekEnd)
+      )
+    )
+    .groupBy(schema.orderItems.staffId, schema.staff.name)
+    .orderBy(sql`sum(${schema.orderItems.totalCents}) desc`)
+    .limit(5);
+
+  const extrasWithStaff = extras.filter((e) => e.staffId && e.staffName);
+  if (extrasWithStaff.length) {
+    alerts.push({
+      id: "staff-extras-week",
+      severity: "info",
+      kind: "staff_extras_week",
+      title: "Extras (produtos) da semana por profissional",
+      detail: extrasWithStaff
+        .map((e) => {
+          const reais = ((e.cents ?? 0) / 100).toFixed(0);
+          return `${e.staffName}: ${e.qty} un · R$ ${reais}`;
+        })
+        .join(" · "),
+      count: extrasWithStaff.length,
+      href: "/comissoes",
+      periodLabel: "semana",
+    });
+  }
+
   const severityRank = { critical: 0, warning: 1, info: 2 } as const;
   alerts.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
 

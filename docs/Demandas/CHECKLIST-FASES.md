@@ -53,11 +53,11 @@ Ordem: bloco a bloco, sem pular fase.
 - [x] Sábado: alerta ao encaixar; deixar ~30 min livres fora do almoço (aviso operacional)
 - [x] Luciano / Diogo: aviso ao agendar se não ficou claro que pediu por eles
 - [x] Não encaixar no almoço (12h–14h bloqueado)
-- [ ] Almoços escalonados (3+ profissionais em atendimento) — parcial / agenda manual
-- [ ] Mudança de profissional / sem horário desejado → chamar secretaria (Donna já faz handoff em vários casos)
-- [ ] Alerta clientes semanais sem agendar
+- [x] Almoços escalonados (3+ profissionais na mesma faixa) — alerta em `/alertas` + Donna não lista slots 12–14
+- [x] Mudança de profissional / sem horário desejado → handoff_human (secretaria)
+- [x] Alerta clientes semanais sem agendar (2+ visitas/21d sem próximo horário)
 - [x] Alerta recorrência fechada e não remarcada (~10 dias)
-- [ ] Metas / ranking extras por profissional
+- [x] Metas / ranking extras por profissional (produtos da semana em `/alertas`)
 - [ ] Read receipt (visualizou msg) — discovery; não prometer sem viabilidade
 - Doc: `docs/Demandas/FASE4-REGRAS.md`
 

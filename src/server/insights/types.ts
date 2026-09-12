@@ -79,7 +79,9 @@ export type OperationalAlertKind =
   | "waiting_overdue"
   | "weekly_clients_unbooked"
   | "recurrence_unbooked"
-  | "saturday_encaixe";
+  | "saturday_encaixe"
+  | "lunch_overlap"
+  | "staff_extras_week";
 
 export type OperationalAlert = {
   id: string;

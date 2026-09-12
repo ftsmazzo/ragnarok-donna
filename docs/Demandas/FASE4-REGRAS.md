@@ -15,7 +15,11 @@ Kill switch de WhatsApp (`OUTREACH_DISPATCH_ENABLED`) continua valendo: alertas 
 
 ## Demais
 - **Sábado + encaixe:** aviso no retorno do agendamento
-- **Almoço 12h–14h:** bloqueia encaixe
+- **Almoço 12h–14h:** bloqueia encaixe; Donna `list_slots` pula a faixa
+- **Almoços escalonados:** se 3+ profissionais com almoço na mesma janela → alerta info em `/alertas`
 - **Luciano/Diogo:** aviso se agendar sem indício de pedido pelo profissional
+- **Handoff:** recusa espera / troca de profissional sem solução → `handoff_human`
 - **Recorrência ~10d:** alerta em `/alertas`
-- Read receipt / metas ranking: fora deste corte (discovery)
+- **Clientes frequentes sem horário:** 2+ visitas em 21d e sem próximo agendamento → alerta
+- **Extras da semana:** ranking de produtos por profissional em `/alertas` → `/comissoes`
+- **Read receipt:** discovery — não implementar sem viabilidade no canal
