@@ -214,7 +214,7 @@ export function AgendaDetailModal({
                 <dd>Sem preferência de profissional</dd>
               </div>
             ) : null}
-            {a.tags.length ? (
+            {a.tags?.length ? (
               <div>
                 <dt>Tags</dt>
                 <dd>{a.tags.join(" · ")}</dd>

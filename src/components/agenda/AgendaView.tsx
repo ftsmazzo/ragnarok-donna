@@ -351,7 +351,7 @@ export function AgendaView({
                                 {a.isEncaixe ? " · encaixe" : null}
                                 {a.noPreference ? " · sem pref." : null}
                                 {a.status === "arrived" ? " · no local" : null}
-                                {a.tags[0] ? ` · #${a.tags[0]}` : null}
+                                {a.tags?.[0] ? ` · #${a.tags[0]}` : null}
                                 <br />
                                 {a.serviceName ?? (a.status === "blocked" ? "Bloqueio" : "—")}
                               </span>

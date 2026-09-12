@@ -171,7 +171,12 @@ async function runBootstrap() {
     return;
   }
 
-  const sql = postgres(dbUrl, { max: 1, connect_timeout: 10 });
+  const sql = postgres(dbUrl, {
+    max: 1,
+    connect_timeout: 10,
+    // Evita flood de NOTICE "already exists, skipping" no log do EasyPanel.
+    onnotice: () => {},
+  });
 
   try {
     await sql.unsafe(`
