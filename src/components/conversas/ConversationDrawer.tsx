@@ -32,6 +32,26 @@ function directionLabel(dir: ConversationDetail["messages"][number]["direction"]
   }
 }
 
+function deliveryLabel(m: ConversationDetail["messages"][number]): string | null {
+  if (m.direction !== "outbound_ai" && m.direction !== "outbound_human") return null;
+  if (m.repliedAt) return "Respondeu";
+  switch (m.deliveryStatus) {
+    case "read":
+      return "Lido";
+    case "delivered":
+      return "Entregue";
+    case "server_ack":
+    case "sent":
+      return "Enviado";
+    case "error":
+      return "Falhou";
+    case "pending":
+      return "Pendente";
+    default:
+      return null;
+  }
+}
+
 export function ConversationDrawer({ open, conversation, onClose }: Props) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -224,6 +244,23 @@ export function ConversationDrawer({ open, conversation, onClose }: Props) {
                   </span>
                   <time dateTime={new Date(m.createdAt).toISOString()}>
                     {formatTimeSp(new Date(m.createdAt))}
+                    {deliveryLabel(m) ? (
+                      <span
+                        className={`chat-delivery chat-delivery--${m.repliedAt ? "replied" : m.deliveryStatus ?? "unknown"}`}
+                        title={
+                          m.readAt
+                            ? "Lido no WhatsApp"
+                            : m.repliedAt
+                              ? "Cliente respondeu (sem confirmação de leitura)"
+                              : m.deliveredAt
+                                ? "Entregue no aparelho"
+                                : "Status de envio"
+                        }
+                      >
+                        {" "}
+                        · {deliveryLabel(m)}
+                      </span>
+                    ) : null}
                   </time>
                 </div>
                 <p>{m.body}</p>

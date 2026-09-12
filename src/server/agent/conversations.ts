@@ -24,6 +24,10 @@ export type ConversationMessage = {
   body: string;
   createdAt: Date;
   operatorName: string | null;
+  deliveryStatus: string | null;
+  deliveredAt: Date | null;
+  readAt: Date | null;
+  repliedAt: Date | null;
 };
 
 export type ConversationDetail = {
@@ -170,6 +174,10 @@ export async function getConversation(conversationId: string): Promise<Conversat
       body: schema.messages.body,
       createdAt: schema.messages.createdAt,
       operatorName: schema.users.name,
+      deliveryStatus: schema.messages.deliveryStatus,
+      deliveredAt: schema.messages.deliveredAt,
+      readAt: schema.messages.readAt,
+      repliedAt: schema.messages.repliedAt,
     })
     .from(schema.messages)
     .leftJoin(schema.users, eq(schema.messages.operatorUserId, schema.users.id))
@@ -201,6 +209,10 @@ export async function getConversation(conversationId: string): Promise<Conversat
       body: m.body,
       createdAt: m.createdAt,
       operatorName: m.operatorName,
+      deliveryStatus: m.deliveryStatus,
+      deliveredAt: m.deliveredAt,
+      readAt: m.readAt,
+      repliedAt: m.repliedAt,
     })),
   };
 }

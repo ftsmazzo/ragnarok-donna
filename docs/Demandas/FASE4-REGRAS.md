@@ -21,7 +21,7 @@ Kill switch de WhatsApp (`OUTREACH_DISPATCH_ENABLED`) continua valendo: alertas 
 - **Handoff:** recusa espera / troca de profissional sem solução → `handoff_human`
 - **Recorrência ~10d:** alerta em `/alertas`
 - **Clientes frequentes sem horário:** 2+ visitas em 21d e sem próximo agendamento → alerta
-- **Extras da semana:** ranking de produtos por profissional em `/alertas` → `/comissoes`
+- **Extras + meta:** ranking de produtos por profissional em `/relatorios/extras` (cadastro de meta mensal); resumo semanal também em `/alertas`
 - **Menu botão direito (AppBarber):** no card da agenda — Abrir/Finalizar comanda, Ausente, Cancelado, Confirmar/Desconfirmar, Sem preferência, Encaixe, Venda, Tag, No Local; mesmas ações no modal de detalhes
 - **Linha temporal:** no dia de hoje, faixa vermelha “agora” atravessa a grade e sobe a cada minuto (fuso SP)
-- **Read receipt:** discovery — não implementar sem viabilidade no canal
+- **Status de msg Zap:** webhook `MESSAGES_UPDATE` → Enviado / Entregue / Lido nas Conversas; se o cliente desliga ✓✓ azul, mostra no máximo Entregue + “Respondeu” quando houver resposta. Reconecte o WhatsApp uma vez para registrar o evento no webhook.

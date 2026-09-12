@@ -99,7 +99,12 @@ export async function setInstanceWebhook(instanceName: string, url: string) {
         url,
         webhookByEvents: false,
         webhookBase64: false,
-        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"],
+        events: [
+          "MESSAGES_UPSERT",
+          "MESSAGES_UPDATE",
+          "CONNECTION_UPDATE",
+          "QRCODE_UPDATED",
+        ],
       },
     },
   });

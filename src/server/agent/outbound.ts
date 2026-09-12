@@ -73,6 +73,7 @@ export async function deliverWhatsAppText(input: {
       direction: input.direction,
       body: input.text,
       waMessageId: waMessageId ?? null,
+      deliveryStatus: waMessageId ? "sent" : "pending",
       operatorUserId: input.operatorUserId ?? null,
     })
     .returning({ id: schema.messages.id });

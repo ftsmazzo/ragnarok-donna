@@ -9,6 +9,7 @@ import { runOrchestrator } from "./orchestrator";
 import { enrichInboundMessage } from "./media";
 import { tryConfirmAppointmentFromWhatsAppAck } from "@/server/outreach/confirm";
 import { isCheckInPhrase, tryCheckInFromWhatsApp } from "@/server/house-rules/check-in";
+import { applyMessagesUpdate, markLastOutboundReplied } from "./message-receipts";
 
 /** Serializa respostas por conversa (1 réplica EasyPanel) — não descarta msg enquanto a anterior processa. */
 const replyChains = new Map<string, Promise<void>>();
@@ -246,6 +247,8 @@ export async function processInboundMessage(
   });
   if (!inserted) return "dup";
 
+  await markLastOutboundReplied(conv.id);
+
   if (!shouldReply || conv.mode === "human") return "ok";
 
   // Confirmação de horário via OK (Fase 3) — antes de engolir ack curto
@@ -472,6 +475,11 @@ export async function handleEvolutionWebhook(body: EvolutionWebhookBody) {
       if (r === "ok") ok += 1;
     }
     return { ok: true, handled: "messages.upsert", count: items.length, processed: ok };
+  }
+
+  if (event === "messages.update") {
+    const result = await applyMessagesUpdate(body.data);
+    return { ok: true, handled: "messages.update", ...result };
   }
 
   if (event === "connection.update") {

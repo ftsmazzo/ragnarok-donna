@@ -117,6 +117,16 @@ export const messages = pgTable(
     direction: messageDirectionEnum("direction").notNull(),
     body: text("body").notNull().default(""),
     waMessageId: varchar("wa_message_id", { length: 120 }),
+    /**
+     * Status de entrega WhatsApp (outbound).
+     * pending → sent → server_ack → delivered → read
+     * Sem ✓✓ azul do cliente, o máximo costuma ser delivered; repliedAt cobre “viu de fato”.
+     */
+    deliveryStatus: varchar("delivery_status", { length: 24 }).notNull().default("pending"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    /** Cliente respondeu depois deste outbound (proxy sem read receipt). */
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
     operatorUserId: uuid("operator_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -128,6 +138,7 @@ export const messages = pgTable(
   (t) => [
     index("messages_conversation_created_idx").on(t.conversationId, t.createdAt),
     uniqueIndex("messages_wa_id_uidx").on(t.waMessageId),
+    index("messages_wa_delivery_idx").on(t.waMessageId, t.deliveryStatus),
   ]
 );
 

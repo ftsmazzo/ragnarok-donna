@@ -3209,6 +3209,61 @@ input {
   color: var(--muted);
 }
 
+.chat-delivery {
+  font-weight: 500;
+}
+
+.chat-delivery--sent,
+.chat-delivery--server_ack,
+.chat-delivery--pending {
+  color: var(--muted);
+}
+
+.chat-delivery--delivered {
+  color: #3d6b8a;
+}
+
+.chat-delivery--read,
+.chat-delivery--replied {
+  color: #2f6b4f;
+}
+
+.chat-delivery--error {
+  color: #9b3b3b;
+}
+
+.extras-goals-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.extras-progress {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 110px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: #f0eef4;
+  overflow: hidden;
+}
+
+.extras-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(47, 107, 79, 0.25);
+}
+
+.extras-progress-label {
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .chat-bubble--inbound {
   align-self: flex-start;
   background: #f6f5f8;

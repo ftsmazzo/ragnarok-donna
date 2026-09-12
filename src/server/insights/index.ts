@@ -6,6 +6,8 @@ export {
 } from "./queries";
 export { getManagementDashboard } from "./dashboard";
 export { buildOperationalAlerts, isBarCategory } from "./alerts";
+export { reportExtrasRanking, upsertStaffExtrasGoal } from "./extras-ranking";
+export type { ExtrasRankingReport, ExtrasRankingRow } from "./extras-ranking";
 export {
   DEFAULT_PRODUCT_REBUY_DAYS,
   DEFAULT_SERVICE_RETURN_DAYS,

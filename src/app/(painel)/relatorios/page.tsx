@@ -31,6 +31,7 @@ const LINKS = [
   { href: "/relatorios/financeiro", title: "Financeiro", desc: "Receita, mix e caixa" },
   { href: "/relatorios/comandas", title: "Comandas", desc: "Ticket, volume e status" },
   { href: "/relatorios/estoque", title: "Estoque", desc: "Saldo, mínimo e vendas" },
+  { href: "/relatorios/extras", title: "Extras / metas", desc: "Produtos por barbeiro e meta" },
   { href: "/relatorios/perfil", title: "Perfil do cliente", desc: "Quem abordar esta semana" },
   { href: "/comissoes", title: "Comissões", desc: "Sintético, vales e analítico" },
   { href: "/relatorios/fluxo", title: "Fluxo de caixa", desc: "Movimentado e disponível" },

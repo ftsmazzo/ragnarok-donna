@@ -541,7 +541,7 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
         })
         .join(" · "),
       count: extrasWithStaff.length,
-      href: "/comissoes",
+      href: "/relatorios/extras",
       periodLabel: "semana",
     });
   }

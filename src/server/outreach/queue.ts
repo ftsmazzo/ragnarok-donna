@@ -194,6 +194,11 @@ export async function processPendingOutreachJobs(input: {
         conversationId,
         updatedAt: new Date(),
         errorMessage: null,
+        meta: {
+          ...(job.meta ?? {}),
+          waMessageId: result.waMessageId ?? null,
+          deliveryStatus: result.waMessageId ? "sent" : "pending",
+        },
       })
       .where(eq(schema.outreachJobs.id, job.id));
 

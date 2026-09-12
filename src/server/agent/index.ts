@@ -44,6 +44,13 @@ export {
   assertWebhookAuthorized,
   syncRecentInboundFromEvolution,
 } from "./inbound";
+export {
+  applyMessagesUpdate,
+  markLastOutboundReplied,
+  deliveryStatusLabel,
+  normalizeDeliveryStatus,
+} from "./message-receipts";
+export type { DeliveryStatus } from "./message-receipts";
 export { syncInboxFromEvolution } from "./sync-inbox";
 export { deliverWhatsAppText, getConnectionForTenant } from "./outbound";
 export { getAgentConfig, saveAgentConfig, getHandoffNotifyPhoneE164 } from "./agent-config";

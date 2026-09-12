@@ -244,3 +244,29 @@ export const packages = pgTable(
     uniqueIndex("packages_tenant_ext_uidx").on(t.tenantId, t.externalSource, t.externalId),
   ]
 );
+
+/**
+ * Meta mensal de extras (produtos) por barbeiro.
+ * Ranking em /relatorios/extras — distinto de comissão.
+ */
+export const staffExtrasGoals = pgTable(
+  "staff_extras_goals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    /** Meta em R$ (centavos) de produtos no mês. */
+    monthlyTargetCents: integer("monthly_target_cents").notNull().default(0),
+    /** Meta opcional em unidades. */
+    monthlyTargetQty: integer("monthly_target_qty"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("staff_extras_goals_tenant_staff_uidx").on(t.tenantId, t.staffId),
+    index("staff_extras_goals_tenant_idx").on(t.tenantId),
+  ]
+);
