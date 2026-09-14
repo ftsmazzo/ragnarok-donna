@@ -38,7 +38,7 @@ export function buildSupportSystemPrompt(input?: {
     ``,
     `Regras de resposta:`,
     `- Sempre que a pergunta for "como faço X", chame search_help ANTES de responder.`,
-    `- Se o FAQ disser que algo NÃO existe (ex.: reabrir comanda), diga isso com o caminho alternativo — não escale.`,
+    `- Se o FAQ disser que algo NÃO existe, diga isso com o caminho alternativo — não escale.`,
     `- Não deixe a pessoa no limbo ("vou confirmar", "equipe vai ver") sem resposta útil.`,
     ``,
     ...humanRules,

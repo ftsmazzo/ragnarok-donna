@@ -1,9 +1,9 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
-import { isBarberRole } from "../permissions/roles";
+import { isBarberRole, isOwnerRole } from "../permissions/roles";
 import { resolveSessionStaffId } from "../permissions/staff-scope";
 import { assertOwnOrderAccess, getOrderDetail } from "./queries";
 
@@ -117,14 +117,33 @@ export async function openOrder(input: {
       if (!client) throw new AppError("VALIDATION", "Cliente inválido");
     }
 
+    let seedServiceId: string | null = null;
+    let seedStaffId: string | null = null;
+    let seedPriceCents: number | null = null;
+    let seedServiceName: string | null = null;
+    let seedCommissionBps: number | null = null;
+
     if (appointmentId) {
       const [appt] = await db
         .select({
           id: schema.appointments.id,
           orderId: schema.appointments.orderId,
           clientId: schema.appointments.clientId,
+          staffId: schema.appointments.staffId,
+          serviceId: schema.appointments.serviceId,
+          priceCents: schema.appointments.priceCents,
+          serviceName: schema.services.name,
+          servicePriceCents: schema.services.priceCents,
+          serviceCommissionBps: schema.services.commissionBps,
         })
         .from(schema.appointments)
+        .leftJoin(
+          schema.services,
+          and(
+            eq(schema.services.id, schema.appointments.serviceId),
+            eq(schema.services.tenantId, tenant.id)
+          )
+        )
         .where(
           and(
             eq(schema.appointments.id, appointmentId),
@@ -140,6 +159,14 @@ export async function openOrder(input: {
       if (!clientId && appt.clientId) {
         clientId = appt.clientId;
       }
+      seedServiceId = appt.serviceId;
+      seedStaffId = appt.staffId;
+      seedServiceName = appt.serviceName;
+      seedPriceCents =
+        appt.priceCents != null && appt.priceCents > 0
+          ? appt.priceCents
+          : appt.servicePriceCents;
+      seedCommissionBps = appt.serviceCommissionBps;
     }
 
     const [row] = await db
@@ -168,6 +195,32 @@ export async function openOrder(input: {
             eq(schema.appointments.tenantId, tenant.id)
           )
         );
+    }
+
+    if (seedServiceId && seedServiceName && seedPriceCents != null) {
+      const { commissionBps, commissionCents } = calcCommission(
+        seedPriceCents,
+        seedCommissionBps
+      );
+      await db.insert(schema.orderItems).values({
+        tenantId: tenant.id,
+        orderId: row.id,
+        itemType: "service",
+        serviceId: seedServiceId,
+        productId: null,
+        packageId: null,
+        staffId: seedStaffId,
+        description: seedServiceName,
+        qty: 1,
+        unitPriceCents: seedPriceCents,
+        discountCents: 0,
+        totalCents: seedPriceCents,
+        commissionBps,
+        commissionCents,
+        performedAt: new Date(),
+        meta: {},
+      });
+      await recalculateOrderTotal(row.id, tenant.id);
     }
 
     return { ok: true, id: row.id };
@@ -285,6 +338,26 @@ export async function addOrderItem(input: {
 
     let staffId: string | null = staffIdInput || null;
     let staffCommissionBps: number | null = null;
+
+    if (!staffId && input.itemType === "service") {
+      const [orderAppt] = await db
+        .select({ staffId: schema.appointments.staffId })
+        .from(schema.orders)
+        .leftJoin(
+          schema.appointments,
+          eq(schema.appointments.id, schema.orders.appointmentId)
+        )
+        .where(
+          and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id))
+        )
+        .limit(1);
+      staffId = orderAppt?.staffId ?? null;
+    }
+
+    if (input.itemType === "service" && !staffId) {
+      throw new AppError("VALIDATION", "Informe o profissional do serviço");
+    }
+
     if (staffId) {
       const [st] = await db
         .select({
@@ -527,13 +600,45 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
       .limit(1);
 
     if (!item) throw new AppError("NOT_FOUND", "Item não encontrado");
-    await assertOpenOrder(item.orderId, tenant.id);
+    const order = await assertOpenOrder(item.orderId, tenant.id);
 
     if (isBarberRole(session.role)) {
       if (item.itemType !== "product") {
         throw new ForbiddenError("Barbeiro só pode remover produtos");
       }
       await assertOwnOrderAccess(item.orderId);
+    }
+
+    const [paidRow] = await db
+      .select({
+        paid: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+      })
+      .from(schema.payments)
+      .where(
+        and(
+          eq(schema.payments.orderId, item.orderId),
+          eq(schema.payments.tenantId, tenant.id)
+        )
+      );
+    const [itemsRow] = await db
+      .select({
+        total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.orderId, item.orderId),
+          eq(schema.orderItems.tenantId, tenant.id),
+          ne(schema.orderItems.id, itemId)
+        )
+      );
+    const nextTotal = Number(itemsRow?.total ?? 0);
+    const paidCents = Number(paidRow?.paid ?? 0);
+    if (paidCents > 0 && nextTotal - order.discountCents < paidCents) {
+      throw new AppError(
+        "VALIDATION",
+        "Não é possível remover: o total ficaria abaixo do já pago. Ajuste o pagamento (estorno manual) antes."
+      );
     }
 
     const meta = (item.meta ?? {}) as Record<string, unknown>;
@@ -711,6 +816,61 @@ export async function closeOrder(orderId: string): Promise<ActionResult> {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: "Não foi possível fechar a comanda" };
+  }
+}
+
+/** Reabre comanda fechada (owner/admin). Não apaga pagamentos já lançados. */
+export async function reopenOrder(orderId: string): Promise<ActionResult> {
+  try {
+    const session = await assertFullOrderWrite();
+    if (!isOwnerRole(session.role)) {
+      throw new ForbiddenError("Só dono/admin pode reabrir comanda");
+    }
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const [order] = await db
+      .select({
+        id: schema.orders.id,
+        status: schema.orders.status,
+        meta: schema.orders.meta,
+      })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.id, orderId),
+          eq(schema.orders.tenantId, tenant.id),
+          isNull(schema.orders.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
+    if (order.status !== "closed") {
+      throw new AppError("VALIDATION", "Só é possível reabrir comanda fechada");
+    }
+
+    const prevMeta = (order.meta ?? {}) as Record<string, unknown>;
+    await db
+      .update(schema.orders)
+      .set({
+        status: "open",
+        closedAt: null,
+        closedByUserId: null,
+        meta: {
+          ...prevMeta,
+          reopenedAt: new Date().toISOString(),
+          reopenedBy: session.user.id,
+        },
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+
+    return { ok: true, id: orderId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível reabrir a comanda" };
   }
 }
 

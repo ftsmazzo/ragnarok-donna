@@ -27,6 +27,7 @@ type Props = {
   onSaved: () => void;
   onOpenComanda?: (orderId: string) => void;
   onVenda?: (a: AgendaAppointment) => void;
+  onEdit?: (a: AgendaAppointment) => void;
 };
 
 const PAY_METHODS: { value: string; label: string }[] = [
@@ -48,6 +49,7 @@ export function AgendaDetailModal({
   onSaved,
   onOpenComanda,
   onVenda,
+  onEdit,
 }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -196,6 +198,12 @@ export function AgendaDetailModal({
               <dt>Serviço</dt>
               <dd>{a.serviceName ?? "—"}</dd>
             </div>
+            {a.staffName || a.staffId ? (
+              <div>
+                <dt>Profissional</dt>
+                <dd>{a.staffName ?? "—"}</dd>
+              </div>
+            ) : null}
             {a.priceCents != null ? (
               <div>
                 <dt>Valor</dt>
@@ -244,6 +252,17 @@ export function AgendaDetailModal({
         <div className="agenda-status-actions">
           <p className="client-profile-hint">Ações rápidas (mesmo menu do botão direito)</p>
           <div className="agenda-status-buttons">
+            {permissions.canWrite && !isBlock && !closed ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={pending}
+                onClick={() => onEdit?.(a)}
+              >
+                Editar
+              </button>
+            ) : null}
+
             {permissions.canOpenOrder ? (
               <button
                 type="button"

@@ -9,6 +9,7 @@ import { assertOwnStaffAccess } from "../permissions/staff-scope";
 import { HOUSE_RULES, isLockedStaffName, isLunchTimeHm } from "../house-rules/defaults";
 import { getAppointmentDetail } from "./queries";
 import { rangesOverlap } from "./utils";
+import type { AppointmentEditScope } from "./types";
 
 export type ActionResult =
   | { ok: true; id: string; warning?: string }
@@ -18,7 +19,7 @@ type WriteInput = {
   staffId: string;
   date: string;
   hour: number;
-  /** 0 ou 30 — início do slot. */
+  /** 0–55, múltiplo de 5 — início fino do slot. */
   minute?: number;
   durationMin: number;
   clientId?: string;
@@ -114,8 +115,8 @@ function parseWriteInput(raw: WriteInput) {
     throw new AppError("VALIDATION", "Horário fora do expediente");
   }
   const minute = raw.minute ?? 0;
-  if (minute !== 0 && minute !== 30) {
-    throw new AppError("VALIDATION", "Minuto inválido (use 0 ou 30)");
+  if (!Number.isInteger(minute) || minute < 0 || minute > 55 || minute % 5 !== 0) {
+    throw new AppError("VALIDATION", "Minuto inválido (use de 5 em 5)");
   }
   const durationMin = raw.durationMin || 30;
   if (durationMin < 5 || durationMin > 480) {
@@ -134,7 +135,7 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
 
     const { durationMin, minute } = parseWriteInput(raw);
     const svc = await loadServiceDuration(tenant.id, raw.serviceId, durationMin);
-    const finalDuration = raw.isBlock ? durationMin : svc.durationMin;
+    const finalDuration = durationMin || svc.durationMin;
 
     const start = new Date(
       `${raw.date}T${String(raw.hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`
@@ -452,6 +453,127 @@ export async function patchAppointmentMeta(
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: "Não foi possível atualizar o agendamento" };
+  }
+}
+
+/** Edição granular (Tipo AppBarber): só os campos do escopo são aplicados. */
+export async function updateAppointment(input: {
+  id: string;
+  scope: AppointmentEditScope;
+  date?: string;
+  hour?: number;
+  minute?: number;
+  durationMin?: number;
+  staffId?: string;
+  serviceId?: string | null;
+  notes?: string;
+}): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "appointments.write");
+
+    const appt = await getAppointmentDetail(input.id);
+    if (appt.status === "blocked") {
+      throw new AppError("VALIDATION", "Use edição de bloqueio / remover");
+    }
+    if (["cancelled", "completed", "no_show"].includes(appt.status)) {
+      throw new AppError("VALIDATION", "Status não permite editar");
+    }
+
+    const tenant = await requireTenantContext();
+    const scope = input.scope;
+    const touchTime = scope === "time" || scope === "time_service" || scope === "time_staff" || scope === "all";
+    const touchService =
+      scope === "service" || scope === "time_service" || scope === "service_staff" || scope === "all";
+    const touchStaff =
+      scope === "staff" || scope === "time_staff" || scope === "service_staff" || scope === "all";
+    const touchDuration = scope === "duration" || scope === "all" || touchTime || touchService;
+
+    const { formatDateSp, hourInSp, minuteInSp } = await import("@/lib/datetime");
+
+    let staffId = appt.staffId;
+    if (touchStaff) {
+      if (!input.staffId) throw new AppError("VALIDATION", "Profissional obrigatório");
+      await assertStaffBookable(tenant.id, input.staffId);
+      staffId = input.staffId;
+    }
+    if (!staffId) throw new AppError("VALIDATION", "Profissional inválido");
+
+    let serviceId = appt.serviceId;
+    let priceCents = appt.priceCents;
+    if (touchService) {
+      serviceId = input.serviceId || null;
+    }
+
+    let startsAt = appt.startsAt;
+    let durationMin = Math.max(
+      5,
+      Math.round((appt.endsAt.getTime() - appt.startsAt.getTime()) / 60_000)
+    );
+
+    if (touchTime) {
+      const date = input.date || formatDateSp(appt.startsAt);
+      const hour = input.hour ?? hourInSp(appt.startsAt);
+      const minute = input.minute ?? minuteInSp(appt.startsAt);
+      if (hour < 6 || hour > 22) {
+        throw new AppError("VALIDATION", "Horário fora do expediente");
+      }
+      if (!Number.isInteger(minute) || minute < 0 || minute > 55 || minute % 5 !== 0) {
+        throw new AppError("VALIDATION", "Minuto inválido (use de 5 em 5)");
+      }
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        throw new AppError("VALIDATION", "Data inválida");
+      }
+      startsAt = new Date(
+        `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`
+      );
+    }
+
+    if (touchService && serviceId) {
+      const svc = await loadServiceDuration(tenant.id, serviceId, durationMin);
+      priceCents = svc.priceCents;
+      if (input.durationMin == null && !touchTime) {
+        durationMin = svc.durationMin;
+      }
+    }
+
+    if (touchDuration && input.durationMin != null) {
+      if (input.durationMin < 5 || input.durationMin > 480) {
+        throw new AppError("VALIDATION", "Duração inválida");
+      }
+      durationMin = input.durationMin;
+    }
+
+    const endsAt = new Date(startsAt.getTime() + durationMin * 60_000);
+
+    if (!appt.isEncaixe) {
+      await assertNoOverlap(tenant.id, staffId, startsAt, endsAt, input.id);
+    }
+
+    const db = createDb();
+    await db
+      .update(schema.appointments)
+      .set({
+        staffId,
+        serviceId,
+        startsAt,
+        endsAt,
+        priceCents: priceCents ?? null,
+        notes: input.notes !== undefined ? input.notes.trim() || null : undefined,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.id, input.id),
+          eq(schema.appointments.tenantId, tenant.id)
+        )
+      );
+
+    return { ok: true, id: input.id };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível editar o agendamento" };
   }
 }
 

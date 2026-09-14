@@ -106,6 +106,7 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       clientName: schema.clients.name,
       clientAvatarUrl: schema.clients.avatarUrl,
       serviceName: schema.services.name,
+      servicePriceCents: schema.services.priceCents,
       startsAt: schema.appointments.startsAt,
       endsAt: schema.appointments.endsAt,
       status: schema.appointments.status,
@@ -113,11 +114,15 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
       orderId: schema.appointments.orderId,
+      orderTotalCents: schema.orders.totalCents,
+      staffName: schema.staff.name,
       meta: schema.appointments.meta,
     })
     .from(schema.appointments)
     .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
     .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
+    .leftJoin(schema.orders, eq(schema.appointments.orderId, schema.orders.id))
+    .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
     .where(apptWhere)
     .orderBy(asc(schema.appointments.startsAt));
 
@@ -180,6 +185,7 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       clientName: schema.clients.name,
       clientAvatarUrl: schema.clients.avatarUrl,
       serviceName: schema.services.name,
+      servicePriceCents: schema.services.priceCents,
       startsAt: schema.appointments.startsAt,
       endsAt: schema.appointments.endsAt,
       status: schema.appointments.status,
@@ -187,11 +193,15 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
       orderId: schema.appointments.orderId,
+      orderTotalCents: schema.orders.totalCents,
+      staffName: schema.staff.name,
       meta: schema.appointments.meta,
     })
     .from(schema.appointments)
     .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
     .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
+    .leftJoin(schema.orders, eq(schema.appointments.orderId, schema.orders.id))
+    .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
     .where(
       and(
         eq(schema.appointments.id, id),
@@ -213,11 +223,13 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
 function mapAgendaAppointment(r: {
   id: string;
   staffId: string | null;
+  staffName?: string | null;
   clientId: string | null;
   clientName: string | null;
   clientAvatarUrl: string | null;
   serviceId: string | null;
   serviceName: string | null;
+  servicePriceCents?: number | null;
   startsAt: Date;
   endsAt: Date;
   status: string;
@@ -225,6 +237,7 @@ function mapAgendaAppointment(r: {
   notes: string | null;
   priceCents: number | null;
   orderId: string | null;
+  orderTotalCents?: number | null;
   meta: Record<string, unknown> | null;
 }): AgendaAppointment {
   const meta = (r.meta ?? {}) as Record<string, unknown>;
@@ -232,9 +245,18 @@ function mapAgendaAppointment(r: {
   const tags = Array.isArray(rawTags)
     ? rawTags.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
     : [];
+  const priceCents =
+    r.priceCents != null && r.priceCents > 0
+      ? r.priceCents
+      : r.orderTotalCents != null && r.orderTotalCents > 0
+        ? r.orderTotalCents
+        : r.servicePriceCents != null && r.servicePriceCents > 0
+          ? r.servicePriceCents
+          : r.priceCents;
   return {
     id: r.id,
     staffId: r.staffId,
+    staffName: r.staffName ?? null,
     clientId: r.clientId,
     clientName: r.clientName ?? (r.status === "blocked" ? "Bloqueio" : "Sem cliente"),
     clientAvatarUrl: r.clientAvatarUrl ?? null,
@@ -245,7 +267,7 @@ function mapAgendaAppointment(r: {
     status: r.status,
     isEncaixe: r.isEncaixe,
     notes: r.notes,
-    priceCents: r.priceCents,
+    priceCents,
     orderId: r.orderId,
     blockedByName: typeof meta.blockedByName === "string" ? meta.blockedByName : null,
     noPreference: meta.noPreference === true,

@@ -61,9 +61,9 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "comanda-reabrir",
     question: "Como reabro uma comanda fechada?",
     answer:
-      "Não dá para reabrir comanda já fechada/paga (isso bagunçaria caixa e comissão). Para acrescentar serviço depois: abra uma comanda NOVA pro mesmo cliente (Agenda no horário dele ou Comandas → Abertas), lance o serviço/produto e feche o pagamento de novo. A fechada fica só no Histórico.",
-    tags: ["comanda", "reabrir", "fechada", "adicionar", "serviço", "depois"],
-    menuPath: "Comandas → Abertas",
+      "Dono/admin: Comandas → Histórico → clique na comanda (ou use Reabrir). A comanda volta a aberta para corrigir/adicionar itens; os pagamentos já lançados permanecem. Ao fechar de novo, cobre só o saldo restante. Se remover itens e o total ficar abaixo do já pago, o sistema bloqueia — ajuste o pagamento manualmente antes. Barbeiro/recepção sem perfil dono não reabre.",
+    tags: ["comanda", "reabrir", "fechada", "adicionar", "serviço", "depois", "histórico"],
+    menuPath: "Comandas → Histórico",
   },
   {
     id: "consumo-barbeiro",

@@ -19,6 +19,7 @@ import {
   cancelOrderAction,
   closeOrderAction,
   payAndCloseOrderAction,
+  reopenOrderAction,
   removeOrderItemAction,
   setOrderDiscountAction,
 } from "@/app/(painel)/comandas/actions";
@@ -172,6 +173,16 @@ export function OrderDrawer({
                       : "Fechar comanda"}
                 </button>
               </>
+            ) : null}
+            {!isOpen && order.status === "closed" && permissions.canReopen ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={pending}
+                onClick={() => run(() => reopenOrderAction(order.id))}
+              >
+                Reabrir comanda
+              </button>
             ) : null}
           </>
         }
@@ -364,9 +375,11 @@ export function OrderDrawer({
             ) : null}
 
             <label className="form-field">
-              <span>Profissional</span>
-              <select name="staffId" defaultValue="">
-                <option value="">—</option>
+              <span>Profissional {itemType === "service" ? "*" : ""}</span>
+              <select name="staffId" defaultValue="" required={itemType === "service"}>
+                <option value="" disabled={itemType === "service"}>
+                  {itemType === "service" ? "Selecione…" : "—"}
+                </option>
                 {staff.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}

@@ -11,6 +11,7 @@ export {
   cancelOrder,
   closeOrder,
   openOrder,
+  reopenOrder,
   removeOrderItem,
   setOrderDiscount,
 } from "./mutations";

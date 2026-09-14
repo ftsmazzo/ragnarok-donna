@@ -1,11 +1,13 @@
-import { PageHeader } from "@/components/shell/PageHeader";
-import { Pagination } from "@/components/cadastro/Pagination";
-import { OrdersTable } from "@/components/comandas/OrdersTable";
-import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
-import { SummaryCards } from "@/components/relatorio/SummaryCards";
-import { formatMoney } from "@/lib/format";
+import { Suspense } from "react";
+import { HistoricoComandasView } from "@/components/comandas/HistoricoComandasView";
+import { NotFoundError } from "@/server/errors";
 import { requirePageAccess } from "@/server/permissions/page-access";
-import { listOrderHistory } from "@/server/orders";
+import {
+  getOrderDetail,
+  getOrderPermissions,
+  listCatalogForOrders,
+  listOrderHistory,
+} from "@/server/orders";
 import type { OrderStatus } from "@/server/orders/types";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +19,7 @@ type Props = {
     status?: string;
     q?: string;
     page?: string;
+    id?: string;
   }>;
 };
 
@@ -24,78 +27,38 @@ export default async function ComandasHistoricoPage({ searchParams }: Props) {
   const sp = await searchParams;
   await requirePageAccess("/comandas/historico", sp);
   const status = (sp.status as OrderStatus | "all") || "all";
-  const data = await listOrderHistory({
-    from: sp.from,
-    to: sp.to,
-    status,
-    q: sp.q,
-    page: Number(sp.page) || 1,
-  });
+  const [data, catalog, permissions] = await Promise.all([
+    listOrderHistory({
+      from: sp.from,
+      to: sp.to,
+      status,
+      q: sp.q,
+      page: Number(sp.page) || 1,
+    }),
+    listCatalogForOrders(),
+    getOrderPermissions(),
+  ]);
+
+  let selectedOrder = null;
+  if (sp.id) {
+    try {
+      selectedOrder = await getOrderDetail(sp.id);
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err;
+    }
+  }
 
   return (
-    <>
-      <PageHeader
-        title="Histórico de comandas"
-        subtitle={`${data.total.toLocaleString("pt-BR")} comanda(s) no período`}
+    <Suspense fallback={<p className="panel-empty">Carregando histórico…</p>}>
+      <HistoricoComandasView
+        data={data}
+        selectedOrder={selectedOrder}
+        services={catalog.services}
+        products={catalog.products}
+        packages={catalog.packages}
+        staff={catalog.staff}
+        permissions={permissions}
       />
-
-      <section className="panel">
-        <div className="panel-toolbar">
-          <RelatorioFilters
-            action="/comandas/historico"
-            from={data.from}
-            to={data.to}
-            q={data.q}
-            showSearch
-            qPlaceholder="Cliente ou código"
-          >
-            <label className="filter-field">
-              <span>Status</span>
-              <select name="status" defaultValue={data.status} className="search-input">
-                <option value="all">Todos</option>
-                <option value="open">Abertas</option>
-                <option value="closed">Fechadas</option>
-                <option value="cancelled">Canceladas</option>
-              </select>
-            </label>
-          </RelatorioFilters>
-        </div>
-
-        <div className="panel-body-flush">
-          <SummaryCards
-            cards={[
-              { label: "Comandas", value: data.total.toLocaleString("pt-BR") },
-              { label: "Valor total", value: formatMoney(data.totalCents) },
-            ]}
-          />
-          <OrdersTable
-            rows={data.rows.map((r) => ({
-              id: r.id,
-              externalId: r.externalId,
-              clientName: r.clientName,
-              openedAt: r.openedAt,
-              closedAt: r.closedAt,
-              totalCents: r.totalCents,
-              status: r.status,
-              itemCount: r.itemCount,
-              profissional: r.staffLabel,
-            }))}
-          />
-        </div>
-        <div className="panel-footer">
-          <Pagination
-            page={data.page}
-            totalPages={data.totalPages}
-            basePath="/comandas/historico"
-            params={{
-              from: data.from,
-              to: data.to,
-              status: data.status !== "all" ? data.status : undefined,
-              q: data.q || undefined,
-            }}
-          />
-        </div>
-      </section>
-    </>
+    </Suspense>
   );
 }

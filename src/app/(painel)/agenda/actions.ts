@@ -8,8 +8,10 @@ import {
   scheduleAppointment,
   scheduleEncaixe,
   setAppointmentEncaixe,
+  updateAppointment,
   updateAppointmentStatus,
 } from "@/server/agenda/mutations";
+import type { AppointmentEditScope } from "@/server/agenda/types";
 import { searchClientsForAgenda } from "@/server/agenda/queries";
 import { payAndCloseOrder } from "@/server/orders/mutations";
 
@@ -81,6 +83,32 @@ export async function patchAppointmentMetaAction(
 export async function setAppointmentEncaixeAction(id: string, isEncaixe: boolean, date: string) {
   const result = await setAppointmentEncaixe(id, isEncaixe);
   if (result.ok) revalidateAgenda(date);
+  return result;
+}
+
+export async function updateAppointmentAction(formData: FormData) {
+  const scope = String(formData.get("scope") ?? "all") as AppointmentEditScope;
+  const date = String(formData.get("date") ?? "");
+  const serviceRaw = String(formData.get("serviceId") ?? "");
+  const result = await updateAppointment({
+    id: String(formData.get("id") ?? ""),
+    scope,
+    date: date || undefined,
+    hour: formData.get("hour") != null && formData.get("hour") !== ""
+      ? Number(formData.get("hour"))
+      : undefined,
+    minute: formData.get("minute") != null && formData.get("minute") !== ""
+      ? Number(formData.get("minute"))
+      : undefined,
+    durationMin: formData.get("durationMin") != null && formData.get("durationMin") !== ""
+      ? Number(formData.get("durationMin"))
+      : undefined,
+    staffId: String(formData.get("staffId") ?? "") || undefined,
+    serviceId: serviceRaw === "" ? null : serviceRaw,
+    notes: formData.get("notes") != null ? String(formData.get("notes")) : undefined,
+  });
+  if (result.ok && date) revalidateAgenda(date);
+  else if (result.ok) revalidatePath("/agenda");
   return result;
 }
 

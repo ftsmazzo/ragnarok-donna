@@ -12,6 +12,7 @@ export {
   scheduleAppointment,
   scheduleEncaixe,
   setAppointmentEncaixe,
+  updateAppointment,
   updateAppointmentStatus,
 } from "./mutations";
 export { groupAppointmentsByStaffHour, isAgendaSlotBusy, parseAgendaSlotLabel } from "./utils";
@@ -22,4 +23,5 @@ export type {
   AgendaPickerClient,
   AgendaPickerService,
   AgendaStaff,
+  AppointmentEditScope,
 } from "./types";

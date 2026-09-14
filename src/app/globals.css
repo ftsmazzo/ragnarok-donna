@@ -1015,6 +1015,7 @@ input {
 .agenda-cell {
   position: relative;
   min-height: 40px;
+  overflow: visible;
 }
 
 .agenda-cell.is-covered {
@@ -1026,6 +1027,10 @@ input {
     rgba(0, 0, 0, 0.03) 8px
   );
   cursor: default;
+}
+
+.agenda-cell .slot {
+  pointer-events: auto;
 }
 
 .agenda-now-line {

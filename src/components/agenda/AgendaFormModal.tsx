@@ -35,33 +35,44 @@ const MODE_TITLE: Record<AgendaFormMode, string> = {
   encaixe: "Encaixe",
 };
 
+const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
+const DURATIONS = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 105, 120, 150, 180];
+
 export function AgendaFormModal({ open, mode, slot, staff, services, onClose, onSaved }: Props) {
   const [error, setError] = useState("");
   const [clientId, setClientId] = useState("");
   const [hour, setHour] = useState(slot.hour);
   const [minute, setMinute] = useState(slot.minute ?? 0);
+  const [durationMin, setDurationMin] = useState(30);
   const [pending, startTransition] = useTransition();
 
   const title = MODE_TITLE[mode];
   const needsClient = mode !== "block";
-  const hourEditable = mode === "encaixe";
-  const timeLabel = `${String(slot.hour).padStart(2, "0")}:${String(slot.minute ?? 0).padStart(2, "0")}`;
+  const timeEditable = true;
 
   useEffect(() => {
     if (!open) return;
     setHour(slot.hour);
     setMinute(slot.minute ?? 0);
+    setDurationMin(mode === "block" ? 60 : 30);
     setClientId("");
     setError("");
   }, [open, slot.hour, slot.minute, slot.staffId, slot.date, mode]);
+
+  function handleServiceChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const id = e.target.value;
+    const svc = services.find((s) => s.id === id);
+    if (svc) setDurationMin(svc.durationMin);
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     const formData = new FormData(e.currentTarget);
     formData.set("date", slot.date);
-    formData.set("hour", String(hourEditable ? hour : slot.hour));
-    formData.set("minute", String(hourEditable ? minute : (slot.minute ?? 0)));
+    formData.set("hour", String(hour));
+    formData.set("minute", String(minute));
+    formData.set("durationMin", String(durationMin));
     if (!formData.get("staffId")) formData.set("staffId", slot.staffId);
     if (needsClient && clientId) formData.set("clientId", clientId);
 
@@ -122,7 +133,7 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
 
         <label className="form-field">
           <span>Horário *</span>
-          {hourEditable ? (
+          {timeEditable ? (
             <div className="form-row-2">
               <select
                 name="hour"
@@ -142,25 +153,33 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
                 onChange={(e) => setMinute(Number(e.target.value))}
                 required
               >
-                <option value={0}>00</option>
-                <option value={30}>30</option>
+                {MINUTES.map((m) => (
+                  <option key={m} value={m}>
+                    {String(m).padStart(2, "0")}
+                  </option>
+                ))}
               </select>
             </div>
-          ) : (
-            <>
-              <input name="hourDisplay" type="text" readOnly value={timeLabel} />
-              <input type="hidden" name="hour" value={slot.hour} />
-              <input type="hidden" name="minute" value={slot.minute ?? 0} />
-            </>
-          )}
+          ) : null}
         </label>
 
-        {mode === "block" ? (
-          <label className="form-field">
-            <span>Duração (min)</span>
-            <input name="durationMin" type="number" min={15} max={240} step={15} defaultValue={60} />
-          </label>
-        ) : (
+        <label className="form-field">
+          <span>Duração (min) *</span>
+          <select
+            name="durationMin"
+            value={durationMin}
+            onChange={(e) => setDurationMin(Number(e.target.value))}
+            required
+          >
+            {DURATIONS.map((d) => (
+              <option key={d} value={d}>
+                {d} min
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {mode === "block" ? null : (
           <>
             <ClientPicker
               value={clientId}
@@ -171,8 +190,8 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
 
             <label className="form-field">
               <span>Serviço</span>
-              <select name="serviceId" defaultValue="">
-                <option value="">Padrão (30 min)</option>
+              <select name="serviceId" defaultValue="" onChange={handleServiceChange}>
+                <option value="">Padrão (duração acima)</option>
                 {services.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} · {s.durationMin} min

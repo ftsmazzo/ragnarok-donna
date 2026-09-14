@@ -7,6 +7,7 @@ export type AgendaStaff = {
 export type AgendaAppointment = {
   id: string;
   staffId: string | null;
+  staffName: string | null;
   clientId: string | null;
   clientName: string;
   clientAvatarUrl: string | null;
@@ -57,3 +58,14 @@ export type AgendaPermissions = {
   canOpenOrder: boolean;
   scopedStaffId: string | null;
 };
+
+/** Escopo de edição granular (Tipo AppBarber). */
+export type AppointmentEditScope =
+  | "time"
+  | "service"
+  | "staff"
+  | "duration"
+  | "time_service"
+  | "time_staff"
+  | "service_staff"
+  | "all";

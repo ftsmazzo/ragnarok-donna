@@ -6,7 +6,7 @@ import { ForbiddenError, NotFoundError } from "../errors";
 import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
-import { isBarberRole } from "../permissions/roles";
+import { isBarberRole, isOwnerRole } from "../permissions/roles";
 import { resolveSessionStaffId } from "../permissions/staff-scope";
 import type {
   CatalogPackage,
@@ -24,6 +24,7 @@ export async function getOrderPermissions(): Promise<OrderPermissions> {
   return {
     canWrite: hasCapability(session.role, "orders.write"),
     canCancel: hasCapability(session.role, "orders.write"),
+    canReopen: isOwnerRole(session.role) && hasCapability(session.role, "orders.write"),
   };
 }
 
@@ -98,11 +99,26 @@ function orderListSelect() {
       where ${schema.payments.orderId} = ${schema.orders.id}
     )`.as("paid_cents"),
     staffLabel: sql<string | null>`(
-      select ${schema.staff.name} from ${schema.orderItems}
-      left join ${schema.staff} on ${schema.staff.id} = ${schema.orderItems.staffId}
-      where ${schema.orderItems.orderId} = ${schema.orders.id}
-      order by ${schema.orderItems.createdAt} asc
-      limit 1
+      coalesce(
+        (
+          select ${schema.staff.name}
+          from ${schema.orderItems}
+          inner join ${schema.staff} on ${schema.staff.id} = ${schema.orderItems.staffId}
+          where ${schema.orderItems.orderId} = ${schema.orders.id}
+            and ${schema.orderItems.staffId} is not null
+          order by ${schema.orderItems.createdAt} asc
+          limit 1
+        ),
+        (
+          select ${schema.staff.name}
+          from ${schema.appointments}
+          inner join ${schema.staff} on ${schema.staff.id} = ${schema.appointments.staffId}
+          where ${schema.appointments.id} = ${schema.orders.appointmentId}
+            and ${schema.appointments.staffId} is not null
+          limit 1
+        ),
+        ${schema.orders.meta}->>'profissional'
+      )
     )`.as("staff_label"),
   };
 }

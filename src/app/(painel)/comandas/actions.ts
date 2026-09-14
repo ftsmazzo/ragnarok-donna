@@ -8,6 +8,7 @@ import {
   closeOrder,
   openOrder,
   payAndCloseOrder,
+  reopenOrder,
   removeOrderItem,
   setOrderDiscount,
 } from "@/server/orders/mutations";
@@ -92,6 +93,12 @@ export async function setOrderDiscountAction(orderId: string, discountReais: num
 
 export async function closeOrderAction(orderId: string) {
   const result = await closeOrder(orderId);
+  if (result.ok) revalidateOrders(orderId);
+  return result;
+}
+
+export async function reopenOrderAction(orderId: string) {
+  const result = await reopenOrder(orderId);
   if (result.ok) revalidateOrders(orderId);
   return result;
 }

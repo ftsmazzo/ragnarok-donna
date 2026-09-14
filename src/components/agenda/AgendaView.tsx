@@ -5,6 +5,7 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { AgendaDetailModal } from "@/components/agenda/AgendaDetailModal";
+import { AgendaEditModal } from "@/components/agenda/AgendaEditModal";
 import { AgendaFormModal, type AgendaFormMode } from "@/components/agenda/AgendaFormModal";
 import {
   AgendaContextMenu,
@@ -63,6 +64,27 @@ function slotClass(a: AgendaAppointment): string {
   if (a.status === "arrived" || a.status === "in_progress") return "slot active";
   if (a.isEncaixe) return "slot encaixe";
   return "slot";
+}
+
+/** Altura/topo do card na grade de 30 min (célula ~40px). */
+function slotSpanStyle(a: AgendaAppointment): React.CSSProperties {
+  const durationMin = Math.max(
+    5,
+    Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000)
+  );
+  const offsetMin = minuteInSp(a.startsAt) % 30;
+  const span = durationMin / 30;
+  return {
+    position: "absolute",
+    left: 2,
+    right: 2,
+    top: `calc(${(offsetMin / 30) * 100}% + 1px)`,
+    height: `calc(${span * 100}% - 2px)`,
+    zIndex: 2,
+    marginBottom: 0,
+    boxSizing: "border-box",
+    overflow: "hidden",
+  };
 }
 
 function parseSlotLabel(hourLabel: string): { hour: number; minute: number } {
@@ -129,6 +151,7 @@ export function AgendaView({
     minute?: number;
   } | null>(null);
   const [detail, setDetail] = useState<AgendaAppointment | null>(null);
+  const [editAppt, setEditAppt] = useState<AgendaAppointment | null>(null);
   const [ctx, setCtx] = useState<AgendaCtxTarget | null>(null);
   const isToday = data.date === todaySp();
   const now = useAgendaNow(isToday);
@@ -357,11 +380,12 @@ export function AgendaView({
                           <div
                             key={a.id}
                             className={slotClass(a)}
-                            style={
-                              s.color && a.status !== "blocked"
+                            style={{
+                              ...slotSpanStyle(a),
+                              ...(s.color && a.status !== "blocked"
                                 ? { background: s.color }
-                                : undefined
-                            }
+                                : {}),
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
                               setDetail(a);
@@ -496,6 +520,24 @@ export function AgendaView({
           onSaved={refresh}
           onOpenComanda={openComanda}
           onVenda={openVenda}
+          onEdit={(a) => {
+            setDetail(null);
+            setEditAppt(a);
+          }}
+        />
+      ) : null}
+
+      {editAppt ? (
+        <AgendaEditModal
+          open
+          appointment={editAppt}
+          staff={data.staff}
+          services={services}
+          onClose={() => setEditAppt(null)}
+          onSaved={() => {
+            setEditAppt(null);
+            refresh();
+          }}
         />
       ) : null}
 
