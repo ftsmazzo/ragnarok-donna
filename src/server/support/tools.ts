@@ -1,4 +1,5 @@
 import type { ChatToolDef } from "@/server/agent/llm";
+import { supportHumanChannelConfigured } from "./channel";
 import { getFeatureHint, searchHelp } from "./knowledge";
 
 export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
@@ -6,7 +7,8 @@ export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
     type: "function",
     function: {
       name: "search_help",
-      description: "Busca no FAQ do produto respostas sobre como operar o app.",
+      description:
+        "Busca no FAQ do produto respostas sobre como operar o app. Use SEMPRE antes de admitir que não sabe ou de escalar.",
       parameters: {
         type: "object",
         properties: {
@@ -24,7 +26,10 @@ export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          feature: { type: "string", description: "Nome da tela/função (ex.: comanda, consumo)" },
+          feature: {
+            type: "string",
+            description: "Nome da tela/função (ex.: comanda, consumo)",
+          },
         },
         required: ["feature"],
       },
@@ -34,7 +39,8 @@ export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
     type: "function",
     function: {
       name: "escalate_human",
-      description: "Pede atendimento humano da Fábrica IA. Use quando a pessoa pedir ou quando você não souber.",
+      description:
+        "Pede humano. Só se a pessoa pedir ou bug real sem resposta no FAQ. Se o canal estiver offline, a tool avisa — continue respondendo.",
       parameters: {
         type: "object",
         properties: {
@@ -91,12 +97,26 @@ export function executeSupportTool(
   }
 
   if (name === "escalate_human") {
-    const reason = String(args.reason ?? "Pedido de humano").trim() || "Pedido de humano";
+    const reason =
+      String(args.reason ?? "Pedido de humano").trim() || "Pedido de humano";
+    if (!supportHumanChannelConfigured()) {
+      return {
+        ok: true,
+        escalate: false,
+        data: {
+          reason,
+          queued: false,
+          channelOnline: false,
+          instruction:
+            "Canal humano offline. NÃO diga que chamou a Fábrica. Responda com search_help / o que souber. Sem fila.",
+        },
+      };
+    }
     return {
       ok: true,
       escalate: true,
       escalateReason: reason,
-      data: { reason, queued: true },
+      data: { reason, queued: true, channelOnline: true },
     };
   }
 

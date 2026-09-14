@@ -4,6 +4,10 @@ import type { ChatMessage } from "@/server/agent/llm";
 import { chatCompletionWithFallback } from "@/server/agent/llm";
 import { AppError, isAppError } from "../errors";
 import { roleLabel } from "../permissions/roles";
+import {
+  supportHumanChannelConfigured,
+  supportHumanContactHint,
+} from "./channel";
 import { assertCanUseSupport, getOrCreateSupportThread } from "./queries";
 import { buildSupportSystemPrompt } from "./prompt";
 import { executeSupportTool, SUPPORT_TOOL_DEFS } from "./tools";
@@ -29,7 +33,7 @@ async function notifyHandoff(input: {
   console.info("[support] handoff", payload);
 
   const webhook = process.env.SUPPORT_HANDOFF_WEBHOOK_URL?.trim();
-  if (!webhook) return;
+  if (!webhook) return false;
 
   try {
     await fetch(webhook, {
@@ -38,12 +42,22 @@ async function notifyHandoff(input: {
       body: JSON.stringify(payload),
       cache: "no-store",
     });
+    return true;
   } catch (err) {
     console.warn(
       "[support] webhook handoff falhou",
       err instanceof Error ? err.message : err
     );
+    return false;
   }
+}
+
+function offlineHumanReply(): string {
+  const contact = supportHumanContactHint();
+  if (contact) {
+    return `Agora não tem atendente humano neste chat. Continuo te ajudando por aqui. Se for urgente com a Fábrica: ${contact}.`;
+  }
+  return "Agora não tem atendente humano neste chat — não tem pra onde notificar. Continuo te ajudando por aqui com o que o sistema faz.";
 }
 
 async function markHuman(input: {
@@ -53,7 +67,25 @@ async function markHuman(input: {
   tenantName: string;
   userName: string;
   userEmail?: string | null;
-}) {
+}): Promise<{ queued: boolean }> {
+  const channelOnline = supportHumanChannelConfigured();
+  if (!channelOnline) {
+    return { queued: false };
+  }
+
+  const notified = await notifyHandoff({
+    tenantId: input.tenantId,
+    tenantName: input.tenantName,
+    userName: input.userName,
+    userEmail: input.userEmail,
+    threadId: input.threadId,
+    reason: input.reason,
+  });
+
+  if (!notified) {
+    return { queued: false };
+  }
+
   const db = createDb();
   const now = new Date();
   await db
@@ -75,18 +107,38 @@ async function markHuman(input: {
     tenantId: input.tenantId,
     threadId: input.threadId,
     role: "system",
-    body: `Pedido de atendimento humano: ${input.reason}. A equipe da Fábrica vai ver quando estiver online.`,
+    body: `Pedido de atendimento humano: ${input.reason}. A equipe da Fábrica foi notificada.`,
     meta: { kind: "escalate" },
   });
 
-  await notifyHandoff({
-    tenantId: input.tenantId,
-    tenantName: input.tenantName,
-    userName: input.userName,
-    userEmail: input.userEmail,
-    threadId: input.threadId,
-    reason: input.reason,
-  });
+  return { queued: true };
+}
+
+/** Threads antigas presas em "human" sem canal: volta pra IA. */
+async function releaseStaleHumanQueue(input: {
+  tenantId: string;
+  threadId: string;
+  status: string;
+}) {
+  if (input.status !== "human") return false;
+  if (supportHumanChannelConfigured()) return false;
+
+  const db = createDb();
+  const now = new Date();
+  await db
+    .update(schema.supportThreads)
+    .set({
+      status: "ai",
+      updatedAt: now,
+      meta: { autoReleasedFromHuman: now.toISOString(), reason: "no_human_channel" },
+    })
+    .where(
+      and(
+        eq(schema.supportThreads.id, input.threadId),
+        eq(schema.supportThreads.tenantId, input.tenantId)
+      )
+    );
+  return true;
 }
 
 function parseToolArgs(raw: string): Record<string, unknown> {
@@ -106,7 +158,7 @@ function offlineReply(userText: string): string {
     const path = top.menuPath ? ` Fica em ${top.menuPath}.` : "";
     return `${top.answer}${path}`;
   }
-  return "Não consegui consultar a IA agora. Tenta de novo em instantes ou usa Falar com humano se for urgente.";
+  return "Não consegui consultar a IA agora. Tenta de novo em instantes.";
 }
 
 export async function sendSupportMessage(input: {
@@ -139,7 +191,14 @@ export async function sendSupportMessage(input: {
         )
       );
 
-    if (thread.status === "human") {
+    const released = await releaseStaleHumanQueue({
+      tenantId: tenant.id,
+      threadId: thread.id,
+      status: thread.status,
+    });
+    const humanActive = thread.status === "human" && !released && supportHumanChannelConfigured();
+
+    if (humanActive) {
       const reply =
         "Sua conversa já está na fila humana. Pode continuar escrevendo — a equipe responde por aqui quando puder.";
       await db.insert(schema.supportMessages).values({
@@ -156,7 +215,7 @@ export async function sendSupportMessage(input: {
       text
     );
     if (wantsHuman) {
-      await markHuman({
+      const { queued } = await markHuman({
         tenantId: tenant.id,
         threadId: thread.id,
         reason: text.slice(0, 200),
@@ -164,16 +223,22 @@ export async function sendSupportMessage(input: {
         userName: session.user.name,
         userEmail: session.user.email,
       });
-      const reply =
-        "Beleza — passei pra fila humana. Quando a Fábrica estiver online, alguém entra nessa conversa.";
+      const reply = queued
+        ? "Beleza — passei pra fila humana. Quando a Fábrica estiver online, alguém entra nessa conversa."
+        : offlineHumanReply();
       await db.insert(schema.supportMessages).values({
         tenantId: tenant.id,
         threadId: thread.id,
         role: "assistant",
         body: reply,
-        meta: { kind: "escalate_ack" },
+        meta: { kind: queued ? "escalate_ack" : "escalate_offline" },
       });
-      return { ok: true, threadId: thread.id, reply, status: "human" };
+      return {
+        ok: true,
+        threadId: thread.id,
+        reply,
+        status: queued ? "human" : "ai",
+      };
     }
 
     const history: ChatMessage[] = [
@@ -183,6 +248,7 @@ export async function sendSupportMessage(input: {
           userName: session.user.name,
           roleLabel: roleLabel(session.role),
           tenantName: tenant.name,
+          humanChannelOnline: supportHumanChannelConfigured(),
         }),
       },
       ...thread.messages
@@ -238,8 +304,9 @@ export async function sendSupportMessage(input: {
       break;
     }
 
+    let queued = false;
     if (escalateReason) {
-      await markHuman({
+      const marked = await markHuman({
         tenantId: tenant.id,
         threadId: thread.id,
         reason: escalateReason,
@@ -247,20 +314,30 @@ export async function sendSupportMessage(input: {
         userName: session.user.name,
         userEmail: session.user.email,
       });
+      queued = marked.queued;
+      if (!queued && !finalText) {
+        // IA pediu humano sem canal e não deixou texto — responde com FAQ se houver
+        finalText = offlineReply(text);
+        if (finalText.startsWith("Não consegui")) {
+          finalText = offlineHumanReply();
+        }
+      }
     }
 
     const reply =
       finalText ||
-      (escalateReason
+      (queued
         ? "Passei pra fila humana. Quando alguém da Fábrica estiver online, responde por aqui."
-        : offlineReply(text));
+        : escalateReason
+          ? offlineHumanReply()
+          : offlineReply(text));
 
     await db.insert(schema.supportMessages).values({
       tenantId: tenant.id,
       threadId: thread.id,
       role: "assistant",
       body: reply,
-      meta: escalateReason ? { escalated: true } : {},
+      meta: escalateReason ? { escalated: queued, escalateAttempt: true } : {},
     });
 
     await db
@@ -277,7 +354,7 @@ export async function sendSupportMessage(input: {
       ok: true,
       threadId: thread.id,
       reply,
-      status: escalateReason ? "human" : "ai",
+      status: queued ? "human" : "ai",
     };
   } catch (err) {
     if (isAppError(err)) return { ok: false, error: err.message };
@@ -294,8 +371,9 @@ export async function escalateSupportHuman(input?: {
     const thread = await getOrCreateSupportThread();
     const reason = (input?.reason || "Pedido pelo botão Falar com humano").slice(0, 240);
 
+    let queued = false;
     if (thread.status !== "human") {
-      await markHuman({
+      const marked = await markHuman({
         tenantId: tenant.id,
         threadId: thread.id,
         reason,
@@ -303,20 +381,29 @@ export async function escalateSupportHuman(input?: {
         userName: session.user.name,
         userEmail: session.user.email,
       });
+      queued = marked.queued;
+    } else {
+      queued = supportHumanChannelConfigured();
     }
 
-    const reply =
-      "Ok — fila humana. Pode deixar o detalhe do problema aqui; alguém da Fábrica responde quando estiver online.";
+    const reply = queued
+      ? "Ok — fila humana. Pode deixar o detalhe do problema aqui; alguém da Fábrica responde quando estiver online."
+      : offlineHumanReply();
     const db = createDb();
     await db.insert(schema.supportMessages).values({
       tenantId: tenant.id,
       threadId: thread.id,
       role: "assistant",
       body: reply,
-      meta: { kind: "escalate_button" },
+      meta: { kind: queued ? "escalate_button" : "escalate_offline" },
     });
 
-    return { ok: true, threadId: thread.id, reply, status: "human" };
+    return {
+      ok: true,
+      threadId: thread.id,
+      reply,
+      status: queued ? "human" : "ai",
+    };
   } catch (err) {
     if (isAppError(err)) return { ok: false, error: err.message };
     const msg = err instanceof Error ? err.message : "Erro no handoff";

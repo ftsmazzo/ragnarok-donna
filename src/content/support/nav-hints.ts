@@ -47,9 +47,10 @@ export const FEATURE_HINTS: FeatureHint[] = [
   },
   {
     id: "comandas",
-    aliases: ["comanda", "comandas", "fechar", "pagar"],
+    aliases: ["comanda", "comandas", "fechar", "pagar", "reabrir", "fechada"],
     title: "Comandas",
     where: "Comandas → Abertas (histórico em Comandas → Histórico)",
+    tip: "Comanda fechada não reabre — abra outra pro mesmo cliente.",
   },
   {
     id: "consumo",

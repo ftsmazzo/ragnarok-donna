@@ -58,6 +58,14 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     menuPath: "Comandas → Abertas",
   },
   {
+    id: "comanda-reabrir",
+    question: "Como reabro uma comanda fechada?",
+    answer:
+      "Não dá para reabrir comanda já fechada/paga (isso bagunçaria caixa e comissão). Para acrescentar serviço depois: abra uma comanda NOVA pro mesmo cliente (Agenda no horário dele ou Comandas → Abertas), lance o serviço/produto e feche o pagamento de novo. A fechada fica só no Histórico.",
+    tags: ["comanda", "reabrir", "fechada", "adicionar", "serviço", "depois"],
+    menuPath: "Comandas → Abertas",
+  },
+  {
     id: "consumo-barbeiro",
     question: "Como o barbeiro lança consumo (coca, trufa)?",
     answer:

@@ -172,7 +172,7 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
 
           {status === "human" ? (
             <div className="support-chat-banner">
-              Pedido humano ativo.
+              Pedido humano ativo — alguém da Fábrica foi notificado.
               <button type="button" onClick={returnAi} disabled={pending}>
                 Voltar pra IA
               </button>
