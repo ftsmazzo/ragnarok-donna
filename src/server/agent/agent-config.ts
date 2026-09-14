@@ -5,8 +5,10 @@ import { requireTenantContext } from "@/server/context/tenant";
 import {
   compilePersonaToSystemPrompt,
   mergePersona,
+  normalizeReplyLength,
   type AgentPersona,
   type PersonaPatch,
+  type ReplyLength,
 } from "./persona";
 import { ensureDefaultAgentProfile } from "./persona-profile";
 
@@ -27,6 +29,7 @@ export type AgentConfigView = {
   historiaMarcaEpisodios: string;
   perguntaRespostaUsar: boolean;
   perguntaRespostaExemplo: string;
+  replyLength: ReplyLength;
   handoffNotifyPhone: string;
   handoffNotifyPhoneE164: string | null;
   whatsappConnected: boolean;
@@ -128,6 +131,7 @@ export async function getAgentConfig(): Promise<AgentConfigView> {
     historiaMarcaEpisodios: joinLines(p?.historia_marca?.episodios),
     perguntaRespostaUsar: Boolean(p?.padroes_de_frase?.pergunta_resposta?.usar),
     perguntaRespostaExemplo: p?.padroes_de_frase?.pergunta_resposta?.exemplo?.trim() || "",
+    replyLength: normalizeReplyLength(p?.comprimento_resposta),
     handoffNotifyPhone: handoffRaw,
     handoffNotifyPhoneE164: phoneE164,
     whatsappConnected: (wa?.status ?? "") === "connected",
@@ -151,6 +155,7 @@ export type SaveAgentConfigInput = {
   historiaMarcaEpisodios: string;
   perguntaRespostaUsar: boolean;
   perguntaRespostaExemplo: string;
+  replyLength: ReplyLength;
   handoffNotifyPhone: string;
 };
 
@@ -205,6 +210,7 @@ export async function saveAgentConfig(
     persona: {
       essencia: input.essencia.trim().slice(0, 280) || base.persona.essencia,
       tom: { tracos: splitCommas(input.tomTraits, 12) },
+      comprimento_resposta: normalizeReplyLength(input.replyLength),
       regra_de_ouro: input.regraDeOuro.trim().slice(0, 200) || base.persona.regra_de_ouro,
       tema_emocional_central:
         input.temaEmocional.trim().slice(0, 280) || base.persona.tema_emocional_central,

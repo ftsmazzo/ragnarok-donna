@@ -6,4 +6,7 @@ export {
   isPersonaEmpty,
   compilePersonaToSystemPrompt,
   pickGreeting,
+  normalizeReplyLength,
+  replyLengthInstruction,
 } from "./compile";
+export type { ReplyLength } from "./compile";

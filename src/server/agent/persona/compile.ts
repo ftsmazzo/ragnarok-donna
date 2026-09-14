@@ -1,6 +1,36 @@
 import type { AgentPersona, PersonaPatch } from "./types";
 import { PERSONA_QA_CHECKLIST } from "./types";
 
+export type ReplyLength = "curta" | "normal" | "detalhada";
+
+export function normalizeReplyLength(raw: unknown): ReplyLength {
+  if (raw === "curta" || raw === "normal" || raw === "detalhada") return raw;
+  return "curta";
+}
+
+export function replyLengthInstruction(length: ReplyLength): string {
+  switch (length) {
+    case "curta":
+      return [
+        "COMPRIMENTO OBRIGATÓRIO: CURTA.",
+        "No máximo 2 frases curtas por mensagem (ideal: 1–2).",
+        "Uma pergunta por vez. Sem listas longas, sem menu de 3 caminhos, sem enrolação.",
+        "Se precisar listar horários: no máximo 3, em uma linha cada.",
+      ].join(" ");
+    case "detalhada":
+      return [
+        "COMPRIMENTO: DETALHADA.",
+        "Pode explicar com mais cuidado (até ~6 frases) quando o cliente pedir detalhes.",
+        "Ainda assim estilo WhatsApp — sem markdown e sem monólogo.",
+      ].join(" ");
+    default:
+      return [
+        "COMPRIMENTO: NORMAL.",
+        "Mensagens de 1–4 frases, humanas e objetivas. Sem markdown.",
+      ].join(" ");
+  }
+}
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -54,7 +84,9 @@ export function compilePersonaToSystemPrompt(
     "NATURALIDADE (importante): estes pontos são orientação de tom — não é roteiro fixo.",
     "Varie a forma de falar a cada mensagem. Não repita a mesma frase, expressão ou abertura em respostas seguidas.",
     "Use histórias da marca e padrões de fala só quando couber; nunca force todas as características numa única resposta.",
-    "Soar humano > soar completo. Respostas curtas e diretas quando o cliente só precisa de uma informação.",
+    "Soar humano > soar completo.",
+    "",
+    replyLengthInstruction(normalizeReplyLength(p.comprimento_resposta)),
     "",
     "Padrões de fala (use com naturalidade, sem forçar):",
     ...(p.padroes_de_frase.repeticao.usar && p.padroes_de_frase.repeticao.exemplo
@@ -73,7 +105,7 @@ export function compilePersonaToSystemPrompt(
     "Use apenas as tools disponíveis. Agendamentos → agenda; consumo → comanda.",
     "Se pedirem humano, use handoff_human.",
     "Se o cliente já fez um serviço antes, ofereça repetir de forma natural antes de listar o cardápio inteiro.",
-    "Mensagens curtas, estilo WhatsApp — sem markdown.",
+    "Sem markdown.",
   ];
 
   if (persona.cliente.agente_representa === "recepção") {

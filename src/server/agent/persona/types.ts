@@ -14,6 +14,8 @@ export type AgentPersona = {
   persona: {
     essencia: string;
     tom: { tracos: string[] };
+    /** Comprimento das respostas no WhatsApp. */
+    comprimento_resposta?: "curta" | "normal" | "detalhada";
     historia_marca: { usar: boolean; episodios: string[] };
     vocabulario: {
       termos_tecnicos: string[];

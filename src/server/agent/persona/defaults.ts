@@ -66,6 +66,7 @@ export function createDefaultPersona(input: {
     persona: {
       essencia: input.essencia ?? "acolhimento",
       tom: { tracos: [...DEFAULT_TRAITS] },
+      comprimento_resposta: "curta",
       historia_marca: { usar: false, episodios: [] },
       vocabulario: {
         termos_tecnicos: [...DEFAULT_TERMOS_TECNICOS],

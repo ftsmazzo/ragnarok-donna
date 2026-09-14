@@ -12,8 +12,20 @@ import {
   readBusinessProfileFromSettings,
 } from "./business-profile";
 import { ensureBusinessProfileIfMissing } from "./ensure-business-profile";
-import { chatCompletionWithFallback, getFallbackModel, getLlmConfig, getPrimaryModel, type ChatMessage } from "./llm";
-import { compilePersonaToSystemPrompt, type AgentPersona } from "./persona";
+import {
+  chatCompletionWithFallback,
+  getFallbackModel,
+  getLlmConfig,
+  getPrimaryModel,
+  type ChatMessage,
+} from "./llm";
+import {
+  compilePersonaToSystemPrompt,
+  normalizeReplyLength,
+  replyLengthInstruction,
+  type AgentPersona,
+  type ReplyLength,
+} from "./persona";
 import {
   buildToolsForSkills,
   compileSkillsBlock,
@@ -30,7 +42,12 @@ function readPersona(raw: unknown): AgentPersona | null {
   return raw as AgentPersona;
 }
 
-function runtimeRules(businessName: string, displayName: string, phoneE164: string) {
+function runtimeRules(
+  businessName: string,
+  displayName: string,
+  phoneE164: string,
+  replyLength: ReplyLength
+) {
   return `
 Você é ${displayName}, recepção da ${businessName}, no WhatsApp.
 Timezone: America/Sao_Paulo. Telefone desta conversa: ${phoneE164}.
@@ -45,7 +62,7 @@ REGRAS:
 5. Para "última vez que fiz X": find_client com serviceQuery e use lastServiceMatch.label (tem data). recentServices também vem com dateBr/label — não diga que não tem data se a tool trouxe.
 6. Produtos à venda (balm, pomada, etc.): list_products com query — responda nome + priceLabel. Não diga que não tem acesso se a tool retornar itens.
 7. find_client.nextAppointment = mais próximo; lastAppointment = passado. Não use lastAppointment como se fosse o próximo.
-8. Mensagens curtas (1–4 frases), humanas, calorosas. Sem markdown.
+8. ${replyLengthInstruction(replyLength)}
 9. Áudio transcrito chega como texto — responda ao que o cliente disse, sem avisar que "não ouve áudio".
 10. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
 11. Nunca invente horário, produto, preço ou dia da semana. Nunca diga que é IA/bot.
@@ -243,7 +260,12 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       (persona ? compilePersonaToSystemPrompt(persona, displayName) : `Você é ${displayName}.`),
     businessFacts,
     compileSkillsBlock(skillNames),
-    runtimeRules(businessName, displayName, input.phoneE164),
+    runtimeRules(
+      businessName,
+      displayName,
+      input.phoneE164,
+      normalizeReplyLength(persona?.persona?.comprimento_resposta)
+    ),
   ]
     .filter(Boolean)
     .join("\n\n");

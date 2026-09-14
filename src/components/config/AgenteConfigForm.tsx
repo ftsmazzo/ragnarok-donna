@@ -40,6 +40,10 @@ export function AgenteConfigForm({ initial }: Props) {
         perguntaRespostaUsar,
         perguntaRespostaExemplo: String(fd.get("perguntaRespostaExemplo") ?? ""),
         handoffNotifyPhone: String(fd.get("handoffNotifyPhone") ?? ""),
+        replyLength: String(fd.get("replyLength") ?? "curta") as
+          | "curta"
+          | "normal"
+          | "detalhada",
       });
       if (result.ok) {
         setMsg("Configuração salva neste tenant.");
@@ -104,6 +108,21 @@ export function AgenteConfigForm({ initial }: Props) {
         icon="🎙️"
         accent="blue"
       >
+        <label className="filter-field">
+          <span>Tamanho das respostas</span>
+          <select
+            name="replyLength"
+            className="search-input"
+            defaultValue={initial.replyLength || "curta"}
+          >
+            <option value="curta">Curta — 1 a 2 frases (recomendado no Zap)</option>
+            <option value="normal">Normal — até 4 frases</option>
+            <option value="detalhada">Detalhada — explica mais quando precisar</option>
+          </select>
+          <span className="muted-note" style={{ display: "block", marginTop: 6 }}>
+            Vale de verdade nas respostas do WhatsApp. Curta evita enrolação e menus longos.
+          </span>
+        </label>
         <label className="filter-field">
           <span>Essência da voz</span>
           <input
