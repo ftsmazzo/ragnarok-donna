@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Drawer } from "@/components/ui/Drawer";
 import { ClientDrawer } from "@/components/clients/ClientDrawer";
 import { formatDateTimeSp, formatTimeSp } from "@/lib/datetime";
+import { formatPhone } from "@/lib/format";
 import type { ConversationDetail } from "@/server/agent/conversations";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
 import {
@@ -88,11 +89,14 @@ export function ConversationDrawer({ open, conversation, onClose }: Props) {
   const conversationId = conversation.id;
   const clientId = conversation.clientId;
   const human = conversation.mode === "human";
-  const title = conversation.clientName ?? conversation.phoneE164;
+  const phoneLabel = formatPhone(conversation.phoneE164);
+  const title = phoneLabel;
   const subtitle = [
-    conversation.phoneE164,
+    conversation.clientName ? conversation.clientName : null,
     human ? "Modo humano" : `Modo IA${conversation.agentName ? ` · ${conversation.agentName}` : ""}`,
-  ].join(" · ");
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError(null);

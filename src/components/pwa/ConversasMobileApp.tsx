@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDateTimeSp, formatTimeSp } from "@/lib/datetime";
+import { formatPhone } from "@/lib/format";
 import type { ConversationDetail, ConversationListItem } from "@/server/agent/conversations";
 import {
   returnToAiAction,
@@ -160,7 +161,7 @@ export function ConversasMobileApp({
 
   if (inChat && selected) {
     const human = selected.mode === "human";
-    const title = selected.clientName ?? selected.phoneE164;
+    const title = formatPhone(selected.phoneE164);
     const awaiting =
       human && Boolean(handoffIso(selected.humanRequestedAt)) && !selected.humanTakenAt;
 
@@ -174,7 +175,8 @@ export function ConversasMobileApp({
           <div className="mchat-head-text">
             <strong>{title}</strong>
             <small>
-              {selected.phoneE164} · {awaiting ? "Aguardando você" : human ? "Humano" : "IA"}
+              {selected.clientName ? `${selected.clientName} · ` : ""}
+              {awaiting ? "Aguardando você" : human ? "Humano" : "IA"}
             </small>
           </div>
           {human ? (
@@ -291,14 +293,17 @@ export function ConversasMobileApp({
                   onClick={() => openChat(r.id)}
                 >
                   <span className="minbox-item-top">
-                    <strong>{r.clientName ?? r.phoneE164}</strong>
+                    <strong>{formatPhone(r.phoneE164)}</strong>
                     <span
                       className={`badge${urgent ? " is-warn" : r.mode === "human" ? " is-muted" : " is-muted"}`}
                     >
                       {urgent ? "Pediu humano" : r.mode === "human" ? "Humano" : "IA"}
                     </span>
                   </span>
-                  <span className="minbox-item-preview">{r.preview ?? "—"}</span>
+                  <span className="minbox-item-preview">
+                    {r.clientName ? `${r.clientName} · ` : ""}
+                    {r.preview ?? "—"}
+                  </span>
                   <span className="minbox-item-time">
                     {r.lastMessageAt ? formatDateTimeSp(new Date(r.lastMessageAt)) : "—"}
                   </span>

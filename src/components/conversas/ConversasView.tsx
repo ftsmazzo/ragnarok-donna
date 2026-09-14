@@ -8,6 +8,7 @@ import { FilterTabs } from "@/components/cadastro/FilterTabs";
 import { WhatsAppConnectPanel } from "@/components/conversas/WhatsAppConnectPanel";
 import { ConversationDrawer } from "@/components/conversas/ConversationDrawer";
 import { formatDateTimeSp } from "@/lib/datetime";
+import { formatPhone } from "@/lib/format";
 import type { WhatsAppConnectionView } from "@/server/agent/connection";
 import type {
   ConversationDetail,
@@ -218,7 +219,7 @@ export function ConversasView({
                     className={selected?.id === c.id ? "is-selected" : undefined}
                     onClick={() => openConversation(c.id)}
                   >
-                    <td className="cell-strong">{c.phoneE164}</td>
+                    <td className="cell-strong">{formatPhone(c.phoneE164)}</td>
                     <td>{c.clientName ?? "—"}</td>
                     <td>
                       <span className={`badge${c.mode === "human" ? " is-warn" : " is-muted"}`}>

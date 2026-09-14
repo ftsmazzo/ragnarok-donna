@@ -20,13 +20,19 @@ export function formatDuration(min: number | null | undefined): string {
 
 export function formatPhone(phone: string | null | undefined): string {
   if (!phone) return "—";
-  const d = phone.replace(/\D/g, "");
+  let d = phone.replace(/\D/g, "");
+  // E.164 BR: 55 + DDD + número
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) {
+    d = d.slice(2);
+  }
   if (d.length === 11) {
     return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   }
   if (d.length === 10) {
     return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   }
+  // Evita exibir UUID / código técnico no lugar do telefone
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(phone.trim())) return "—";
   return phone;
 }
 

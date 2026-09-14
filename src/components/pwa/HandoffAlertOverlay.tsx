@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatPhone } from "@/lib/format";
 import { dismissHandoff, handoffItemKey, type HandoffPulseItem } from "@/lib/pwa-handoff";
 
 type Props = {
@@ -24,7 +25,7 @@ export function HandoffAlertOverlay({ alert, onDismiss }: Props) {
     <div className="handoff-overlay" role="alert" aria-live="assertive">
       <div className="handoff-overlay-inner">
         <strong>Cliente pediu humano</strong>
-        <p>{alert.phoneE164}</p>
+        <p>{formatPhone(alert.phoneE164)}</p>
         <div className="handoff-overlay-actions">
           <Link href={href} className="btn btn-primary btn-sm" onClick={dismiss}>
             Abrir conversa
