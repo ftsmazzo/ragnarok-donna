@@ -9,18 +9,37 @@ import {
   takeHandoff,
 } from "@/server/agent/mutations";
 import { syncInboxFromEvolution } from "@/server/agent/sync-inbox";
-
-export {
-  startWhatsAppPairingAction,
-  refreshWhatsAppPairingAction,
-  linkWhatsAppInstanceAction,
-  updateWhatsAppProfilePictureAction,
-  updateWhatsAppProfileNameAction,
+import {
+  linkWhatsAppInstanceAction as linkWa,
+  refreshWhatsAppPairingAction as refreshWa,
+  startWhatsAppPairingAction as startWa,
+  updateWhatsAppProfileNameAction as updateWaName,
+  updateWhatsAppProfilePictureAction as updateWaPic,
 } from "@/app/(painel)/configuracoes/agente/whatsapp-actions";
 
 function revalidateConversas(id?: string) {
   revalidatePath("/conversas");
   if (id) revalidatePath(`/conversas?id=${id}`);
+}
+
+export async function startWhatsAppPairingAction() {
+  return startWa();
+}
+
+export async function refreshWhatsAppPairingAction() {
+  return refreshWa();
+}
+
+export async function linkWhatsAppInstanceAction(instanceName: string) {
+  return linkWa(instanceName);
+}
+
+export async function updateWhatsAppProfilePictureAction(picture: string) {
+  return updateWaPic(picture);
+}
+
+export async function updateWhatsAppProfileNameAction(name: string) {
+  return updateWaName(name);
 }
 
 export async function syncInboxFromEvolutionAction() {
