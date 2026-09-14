@@ -926,6 +926,8 @@ export async function executeTool(
         const staffId = String(args.staffId ?? "");
         const date = String(args.date ?? "");
         const hour = Number(args.hour);
+        const minuteRaw = args.minute != null ? Number(args.minute) : 0;
+        const minute = minuteRaw === 30 ? 30 : 0;
         const durationMin = Number(args.durationMin ?? 30);
         if (!clientId || !staffId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(hour)) {
           result = { ok: false, error: "clientId, staffId, date e hour obrigatórios" };
@@ -938,6 +940,7 @@ export async function executeTool(
           serviceId: args.serviceId ? String(args.serviceId) : null,
           date,
           hour,
+          minute,
           durationMin: Number.isFinite(durationMin) ? durationMin : 30,
           priceCents: typeof args.priceCents === "number" ? args.priceCents : null,
           notes: args.notes ? String(args.notes) : undefined,
@@ -950,6 +953,7 @@ export async function executeTool(
                 startsAt: booked.startsAt.toISOString(),
                 endsAt: booked.endsAt.toISOString(),
                 hour,
+                minute,
                 ...describeDate(date),
                 confirmationHint: `Confirme com o cliente usando label (weekday real), não invente o dia.`,
               },

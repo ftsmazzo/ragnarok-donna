@@ -1,4 +1,4 @@
-import { hourInSp } from "./datetime";
+import { hourInSp, minuteInSp } from "./datetime";
 
 export type AgendaAppointment = {
   id: string;
@@ -15,16 +15,20 @@ export type AgendaAppointment = {
   priceCents?: number | null;
 };
 
-/** Agrupa slots por profissional e hora (grade da agenda). */
+/** Agrupa slots por profissional e slot de 30 min (grade da agenda). */
 export function groupAppointmentsByStaffHour(
   appointments: AgendaAppointment[],
   staffId: string,
   hourLabel: string
 ): AgendaAppointment[] {
-  const hour = Number(hourLabel.slice(0, 2));
+  const [hRaw, mRaw] = hourLabel.split(":");
+  const hour = Number(hRaw);
+  const minute = Number(mRaw ?? 0) === 30 ? 30 : 0;
   return appointments.filter((a) => {
     if (a.staffId !== staffId) return false;
     if (a.status === "cancelled") return false;
-    return hourInSp(a.startsAt) === hour;
+    if (hourInSp(a.startsAt) !== hour) return false;
+    const bucket = minuteInSp(a.startsAt) >= 30 ? 30 : 0;
+    return bucket === minute;
   });
 }

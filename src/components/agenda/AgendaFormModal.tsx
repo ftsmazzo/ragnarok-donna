@@ -39,17 +39,18 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
   const [error, setError] = useState("");
   const [clientId, setClientId] = useState("");
   const [hour, setHour] = useState(slot.hour);
+  const [minute, setMinute] = useState(slot.minute ?? 0);
   const [pending, startTransition] = useTransition();
 
   const title = MODE_TITLE[mode];
   const needsClient = mode !== "block";
   const hourEditable = mode === "encaixe";
-  const minute = slot.minute ?? 0;
-  const timeLabel = `${String(slot.hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  const timeLabel = `${String(slot.hour).padStart(2, "0")}:${String(slot.minute ?? 0).padStart(2, "0")}`;
 
   useEffect(() => {
     if (!open) return;
     setHour(slot.hour);
+    setMinute(slot.minute ?? 0);
     setClientId("");
     setError("");
   }, [open, slot.hour, slot.minute, slot.staffId, slot.date, mode]);
@@ -60,7 +61,7 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
     const formData = new FormData(e.currentTarget);
     formData.set("date", slot.date);
     formData.set("hour", String(hourEditable ? hour : slot.hour));
-    formData.set("minute", String(hourEditable ? 0 : minute));
+    formData.set("minute", String(hourEditable ? minute : (slot.minute ?? 0)));
     if (!formData.get("staffId")) formData.set("staffId", slot.staffId);
     if (needsClient && clientId) formData.set("clientId", clientId);
 
@@ -122,28 +123,37 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
         <label className="form-field">
           <span>Horário *</span>
           {hourEditable ? (
-            <select
-              name="hour"
-              value={hour}
-              onChange={(e) => setHour(Number(e.target.value))}
-              required
-            >
-              {Array.from({ length: 15 }, (_, i) => i + 8).map((h) => (
-                <option key={h} value={h}>
-                  {String(h).padStart(2, "0")}:00
-                </option>
-              ))}
-            </select>
+            <div className="form-row-2">
+              <select
+                name="hour"
+                value={hour}
+                onChange={(e) => setHour(Number(e.target.value))}
+                required
+              >
+                {Array.from({ length: 15 }, (_, i) => i + 8).map((h) => (
+                  <option key={h} value={h}>
+                    {String(h).padStart(2, "0")}h
+                  </option>
+                ))}
+              </select>
+              <select
+                name="minute"
+                value={minute}
+                onChange={(e) => setMinute(Number(e.target.value))}
+                required
+              >
+                <option value={0}>00</option>
+                <option value={30}>30</option>
+              </select>
+            </div>
           ) : (
             <>
               <input name="hourDisplay" type="text" readOnly value={timeLabel} />
               <input type="hidden" name="hour" value={slot.hour} />
-              <input type="hidden" name="minute" value={minute} />
+              <input type="hidden" name="minute" value={slot.minute ?? 0} />
             </>
           )}
         </label>
-
-        {hourEditable ? <input type="hidden" name="minute" value={0} /> : null}
 
         {mode === "block" ? (
           <label className="form-field">

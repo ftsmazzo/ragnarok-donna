@@ -1009,12 +1009,23 @@ input {
   text-align: right;
   font-variant-numeric: tabular-nums;
   position: relative;
-  min-height: 56px;
+  min-height: 40px;
 }
 
 .agenda-cell {
   position: relative;
-  min-height: 56px;
+  min-height: 40px;
+}
+
+.agenda-cell.is-covered {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    rgba(0, 0, 0, 0.03) 4px,
+    rgba(0, 0, 0, 0.03) 8px
+  );
+  cursor: default;
 }
 
 .agenda-now-line {
@@ -3961,7 +3972,7 @@ input {
 }
 
 .agenda-layout.is-tablet .agenda-cell {
-  min-height: 64px;
+  min-height: 48px;
 }
 
 .agenda-layout.is-tablet .slot {

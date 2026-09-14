@@ -195,6 +195,10 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
           serviceId: { type: "string" },
           date: { type: "string" },
           hour: { type: "number" },
+          minute: {
+            type: "number",
+            description: "0 ou 30 (padrão 0). Use o minuto do label de list_slots.",
+          },
           durationMin: { type: "number" },
           priceCents: { type: "number" },
         },

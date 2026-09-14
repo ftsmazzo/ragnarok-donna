@@ -33,6 +33,7 @@ import {
   formatDateLabelSp,
   formatTimeSp,
   hourInSp,
+  minuteInSp,
   shiftDateSp,
   shortPersonName,
   todaySp,
@@ -64,16 +65,43 @@ function slotClass(a: AgendaAppointment): string {
   return "slot";
 }
 
-function slotsForHour(
+function parseSlotLabel(hourLabel: string): { hour: number; minute: number } {
+  const [hRaw, mRaw] = hourLabel.split(":");
+  const hour = Number(hRaw);
+  const minute = Number(mRaw ?? 0) === 30 ? 30 : 0;
+  return { hour, minute };
+}
+
+function slotsForLabel(
   appointments: AgendaAppointment[],
   staffId: string,
   hourLabel: string
 ): AgendaAppointment[] {
-  const hour = Number(hourLabel.slice(0, 2));
+  const { hour, minute } = parseSlotLabel(hourLabel);
   return appointments.filter((a) => {
     if (a.staffId !== staffId) return false;
     if (a.status === "cancelled") return false;
-    return hourInSp(a.startsAt) === hour;
+    if (hourInSp(a.startsAt) !== hour) return false;
+    const bucket = minuteInSp(a.startsAt) >= 30 ? 30 : 0;
+    return bucket === minute;
+  });
+}
+
+function slotBusy(
+  appointments: AgendaAppointment[],
+  staffId: string,
+  date: string,
+  hour: number,
+  minute: number
+): boolean {
+  const start = new Date(
+    `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00-03:00`
+  );
+  const end = new Date(start.getTime() + 30 * 60_000);
+  return appointments.some((a) => {
+    if (a.staffId !== staffId) return false;
+    if (a.status === "cancelled" || a.status === "no_show") return false;
+    return a.startsAt < end && a.endsAt > start;
   });
 }
 
@@ -104,11 +132,14 @@ export function AgendaView({
   const [ctx, setCtx] = useState<AgendaCtxTarget | null>(null);
   const isToday = data.date === todaySp();
   const now = useAgendaNow(isToday);
+  const nowSlotLabel = now
+    ? `${String(now.hour).padStart(2, "0")}:${now.minute >= 30 ? "30" : "00"}`
+    : null;
   const nowHourLabel =
-    now && data.hours.includes(`${String(now.hour).padStart(2, "0")}:00`)
-      ? `${String(now.hour).padStart(2, "0")}:00`
-      : null;
-  const nowPct = now ? Math.min(95, Math.max(2, (now.minute / 60) * 100)) : 0;
+    nowSlotLabel && data.hours.includes(nowSlotLabel) ? nowSlotLabel : null;
+  const nowPct = now
+    ? Math.min(95, Math.max(2, ((now.minute % 30) / 30) * 100))
+    : 0;
   const nowLabel = now
     ? `${String(now.hour).padStart(2, "0")}:${String(now.minute).padStart(2, "0")}`
     : "";
@@ -154,15 +185,15 @@ export function AgendaView({
   function openEncaixe() {
     const first = data.staff[0];
     if (!first) return;
-    const gridHours = data.hours
-      .map((h) => Number(h.slice(0, 2)))
-      .filter((n) => Number.isFinite(n));
-    let hour = gridHours[0] ?? 9;
-    if (data.date === todaySp() && gridHours.length) {
-      const nowH = hourInSp(new Date());
-      hour = gridHours.find((h) => h >= nowH) ?? gridHours[gridHours.length - 1]!;
+    const gridSlots = data.hours.map(parseSlotLabel).filter((s) => Number.isFinite(s.hour));
+    let pick = gridSlots[0] ?? { hour: 9, minute: 0 };
+    if (data.date === todaySp() && gridSlots.length && now) {
+      const nowMin = now.hour * 60 + now.minute;
+      pick =
+        gridSlots.find((s) => s.hour * 60 + s.minute >= nowMin) ??
+        gridSlots[gridSlots.length - 1]!;
     }
-    openSlot(first.id, hour, "encaixe");
+    openSlot(first.id, pick.hour, "encaixe", pick.minute);
   }
 
   async function openVenda(a: AgendaAppointment) {
@@ -273,35 +304,44 @@ export function AgendaView({
                     ) : null}
                   </div>
                   {data.staff.map((s) => {
-                    const hourNum = Number(hour.slice(0, 2));
-                    const slots = slotsForHour(data.appointments, s.id, hour);
-                    const hasSlot = slots.length > 0;
+                    const { hour: hourNum, minute } = parseSlotLabel(hour);
+                    const slots = slotsForLabel(data.appointments, s.id, hour);
+                    const busy = slotBusy(
+                      data.appointments,
+                      s.id,
+                      data.date,
+                      hourNum,
+                      minute
+                    );
                     const showNow = nowHourLabel === hour;
 
                     return (
                       <div
                         key={`${s.id}-${hour}`}
-                        className={`agenda-cell${permissions.canWrite ? " is-clickable" : ""}${showNow ? " is-now" : ""}`}
+                        className={`agenda-cell${permissions.canWrite ? " is-clickable" : ""}${showNow ? " is-now" : ""}${busy && slots.length === 0 ? " is-covered" : ""}`}
                         onClick={() => {
                           if (!permissions.canWrite) return;
-                          if (!hasSlot) openSlot(s.id, hourNum, "schedule");
+                          if (!busy) openSlot(s.id, hourNum, "schedule", minute);
                         }}
                         onContextMenu={(e) => {
                           if (!permissions.canWrite) return;
                           e.preventDefault();
-                          if (hasSlot) return;
+                          if (busy) return;
                           setCtx({
                             kind: "cell",
                             staffId: s.id,
                             hour: hourNum,
+                            minute,
                             x: e.clientX,
                             y: e.clientY,
                           });
                         }}
                         title={
                           permissions.canWrite
-                            ? hasSlot
-                              ? "Botão direito no horário: ações rápidas"
+                            ? busy
+                              ? slots.length
+                                ? "Botão direito no horário: ações rápidas"
+                                : "Horário ocupado por atendimento em andamento"
                               : "Clique: agendar · Botão direito: menu"
                             : undefined
                         }
@@ -466,7 +506,9 @@ export function AgendaView({
         onClose={() => setCtx(null)}
         onSaved={refresh}
         onOpenComanda={openComanda}
-        onOpenForm={(mode, staffId, hour) => openSlot(staffId, hour, mode)}
+        onOpenForm={(mode, staffId, hour, minute) =>
+          openSlot(staffId, hour, mode, minute ?? 0)
+        }
         onOpenDetail={(appt) => setDetail(appt)}
         onVenda={openVenda}
       />

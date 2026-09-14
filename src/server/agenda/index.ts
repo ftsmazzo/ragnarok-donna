@@ -14,7 +14,7 @@ export {
   setAppointmentEncaixe,
   updateAppointmentStatus,
 } from "./mutations";
-export { groupAppointmentsByStaffHour } from "./utils";
+export { groupAppointmentsByStaffHour, isAgendaSlotBusy, parseAgendaSlotLabel } from "./utils";
 export type {
   AgendaAppointment,
   AgendaDayData,

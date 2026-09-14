@@ -10,6 +10,7 @@ const ACTIVE = ["scheduled", "confirmed", "arrived", "in_progress", "blocked"] a
 export type FreeSlot = {
   date: string;
   hour: number;
+  minute: number;
   label: string;
   staffId: string;
   staffName: string;
@@ -145,17 +146,21 @@ export async function listFreeSlotsForTenant(input: {
         : [{ startMin: 9 * 60, endMin: 19 * 60 }];
 
     for (const win of windows) {
-      const fromH = Math.max(periodStart, Math.ceil(win.startMin / 60));
-      const toH = Math.min(periodEnd, Math.floor((win.endMin - input.durationMin) / 60));
-      for (let hour = fromH; hour <= toH; hour += 1) {
+      const fromMin = Math.max(periodStart * 60, win.startMin);
+      const toMin = Math.min(periodEnd * 60, win.endMin - input.durationMin);
+      for (let startMin = fromMin; startMin <= toMin; startMin += 30) {
+        const hour = Math.floor(startMin / 60);
+        const minute = startMin % 60;
         if (hour < 8 || hour > 20) continue;
-        const hm = `${String(hour).padStart(2, "0")}:00`;
+        if (minute !== 0 && minute !== 30) continue;
+        const hm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
         // Fase 4: não oferecer slots no almoço (12h–14h)
         if (isLunchTimeHm(hm)) continue;
         const { start: slotStart, end: slotEnd } = slotRangeSp(
           input.date,
           hour,
-          input.durationMin
+          input.durationMin,
+          minute
         );
         // Hoje: não oferece horário que já passou (próximo livre real).
         if (input.date === todaySp() && slotStart.getTime() < Date.now() - 30_000) {
@@ -170,7 +175,8 @@ export async function listFreeSlotsForTenant(input: {
         slots.push({
           date: input.date,
           hour,
-          label: `${String(hour).padStart(2, "0")}:00`,
+          minute,
+          label: hm,
           staffId: st.id,
           staffName: st.name,
           startsAt: slotStart.toISOString(),
@@ -182,11 +188,16 @@ export async function listFreeSlotsForTenant(input: {
 
   // Diversifica: até `limit` slots, preferindo horários distintos
   const picked: FreeSlot[] = [];
-  const usedHours = new Set<number>();
-  for (const s of slots.sort((a, b) => a.hour - b.hour || a.staffName.localeCompare(b.staffName))) {
-    if (usedHours.has(s.hour) && picked.length >= Math.min(3, limit)) continue;
+  const usedStarts = new Set<number>();
+  for (const s of slots.sort(
+    (a, b) =>
+      a.hour * 60 + a.minute - (b.hour * 60 + b.minute) ||
+      a.staffName.localeCompare(b.staffName)
+  )) {
+    const key = s.hour * 60 + s.minute;
+    if (usedStarts.has(key) && picked.length >= Math.min(3, limit)) continue;
     picked.push(s);
-    usedHours.add(s.hour);
+    usedStarts.add(key);
     if (picked.length >= limit) break;
   }
   return picked;
@@ -199,12 +210,14 @@ export async function bookAppointmentForAgent(input: {
   serviceId?: string | null;
   date: string;
   hour: number;
+  minute?: number;
   durationMin: number;
   priceCents?: number | null;
   notes?: string;
 }): Promise<{ ok: true; id: string; startsAt: Date; endsAt: Date } | { ok: false; error: string }> {
   const db = createDb();
-  const { start, end } = slotRangeSp(input.date, input.hour, input.durationMin);
+  const minute = input.minute === 30 ? 30 : 0;
+  const { start, end } = slotRangeSp(input.date, input.hour, input.durationMin, minute);
 
   const [staff] = await db
     .select({ id: schema.staff.id })

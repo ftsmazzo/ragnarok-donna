@@ -37,7 +37,7 @@ export function AgendaAside({
 }: Props) {
   const [panel, setPanel] = useState<Panel>(null);
 
-  const freeSlots = useMemo(() => freeSlotsForDay(data, { stepMin: 60 }), [data]);
+  const freeSlots = useMemo(() => freeSlotsForDay(data, { stepMin: 30 }), [data]);
   const dayAppointments = useMemo(
     () =>
       [...data.appointments]

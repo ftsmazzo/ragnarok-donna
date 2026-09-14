@@ -22,6 +22,7 @@ export type AgendaCtxTarget =
       kind: "cell";
       staffId: string;
       hour: number;
+      minute?: number;
       x: number;
       y: number;
     };
@@ -33,7 +34,12 @@ type Props = {
   onClose: () => void;
   onSaved: () => void;
   onOpenComanda: (orderId: string) => void;
-  onOpenForm: (mode: "schedule" | "block" | "encaixe", staffId: string, hour: number) => void;
+  onOpenForm: (
+    mode: "schedule" | "block" | "encaixe",
+    staffId: string,
+    hour: number,
+    minute?: number
+  ) => void;
   onOpenDetail: (a: AgendaAppointment) => void;
   onVenda: (a: AgendaAppointment) => void;
 };
@@ -131,7 +137,7 @@ export function AgendaContextMenu({
           className="agenda-ctx-item"
           disabled={!permissions.canWrite || pending}
           onClick={() => {
-            onOpenForm("schedule", target.staffId, target.hour);
+            onOpenForm("schedule", target.staffId, target.hour, target.minute ?? 0);
             onClose();
           }}
         >
@@ -145,7 +151,7 @@ export function AgendaContextMenu({
           className="agenda-ctx-item"
           disabled={!permissions.canWrite || pending}
           onClick={() => {
-            onOpenForm("encaixe", target.staffId, target.hour);
+            onOpenForm("encaixe", target.staffId, target.hour, target.minute ?? 0);
             onClose();
           }}
         >
@@ -159,7 +165,7 @@ export function AgendaContextMenu({
           className="agenda-ctx-item"
           disabled={!permissions.canWrite || pending}
           onClick={() => {
-            onOpenForm("block", target.staffId, target.hour);
+            onOpenForm("block", target.staffId, target.hour, target.minute ?? 0);
             onClose();
           }}
         >
