@@ -48,18 +48,37 @@ export async function suggestBookingAlternatives(input: {
   const hour = input.preferredHour;
   const staffId = input.preferredStaffId || null;
 
-  const daySlots = await listFreeSlotsForTenant({
-    tenantId: input.tenantId,
-    date: input.date,
-    durationMin,
-    limit: 24,
-  });
+  const daySlots = staffId
+    ? await listFreeSlotsForTenant({
+        tenantId: input.tenantId,
+        date: input.date,
+        durationMin,
+        limit: 24,
+        staffId,
+      })
+    : await listFreeSlotsForTenant({
+        tenantId: input.tenantId,
+        date: input.date,
+        durationMin,
+        limit: 24,
+      });
+
+  // Outros barbeiros no mesmo horário: precisa de slots do dia inteiro
+  const allDaySlots =
+    staffId && hour != null
+      ? await listFreeSlotsForTenant({
+          tenantId: input.tenantId,
+          date: input.date,
+          durationMin,
+          limit: 24,
+        })
+      : daySlots;
 
   const sameDayOtherStaff: BookingAlternative[] = [];
   const sameDayOtherHours: BookingAlternative[] = [];
 
   if (hour != null) {
-    for (const s of daySlots) {
+    for (const s of allDaySlots) {
       if (s.hour !== hour) continue;
       if (staffId && s.staffId === staffId) continue;
       sameDayOtherStaff.push(
@@ -93,6 +112,7 @@ export async function suggestBookingAlternatives(input: {
         date: nextDate,
         durationMin,
         limit: 20,
+        staffId: staffId || undefined,
       });
       const match = staffId
         ? slots.find((s) => s.staffId === staffId && s.hour === hour)

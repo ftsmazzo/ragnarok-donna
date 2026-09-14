@@ -74,6 +74,8 @@ export async function listFreeSlotsForTenant(input: {
   durationMin: number;
   period?: "manha" | "tarde" | null;
   limit?: number;
+  /** Se informado, só esse profissional — evita falso "agenda cheia" por diversificação. */
+  staffId?: string | null;
 }): Promise<FreeSlot[]> {
   const db = createDb();
   const { start, end } = dayBoundsSp(input.date);
@@ -90,7 +92,8 @@ export async function listFreeSlotsForTenant(input: {
         eq(schema.staff.tenantId, input.tenantId),
         eq(schema.staff.isActive, true),
         eq(schema.staff.isBookable, true),
-        isNull(schema.staff.deletedAt)
+        isNull(schema.staff.deletedAt),
+        input.staffId ? eq(schema.staff.id, input.staffId) : undefined
       )
     )
     .orderBy(asc(schema.staff.name));
@@ -108,7 +111,8 @@ export async function listFreeSlotsForTenant(input: {
       and(
         eq(schema.staffSchedules.tenantId, input.tenantId),
         eq(schema.staffSchedules.weekday, weekday),
-        eq(schema.staffSchedules.isActive, true)
+        eq(schema.staffSchedules.isActive, true),
+        input.staffId ? eq(schema.staffSchedules.staffId, input.staffId) : undefined
       )
     );
 
@@ -125,7 +129,8 @@ export async function listFreeSlotsForTenant(input: {
         gte(schema.appointments.startsAt, start),
         lte(schema.appointments.startsAt, end),
         isNull(schema.appointments.deletedAt),
-        inArray(schema.appointments.status, [...ACTIVE])
+        inArray(schema.appointments.status, [...ACTIVE]),
+        input.staffId ? eq(schema.appointments.staffId, input.staffId) : undefined
       )
     );
 
@@ -134,6 +139,7 @@ export async function listFreeSlotsForTenant(input: {
 
   const slots: FreeSlot[] = [];
   const limit = input.limit ?? 6;
+  const singleStaff = Boolean(input.staffId);
 
   for (const st of staffRows) {
     const staffSched = schedules.filter((s) => s.staffId === st.id);
@@ -181,12 +187,21 @@ export async function listFreeSlotsForTenant(input: {
           staffName: st.name,
           startsAt: slotStart.toISOString(),
         });
-        if (slots.length >= limit * 3) break;
+        if (singleStaff && slots.length >= limit) break;
+        if (!singleStaff && slots.length >= limit * 3) break;
       }
+      if (singleStaff && slots.length >= limit) break;
     }
+    if (singleStaff && slots.length >= limit) break;
   }
 
-  // Diversifica: até `limit` slots, preferindo horários distintos
+  if (singleStaff) {
+    return slots
+      .sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute))
+      .slice(0, limit);
+  }
+
+  // Diversifica entre profissionais: até `limit` slots, preferindo horários distintos
   const picked: FreeSlot[] = [];
   const usedStarts = new Set<number>();
   for (const s of slots.sort(

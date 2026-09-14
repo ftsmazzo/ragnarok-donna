@@ -831,17 +831,30 @@ export async function executeTool(
           durationMin: Number.isFinite(durationMin) ? durationMin : 30,
           period,
           limit: Number(args.limit ?? 8),
+          staffId: staffIdFilter,
         });
-        const allDaySlots = slots;
-        if (staffIdFilter) {
-          slots = slots.filter((s) => s.staffId === staffIdFilter);
-        }
+        // Slots de outros barbeiros no mesmo horário (só se pediu hora e tem staff fixo)
+        const allDaySlots =
+          preferredHour != null && staffIdFilter
+            ? await listFreeSlotsForTenant({
+                tenantId: ctx.tenantId,
+                date,
+                durationMin: Number.isFinite(durationMin) ? durationMin : 30,
+                period: null,
+                limit: 12,
+              })
+            : slots;
         const preferredHourOccupied =
           preferredHour != null &&
           !slots.some((s) => s.hour === preferredHour || s.hour === preferredHour % 24);
         const staffDayFull = Boolean(staffIdFilter) && slots.length === 0;
 
-        const needsAlternatives = preferredHourOccupied || staffDayFull;
+        // Cliente fixou barbeiro e ele TEM horários: nunca diga "cheio" nem abra menu 1/2/3.
+        // Alternativas só se o dia dele realmente está vazio OU pediu hora específica ocupada
+        // sem ter outros slots dele (aí sugere outros horários DELE, não menu genérico).
+        const staffHasOtherSlots =
+          Boolean(staffIdFilter) && slots.length > 0 && preferredHourOccupied;
+        const needsAlternatives = staffDayFull || (preferredHourOccupied && !staffHasOtherSlots);
         const alts = needsAlternatives
           ? await suggestBookingAlternatives({
               tenantId: ctx.tenantId,
@@ -878,7 +891,13 @@ export async function executeTool(
                 : [],
             alternatives: alts?.alternatives ?? [],
             instruction:
-              "Ao falar a data com o cliente, use dateLabel (weekday real). Nunca diga outro dia da semana.",
+              "Ao falar a data com o cliente, use dateLabel (weekday real). Nunca diga outro dia da semana. Se slots.length>0, liste 2–3 horários e ofereça agendar — NÃO diga que está cheio.",
+            ...(staffHasOtherSlots
+              ? {
+                  flowInstruction:
+                    "A hora pedida desse profissional está ocupada, MAS ele tem outros horários livres em `slots`. Liste 2–3 desses horários DELE e pergunte qual fecha. NÃO diga que a agenda dele está cheia. NÃO abra menu 'outro barbeiro / outro dia' ainda.",
+                }
+              : {}),
             ...(resolvedMeta?.mismatchWeekday
               ? {
                   mismatchWeekday: true,
@@ -889,10 +908,16 @@ export async function executeTool(
               ? {
                   waitlistOffer: false,
                   offerWaitlistOnlyAfterAlternatives: true,
-                  flowInstruction:
-                    "OBRIGATÓRIO nesta ordem: (1) diga que o horário/profissional pedido não está livre; (2) ofereça 2–3 itens de `alternatives` (outro barbeiro no mesmo horário, outro horário no mesmo dia, outro dia no mesmo horário); (3) NÃO ofereça lista de espera ainda — só se o cliente recusar as alternativas. Quando aceitar espera, chame add_to_waitlist (sem handoff_human).",
+                  flowInstruction: staffDayFull
+                    ? "Esse profissional realmente não tem horário livre nesse período/data (`staffDayFull`). Ofereça 2–3 itens de `alternatives` de forma curta (outro horário dele noutro dia, ou outro barbeiro no mesmo período). Sem insistir em menu longo. Lista de espera só se o cliente recusar."
+                    : "OBRIGATÓRIO nesta ordem: (1) diga que o horário pedido não está livre; (2) ofereça 2–3 itens curtos de `alternatives`; (3) NÃO ofereça lista de espera ainda — só se o cliente recusar. Quando aceitar espera, chame add_to_waitlist (sem handoff_human).",
                 }
-              : {}),
+              : !needsAlternatives && !staffHasOtherSlots && slots.length > 0
+                ? {
+                    flowInstruction:
+                      "Há horários livres em `slots`. Seja direto: liste 2–3 próximos (com o nome do barbeiro se houver) e pergunte qual fecha para agendar. NÃO pergunte de novo o serviço se já souber. NÃO invente menu de alternativas.",
+                  }
+                : {}),
           },
         };
         break;

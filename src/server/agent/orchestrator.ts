@@ -50,11 +50,13 @@ REGRAS:
 10. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
 11. Nunca invente horário, produto, preço ou dia da semana. Nunca diga que é IA/bot.
 12. Resposta final = só o texto do WhatsApp.
-13. HORÁRIO OCUPADO: (1) ofereça 2–3 alternativas; (2) se o cliente recusar as alternativas, OFEREÇA a lista de espera ANTES de se despedir; (3) se recusar também a espera OU insistir em profissional/horário que você não resolve → handoff_human (secretaria).
+13. HORÁRIO OCUPADO (só se a tool disser staffDayFull ou preferredHourOccupied SEM slots do barbeiro): ofereça 2–3 alternativas curtas; se recusar, ofereça lista de espera; se recusar a espera → handoff_human. Se slots.length>0, NUNCA diga que está cheio — liste os horários.
+13b. BARBEIRO FIXADO pelo cliente: list_slots com o nome dele e mostre 2–3 próximos livres. Sem menu "outro barbeiro / outro dia" nessa hora. Sem insistir em escolha de caminho.
 14. LISTA DE ESPERA: quando o cliente aceitar esperar, chame add_to_waitlist com o telefone da conversa. NUNCA use handoff_human por falha ou sucesso da espera — a Donna resolve sozinha. Se a tool falhar, peça desculpa e tente de novo (ou confirme telefone), sem chamar a equipe.
 15. DATAS: para "próxima segunda", "amanhã", "quarta que vem", "1/9" etc. chame resolve_date (ou list_slots com datePhrase). Fale sempre o weekday do CALENDÁRIO / dateLabel da tool. Se o cliente disser "segunda 1/9" e 1/9 for terça, corrija com educação usando o note da tool.
 16. ENCAIXE / AGORA: você NÃO sobrepõe agenda. Ofereça o próximo slot LIVRE (list_slots). Se insistir em entrar agora sem vaga → handoff_human. Encaixe imediato é da recepção na loja.
 17. "TÔ NA BARBEARIA" / CHEGUEI: se o cliente JÁ TEM horário hoje, isso é check-in (sistema marca "chegou") — NÃO trate como pedido de encaixe. Se NÃO tem horário hoje, aí sim ofereça próximo slot ou handoff.
+18. Seja DIRETA no agendamento: não repita pergunta de serviço se já souber; não force o cliente a escolher entre caminhos abstratos.
 `.trim();
 }
 
@@ -415,18 +417,30 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
             }
           }
           if (args.preferredHour == null || args.preferredHour === "") {
-            const corpus = `${history
-              .filter((l) => l.startsWith("cliente:"))
-              .join("\n")}\n${input.userText}`;
+            // Só infere hora da MENSAGEM ATUAL — não do histórico inteiro
+            // (evita menu falso de "ocupado" quando o cliente só diz "com o Gustavo").
             const timeRe =
               /(?:às|as|á)\s*(\d{1,2})\s*h?\b|(\d{1,2})\s*h\b|(\d{1,2}):00\b/gi;
             let inferred: number | null = null;
             let m: RegExpExecArray | null;
-            while ((m = timeRe.exec(corpus))) {
+            while ((m = timeRe.exec(input.userText))) {
               const h = Number(m[1] || m[2] || m[3]);
               if (h >= 7 && h <= 22) inferred = h;
             }
             if (inferred != null) args.preferredHour = inferred;
+          }
+          if (!args.staffId && !args.staffName) {
+            const staffHint =
+              /(?:com\s+(?:o|a)\s+|quero\s+(?:o|a)\s+)([A-Za-zÁ-ú]{3,})/i.exec(input.userText);
+            const name = staffHint?.[1]?.trim();
+            if (
+              name &&
+              !/^(amanh[aã]|hoje|tarde|manh[aã]|corte|barba|combo|horario|horário|mesmo|voce|você)$/i.test(
+                name
+              )
+            ) {
+              args.staffName = name;
+            }
           }
         }
         if (name === "resolve_date" && !args.phrase) {
@@ -529,9 +543,10 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
 
     if (
       pendingAlternatives.length >= 2 &&
-      !/outro|alternativa|também|posso te|com o |com a /i.test(reply)
+      !/outro|alternativa|também|posso te|com o |com a |às \d|as \d|\d{1,2}:\d{2}/i.test(reply)
     ) {
-      reply = `${reply}\n\nPosso te oferecer: ${pendingAlternatives.join("; ")}. Qual prefere? Se nenhuma servir, aí te coloco na lista de espera.`;
+      // Só força menu se a resposta não listou horários — evita estressar o cliente
+      reply = `${reply}\n\nPosso te oferecer: ${pendingAlternatives.join("; ")}. Qual prefere?`;
     }
 
     // Rede de segurança (caso o short-circuit não tenha pegado)
