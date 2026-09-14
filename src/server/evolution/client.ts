@@ -1,9 +1,37 @@
-import { getEvolutionConfig } from "./config";
+import { getEvolutionConfig, type EvolutionProxyConfig } from "./config";
 
 type EvolutionFetchOptions = {
   method?: string;
   body?: unknown;
 };
+
+const WEBHOOK_EVENTS = [
+  "MESSAGES_UPSERT",
+  "MESSAGES_UPDATE",
+  "CONNECTION_UPDATE",
+  "QRCODE_UPDATED",
+] as const;
+
+function formatEvolutionError(json: unknown, fallback: string): string {
+  if (typeof json !== "object" || !json) return fallback;
+  const message = (json as { message?: unknown }).message;
+  if (typeof message === "string") return message;
+  if (Array.isArray(message)) {
+    return message
+      .map((m) => (typeof m === "string" ? m : JSON.stringify(m)))
+      .filter(Boolean)
+      .join(" · ");
+  }
+  const nested = (json as { response?: { message?: unknown } }).response?.message;
+  if (typeof nested === "string") return nested;
+  if (Array.isArray(nested)) {
+    return nested
+      .map((m) => (typeof m === "string" ? m : JSON.stringify(m)))
+      .filter(Boolean)
+      .join(" · ");
+  }
+  return fallback;
+}
 
 async function evolutionFetch<T>(path: string, options: EvolutionFetchOptions = {}): Promise<T> {
   const { baseUrl, apiKey } = getEvolutionConfig();
@@ -28,13 +56,7 @@ async function evolutionFetch<T>(path: string, options: EvolutionFetchOptions = 
   }
 
   if (!res.ok) {
-    const msg =
-      typeof json === "object" &&
-      json &&
-      "message" in json &&
-      typeof (json as { message: unknown }).message === "string"
-        ? (json as { message: string }).message
-        : text.slice(0, 200) || res.statusText;
+    const msg = formatEvolutionError(json, text.slice(0, 200) || res.statusText);
     throw new Error(`Evolution ${path}: ${msg}`);
   }
 
@@ -59,15 +81,41 @@ export async function fetchInstances(): Promise<EvolutionInstance[]> {
   return data.instances ?? [];
 }
 
-export async function createBaileysInstance(instanceName: string) {
+export type CreateBaileysOptions = {
+  webhookUrl?: string;
+  proxy?: EvolutionProxyConfig;
+};
+
+export async function createBaileysInstance(
+  instanceName: string,
+  options: CreateBaileysOptions = {}
+) {
+  const body: Record<string, unknown> = {
+    instanceName,
+    integration: "WHATSAPP-BAILEYS",
+    qrcode: false,
+  };
+
+  if (options.webhookUrl) {
+    body.webhook = {
+      enabled: true,
+      url: options.webhookUrl,
+      byEvents: false,
+      base64: false,
+      events: [...WEBHOOK_EVENTS],
+    };
+  }
+
+  if (options.proxy) {
+    body.proxyHost = options.proxy.host;
+    body.proxyPort = options.proxy.port;
+    body.proxyProtocol = options.proxy.protocol;
+    if (options.proxy.username) body.proxyUsername = options.proxy.username;
+    if (options.proxy.password) body.proxyPassword = options.proxy.password;
+  }
+
   try {
-    return await evolutionFetch("/instance/create", {
-      body: {
-        instanceName,
-        integration: "WHATSAPP-BAILEYS",
-        qrcode: false,
-      },
-    });
+    return await evolutionFetch("/instance/create", { body });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
     if (/already|exist/i.test(msg)) return null;
@@ -130,13 +178,21 @@ export async function setInstanceWebhook(instanceName: string, url: string) {
         url,
         webhookByEvents: false,
         webhookBase64: false,
-        events: [
-          "MESSAGES_UPSERT",
-          "MESSAGES_UPDATE",
-          "CONNECTION_UPDATE",
-          "QRCODE_UPDATED",
-        ],
+        events: [...WEBHOOK_EVENTS],
       },
+    },
+  });
+}
+
+export async function setInstanceProxy(instanceName: string, proxy: EvolutionProxyConfig) {
+  return evolutionFetch(`/proxy/set/${encodeURIComponent(instanceName)}`, {
+    body: {
+      enabled: true,
+      proxyHost: proxy.host,
+      proxyPort: proxy.port,
+      proxyProtocol: proxy.protocol,
+      ...(proxy.username ? { proxyUsername: proxy.username } : {}),
+      ...(proxy.password ? { proxyPassword: proxy.password } : {}),
     },
   });
 }

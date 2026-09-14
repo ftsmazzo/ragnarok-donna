@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import type { WhatsAppConnectionView } from "@/server/agent/connection";
 import {
   linkWhatsAppInstanceAction,
+  recreateWhatsAppInstanceFromScratchAction,
   refreshWhatsAppPairingAction,
   replaceWhatsAppInstanceAction,
   startWhatsAppPairingAction,
@@ -172,6 +173,31 @@ export function WhatsAppConnectPanel({
     });
   }
 
+  function recreateFromScratch() {
+    setError(null);
+    setOkNote(null);
+    const next = state?.suggestedInstanceName || "sara-ragnarok";
+    if (
+      !window.confirm(
+        `Recriar do zero?\n\nApaga a instância atual (${state?.instanceName ?? "—"}) na Evolution, cria "${next}" com webhook + proxy e gera QR novo.\n\nEscaneie com o número da barbearia.`
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const result = await recreateWhatsAppInstanceFromScratchAction();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      apply(result.data);
+      setShowReplace(false);
+      setOkNote(
+        `Instância "${result.data.instanceName}" criada do zero. Escaneie o QR com o número da barbearia.`
+      );
+    });
+  }
+
   // Tempo quase real: status a cada 5s; QR a cada 4s enquanto conecta
   useEffect(() => {
     const ms = connected ? 5000 : state?.qrcodeBase64 || state?.status === "connecting" ? 4000 : 8000;
@@ -189,6 +215,26 @@ export function WhatsAppConnectPanel({
         Nome técnico na Evolution (não é o nome que o cliente vê no Zap). Se ficou travado no
         antigo (ex.: pessoal), troque aqui — a Evolution não renomeia, cria outra e gera QR novo.
       </p>
+      <p className="muted-note" style={{ marginTop: 4 }}>
+        Proxy:{" "}
+        {state?.proxyConfigured ? (
+          <strong>ok (env)</strong>
+        ) : (
+          <strong>não configurado</strong>
+        )}
+        {" · "}
+        Recriar exige <code>EVOLUTION_PROXY_HOST</code> + <code>PORT</code>.
+      </p>
+      <div className="wa-link-row" style={{ marginBottom: 8 }}>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          disabled={pending}
+          onClick={recreateFromScratch}
+        >
+          {pending ? "Recriando…" : "Recriar do zero"}
+        </button>
+      </div>
       {!showReplace ? (
         <button
           type="button"
@@ -207,7 +253,7 @@ export function WhatsAppConnectPanel({
             className="search-input"
             value={replaceName}
             onChange={(e) => setReplaceName(e.target.value)}
-            placeholder={state?.suggestedInstanceName || "ragnaroks"}
+            placeholder={state?.suggestedInstanceName || "sara-ragnarok"}
           />
           <button
             type="button"

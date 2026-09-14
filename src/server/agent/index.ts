@@ -36,11 +36,13 @@ export {
   startWhatsAppPairing,
   refreshWhatsAppPairing,
   replaceWhatsAppInstance,
+  recreateWhatsAppInstanceFromScratch,
   linkWhatsAppInstance,
   updateWhatsAppProfilePicture,
   updateWhatsAppProfileName,
   syncWhatsAppConnectionByInstance,
   resolveTenantByInstance,
+  FRESH_RAGNAROK_INSTANCE,
 } from "./connection";
 export type { WhatsAppConnectionView } from "./connection";
 export {

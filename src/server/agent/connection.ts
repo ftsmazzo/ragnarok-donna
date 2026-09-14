@@ -9,15 +9,23 @@ import {
   getConnectionState,
   logoutInstance,
   mapConnectionStatus,
+  setInstanceProxy,
   setInstanceWebhook,
   updateProfileName,
   updateProfilePicture,
   type EvolutionInstance,
 } from "@/server/evolution/client";
-import { getAgentWebhookUrl } from "@/server/evolution/config";
+import {
+  getAgentWebhookUrl,
+  getEvolutionProxyConfig,
+  requireEvolutionProxyConfig,
+} from "@/server/evolution/config";
 import { phoneFromJid } from "@/server/evolution/phone";
 import { requireCapability } from "../permissions/guards";
 import { requireSession, requireTenantContext } from "../context/tenant";
+
+/** Nome técnico limpo para Ragnarok (sem vínculo com Nilo). */
+export const FRESH_RAGNAROK_INSTANCE = "sara-ragnarok";
 
 export type WhatsAppConnectionView = {
   instanceName: string;
@@ -33,9 +41,12 @@ export type WhatsAppConnectionView = {
   suggestedInstanceName: string;
   /** Nome de perfil WA sugerido (o que o cliente vê). */
   suggestedProfileName: string;
+  /** EVOLUTION_PROXY_HOST/PORT configurados no app. */
+  proxyConfigured: boolean;
 };
 
 function suggestedNameForSlug(slug: string) {
+  if (/ragnarok/i.test(slug)) return FRESH_RAGNAROK_INSTANCE;
   return slug.replace(/[^a-z0-9-_]/gi, "_").slice(0, 80) || "tenant";
 }
 
@@ -126,6 +137,8 @@ async function upsertConnection(input: {
   webhookUrl?: string;
   profilePicUrl?: string | null;
   profileName?: string | null;
+  /** Zera telefone/perfil herdados da sessão antiga. */
+  resetProfile?: boolean;
 }) {
   const db = createDb();
   const [existing] = await db
@@ -134,12 +147,15 @@ async function upsertConnection(input: {
     .where(eq(schema.whatsappConnections.tenantId, input.tenantId))
     .limit(1);
 
-  const meta = {
-    ...(existing?.meta ?? {}),
-    ...(input.webhookUrl ? { webhookUrl: input.webhookUrl } : {}),
-    ...(input.profilePicUrl !== undefined ? { profilePicUrl: input.profilePicUrl } : {}),
-    ...(input.profileName !== undefined ? { profileName: input.profileName } : {}),
-  };
+  const prevMeta = (existing?.meta ?? {}) as Record<string, unknown>;
+  const meta: Record<string, unknown> = input.resetProfile
+    ? { ...(input.webhookUrl ? { webhookUrl: input.webhookUrl } : {}) }
+    : {
+        ...prevMeta,
+        ...(input.webhookUrl ? { webhookUrl: input.webhookUrl } : {}),
+        ...(input.profilePicUrl !== undefined ? { profilePicUrl: input.profilePicUrl } : {}),
+        ...(input.profileName !== undefined ? { profileName: input.profileName } : {}),
+      };
 
   if (existing) {
     await db
@@ -147,7 +163,11 @@ async function upsertConnection(input: {
       .set({
         instanceName: input.instanceName,
         status: input.status,
-        phoneE164: input.phoneE164 ?? undefined,
+        phoneE164: input.resetProfile
+          ? null
+          : input.phoneE164 !== undefined
+            ? input.phoneE164
+            : undefined,
         meta,
         updatedAt: new Date(),
       })
@@ -191,7 +211,30 @@ function viewFromParts(input: {
     availableInstances: input.availableInstances,
     suggestedInstanceName: input.suggestedInstanceName,
     suggestedProfileName: input.suggestedProfileName,
+    proxyConfigured: Boolean(getEvolutionProxyConfig()),
   };
+}
+
+async function provisionInstance(instanceName: string) {
+  const proxy = requireEvolutionProxyConfig();
+  const webhookUrl = getAgentWebhookUrl();
+
+  await createBaileysInstance(instanceName, { webhookUrl, proxy });
+
+  try {
+    await setInstanceWebhook(instanceName, webhookUrl);
+  } catch {
+    // já pode ter vindo no create
+  }
+
+  try {
+    await setInstanceProxy(instanceName, proxy);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Instância criada, mas falhou ao aplicar proxy: ${msg}`);
+  }
+
+  return { webhookUrl, proxy };
 }
 
 export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | null> {
@@ -366,7 +409,7 @@ export async function linkWhatsAppInstance(instanceNameRaw: string): Promise<
   }
 }
 
-/** Cria instância Evolution (se precisar), configura webhook e retorna QR.
+/** Cria instância Evolution (se precisar), configura webhook+proxy e retorna QR.
  *  `forceInstanceName` troca o vínculo (ex.: sair de "Nilo" para o slug da unidade). */
 export async function startWhatsAppPairing(forceInstanceName?: string): Promise<
   { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
@@ -405,10 +448,7 @@ export async function startWhatsAppPairing(forceInstanceName?: string): Promise<
       instanceName = next;
     }
 
-    const webhookUrl = getAgentWebhookUrl();
-
-    await createBaileysInstance(instanceName);
-    await setInstanceWebhook(instanceName, webhookUrl);
+    const { webhookUrl } = await provisionInstance(instanceName);
 
     const connect = await connectInstance(instanceName);
     const qrcodeBase64 = extractQrBase64(connect);
@@ -420,6 +460,7 @@ export async function startWhatsAppPairing(forceInstanceName?: string): Promise<
       status,
       webhookUrl,
       phoneE164: null,
+      resetProfile: true,
     });
 
     const availableInstances = await listUnlinkedInstanceNames(tenant.id);
@@ -440,6 +481,55 @@ export async function startWhatsAppPairing(forceInstanceName?: string): Promise<
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Falha ao iniciar pareamento",
+    };
+  }
+}
+
+/**
+ * Apaga a instância Evolution atual e cria `sara-ragnarok` (ou o nome sugerido)
+ * do zero com webhook + proxy.
+ */
+export async function recreateWhatsAppInstanceFromScratch(): Promise<
+  { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
+> {
+  try {
+    await assertCanManage();
+    const tenant = await requireTenantContext();
+    const next = suggestedNameForSlug(tenant.slug);
+
+    const db = createDb();
+    const [existing] = await db
+      .select({ instanceName: schema.whatsappConnections.instanceName })
+      .from(schema.whatsappConnections)
+      .where(eq(schema.whatsappConnections.tenantId, tenant.id))
+      .limit(1);
+
+    const toDelete = new Set<string>();
+    if (existing?.instanceName) toDelete.add(existing.instanceName);
+    // limpa a travada clássica do Ragnarok
+    if (/ragnarok/i.test(tenant.slug)) {
+      toDelete.add("ragnaroks");
+      toDelete.add(FRESH_RAGNAROK_INSTANCE);
+    }
+
+    for (const name of toDelete) {
+      try {
+        await logoutInstance(name);
+      } catch {
+        // best-effort
+      }
+      try {
+        await deleteInstance(name);
+      } catch {
+        // pode já ter sido apagada no painel Evolution
+      }
+    }
+
+    return startWhatsAppPairing(next);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Falha ao recriar instância",
     };
   }
 }
@@ -467,6 +557,17 @@ export async function replaceWhatsAppInstance(newNameRaw: string): Promise<
       .limit(1);
 
     if (existing?.instanceName === next) {
+      // Mesmo nome: apaga na Evolution e recria com webhook+proxy
+      try {
+        await logoutInstance(next);
+      } catch {
+        // best-effort
+      }
+      try {
+        await deleteInstance(next);
+      } catch {
+        // best-effort
+      }
       return startWhatsAppPairing(next);
     }
 

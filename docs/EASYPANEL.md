@@ -54,6 +54,21 @@ sh -c "npm install baileys@7.0.0-rc13 --force --legacy-peer-deps && node -e \"co
 No log de boot deve aparecer: `[baileys-patch] 7.0.0-rc13`.
 Depois de redeploy, se a sessão cair, reconecte o QR em `/conversas`.
 
+## Proxy WhatsApp (obrigatório ao criar/recriar instância)
+
+No EasyPanel → `app` → Environment, adicione (residencial BR recomendado):
+
+```text
+EVOLUTION_PROXY_HOST=
+EVOLUTION_PROXY_PORT=
+EVOLUTION_PROXY_PROTOCOL=http
+EVOLUTION_PROXY_USERNAME=
+EVOLUTION_PROXY_PASSWORD=
+```
+
+Sem `HOST` + `PORT`, o botão **Recriar do zero** / pareamento falha de propósito.
+Depois de salvar as env, redeploy do `app` e use **Recriar do zero** (cria `sara-ragnarok` com webhook + proxy).
+
 ## Chaves de integração
 
 

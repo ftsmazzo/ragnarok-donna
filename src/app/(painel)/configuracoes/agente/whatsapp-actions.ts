@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   linkWhatsAppInstance,
+  recreateWhatsAppInstanceFromScratch,
   refreshWhatsAppPairing,
   replaceWhatsAppInstance,
   startWhatsAppPairing,
@@ -23,6 +24,12 @@ export async function startWhatsAppPairingAction(instanceName?: string) {
 
 export async function replaceWhatsAppInstanceAction(instanceName: string) {
   const result = await replaceWhatsAppInstance(instanceName);
+  if (result.ok) revalidateWa();
+  return result;
+}
+
+export async function recreateWhatsAppInstanceFromScratchAction() {
+  const result = await recreateWhatsAppInstanceFromScratch();
   if (result.ok) revalidateWa();
   return result;
 }
