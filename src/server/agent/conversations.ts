@@ -2,6 +2,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { NotFoundError } from "../errors";
 import { requireTenantContext } from "../context/tenant";
+import { resolveDisplayPhone } from "@/server/evolution/phone";
 
 export type ConversationFilter = "todas" | "ai" | "human";
 
@@ -88,6 +89,7 @@ export async function listConversations(input?: {
     .select({
       id: schema.conversations.id,
       phoneE164: schema.conversations.phoneE164,
+      meta: schema.conversations.meta,
       mode: schema.conversations.mode,
       clientId: schema.conversations.clientId,
       clientName: schema.clients.name,
@@ -115,7 +117,10 @@ export async function listConversations(input?: {
   return {
     rows: rows.map((r) => ({
       id: r.id,
-      phoneE164: r.phoneE164,
+      phoneE164: resolveDisplayPhone({
+        phoneE164: r.phoneE164,
+        meta: r.meta as Record<string, unknown> | null,
+      }),
       mode: r.mode,
       clientId: r.clientId,
       clientName: r.clientName,
@@ -139,6 +144,7 @@ export async function getConversation(conversationId: string): Promise<Conversat
     .select({
       id: schema.conversations.id,
       phoneE164: schema.conversations.phoneE164,
+      meta: schema.conversations.meta,
       mode: schema.conversations.mode,
       clientId: schema.conversations.clientId,
       clientName: schema.clients.name,
@@ -192,7 +198,10 @@ export async function getConversation(conversationId: string): Promise<Conversat
 
   return {
     id: row.id,
-    phoneE164: row.phoneE164,
+    phoneE164: resolveDisplayPhone({
+      phoneE164: row.phoneE164,
+      meta: row.meta as Record<string, unknown> | null,
+    }),
     mode: row.mode,
     clientId: row.clientId,
     clientName: row.clientName,

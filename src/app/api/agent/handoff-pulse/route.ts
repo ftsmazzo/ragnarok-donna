@@ -2,6 +2,7 @@ import { and, desc, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { createDb, schema } from "@/db";
 import { readSession } from "@/server/auth/session";
+import { resolveDisplayPhone } from "@/server/evolution/phone";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     .select({
       id: schema.conversations.id,
       phoneE164: schema.conversations.phoneE164,
+      meta: schema.conversations.meta,
       humanRequestedAt: schema.conversations.humanRequestedAt,
       lastMessageAt: schema.conversations.lastMessageAt,
     })
@@ -46,7 +48,10 @@ export async function GET(request: Request) {
     since: since.toISOString(),
     items: rows.map((r) => ({
       id: r.id,
-      phoneE164: r.phoneE164,
+      phoneE164: resolveDisplayPhone({
+        phoneE164: r.phoneE164,
+        meta: r.meta as Record<string, unknown> | null,
+      }),
       humanRequestedAt: r.humanRequestedAt?.toISOString() ?? null,
       lastMessageAt: r.lastMessageAt?.toISOString() ?? null,
     })),

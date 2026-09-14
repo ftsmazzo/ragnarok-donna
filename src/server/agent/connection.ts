@@ -647,15 +647,53 @@ export async function updateWhatsAppProfileName(nameRaw: string): Promise<
       .where(eq(schema.whatsappConnections.tenantId, tenant.id))
       .limit(1);
     if (!row) return { ok: false, error: "Conecte o WhatsApp antes" };
-    if (row.status !== "connected") {
-      return { ok: false, error: "WhatsApp precisa estar conectado" };
+
+    // Status no banco pode estar defasado — confirma na Evolution
+    let liveStatus = row.status;
+    try {
+      const state = await getConnectionState(row.instanceName);
+      const rawState =
+        state.instance?.state ?? state.state ?? state.status ?? state.instance?.status;
+      liveStatus = mapConnectionStatus(rawState);
+      if (liveStatus !== row.status) {
+        await upsertConnection({
+          tenantId: tenant.id,
+          instanceName: row.instanceName,
+          status: liveStatus,
+          phoneE164: row.phoneE164,
+        });
+      }
+    } catch {
+      // segue com status do banco
     }
 
-    await updateProfileName(row.instanceName, name);
+    if (liveStatus !== "connected") {
+      return {
+        ok: false,
+        error:
+          "WhatsApp não está conectado de verdade na Evolution (sessão caiu). Escaneie o QR de novo e só depois altere o nome.",
+      };
+    }
+
+    try {
+      await updateProfileName(row.instanceName, name);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/app state key|not present/i.test(msg)) {
+        return {
+          ok: false,
+          error:
+            "A Evolution não conseguiu gravar o nome no WhatsApp (sessão incompleta). Reconecte pelo QR e tente de novo.",
+        };
+      }
+      throw err;
+    }
+
+    // Só grava no sistema depois que a Evolution aceitou
     await upsertConnection({
       tenantId: tenant.id,
       instanceName: row.instanceName,
-      status: row.status,
+      status: "connected",
       phoneE164: row.phoneE164,
       profileName: name,
     });

@@ -1,6 +1,6 @@
 import { and, eq, gte, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
-import { phoneFromMessageKey } from "@/server/evolution/phone";
+import { phoneFromMessageKey, buildJidMeta } from "@/server/evolution/phone";
 import { findRecentMessages, mapConnectionStatus } from "@/server/evolution/client";
 import { resolveTenantByInstance, syncWhatsAppConnectionByInstance } from "./connection";
 import { ensureDefaultAgentProfile } from "./persona-profile";
@@ -106,18 +106,17 @@ async function ensureConversation(input: {
   remoteJidAlt?: string | null;
 }) {
   const db = createDb();
-  const jidMeta: Record<string, string> = {};
-  if (input.remoteJid?.includes("@lid")) jidMeta.remoteJidLid = input.remoteJid;
-  if (input.remoteJidAlt) jidMeta.remoteJidAlt = input.remoteJidAlt;
-  else if (input.remoteJid && !input.remoteJid.includes("@lid")) {
-    jidMeta.remoteJidAlt = input.remoteJid;
-  }
+  const jidMeta = buildJidMeta({
+    remoteJid: input.remoteJid,
+    remoteJidAlt: input.remoteJidAlt,
+  });
 
   const [existing] = await db
     .select({
       id: schema.conversations.id,
       mode: schema.conversations.mode,
       meta: schema.conversations.meta,
+      phoneE164: schema.conversations.phoneE164,
     })
     .from(schema.conversations)
     .where(
@@ -135,6 +134,8 @@ async function ensureConversation(input: {
       .set({
         clientId: input.clientId ?? undefined,
         meta: nextMeta,
+        // Corrige phone se antes tinha sido gravado LID e agora temos número real
+        phoneE164: input.phoneE164 || existing.phoneE164,
         updatedAt: new Date(),
       })
       .where(eq(schema.conversations.id, existing.id));

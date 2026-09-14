@@ -289,7 +289,9 @@ export function WhatsAppConnectPanel({
                 />
               </label>
               <p className="muted-note" style={{ marginTop: -4 }}>
-                É o nome que o cliente vê (ex.: <strong>Sara | Ragnarok</strong>). Diferente do
+                É o nome que o cliente vê no Zap (ex.: <strong>Sara | Ragnarok</strong>). Só
+                muda na Evolution/WhatsApp depois de clicar em salvar com a sessão{" "}
+                <strong>conectada</strong>. Diferente do
                 nome técnico da instância na Evolution.
               </p>
               <label className="filter-field">

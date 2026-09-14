@@ -197,8 +197,17 @@ async function main() {
       price_cents: parseMoney(r.Valor),
       stock_qty: Number(r.Saldo) || 0,
       min_qty: Number(r.QtdMinima) || 0,
-      for_sale: r.DisponivelVenda !== "0",
-      for_internal_use: r.Uso === "Sim",
+      // DisponivelVenda no AppBarber desta unidade veio sempre 0 (provável venda online).
+      // disponivelApresentacao=1 = aparece para vender/consumir na loja.
+      for_sale:
+        r.disponivelApresentacao === "1" ||
+        r.DisponivelVenda === "1" ||
+        r.DisponivelVenda === "Sim",
+      for_internal_use:
+        r.Uso === "Sim" ||
+        String(r.Categoria || "")
+          .toLowerCase()
+          .includes("uso"),
       commission_bps: parseCommissionBps(r.Comissao),
       is_active: true,
       external_source: EXTERNAL_SOURCE,
@@ -209,7 +218,9 @@ async function main() {
         insert into products ${sql(batch)}
         on conflict (tenant_id, external_source, external_id) do update set
           name = excluded.name, price_cents = excluded.price_cents,
-          stock_qty = excluded.stock_qty, category = excluded.category, updated_at = now()
+          stock_qty = excluded.stock_qty, category = excluded.category,
+          for_sale = excluded.for_sale, for_internal_use = excluded.for_internal_use,
+          updated_at = now()
       `;
     }
     stats.products = prodRows.length;
@@ -297,6 +308,8 @@ async function main() {
       const extId = String(row.id || "").trim();
       if (!extId || extId === "undefined") continue;
       const r = row.r;
+      const avatar =
+        cleanStr(r.Imagem || r.Cli_Imagem || r.Foto || r.PAF_Imagem, 500) || null;
       clientByExt.set(extId, {
         tenant_id: tenantId,
         name: cleanStr(r.Nome || r.Pes_Nome, 160) || "Cliente",
@@ -305,6 +318,7 @@ async function main() {
         phone_e164: phoneE164(r.DDI, r.Celular || r.Paf_Celular || r.Telefone || r.Paf_Telefone),
         notes: cleanStr(r.Obs || r.Paf_Observacao, 2000),
         loyalty_points: Number(r.Pontos || r.Total_Pontos) || 0,
+        avatar_url: avatar,
         is_active: !row.removed,
         deleted_at: row.removed ? new Date() : null,
         external_source: EXTERNAL_SOURCE,
@@ -318,6 +332,7 @@ async function main() {
         on conflict (tenant_id, external_source, external_id) do update set
           name = excluded.name, phone = excluded.phone, phone_e164 = excluded.phone_e164,
           loyalty_points = excluded.loyalty_points, notes = excluded.notes,
+          avatar_url = coalesce(excluded.avatar_url, clients.avatar_url),
           is_active = excluded.is_active, deleted_at = excluded.deleted_at, updated_at = now()
       `;
     }
