@@ -35,6 +35,9 @@ export {
   getWhatsAppConnection,
   startWhatsAppPairing,
   refreshWhatsAppPairing,
+  linkWhatsAppInstance,
+  updateWhatsAppProfilePicture,
+  updateWhatsAppProfileName,
   syncWhatsAppConnectionByInstance,
   resolveTenantByInstance,
 } from "./connection";

@@ -91,6 +91,25 @@ export async function getConnectionState(instanceName: string) {
   }>(`/instance/connectionState/${encodeURIComponent(instanceName)}`);
 }
 
+export async function logoutInstance(instanceName: string) {
+  return evolutionFetch(`/instance/logout/${encodeURIComponent(instanceName)}`, {
+    method: "DELETE",
+  });
+}
+
+/** Foto de perfil do número (URL pública ou data-URL/base64, conforme Evolution). */
+export async function updateProfilePicture(instanceName: string, picture: string) {
+  return evolutionFetch(`/chat/updateProfilePicture/${encodeURIComponent(instanceName)}`, {
+    body: { picture },
+  });
+}
+
+export async function updateProfileName(instanceName: string, name: string) {
+  return evolutionFetch(`/chat/updateProfileName/${encodeURIComponent(instanceName)}`, {
+    body: { name },
+  });
+}
+
 export async function setInstanceWebhook(instanceName: string, url: string) {
   return evolutionFetch(`/webhook/set/${encodeURIComponent(instanceName)}`, {
     body: {

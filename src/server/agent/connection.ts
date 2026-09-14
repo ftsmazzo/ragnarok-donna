@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import {
   connectInstance,
@@ -8,6 +8,9 @@ import {
   getConnectionState,
   mapConnectionStatus,
   setInstanceWebhook,
+  updateProfileName,
+  updateProfilePicture,
+  type EvolutionInstance,
 } from "@/server/evolution/client";
 import { getAgentWebhookUrl } from "@/server/evolution/config";
 import { phoneFromJid } from "@/server/evolution/phone";
@@ -20,7 +23,46 @@ export type WhatsAppConnectionView = {
   phoneE164: string | null;
   qrcodeBase64: string | null;
   webhookConfigured: boolean;
+  profilePicUrl: string | null;
+  profileName: string | null;
+  /** Instâncias Evolution ainda sem tenant no app (p/ vincular Ragnarok). */
+  availableInstances: string[];
+  /** Nome sugerido ao criar (slug do tenant). */
+  suggestedInstanceName: string;
 };
+
+function suggestedNameForSlug(slug: string) {
+  return slug.replace(/[^a-z0-9-_]/gi, "_").slice(0, 80) || "tenant";
+}
+
+function pickInstanceMeta(inst: EvolutionInstance | undefined) {
+  if (!inst) return { phoneE164: null as string | null, profilePicUrl: null as string | null, profileName: null as string | null };
+  const owner =
+    inst.owner ?? inst.ownerJid ?? inst.number ?? inst.instance?.owner ?? null;
+  const phoneE164 = owner
+    ? phoneFromJid(owner.includes("@") ? owner : `${owner}@s.whatsapp.net`)
+    : null;
+  const any = inst as EvolutionInstance & {
+    profilePicUrl?: string;
+    profilePictureUrl?: string;
+    profileName?: string;
+    instance?: { profilePicUrl?: string; profilePictureUrl?: string; profileName?: string };
+  };
+  const profilePicUrl =
+    any.profilePicUrl ??
+    any.profilePictureUrl ??
+    any.instance?.profilePicUrl ??
+    any.instance?.profilePictureUrl ??
+    null;
+  const profileName = any.profileName ?? any.instance?.profileName ?? null;
+  return { phoneE164, profilePicUrl, profileName };
+}
+
+function instanceNamesFromEvolution(list: EvolutionInstance[]): string[] {
+  return list
+    .map((i) => i.instance?.instanceName ?? i.instanceName ?? i.name ?? "")
+    .filter(Boolean);
+}
 
 async function assertCanManage() {
   const session = await requireSession();
@@ -28,32 +70,34 @@ async function assertCanManage() {
   return session;
 }
 
-export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | null> {
-  const tenant = await requireTenantContext();
+async function listUnlinkedInstanceNames(excludeTenantId?: string): Promise<string[]> {
   const db = createDb();
-  const [row] = await db
-    .select()
-    .from(schema.whatsappConnections)
-    .where(eq(schema.whatsappConnections.tenantId, tenant.id))
-    .limit(1);
+  let linked: { instanceName: string }[] = [];
+  try {
+    linked = await db
+      .select({ instanceName: schema.whatsappConnections.instanceName })
+      .from(schema.whatsappConnections);
+  } catch {
+    linked = [];
+  }
+  const linkedSet = new Set(linked.map((r) => r.instanceName));
 
-  if (!row) {
-    return {
-      instanceName: tenant.slug,
-      status: "disconnected",
-      phoneE164: null,
-      qrcodeBase64: null,
-      webhookConfigured: false,
-    };
+  // Se o tenant atual já tem uma, ainda listamos as outras
+  if (excludeTenantId) {
+    const [mine] = await db
+      .select({ instanceName: schema.whatsappConnections.instanceName })
+      .from(schema.whatsappConnections)
+      .where(eq(schema.whatsappConnections.tenantId, excludeTenantId))
+      .limit(1);
+    if (mine) linkedSet.delete(mine.instanceName);
   }
 
-  return {
-    instanceName: row.instanceName,
-    status: row.status,
-    phoneE164: row.phoneE164,
-    qrcodeBase64: null,
-    webhookConfigured: Boolean(row.meta?.webhookUrl),
-  };
+  try {
+    const remote = await fetchInstances();
+    return instanceNamesFromEvolution(remote).filter((n) => !linkedSet.has(n));
+  } catch {
+    return [];
+  }
 }
 
 async function upsertConnection(input: {
@@ -62,6 +106,8 @@ async function upsertConnection(input: {
   status: string;
   phoneE164?: string | null;
   webhookUrl?: string;
+  profilePicUrl?: string | null;
+  profileName?: string | null;
 }) {
   const db = createDb();
   const [existing] = await db
@@ -73,6 +119,8 @@ async function upsertConnection(input: {
   const meta = {
     ...(existing?.meta ?? {}),
     ...(input.webhookUrl ? { webhookUrl: input.webhookUrl } : {}),
+    ...(input.profilePicUrl !== undefined ? { profilePicUrl: input.profilePicUrl } : {}),
+    ...(input.profileName !== undefined ? { profileName: input.profileName } : {}),
   };
 
   if (existing) {
@@ -102,6 +150,66 @@ async function upsertConnection(input: {
   return row.id;
 }
 
+function viewFromParts(input: {
+  instanceName: string;
+  status: string;
+  phoneE164: string | null;
+  qrcodeBase64?: string | null;
+  webhookConfigured: boolean;
+  profilePicUrl?: string | null;
+  profileName?: string | null;
+  availableInstances: string[];
+  suggestedInstanceName: string;
+}): WhatsAppConnectionView {
+  return {
+    instanceName: input.instanceName,
+    status: input.status,
+    phoneE164: input.phoneE164,
+    qrcodeBase64: input.qrcodeBase64 ?? null,
+    webhookConfigured: input.webhookConfigured,
+    profilePicUrl: input.profilePicUrl ?? null,
+    profileName: input.profileName ?? null,
+    availableInstances: input.availableInstances,
+    suggestedInstanceName: input.suggestedInstanceName,
+  };
+}
+
+export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | null> {
+  const tenant = await requireTenantContext();
+  const suggestedInstanceName = suggestedNameForSlug(tenant.slug);
+  const availableInstances = await listUnlinkedInstanceNames(tenant.id);
+
+  const db = createDb();
+  const [row] = await db
+    .select()
+    .from(schema.whatsappConnections)
+    .where(eq(schema.whatsappConnections.tenantId, tenant.id))
+    .limit(1);
+
+  if (!row) {
+    return viewFromParts({
+      instanceName: suggestedInstanceName,
+      status: "disconnected",
+      phoneE164: null,
+      webhookConfigured: false,
+      availableInstances,
+      suggestedInstanceName,
+    });
+  }
+
+  const meta = (row.meta ?? {}) as Record<string, unknown>;
+  return viewFromParts({
+    instanceName: row.instanceName,
+    status: row.status,
+    phoneE164: row.phoneE164,
+    webhookConfigured: Boolean(meta.webhookUrl),
+    profilePicUrl: typeof meta.profilePicUrl === "string" ? meta.profilePicUrl : null,
+    profileName: typeof meta.profileName === "string" ? meta.profileName : null,
+    availableInstances,
+    suggestedInstanceName,
+  });
+}
+
 export async function syncWhatsAppConnectionByInstance(instanceName: string) {
   const db = createDb();
   const [row] = await db
@@ -113,6 +221,10 @@ export async function syncWhatsAppConnectionByInstance(instanceName: string) {
 
   let status = row.status;
   let phoneE164 = row.phoneE164;
+  let profilePicUrl: string | null =
+    typeof row.meta?.profilePicUrl === "string" ? row.meta.profilePicUrl : null;
+  let profileName: string | null =
+    typeof row.meta?.profileName === "string" ? row.meta.profileName : null;
 
   try {
     const state = await getConnectionState(instanceName);
@@ -126,10 +238,10 @@ export async function syncWhatsAppConnectionByInstance(instanceName: string) {
         i.instanceName === instanceName ||
         i.name === instanceName
     );
-    const owner = inst?.owner ?? inst?.ownerJid ?? inst?.number ?? inst?.instance?.owner;
-    if (owner) {
-      phoneE164 = phoneFromJid(owner.includes("@") ? owner : `${owner}@s.whatsapp.net`);
-    }
+    const meta = pickInstanceMeta(inst);
+    if (meta.phoneE164) phoneE164 = meta.phoneE164;
+    if (meta.profilePicUrl) profilePicUrl = meta.profilePicUrl;
+    if (meta.profileName) profileName = meta.profileName;
   } catch {
     // Evolution indisponível — mantém último status conhecido
   }
@@ -139,21 +251,111 @@ export async function syncWhatsAppConnectionByInstance(instanceName: string) {
     .set({
       status,
       phoneE164: phoneE164 ?? row.phoneE164,
+      meta: {
+        ...(row.meta ?? {}),
+        ...(profilePicUrl ? { profilePicUrl } : {}),
+        ...(profileName ? { profileName } : {}),
+      },
       updatedAt: new Date(),
     })
     .where(eq(schema.whatsappConnections.id, row.id));
 
-  return { tenantId: row.tenantId, status, phoneE164 };
+  return { tenantId: row.tenantId, status, phoneE164, profilePicUrl, profileName };
 }
 
-/** Cria instância Evolution, configura webhook e retorna QR para parear. */
+/** Vincula uma instância Evolution já existente (ex.: Ragnarok) sem recriar. */
+export async function linkWhatsAppInstance(instanceNameRaw: string): Promise<
+  { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
+> {
+  try {
+    await assertCanManage();
+    const tenant = await requireTenantContext();
+    const instanceName = instanceNameRaw.trim().slice(0, 120);
+    if (!instanceName) return { ok: false, error: "Informe o nome da instância" };
+
+    const db = createDb();
+    const [taken] = await db
+      .select({ tenantId: schema.whatsappConnections.tenantId })
+      .from(schema.whatsappConnections)
+      .where(
+        and(
+          eq(schema.whatsappConnections.instanceName, instanceName),
+          ne(schema.whatsappConnections.tenantId, tenant.id)
+        )
+      )
+      .limit(1);
+    if (taken) {
+      return { ok: false, error: "Essa instância já está vinculada a outra unidade" };
+    }
+
+    const remote = await fetchInstances();
+    const names = instanceNamesFromEvolution(remote);
+    if (!names.includes(instanceName)) {
+      return { ok: false, error: `Instância "${instanceName}" não encontrada na Evolution` };
+    }
+
+    const webhookUrl = getAgentWebhookUrl();
+    await setInstanceWebhook(instanceName, webhookUrl);
+
+    const state = await getConnectionState(instanceName);
+    const rawState = state.instance?.state ?? state.state ?? state.status ?? "close";
+    const status = mapConnectionStatus(rawState);
+    const inst = remote.find(
+      (i) =>
+        i.instance?.instanceName === instanceName ||
+        i.instanceName === instanceName ||
+        i.name === instanceName
+    );
+    const meta = pickInstanceMeta(inst);
+
+    await upsertConnection({
+      tenantId: tenant.id,
+      instanceName,
+      status,
+      phoneE164: meta.phoneE164,
+      webhookUrl,
+      profilePicUrl: meta.profilePicUrl,
+      profileName: meta.profileName,
+    });
+
+    const availableInstances = await listUnlinkedInstanceNames(tenant.id);
+    return {
+      ok: true,
+      data: viewFromParts({
+        instanceName,
+        status,
+        phoneE164: meta.phoneE164,
+        webhookConfigured: true,
+        profilePicUrl: meta.profilePicUrl,
+        profileName: meta.profileName,
+        availableInstances,
+        suggestedInstanceName: suggestedNameForSlug(tenant.slug),
+      }),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Falha ao vincular instância",
+    };
+  }
+}
+
+/** Cria instância Evolution (se precisar), configura webhook e retorna QR. */
 export async function startWhatsAppPairing(): Promise<
   { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
 > {
   try {
     await assertCanManage();
     const tenant = await requireTenantContext();
-    const instanceName = tenant.slug.replace(/[^a-z0-9-_]/gi, "_").slice(0, 80);
+    const db = createDb();
+    const [existing] = await db
+      .select({ instanceName: schema.whatsappConnections.instanceName })
+      .from(schema.whatsappConnections)
+      .where(eq(schema.whatsappConnections.tenantId, tenant.id))
+      .limit(1);
+
+    const instanceName =
+      existing?.instanceName ?? suggestedNameForSlug(tenant.slug);
     const webhookUrl = getAgentWebhookUrl();
 
     await createBaileysInstance(instanceName);
@@ -170,15 +372,18 @@ export async function startWhatsAppPairing(): Promise<
       webhookUrl,
     });
 
+    const availableInstances = await listUnlinkedInstanceNames(tenant.id);
     return {
       ok: true,
-      data: {
+      data: viewFromParts({
         instanceName,
         status,
         phoneE164: null,
         qrcodeBase64,
         webhookConfigured: true,
-      },
+        availableInstances,
+        suggestedInstanceName: suggestedNameForSlug(tenant.slug),
+      }),
     };
   } catch (err) {
     return {
@@ -202,12 +407,23 @@ export async function refreshWhatsAppPairing(): Promise<
       .where(eq(schema.whatsappConnections.tenantId, tenant.id))
       .limit(1);
 
-    const instanceName = row?.instanceName ?? tenant.slug;
+    const instanceName = row?.instanceName ?? suggestedNameForSlug(tenant.slug);
     let qrcodeBase64: string | null = null;
+
+    // Garante linha no banco antes do sync por instanceName
+    if (!row) {
+      await upsertConnection({
+        tenantId: tenant.id,
+        instanceName,
+        status: "disconnected",
+      });
+    }
 
     const synced = await syncWhatsAppConnectionByInstance(instanceName);
     const status = synced?.status ?? row?.status ?? "disconnected";
     const phoneE164 = synced?.phoneE164 ?? row?.phoneE164 ?? null;
+    const profilePicUrl = synced?.profilePicUrl ?? null;
+    const profileName = synced?.profileName ?? null;
 
     try {
       const webhookUrl = getAgentWebhookUrl();
@@ -218,6 +434,8 @@ export async function refreshWhatsAppPairing(): Promise<
         status,
         phoneE164,
         webhookUrl,
+        profilePicUrl,
+        profileName,
       });
     } catch {
       // webhook re-set best-effort
@@ -232,20 +450,107 @@ export async function refreshWhatsAppPairing(): Promise<
       }
     }
 
+    const availableInstances = await listUnlinkedInstanceNames(tenant.id);
     return {
       ok: true,
-      data: {
+      data: viewFromParts({
         instanceName,
         status,
         phoneE164,
         qrcodeBase64,
         webhookConfigured: true,
-      },
+        profilePicUrl,
+        profileName,
+        availableInstances,
+        suggestedInstanceName: suggestedNameForSlug(tenant.slug),
+      }),
     };
   } catch (err) {
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Falha ao atualizar conexão",
+    };
+  }
+}
+
+export async function updateWhatsAppProfilePicture(picture: string): Promise<
+  { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
+> {
+  try {
+    await assertCanManage();
+    const tenant = await requireTenantContext();
+    const pic = picture.trim();
+    if (!pic || pic.length < 8) {
+      return { ok: false, error: "Informe a URL (ou data-URL) da nova foto" };
+    }
+
+    const db = createDb();
+    const [row] = await db
+      .select()
+      .from(schema.whatsappConnections)
+      .where(eq(schema.whatsappConnections.tenantId, tenant.id))
+      .limit(1);
+    if (!row) return { ok: false, error: "Conecte o WhatsApp antes de trocar a foto" };
+    if (row.status !== "connected") {
+      return { ok: false, error: "WhatsApp precisa estar conectado para trocar a foto" };
+    }
+
+    await updateProfilePicture(row.instanceName, pic);
+    await upsertConnection({
+      tenantId: tenant.id,
+      instanceName: row.instanceName,
+      status: row.status,
+      phoneE164: row.phoneE164,
+      profilePicUrl: pic.startsWith("http")
+        ? pic
+        : typeof row.meta?.profilePicUrl === "string"
+          ? row.meta.profilePicUrl
+          : null,
+    });
+
+    return refreshWhatsAppPairing();
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Falha ao atualizar foto",
+    };
+  }
+}
+
+export async function updateWhatsAppProfileName(nameRaw: string): Promise<
+  { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
+> {
+  try {
+    await assertCanManage();
+    const tenant = await requireTenantContext();
+    const name = nameRaw.trim().slice(0, 80);
+    if (name.length < 2) return { ok: false, error: "Nome muito curto" };
+
+    const db = createDb();
+    const [row] = await db
+      .select()
+      .from(schema.whatsappConnections)
+      .where(eq(schema.whatsappConnections.tenantId, tenant.id))
+      .limit(1);
+    if (!row) return { ok: false, error: "Conecte o WhatsApp antes" };
+    if (row.status !== "connected") {
+      return { ok: false, error: "WhatsApp precisa estar conectado" };
+    }
+
+    await updateProfileName(row.instanceName, name);
+    await upsertConnection({
+      tenantId: tenant.id,
+      instanceName: row.instanceName,
+      status: row.status,
+      phoneE164: row.phoneE164,
+      profileName: name,
+    });
+
+    return refreshWhatsAppPairing();
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Falha ao atualizar nome",
     };
   }
 }

@@ -147,8 +147,8 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "agente-donna-config",
     question: "Onde configuro a Donna?",
     answer:
-      "Configurações → Agente (Donna). Persona, tom e ferramentas dela no WhatsApp. Este suporte do painel é outro agente — não misture.",
-    tags: ["agente", "donna", "configuração", "persona"],
+      "Configurações → Agente (Donna). No topo: WhatsApp da unidade (vincular instância existente, gerar QR, ver se está conectado, trocar foto/nome). Abaixo: persona, tom e alerta humano. Este suporte do painel é outro agente — não misture.",
+    tags: ["agente", "donna", "configuração", "persona", "whatsapp", "qr", "instância"],
     menuPath: "Configurações → Agente (Donna)",
   },
   {

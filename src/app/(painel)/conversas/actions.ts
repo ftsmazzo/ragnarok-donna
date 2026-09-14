@@ -8,27 +8,19 @@ import {
   sendHumanMessage,
   takeHandoff,
 } from "@/server/agent/mutations";
-import {
-  refreshWhatsAppPairing,
-  startWhatsAppPairing,
-} from "@/server/agent/connection";
 import { syncInboxFromEvolution } from "@/server/agent/sync-inbox";
+
+export {
+  startWhatsAppPairingAction,
+  refreshWhatsAppPairingAction,
+  linkWhatsAppInstanceAction,
+  updateWhatsAppProfilePictureAction,
+  updateWhatsAppProfileNameAction,
+} from "@/app/(painel)/configuracoes/agente/whatsapp-actions";
 
 function revalidateConversas(id?: string) {
   revalidatePath("/conversas");
   if (id) revalidatePath(`/conversas?id=${id}`);
-}
-
-export async function startWhatsAppPairingAction() {
-  const result = await startWhatsAppPairing();
-  if (result.ok) revalidateConversas();
-  return result;
-}
-
-export async function refreshWhatsAppPairingAction() {
-  const result = await refreshWhatsAppPairing();
-  if (result.ok) revalidateConversas();
-  return result;
 }
 
 export async function syncInboxFromEvolutionAction() {

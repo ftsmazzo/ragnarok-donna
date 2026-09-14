@@ -253,14 +253,6 @@ export function AgenteConfigForm({ initial }: Props) {
         icon="🔔"
         accent="orange"
       >
-        <p className="muted-note" style={{ margin: 0 }}>
-          Instância WhatsApp da unidade:{" "}
-          {initial.whatsappConnected ? (
-            <strong>{initial.whatsappInstance}</strong>
-          ) : (
-            <span className="badge is-warn">desconectada</span>
-          )}
-        </p>
         <label className="filter-field" style={{ maxWidth: 320 }}>
           <span>Celular da equipe (DDD + número)</span>
           <input

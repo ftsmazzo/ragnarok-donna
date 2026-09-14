@@ -3,33 +3,54 @@
 import { useEffect, useState, useTransition } from "react";
 import type { WhatsAppConnectionView } from "@/server/agent/connection";
 import {
+  linkWhatsAppInstanceAction,
   refreshWhatsAppPairingAction,
   startWhatsAppPairingAction,
-  syncInboxFromEvolutionAction,
-} from "@/app/(painel)/conversas/actions";
+  updateWhatsAppProfileNameAction,
+  updateWhatsAppProfilePictureAction,
+} from "@/app/(painel)/configuracoes/agente/whatsapp-actions";
+import { syncInboxFromEvolutionAction } from "@/app/(painel)/conversas/actions";
+import { ConfigSectionCard } from "@/components/config/ConfigSectionCard";
 
 type Props = {
   initial: WhatsAppConnectionView | null;
+  /** conversas = painel inbox; agente = config do agente */
+  variant?: "conversas" | "agente";
+  showInboxSync?: boolean;
 };
 
-export function WhatsAppConnectPanel({ initial }: Props) {
+export function WhatsAppConnectPanel({
+  initial,
+  variant = "conversas",
+  showInboxSync = variant === "conversas",
+}: Props) {
   const [state, setState] = useState<WhatsAppConnectionView | null>(initial);
   const [error, setError] = useState<string | null>(null);
-  const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [okNote, setOkNote] = useState<string | null>(null);
+  const [linkName, setLinkName] = useState(initial?.availableInstances[0] ?? "");
+  const [pictureUrl, setPictureUrl] = useState("");
+  const [profileName, setProfileName] = useState(initial?.profileName ?? "");
   const [pending, startTransition] = useTransition();
 
   const connected = state?.status === "connected";
+  const available = state?.availableInstances ?? [];
+
+  function apply(data: WhatsAppConnectionView) {
+    setState(data);
+    if (data.profileName) setProfileName(data.profileName);
+  }
 
   function startPairing() {
     setError(null);
-    setSyncNote(null);
+    setOkNote(null);
     startTransition(async () => {
       const result = await startWhatsAppPairingAction();
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setState(result.data);
+      apply(result.data);
+      setOkNote("QR gerado — escaneie no celular.");
     });
   }
 
@@ -41,37 +62,276 @@ export function WhatsAppConnectPanel({ initial }: Props) {
         setError(result.error);
         return;
       }
-      setState(result.data);
+      apply(result.data);
+    });
+  }
+
+  function linkExisting() {
+    setError(null);
+    setOkNote(null);
+    const name = linkName.trim();
+    if (!name) {
+      setError("Escolha ou digite o nome da instância na Evolution");
+      return;
+    }
+    startTransition(async () => {
+      const result = await linkWhatsAppInstanceAction(name);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      apply(result.data);
+      setOkNote(`Instância "${result.data.instanceName}" vinculada a esta unidade.`);
     });
   }
 
   function syncInbox() {
     setError(null);
-    setSyncNote(null);
+    setOkNote(null);
     startTransition(async () => {
       const result = await syncInboxFromEvolutionAction();
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setSyncNote(
+      setOkNote(
         `Sincronizado: ${result.imported} mensagem(ns) nova(s) · ${result.skipped} ignorada(s).`
       );
     });
   }
 
-  useEffect(() => {
-    if (connected) return;
-    if (!state?.qrcodeBase64 && state?.status !== "connecting") return;
+  function savePicture() {
+    setError(null);
+    setOkNote(null);
+    startTransition(async () => {
+      const result = await updateWhatsAppProfilePictureAction(pictureUrl);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      apply(result.data);
+      setPictureUrl("");
+      setOkNote("Foto de perfil enviada ao WhatsApp.");
+    });
+  }
 
+  function saveName() {
+    setError(null);
+    setOkNote(null);
+    startTransition(async () => {
+      const result = await updateWhatsAppProfileNameAction(profileName);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      apply(result.data);
+      setOkNote("Nome de perfil atualizado.");
+    });
+  }
+
+  // Tempo quase real: status a cada 5s; QR a cada 4s enquanto conecta
+  useEffect(() => {
+    const ms = connected ? 5000 : state?.qrcodeBase64 || state?.status === "connecting" ? 4000 : 8000;
     const id = window.setInterval(() => {
       refreshWhatsAppPairingAction().then((result) => {
-        if (result.ok) setState(result.data);
+        if (result.ok) apply(result.data);
       });
-    }, 4000);
-
+    }, ms);
     return () => window.clearInterval(id);
   }, [connected, state?.qrcodeBase64, state?.status]);
+
+  const body = (
+    <>
+      <p className="muted-note" style={{ marginTop: 0 }}>
+        {connected ? (
+          <>
+            Número ativo: <strong>{state?.phoneE164 ?? "—"}</strong>
+            {" · "}
+            Instância: <code>{state?.instanceName}</code>
+            {state?.profileName ? (
+              <>
+                {" · "}Nome WA: <strong>{state.profileName}</strong>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            Ragnarok: vincule a instância que já existe na Evolution. Novas unidades (Donna):
+            gere a instância e escaneie o QR. Status atualiza sozinho.
+          </>
+        )}
+      </p>
+
+      {error ? <p className="form-error">{error}</p> : null}
+      {okNote ? <p className="muted-note">{okNote}</p> : null}
+
+      {connected ? (
+        <>
+          <div className="wa-connect-profile">
+            {state?.profilePicUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={state.profilePicUrl}
+                alt="Foto do WhatsApp"
+                className="wa-profile-pic"
+              />
+            ) : (
+              <div className="wa-profile-pic is-empty" aria-hidden>
+                WA
+              </div>
+            )}
+            <div className="wa-connect-profile-fields">
+              <label className="filter-field">
+                <span>Nome no WhatsApp</span>
+                <input
+                  className="search-input"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  maxLength={80}
+                  placeholder="Donna · RagnaroK"
+                />
+              </label>
+              <label className="filter-field">
+                <span>Nova foto (URL pública)</span>
+                <input
+                  className="search-input"
+                  value={pictureUrl}
+                  onChange={(e) => setPictureUrl(e.target.value)}
+                  placeholder="https://…/foto.jpg"
+                />
+              </label>
+            </div>
+          </div>
+          <div className="wa-connect-actions">
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              disabled={pending || profileName.trim().length < 2}
+              onClick={saveName}
+            >
+              Salvar nome
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              disabled={pending || !pictureUrl.trim()}
+              onClick={savePicture}
+            >
+              Trocar foto
+            </button>
+            {showInboxSync ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={pending}
+                onClick={syncInbox}
+              >
+                {pending ? "Sincronizando…" : "Sincronizar inbox"}
+              </button>
+            ) : null}
+            <button type="button" className="btn btn-outline btn-sm" disabled={pending} onClick={refresh}>
+              Atualizar status
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="wa-connect-actions">
+            <button type="button" className="btn btn-primary" disabled={pending} onClick={startPairing}>
+              {pending
+                ? "Gerando…"
+                : state?.instanceName
+                  ? "Gerar / renovar QR"
+                  : "Criar instância e conectar"}
+            </button>
+            {state?.qrcodeBase64 ? (
+              <button type="button" className="btn btn-outline" disabled={pending} onClick={refresh}>
+                Atualizar QR
+              </button>
+            ) : (
+              <button type="button" className="btn btn-outline" disabled={pending} onClick={refresh}>
+                Atualizar status
+              </button>
+            )}
+          </div>
+
+          {(available.length > 0 || variant === "agente") && (
+            <div className="wa-link-existing">
+              <p className="muted-note">
+                Já tem instância na Evolution? Vincule sem recriar (caso Ragnarok).
+              </p>
+              <div className="wa-link-row">
+                {available.length > 0 ? (
+                  <select
+                    className="search-input"
+                    value={linkName}
+                    onChange={(e) => setLinkName(e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {available.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="search-input"
+                    value={linkName}
+                    onChange={(e) => setLinkName(e.target.value)}
+                    placeholder={state?.suggestedInstanceName || "nome-da-instancia"}
+                  />
+                )}
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={pending || !linkName.trim()}
+                  onClick={linkExisting}
+                >
+                  Vincular
+                </button>
+              </div>
+            </div>
+          )}
+
+          {state?.qrcodeBase64 ? (
+            <div className="wa-qrcode-wrap">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={state.qrcodeBase64} alt="QR Code WhatsApp" className="wa-qrcode" />
+              <p className="muted-note">
+                Celular → WhatsApp → Aparelhos conectados → Conectar aparelho
+              </p>
+            </div>
+          ) : null}
+        </>
+      )}
+    </>
+  );
+
+  if (variant === "agente") {
+    return (
+      <ConfigSectionCard
+        title="WhatsApp da unidade"
+        description="Conexão Evolution em tempo quase real — vincular, QR, foto e nome do número."
+        icon="📱"
+        accent="green"
+      >
+        <div className="wa-connect-status-row">
+          <span className={`badge${connected ? " is-success" : " is-warn"}`}>
+            {connected
+              ? "Conectado"
+              : state?.status === "connecting"
+                ? "Aguardando QR"
+                : "Desconectado"}
+          </span>
+          <span className="muted-note" style={{ margin: 0 }}>
+            Instância sugerida: <code>{state?.suggestedInstanceName ?? "—"}</code>
+          </span>
+        </div>
+        {body}
+      </ConfigSectionCard>
+    );
+  }
 
   return (
     <section className="panel dash-panel wa-connect-panel">
@@ -81,60 +341,7 @@ export function WhatsAppConnectPanel({ initial }: Props) {
           {connected ? "Conectado" : state?.status === "connecting" ? "Aguardando QR" : "Desconectado"}
         </span>
       </div>
-      <div className="panel-body">
-        {connected ? (
-          <>
-            <p className="muted-note">
-              Número ativo: <strong>{state?.phoneE164 ?? "—"}</strong>
-              {" · "}
-              Instância: <code>{state?.instanceName}</code>
-            </p>
-            <p className="muted-note">
-              Mensagens novas entram sozinhas. Se algo não apareceu, use{" "}
-              <strong>Sincronizar inbox</strong>.
-            </p>
-            {error ? <p className="form-error">{error}</p> : null}
-            {syncNote ? <p className="muted-note">{syncNote}</p> : null}
-            <div className="wa-connect-actions">
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={pending}
-                onClick={syncInbox}
-              >
-                {pending ? "Sincronizando…" : "Sincronizar inbox"}
-              </button>
-              <button type="button" className="btn btn-outline btn-sm" disabled={pending} onClick={refresh}>
-                Atualizar status
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="muted-note">
-              Use seu número <strong>provisório</strong> agora. No celular: WhatsApp → Aparelhos
-              conectados → Conectar aparelho → escaneie o QR abaixo.
-            </p>
-            {error ? <p className="form-error">{error}</p> : null}
-            <div className="wa-connect-actions">
-              <button type="button" className="btn btn-primary" disabled={pending} onClick={startPairing}>
-                {pending ? "Gerando QR…" : "Conectar WhatsApp"}
-              </button>
-              {state?.qrcodeBase64 ? (
-                <button type="button" className="btn btn-outline" disabled={pending} onClick={refresh}>
-                  Atualizar QR
-                </button>
-              ) : null}
-            </div>
-            {state?.qrcodeBase64 ? (
-              <div className="wa-qrcode-wrap">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={state.qrcodeBase64} alt="QR Code WhatsApp" className="wa-qrcode" />
-              </div>
-            ) : null}
-          </>
-        )}
-      </div>
+      <div className="panel-body">{body}</div>
     </section>
   );
 }
