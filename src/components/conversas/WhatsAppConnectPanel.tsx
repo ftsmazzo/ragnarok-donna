@@ -34,7 +34,9 @@ export function WhatsAppConnectPanel({
   );
   const [showReplace, setShowReplace] = useState(false);
   const [pictureUrl, setPictureUrl] = useState("");
-  const [profileName, setProfileName] = useState(initial?.profileName ?? "");
+  const [profileName, setProfileName] = useState(
+    initial?.profileName?.trim() || initial?.suggestedProfileName || ""
+  );
   const [pending, startTransition] = useTransition();
 
   const connected = state?.status === "connected";
@@ -46,7 +48,7 @@ export function WhatsAppConnectPanel({
 
   function apply(data: WhatsAppConnectionView) {
     setState(data);
-    if (data.profileName) setProfileName(data.profileName);
+    if (data.profileName?.trim()) setProfileName(data.profileName);
     if (data.suggestedInstanceName && !showReplace) {
       setReplaceName(data.suggestedInstanceName);
     }
@@ -283,9 +285,13 @@ export function WhatsAppConnectPanel({
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
                   maxLength={80}
-                  placeholder="Donna · RagnaroK"
+                  placeholder={state?.suggestedProfileName || "Sara | Ragnarok"}
                 />
               </label>
+              <p className="muted-note" style={{ marginTop: -4 }}>
+                É o nome que o cliente vê (ex.: <strong>Sara | Ragnarok</strong>). Diferente do
+                nome técnico da instância na Evolution.
+              </p>
               <label className="filter-field">
                 <span>Nova foto (URL pública)</span>
                 <input

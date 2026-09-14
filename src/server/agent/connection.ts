@@ -31,10 +31,17 @@ export type WhatsAppConnectionView = {
   availableInstances: string[];
   /** Nome sugerido ao criar (slug do tenant). */
   suggestedInstanceName: string;
+  /** Nome de perfil WA sugerido (o que o cliente vê). */
+  suggestedProfileName: string;
 };
 
 function suggestedNameForSlug(slug: string) {
   return slug.replace(/[^a-z0-9-_]/gi, "_").slice(0, 80) || "tenant";
+}
+
+function suggestedProfileNameForSlug(slug: string) {
+  if (/ragnarok/i.test(slug)) return "Sara | Ragnarok";
+  return "Donna";
 }
 
 function normalizeInstanceName(raw: string) {
@@ -171,6 +178,7 @@ function viewFromParts(input: {
   profileName?: string | null;
   availableInstances: string[];
   suggestedInstanceName: string;
+  suggestedProfileName: string;
 }): WhatsAppConnectionView {
   return {
     instanceName: input.instanceName,
@@ -182,12 +190,14 @@ function viewFromParts(input: {
     profileName: input.profileName ?? null,
     availableInstances: input.availableInstances,
     suggestedInstanceName: input.suggestedInstanceName,
+    suggestedProfileName: input.suggestedProfileName,
   };
 }
 
 export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | null> {
   const tenant = await requireTenantContext();
   const suggestedInstanceName = suggestedNameForSlug(tenant.slug);
+  const suggestedProfileName = suggestedProfileNameForSlug(tenant.slug);
   const availableInstances = await listUnlinkedInstanceNames(tenant.id);
 
   const db = createDb();
@@ -205,6 +215,7 @@ export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | 
       webhookConfigured: false,
       availableInstances,
       suggestedInstanceName,
+      suggestedProfileName,
     });
   }
 
@@ -218,6 +229,7 @@ export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | 
     profileName: typeof meta.profileName === "string" ? meta.profileName : null,
     availableInstances,
     suggestedInstanceName,
+    suggestedProfileName,
   });
 }
 
@@ -343,6 +355,7 @@ export async function linkWhatsAppInstance(instanceNameRaw: string): Promise<
         profileName: meta.profileName,
         availableInstances,
         suggestedInstanceName: suggestedNameForSlug(tenant.slug),
+        suggestedProfileName: suggestedProfileNameForSlug(tenant.slug),
       }),
     };
   } catch (err) {
@@ -420,6 +433,7 @@ export async function startWhatsAppPairing(forceInstanceName?: string): Promise<
         webhookConfigured: true,
         availableInstances,
         suggestedInstanceName: suggested,
+        suggestedProfileName: suggestedProfileNameForSlug(tenant.slug),
       }),
     };
   } catch (err) {
@@ -562,6 +576,7 @@ export async function refreshWhatsAppPairing(): Promise<
         profileName,
         availableInstances,
         suggestedInstanceName: suggestedNameForSlug(tenant.slug),
+        suggestedProfileName: suggestedProfileNameForSlug(tenant.slug),
       }),
     };
   } catch (err) {
