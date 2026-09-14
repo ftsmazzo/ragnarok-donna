@@ -3,9 +3,11 @@ import { createDb, schema } from "@/db";
 import {
   connectInstance,
   createBaileysInstance,
+  deleteInstance,
   extractQrBase64,
   fetchInstances,
   getConnectionState,
+  logoutInstance,
   mapConnectionStatus,
   setInstanceWebhook,
   updateProfileName,
@@ -33,6 +35,15 @@ export type WhatsAppConnectionView = {
 
 function suggestedNameForSlug(slug: string) {
   return slug.replace(/[^a-z0-9-_]/gi, "_").slice(0, 80) || "tenant";
+}
+
+function normalizeInstanceName(raw: string) {
+  return raw
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9-_]/g, "_")
+    .replace(/_+/g, "_")
+    .slice(0, 80);
 }
 
 function pickInstanceMeta(inst: EvolutionInstance | undefined) {
@@ -241,7 +252,9 @@ export async function syncWhatsAppConnectionByInstance(instanceName: string) {
     const meta = pickInstanceMeta(inst);
     if (meta.phoneE164) phoneE164 = meta.phoneE164;
     if (meta.profilePicUrl) profilePicUrl = meta.profilePicUrl;
-    if (meta.profileName) profileName = meta.profileName;
+    // Nome de perfil: o app manda; Evolution só preenche se ainda estiver vazio
+    // (evita o sync a cada 5s sobrescrever o nome que a unidade acabou de salvar).
+    if (!profileName && meta.profileName) profileName = meta.profileName;
   } catch {
     // Evolution indisponível — mantém último status conhecido
   }
@@ -340,8 +353,9 @@ export async function linkWhatsAppInstance(instanceNameRaw: string): Promise<
   }
 }
 
-/** Cria instância Evolution (se precisar), configura webhook e retorna QR. */
-export async function startWhatsAppPairing(): Promise<
+/** Cria instância Evolution (se precisar), configura webhook e retorna QR.
+ *  `forceInstanceName` troca o vínculo (ex.: sair de "Nilo" para o slug da unidade). */
+export async function startWhatsAppPairing(forceInstanceName?: string): Promise<
   { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
 > {
   try {
@@ -354,8 +368,30 @@ export async function startWhatsAppPairing(): Promise<
       .where(eq(schema.whatsappConnections.tenantId, tenant.id))
       .limit(1);
 
-    const instanceName =
-      existing?.instanceName ?? suggestedNameForSlug(tenant.slug);
+    const suggested = suggestedNameForSlug(tenant.slug);
+    let instanceName = existing?.instanceName ?? suggested;
+
+    if (forceInstanceName?.trim()) {
+      const next = normalizeInstanceName(forceInstanceName);
+      if (next.length < 2) {
+        return { ok: false, error: "Nome da instância inválido (mín. 2 caracteres)" };
+      }
+      const [taken] = await db
+        .select({ tenantId: schema.whatsappConnections.tenantId })
+        .from(schema.whatsappConnections)
+        .where(
+          and(
+            eq(schema.whatsappConnections.instanceName, next),
+            ne(schema.whatsappConnections.tenantId, tenant.id)
+          )
+        )
+        .limit(1);
+      if (taken) {
+        return { ok: false, error: "Esse nome de instância já está em uso por outra unidade" };
+      }
+      instanceName = next;
+    }
+
     const webhookUrl = getAgentWebhookUrl();
 
     await createBaileysInstance(instanceName);
@@ -370,6 +406,7 @@ export async function startWhatsAppPairing(): Promise<
       instanceName,
       status,
       webhookUrl,
+      phoneE164: null,
     });
 
     const availableInstances = await listUnlinkedInstanceNames(tenant.id);
@@ -382,13 +419,75 @@ export async function startWhatsAppPairing(): Promise<
         qrcodeBase64,
         webhookConfigured: true,
         availableInstances,
-        suggestedInstanceName: suggestedNameForSlug(tenant.slug),
+        suggestedInstanceName: suggested,
       }),
     };
   } catch (err) {
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Falha ao iniciar pareamento",
+    };
+  }
+}
+
+/**
+ * Troca o nome técnico da instância Evolution vinculada ao tenant.
+ * Evolution não renomeia: desconecta a antiga (opcional delete) e cria a nova.
+ */
+export async function replaceWhatsAppInstance(newNameRaw: string): Promise<
+  { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
+> {
+  try {
+    await assertCanManage();
+    const tenant = await requireTenantContext();
+    const next = normalizeInstanceName(newNameRaw);
+    if (next.length < 2) {
+      return { ok: false, error: "Informe o novo nome da instância" };
+    }
+
+    const db = createDb();
+    const [existing] = await db
+      .select({ instanceName: schema.whatsappConnections.instanceName })
+      .from(schema.whatsappConnections)
+      .where(eq(schema.whatsappConnections.tenantId, tenant.id))
+      .limit(1);
+
+    if (existing?.instanceName === next) {
+      return startWhatsAppPairing(next);
+    }
+
+    const [taken] = await db
+      .select({ tenantId: schema.whatsappConnections.tenantId })
+      .from(schema.whatsappConnections)
+      .where(
+        and(
+          eq(schema.whatsappConnections.instanceName, next),
+          ne(schema.whatsappConnections.tenantId, tenant.id)
+        )
+      )
+      .limit(1);
+    if (taken) {
+      return { ok: false, error: "Esse nome já está vinculado a outra unidade" };
+    }
+
+    if (existing?.instanceName) {
+      try {
+        await logoutInstance(existing.instanceName);
+      } catch {
+        // best-effort
+      }
+      try {
+        await deleteInstance(existing.instanceName);
+      } catch {
+        // instância pode já ter sido apagada no painel Evolution
+      }
+    }
+
+    return startWhatsAppPairing(next);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Falha ao trocar instância",
     };
   }
 }

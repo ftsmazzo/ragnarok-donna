@@ -97,6 +97,18 @@ export async function logoutInstance(instanceName: string) {
   });
 }
 
+export async function deleteInstance(instanceName: string) {
+  try {
+    return await evolutionFetch(`/instance/delete/${encodeURIComponent(instanceName)}`, {
+      method: "DELETE",
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (/not found|404|does not exist/i.test(msg)) return null;
+    throw err;
+  }
+}
+
 /** Foto de perfil do número (URL pública ou data-URL/base64, conforme Evolution). */
 export async function updateProfilePicture(instanceName: string, picture: string) {
   return evolutionFetch(`/chat/updateProfilePicture/${encodeURIComponent(instanceName)}`, {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   linkWhatsAppInstance,
   refreshWhatsAppPairing,
+  replaceWhatsAppInstance,
   startWhatsAppPairing,
   updateWhatsAppProfileName,
   updateWhatsAppProfilePicture,
@@ -14,8 +15,14 @@ function revalidateWa() {
   revalidatePath("/conversas");
 }
 
-export async function startWhatsAppPairingAction() {
-  const result = await startWhatsAppPairing();
+export async function startWhatsAppPairingAction(instanceName?: string) {
+  const result = await startWhatsAppPairing(instanceName);
+  if (result.ok) revalidateWa();
+  return result;
+}
+
+export async function replaceWhatsAppInstanceAction(instanceName: string) {
+  const result = await replaceWhatsAppInstance(instanceName);
   if (result.ok) revalidateWa();
   return result;
 }
