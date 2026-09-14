@@ -230,8 +230,11 @@ async function provisionInstance(instanceName: string) {
   try {
     await setInstanceProxy(instanceName, proxy);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Instância criada, mas falhou ao aplicar proxy: ${msg}`);
+    // Create já manda proxyHost/…; /proxy/set é reforço. Não bloqueia o QR.
+    console.warn(
+      "[whatsapp] setInstanceProxy falhou (proxy do create pode bastar):",
+      err instanceof Error ? err.message : err
+    );
   }
 
   return { webhookUrl, proxy };

@@ -185,14 +185,16 @@ export async function setInstanceWebhook(instanceName: string, url: string) {
 }
 
 export async function setInstanceProxy(instanceName: string, proxy: EvolutionProxyConfig) {
+  // Evolution /proxy/set espera host/port/protocol (não proxyHost…).
+  // No /instance/create o payload ainda usa proxyHost/proxyPort/proxyProtocol.
   return evolutionFetch(`/proxy/set/${encodeURIComponent(instanceName)}`, {
     body: {
       enabled: true,
-      proxyHost: proxy.host,
-      proxyPort: proxy.port,
-      proxyProtocol: proxy.protocol,
-      ...(proxy.username ? { proxyUsername: proxy.username } : {}),
-      ...(proxy.password ? { proxyPassword: proxy.password } : {}),
+      host: proxy.host,
+      port: proxy.port,
+      protocol: proxy.protocol,
+      ...(proxy.username ? { username: proxy.username } : {}),
+      ...(proxy.password ? { password: proxy.password } : {}),
     },
   });
 }
