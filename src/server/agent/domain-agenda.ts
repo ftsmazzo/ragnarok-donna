@@ -143,13 +143,13 @@ export async function listFreeSlotsForTenant(input: {
 
   for (const st of staffRows) {
     const staffSched = schedules.filter((s) => s.staffId === st.id);
-    const windows =
-      staffSched.length > 0
-        ? staffSched.map((s) => ({
-            startMin: parseTimeToMinutes(String(s.startTime).slice(0, 5)),
-            endMin: parseTimeToMinutes(String(s.endTime).slice(0, 5)),
-          }))
-        : [{ startMin: 9 * 60, endMin: 19 * 60 }];
+    // Sem jornada naquele weekday = não trabalha (não inventar 9–19).
+    if (staffSched.length === 0) continue;
+
+    const windows = staffSched.map((s) => ({
+      startMin: parseTimeToMinutes(String(s.startTime).slice(0, 5)),
+      endMin: parseTimeToMinutes(String(s.endTime).slice(0, 5)),
+    }));
 
     for (const win of windows) {
       const fromMin = Math.max(periodStart * 60, win.startMin);
