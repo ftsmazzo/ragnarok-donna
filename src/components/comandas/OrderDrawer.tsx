@@ -95,6 +95,11 @@ export function OrderDrawer({
     (itemType === "service" || itemType === "product") &&
     useCredit &&
     selectedCreditQty > 0;
+  const selectedCatalogPriceCents =
+    catalogId && (itemType === "service" || itemType === "product")
+      ? (itemType === "service" ? services : products).find((c) => c.id === catalogId)
+          ?.priceCents ?? 0
+      : 0;
   const selectedPackage =
     itemType === "package" && catalogId
       ? packages.find((p) => p.id === catalogId) ?? null
@@ -441,7 +446,9 @@ export function OrderDrawer({
                   <strong>
                     {item.description}
                     {item.redeemed ? (
-                      <span className="order-badge is-credit">Crédito</span>
+                      <span className="order-badge is-credit">
+                        {item.totalCents > 0 ? "Crédito + diferença" : "Crédito"}
+                      </span>
                     ) : null}
                     {item.packageSale ? (
                       <span className="order-badge is-package">
@@ -457,12 +464,20 @@ export function OrderDrawer({
                       ? ` · comissão ${formatMoney(item.commissionCents)}`
                       : ""}
                     {item.redeemed
-                      ? ` · tabela ${formatMoney(item.unitPriceCents)} abatida`
-                      : ""}
+                      ? item.totalCents > 0
+                        ? ` · pacote cobre ${formatMoney(item.coveredCents)} · diferença ${formatMoney(item.totalCents)}`
+                        : ` · tabela ${formatMoney(item.unitPriceCents)} abatida`
+                      : item.discountCents > 0
+                        ? ` · desconto ${formatMoney(item.discountCents)}`
+                        : ""}
                   </span>
                 </div>
                 <div className="order-item-actions">
-                  <strong className={item.redeemed ? "is-zero" : undefined}>
+                  <strong
+                    className={
+                      item.redeemed && item.totalCents === 0 ? "is-zero" : undefined
+                    }
+                  >
                     {formatMoney(item.totalCents)}
                   </strong>
                   {canEdit ? (
@@ -562,8 +577,27 @@ export function OrderDrawer({
                 />
                 <span>
                   {useCredit
-                    ? `1 crédito — R$ 0 (${selectedCreditQty} disponível${selectedCreditQty > 1 ? "s" : ""}). Desmarque para cobrar avulso.`
+                    ? `Abater 1 crédito (${selectedCreditQty} disponível${selectedCreditQty > 1 ? "s" : ""}). Ajuste a cobertura se sobrar diferença a cobrar.`
                     : `Cobrar avulso (há ${selectedCreditQty} crédito${selectedCreditQty > 1 ? "s" : ""} — marque para abater).`}
+                </span>
+              </label>
+            ) : null}
+
+            {willUseCredit && selectedCatalogPriceCents > 0 ? (
+              <label className="form-field">
+                <span>Cobertura do pacote (R$)</span>
+                <input
+                  key={`covered-${catalogId}`}
+                  name="coveredReais"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  max={selectedCatalogPriceCents / 100}
+                  defaultValue={(selectedCatalogPriceCents / 100).toFixed(2)}
+                />
+                <span className="client-profile-hint muted">
+                  Quanto o crédito cobre. Tabela {formatMoney(selectedCatalogPriceCents)} —
+                  se cobrir menos, a diferença entra a pagar (desconto aplica no residual).
                 </span>
               </label>
             ) : null}
@@ -611,10 +645,15 @@ export function OrderDrawer({
                 ))}
               </select>
             </label>
-            {itemType !== "package" && !willUseCredit ? (
+            {itemType !== "package" ? (
               <label className="form-field">
                 <span>Desconto no item (R$)</span>
                 <input name="discountReais" type="number" min={0} step={0.01} defaultValue={0} />
+                {willUseCredit ? (
+                  <span className="client-profile-hint muted">
+                    Desconto comercial no residual após o abate (não substitui o crédito).
+                  </span>
+                ) : null}
               </label>
             ) : null}
             <button
@@ -625,7 +664,7 @@ export function OrderDrawer({
               {itemType === "package"
                 ? "+ Vender pacote / gerar carteira"
                 : willUseCredit
-                  ? "+ Lançar com 1 crédito (R$ 0)"
+                  ? "+ Lançar com crédito"
                   : "+ Adicionar item"}
             </button>
           </form>

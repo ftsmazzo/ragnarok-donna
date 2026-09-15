@@ -429,6 +429,12 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
         packageId: item.packageId,
         performedAt: item.performedAt,
         redeemed: Boolean(meta.redeemed),
+        coveredCents:
+          typeof meta.coveredCents === "number" && Number.isFinite(meta.coveredCents)
+            ? Math.max(0, Math.round(meta.coveredCents))
+            : meta.redeemed
+              ? item.unitPriceCents * item.qty
+              : 0,
         packageSale: Boolean(meta.packageSale),
         walletPending: Boolean(meta.packageSale) && !meta.clientPackageId,
       };
