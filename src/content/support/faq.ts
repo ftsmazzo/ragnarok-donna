@@ -53,7 +53,7 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "comanda-fechar",
     question: "Como fecho e pago a comanda?",
     answer:
-      "Na comanda aberta, escolha o pagamento (dinheiro, PIX, PIX chave, cartão, Link Rede, Infinity etc.) e feche num passo. O histórico fica em Comandas → Histórico.",
+      "Na comanda aberta (Comandas → Abertas → clique na linha): se ainda há Saldo, use Pagar e fechar e escolha a forma (PIX, PIX chave, Link Rede, Infinity, dinheiro, cartão…). Se o saldo já é zero, use Fechar comanda. Precisa ter ao menos um item. Histórico em Comandas → Histórico.",
     tags: ["comanda", "pagar", "fechar", "pagamento"],
     menuPath: "Comandas → Abertas",
   },

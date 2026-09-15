@@ -12,7 +12,7 @@ Código: `src/content/support/guides/`
 | `draft` | Passos e objeções escritos; falta validar no produto. |
 | `ready` | Validado — agente pode responder com confiança. |
 
-Hoje: **tudo `skeleton`** (~30 guias espelhando o menu).
+Hoje: maioria `skeleton`; **S1** (`comandas`, `comandas-historico`) em `draft`.
 
 ## Como enriquecer (por sprint)
 
@@ -25,17 +25,17 @@ Hoje: **tudo `skeleton`** (~30 guias espelhando o menu).
 
 ## Fila sugerida de sprints
 
-| Sprint | Guias | Por quê |
-|--------|-------|---------|
-| **S1** | `comandas`, `comandas-historico` | Maior volume de dúvida + tip de reabrir desatualizado |
-| **S2** | `pacotes`, `consumo-pwa` | Fluxo novo + comissão/crédito |
-| **S3** | `agenda`, `lista-espera` | Operação diária |
-| **S4** | `caixa`, `comissoes` | Dinheiro e repasse |
-| **S5** | `clientes`, `profissionais`, `servicos`, `produtos` | Cadastros |
-| **S6** | Relatórios (`relatorios-*`, `alertas`, `fluxo-caixa`, `contas`) | “Como gero Y” |
-| **S7** | `conversas-ia`, `agente-donna`, `disparos`, `pwa-app` | WhatsApp / mobile |
-| **S8** | `empresa`, `equipe-acesso`, `minha-conta`, `inicio` | Config |
-| **S9** | Wiring do agente (tools + prompt + deep-link `href`) | Consome o que estiver `ready` |
+| Sprint | Guias | Status |
+|--------|-------|--------|
+| **S1** | `comandas`, `comandas-historico` | **draft** (tip reabrir corrigido no nav-hints) |
+| **S2** | `pacotes`, `consumo-pwa` | pendente |
+| **S3** | `agenda`, `lista-espera` | pendente |
+| **S4** | `caixa`, `comissoes` | pendente |
+| **S5** | `clientes`, `profissionais`, `servicos`, `produtos` | pendente |
+| **S6** | Relatórios (`relatorios-*`, `alertas`, `fluxo-caixa`, `contas`) | pendente |
+| **S7** | `conversas-ia`, `agente-donna`, `disparos`, `pwa-app` | pendente |
+| **S8** | `empresa`, `equipe-acesso`, `minha-conta`, `inicio` | pendente |
+| **S9** | Wiring do agente (tools + prompt + deep-link `href`) | pendente |
 
 ## Regras de conteúdo
 
