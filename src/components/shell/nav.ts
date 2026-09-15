@@ -131,6 +131,20 @@ export function filterNavForRole(
     .filter((item): item is NavItem => item !== null);
 }
 
+/** Lista plana de hrefs do menu (unidade + consolidado). */
+export function listNavHrefs(): string[] {
+  const out = new Set<string>();
+  for (const source of [NAV, NAV_CONSOLIDATED]) {
+    for (const item of source) {
+      if (item.href) out.add(item.href);
+      for (const child of item.children ?? []) {
+        out.add(child.href);
+      }
+    }
+  }
+  return [...out].sort();
+}
+
 /** Profissionais: barbeiro vai direto para a própria ficha. */
 export function profissionaisHref(role: MemberRole, staffId?: string | null): string {
   if (role === "staff" && staffId) {

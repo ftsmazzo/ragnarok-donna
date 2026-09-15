@@ -12,7 +12,7 @@ Código: `src/content/support/guides/`
 | `draft` | Passos e objeções escritos; falta validar no produto. |
 | `ready` | Validado no código/UI — agente responde com confiança. |
 
-Hoje: **30/30 `ready`**; wiring **S9** em produção. Ondas: (1) papel + Agenda/Equipe/Conversas · (2) Pacotes/Clientes/Produtos/Relatórios densos.
+Hoje: **30/30 `ready`**; wiring **S9** em produção. Ondas: (1) papel + Agenda/Equipe/Conversas · (2) Pacotes/Clientes/Produtos/Relatórios · (3) CI `check:support-guides` (href ∈ nav, mín. steps).
 
 ## Como enriquecer (manutenção)
 
@@ -21,6 +21,7 @@ Hoje: **30/30 `ready`**; wiring **S9** em produção. Ondas: (1) papel + Agenda/
 3. Ajustar `roles` se barbeiro/recepção vê diferente.
 4. `lastVerified` = data da conferência; status `ready` (ou `draft` se incerto).
 5. Agente consome `draft`|`ready` via `search_guides` / `get_guide`. FAQ é fallback.
+6. Antes do PR: `npm run check:support-guides` (CI também roda).
 
 ## Fila de sprints (histórico)
 

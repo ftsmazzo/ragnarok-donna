@@ -318,6 +318,11 @@ export const guideMinhaConta: SupportGuide = {
         "Menu → Configurações → Minha conta (/configuracoes/conta) ou atalho Conta na topbar. Todos com login.",
     },
     {
+      title: "O que aparece",
+      detail:
+        "E-mail da conta (somente leitura), organização/unidade atual e formulário de senha. Não é a ficha de profissional nem a Equipe de acesso.",
+    },
+    {
       title: "Alterar senha",
       detail:
         "Senha atual, Nova senha (mín. 8), Confirmar → Atualizar senha. Vale para todas as organizações desse e-mail.",
@@ -328,6 +333,11 @@ export const guideMinhaConta: SupportGuide = {
       concern: "Não consigo mudar o e-mail",
       reply:
         "Nesta tela o e-mail é só exibição. Peça ao dono outro usuário em Equipe de acesso se precisar de login novo.",
+    },
+    {
+      concern: "Esqueci a senha atual",
+      reply:
+        "Sem a senha atual não dá para trocar aqui. Peça ao dono/admin recriar o acesso em Equipe de acesso (ou suporte humano da Fábrica).",
     },
   ],
   relatedGuideIds: ["equipe-acesso"],
