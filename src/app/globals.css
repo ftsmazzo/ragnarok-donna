@@ -1408,6 +1408,17 @@ input {
   white-space: pre-wrap;
 }
 
+.support-chat-deeplink {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.support-chat-bubble--user .support-chat-deeplink {
+  color: #fff;
+}
+
 .support-chat-bubble-meta {
   display: block;
   font-size: 0.68rem;

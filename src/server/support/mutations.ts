@@ -11,6 +11,7 @@ import {
 import { assertCanUseSupport, getOrCreateSupportThread } from "./queries";
 import { buildSupportSystemPrompt } from "./prompt";
 import { executeSupportTool, SUPPORT_TOOL_DEFS } from "./tools";
+import { searchGuides, getGuidePayload } from "@/content/support/guides";
 import { searchHelp } from "./knowledge";
 
 export type SupportActionResult =
@@ -150,8 +151,21 @@ function parseToolArgs(raw: string): Record<string, unknown> {
   }
 }
 
-/** Fallback sem LLM: FAQ + mensagem honesta. */
+/** Fallback sem LLM: guia → FAQ + mensagem honesta. */
 function offlineReply(userText: string): string {
+  const guideHits = searchGuides(userText, 1);
+  if (guideHits.length) {
+    const hit = guideHits[0];
+    const full = getGuidePayload(hit.id);
+    if (full?.steps.length) {
+      const steps = full.steps
+        .slice(0, 4)
+        .map((s) => `${s.title}: ${s.detail}`)
+        .join(" ");
+      return `${full.summary} ${steps} Menu: ${full.menuPath}. Abra ${full.href}`;
+    }
+    return `${hit.summary} Menu: ${hit.menuPath}. Abra ${hit.href}`;
+  }
   const hits = searchHelp(userText, 2);
   if (hits.length) {
     const top = hits[0];

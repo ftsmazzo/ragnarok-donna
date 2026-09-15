@@ -12,7 +12,7 @@ Código: `src/content/support/guides/`
 | `draft` | Passos e objeções escritos; falta validar no produto. |
 | `ready` | Validado — agente pode responder com confiança. |
 
-Hoje: **S1–S8** em `draft`; falta **S9** (wiring do agente).
+Hoje: **S1–S8** em `draft`; **S9** wiring feito (agente usa `draft`+`ready`). Validar na loja → promover a `ready`.
 
 ## Como enriquecer (por sprint)
 
@@ -21,7 +21,7 @@ Hoje: **S1–S8** em `draft`; falta **S9** (wiring do agente).
 3. Preencher `objections[]` (“não acho”, “não deixa fechar”, permissão…).
 4. Ajustar `roles` se barbeiro/recepção vê diferente.
 5. `status: "draft"` → validar na loja → `status: "ready"` + `lastVerified`.
-6. Só então ligar o agente nas tools (`get_guide` / `search_guides`) — sprint de wiring separado.
+6. Agente já consome `draft`|`ready` via `search_guides` / `get_guide` (S9). FAQ continua como fallback.
 
 ## Fila sugerida de sprints
 
@@ -35,7 +35,14 @@ Hoje: **S1–S8** em `draft`; falta **S9** (wiring do agente).
 | **S6** | Relatórios (`relatorios-*`, `alertas`, `fluxo-caixa`, `contas`) | **draft** |
 | **S7** | `conversas-ia`, `agente-donna`, `disparos`, `pwa-app` | **draft** |
 | **S8** | `empresa`, `equipe-acesso`, `minha-conta`, `inicio` | **draft** |
-| **S9** | Wiring do agente (tools + prompt + deep-link `href`) | pendente |
+| **S9** | Wiring do agente (tools + prompt + deep-link `href`) | **feito** |
+
+### S9 — o que entrou no runtime
+
+- Tools: `search_guides`, `get_guide` (preferidos); `search_help` / `get_feature_hint` fallback.
+- Prompt: ordem guia → FAQ; citar `menuPath` + `href`.
+- Chat: rotas `/…` nas respostas viram link clicável.
+- Offline (sem LLM): responde pelo guia se houver hit.
 
 ## Regras de conteúdo
 

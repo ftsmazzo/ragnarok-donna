@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { FormEvent, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { SUGGESTED_PROMPTS } from "@/content/support/suggestions";
 import type { SupportMessageDto, SupportThreadDto } from "@/lib/support-types";
 import { hasCapability } from "@/server/permissions/capabilities";
@@ -23,6 +24,21 @@ function roleLabel(role: SupportMessageDto["role"]) {
   if (role === "assistant") return "Suporte";
   if (role === "human_support") return "Fábrica";
   return "Sistema";
+}
+
+/** Torna rotas internas (/agenda, /comandas) clicáveis no bubble. */
+function renderBodyWithDeepLinks(body: string): ReactNode {
+  const parts = body.split(/(\/[a-z][\w\-]*(?:\/[\w\-.?=&%]*)*)/gi);
+  return parts.map((part, i) => {
+    if (part.startsWith("/") && /^\/[a-z][\w\-]*(?:\/[\w\-.?=&%]*)*$/i.test(part)) {
+      return (
+        <Link key={`${i}-${part}`} href={part} className="support-chat-deeplink">
+          {part}
+        </Link>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
 }
 
 /**
@@ -202,7 +218,11 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
                   className={`support-chat-bubble support-chat-bubble--${m.role}`}
                 >
                   <span className="support-chat-bubble-meta">{roleLabel(m.role)}</span>
-                  <p>{m.body}</p>
+                  <p>
+                    {m.role === "assistant" || m.role === "human_support"
+                      ? renderBodyWithDeepLinks(m.body)
+                      : m.body}
+                  </p>
                 </div>
               ))
             )}

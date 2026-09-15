@@ -1,4 +1,5 @@
 import type { ChatToolDef } from "@/server/agent/llm";
+import { getGuideById, getGuidePayload, searchGuides } from "@/content/support/guides";
 import { supportHumanChannelConfigured } from "./channel";
 import { getFeatureHint, searchHelp } from "./knowledge";
 
@@ -6,9 +7,42 @@ export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
   {
     type: "function",
     function: {
+      name: "search_guides",
+      description:
+        "Busca no Guia operacional (fonte preferida). Use ANTES de search_help em dúvidas de como operar o app.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Pergunta ou palavras-chave" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_guide",
+      description:
+        "Carrega o guia completo (passos, objeções, menuPath, href). Chame com o id retornado por search_guides.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Id do guia (ex.: comandas, pacotes, caixa)",
+          },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "search_help",
       description:
-        "Busca no FAQ do produto respostas sobre como operar o app. Use SEMPRE antes de admitir que não sabe ou de escalar.",
+        "FAQ legado. Use só se search_guides não achar nada útil, ou para reforço pontual.",
       parameters: {
         type: "object",
         properties: {
@@ -22,7 +56,8 @@ export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
     type: "function",
     function: {
       name: "get_feature_hint",
-      description: "Indica onde fica uma função no menu do painel.",
+      description:
+        "Atalho rápido de onde fica no menu. Prefira get_guide quando precisar de passo a passo.",
       parameters: {
         type: "object",
         properties: {
@@ -40,7 +75,7 @@ export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
     function: {
       name: "escalate_human",
       description:
-        "Pede humano. Só se a pessoa pedir ou bug real sem resposta no FAQ. Se o canal estiver offline, a tool avisa — continue respondendo.",
+        "Pede humano. Só se a pessoa pedir ou bug real sem resposta no guia/FAQ. Se o canal estiver offline, a tool avisa — continue respondendo.",
       parameters: {
         type: "object",
         properties: {
@@ -64,6 +99,47 @@ export function executeSupportTool(
   name: string,
   args: Record<string, unknown>
 ): SupportToolResult {
+  if (name === "search_guides") {
+    const query = String(args.query ?? "").trim();
+    const hits = searchGuides(query);
+    return {
+      ok: true,
+      data: {
+        query,
+        hits,
+        instruction:
+          hits.length > 0
+            ? "Chame get_guide com o id do melhor hit. Inclua menuPath e o href na resposta (deep-link)."
+            : "Nenhum guia. Tente search_help ou get_feature_hint.",
+      },
+    };
+  }
+
+  if (name === "get_guide") {
+    const id = String(args.id ?? "").trim();
+    const guide = getGuidePayload(id);
+    if (!guide) {
+      const known = getGuideById(id);
+      return {
+        ok: false,
+        data: {
+          id,
+          message: known
+            ? "Guia ainda skeleton — sem passos. Use search_help / get_feature_hint."
+            : "Guia não encontrado. Use search_guides.",
+        },
+      };
+    }
+    return {
+      ok: true,
+      data: {
+        ...guide,
+        instruction:
+          "Baseie a resposta nestes passos/objeções. Cite menuPath e ofereça o href como link (ex.: Abra /comandas).",
+      },
+    };
+  }
+
   if (name === "search_help") {
     const query = String(args.query ?? "").trim();
     const hits = searchHelp(query);
@@ -108,7 +184,7 @@ export function executeSupportTool(
           queued: false,
           channelOnline: false,
           instruction:
-            "Canal humano offline. NÃO diga que chamou a Fábrica. Responda com search_help / o que souber. Sem fila.",
+            "Canal humano offline. NÃO diga que chamou a Fábrica. Responda com search_guides / search_help. Sem fila.",
         },
       };
     }
