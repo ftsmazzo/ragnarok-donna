@@ -12,7 +12,7 @@ Código: `src/content/support/guides/`
 | `draft` | Passos e objeções escritos; falta validar no produto. |
 | `ready` | Validado — agente pode responder com confiança. |
 
-Hoje: maioria `skeleton`; **S1** (`comandas`, `comandas-historico`) em `draft`.
+Hoje: maioria `skeleton`; **S1 + S2** em `draft`.
 
 ## Como enriquecer (por sprint)
 
@@ -28,7 +28,7 @@ Hoje: maioria `skeleton`; **S1** (`comandas`, `comandas-historico`) em `draft`.
 | Sprint | Guias | Status |
 |--------|-------|--------|
 | **S1** | `comandas`, `comandas-historico` | **draft** (tip reabrir corrigido no nav-hints) |
-| **S2** | `pacotes`, `consumo-pwa` | pendente |
+| **S2** | `pacotes`, `consumo-pwa` | **draft** (uso interno esclarecido → Produtos) |
 | **S3** | `agenda`, `lista-espera` | pendente |
 | **S4** | `caixa`, `comissoes` | pendente |
 | **S5** | `clientes`, `profissionais`, `servicos`, `produtos` | pendente |

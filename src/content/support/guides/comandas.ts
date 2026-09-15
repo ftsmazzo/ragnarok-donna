@@ -200,20 +200,73 @@ export const guideComandasHistorico: SupportGuide = {
   enrichNotes: ["Promover para ready após validação na recepção"],
 };
 
-/** S2 — ainda esqueleto */
+/** S2 — enriquecido a partir de ConsumoMobileApp + staff-consumption + Produtos (uso interno). */
 export const guideConsumoPwa: SupportGuide = {
   id: "consumo-pwa",
   title: "Venda / Consumo no celular",
-  status: "skeleton",
+  status: "draft",
   href: "/pwa/consumo",
   menuPath: "Comandas → Venda / Consumo (celular)",
-  aliases: ["consumo", "meu consumo", "uso interno", "pwa consumo", "coca", "trufa"],
+  aliases: [
+    "consumo",
+    "meu consumo",
+    "venda celular",
+    "pwa consumo",
+    "coca",
+    "trufa",
+    "cone",
+    "produto na comanda celular",
+  ],
   roles: ["owner", "admin", "reception", "staff"],
-  intents: ["onde_fica", "como_fazer", "objecao"],
-  summary: "Lançar venda rápida, consumo do barbeiro (−30%) e uso interno.",
-  steps: [],
-  objections: [],
-  relatedGuideIds: ["comandas", "produtos", "comissoes"],
-  lastVerified: null,
-  enrichNotes: ["Meu consumo vs venda cliente vs uso interno (dona)"],
+  intents: ["onde_fica", "como_fazer", "objecao", "permissao"],
+  summary:
+    "No celular: vender produto na comanda aberta (preço cheio) ou lançar Meu consumo (−30% na comissão).",
+  steps: [
+    {
+      title: "Onde fica",
+      detail:
+        "Menu → Comandas → Venda / Consumo (celular), ou abra /pwa/consumo no celular. Também pelo atalho App celular (PWA).",
+    },
+    {
+      title: "Aba Venda — produto na comanda do cliente",
+      detail:
+        "Escolha a comanda aberta na lista → toque no produto em estoque. Lança 1 un. na comanda pelo preço cheio e baixa estoque. Se não há comanda aberta “sua”, peça à recepção para abrir.",
+    },
+    {
+      title: "Aba Meu consumo — desconto do barbeiro",
+      detail:
+        "Aba Meu consumo → toque no produto. Baixa estoque e lança desconto na comissão: cobra 70% do preço de venda (venda − 30%). A conta precisa estar vinculada a um profissional (Configurações → Equipe).",
+    },
+    {
+      title: "Uso interno da loja (não é esta tela)",
+      detail:
+        "Baixa de produto de uso interno (sem comanda/comissão) fica em Cadastros → Produtos: o produto precisa estar marcado como Uso interno; aí há ação para baixar 1 un. do estoque.",
+    },
+  ],
+  objections: [
+    {
+      concern: "Não aparece nenhuma comanda na Venda",
+      reply:
+        "Só lista comandas abertas que o usuário pode ver. Peça à recepção para abrir a comanda do cliente (Comandas → Abertas ou pela Agenda).",
+    },
+    {
+      concern: "Meu consumo deu erro de vínculo",
+      reply:
+        "O login do barbeiro precisa estar ligado a um profissional em Configurações → Equipe de acesso. Sem isso não lança consumo.",
+    },
+    {
+      concern: "Onde lanço uso interno / produto da casa?",
+      reply:
+        "Não é no PWA de consumo. Vá em Cadastros → Produtos, marque Uso interno no produto e use a baixa de estoque por lá.",
+    },
+    {
+      concern: "Consumo aparece nas comissões?",
+      reply:
+        "Sim: Financeiro → Comissões. O valor descontado é preço × 70% (venda − 30%).",
+    },
+  ],
+  relatedGuideIds: ["comandas", "produtos", "comissoes", "pwa-app", "equipe-acesso"],
+  lastVerified: "2026-09-15",
+  enrichNotes: ["FAQ uso-interno alinhado para Produtos, não PWA"],
 };
+

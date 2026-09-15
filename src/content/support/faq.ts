@@ -77,9 +77,9 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "uso-interno",
     question: "Onde lanço uso interno de produto?",
     answer:
-      "Na tela de Consumo (/pwa/consumo), a dona/admin tem a opção de uso interno — baixa estoque sem comissão de barbeiro.",
+      "Cadastros → Produtos: o produto precisa estar marcado como Uso interno. Na lista, use a ação de baixar estoque (1 un.). Isso não passa por comanda nem comissão de barbeiro. Meu consumo do barbeiro (−30%) é outra coisa: Comandas → Venda / Consumo no celular.",
     tags: ["uso interno", "estoque", "dona", "produto"],
-    menuPath: "Comandas → Venda / Consumo (celular)",
+    menuPath: "Cadastros → Produtos",
   },
   {
     id: "foto-cliente",
