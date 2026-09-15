@@ -16,6 +16,7 @@ const PAYMENT_METHODS = [
   "transfer",
   "rede_link",
   "infinity",
+  "client_account",
   "other",
 ] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -159,6 +160,9 @@ export async function recordPaymentInCash(input: {
   method: PaymentMethod;
   amountCents: number;
 }): Promise<void> {
+  // Conta do cliente não movimenta caixa físico.
+  if (input.method === "client_account") return;
+
   const sessionId = await findOpenCashSessionId(input.tenantId);
   if (!sessionId) return;
 

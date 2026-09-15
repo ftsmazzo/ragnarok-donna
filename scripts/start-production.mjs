@@ -273,6 +273,31 @@ DO $$ BEGIN
   ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'infinity';
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+DO $$ BEGIN
+  ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'client_account';
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS account_balance_cents integer NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS client_account_ledger (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  delta_cents integer NOT NULL,
+  balance_after_cents integer NOT NULL,
+  reason varchar(64) NOT NULL,
+  notes varchar(240),
+  order_id uuid REFERENCES orders(id) ON DELETE SET NULL,
+  payment_id uuid REFERENCES payments(id) ON DELETE SET NULL,
+  created_by_user_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS client_account_ledger_client_idx
+  ON client_account_ledger (tenant_id, client_id);
+CREATE INDEX IF NOT EXISTS client_account_ledger_created_idx
+  ON client_account_ledger (tenant_id, created_at);
 
 CREATE TABLE IF NOT EXISTS client_packages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -377,7 +402,9 @@ CREATE TABLE IF NOT EXISTS tenant_outreach_settings (
 CREATE UNIQUE INDEX IF NOT EXISTS tenant_outreach_settings_tenant_uidx
   ON tenant_outreach_settings (tenant_id);
 `);
-    console.log("[bootstrap] schema staff_advances + outreach + support_* + agent_profiles.persona ok");
+    console.log(
+      "[bootstrap] schema staff_advances + client_account + outreach + support_* + agent_profiles.persona ok"
+    );
 
     const [{ ok: locked }] = await sql`select pg_try_advisory_lock(${LOCK_KEY}) as ok`;
     if (!locked) {

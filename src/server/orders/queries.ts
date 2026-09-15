@@ -322,6 +322,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
       status: schema.orders.status,
       clientId: schema.orders.clientId,
       clientName: schema.clients.name,
+      clientAccountBalanceCents: schema.clients.accountBalanceCents,
       appointmentId: schema.orders.appointmentId,
       openedAt: schema.orders.openedAt,
       closedAt: schema.orders.closedAt,
@@ -442,6 +443,9 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
     payments,
     paidCents,
     balanceCents: due - paidCents,
+    clientAccountBalanceCents: order.clientId
+      ? (order.clientAccountBalanceCents ?? 0)
+      : null,
     credits,
   };
 }

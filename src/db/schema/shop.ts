@@ -85,6 +85,12 @@ export const clients = pgTable(
     notes: text("notes"),
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     loyaltyPoints: integer("loyalty_points").notNull().default(0),
+    /**
+     * Conta do Cliente (estilo AppBarber):
+     * positivo = crédito pré-pago; negativo = débito/fiado.
+     * Extrato em `client_account_ledger`.
+     */
+    accountBalanceCents: integer("account_balance_cents").notNull().default(0),
     /** Preferências p/ agente (tom, profissional favorito…) */
     preferences: jsonb("preferences").$type<Record<string, unknown>>().notNull().default({}),
     isActive: boolean("is_active").notNull().default(true),
