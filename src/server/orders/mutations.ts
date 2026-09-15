@@ -238,9 +238,14 @@ export async function addOrderItem(input: {
   staffId?: string;
   qty?: number;
   discountCents?: number;
+  /**
+   * Quanto o pacote cobre em R$ (abate). Só com usePackageCredit.
+   * Default = preço cheio (100%). Menor que o bruto → residual (diferença) a pagar.
+   */
+  coveredCents?: number;
   /** Observação da venda (pacote). */
   saleNotes?: string;
-  /** Usar crédito de pacote (serviço a R$ 0; comissão no preço de tabela). */
+  /** Usar 1 crédito de pacote (abate); comissão no preço de tabela. */
   usePackageCredit?: boolean;
 }): Promise<ActionResult> {
   try {
@@ -382,6 +387,7 @@ export async function addOrderItem(input: {
 
     const lineGross = unitPriceCents * qty;
     let appliedDiscount = discountCents;
+    let coveredCents = 0;
     let totalCents = lineGross - appliedDiscount;
     let meta: Record<string, unknown> = {};
     let useCredit = Boolean(
@@ -410,14 +416,26 @@ export async function addOrderItem(input: {
         serviceId: serviceId ?? undefined,
         productId: productId ?? undefined,
       });
-      appliedDiscount = lineGross;
-      totalCents = 0;
+
+      // Abate ≠ desconto: cobertura do pacote + desconto comercial no residual.
+      const requestedCover =
+        input.coveredCents != null && Number.isFinite(input.coveredCents)
+          ? Math.round(input.coveredCents)
+          : lineGross;
+      coveredCents = Math.max(0, Math.min(lineGross, requestedCover));
+      const residual = Math.max(0, lineGross - coveredCents);
+      appliedDiscount = Math.max(0, Math.min(discountCents, residual));
+      totalCents = residual - appliedDiscount;
       meta = {
         redeemed: true,
         creditId: debit.creditId,
         clientPackageId: debit.clientPackageId,
+        coveredCents,
       };
-      description = `${description} · Pacote`;
+      description =
+        totalCents > 0
+          ? `${description} · Pacote + diferença`
+          : `${description} · Pacote`;
     } else if (appliedDiscount > lineGross) {
       throw new AppError("VALIDATION", "Desconto maior que o valor do item");
     }

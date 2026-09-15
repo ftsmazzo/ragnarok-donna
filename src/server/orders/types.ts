@@ -32,6 +32,8 @@ export type OrderItemDetail = {
   packageId: string | null;
   performedAt: Date | null;
   redeemed: boolean;
+  /** Valor abatido pelo crédito de pacote (meta.coveredCents). */
+  coveredCents: number;
   packageSale: boolean;
   walletPending: boolean;
 };

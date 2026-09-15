@@ -55,6 +55,11 @@ export async function addOrderItemAction(formData: FormData) {
   const usePackageCredit =
     String(formData.get("usePackageCredit") ?? "") === "1" ||
     String(formData.get("usePackageCredit") ?? "") === "on";
+  const coveredRaw = formData.get("coveredReais");
+  const coveredCents =
+    coveredRaw != null && String(coveredRaw).trim() !== ""
+      ? Math.round(Number(String(coveredRaw).replace(",", ".")) * 100)
+      : undefined;
   const result = await addOrderItem({
     orderId,
     itemType,
@@ -62,6 +67,7 @@ export async function addOrderItemAction(formData: FormData) {
     staffId: String(formData.get("staffId") ?? "") || undefined,
     qty: Number(formData.get("qty") || 1),
     discountCents: Math.round(Number(formData.get("discountReais") || 0) * 100),
+    coveredCents,
     usePackageCredit,
   });
   if (result.ok) revalidateOrders(orderId);
