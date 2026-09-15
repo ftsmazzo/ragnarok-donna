@@ -50,7 +50,7 @@ export const guideComandas: SupportGuide = {
     {
       title: "Lançar serviço",
       detail:
-        "No drawer: Tipo = Serviço → escolha o serviço → profissional (obrigatório) → quantidade → Adicionar item. Dá para aplicar desconto no item (R$). Com crédito de pacote marcado, o desconto aplica no residual após a cobertura.",
+        "No drawer: Tipo = Serviço → escolha o serviço → profissional (obrigatório) → quantidade → Adicionar item. Dá para aplicar desconto no item em % (o R$ é calculado automaticamente). Com crédito de pacote marcado, a % aplica no residual após a cobertura.",
     },
     {
       title: "Lançar produto",
@@ -65,12 +65,12 @@ export const guideComandas: SupportGuide = {
     {
       title: "Usar crédito de pacote (abate + diferença)",
       detail:
-        "Se há crédito, “Abater 1 crédito” vem marcado. Cobertura do pacote (R$) default = preço cheio. Baixe a cobertura se o plano não cobre tudo — o residual é a diferença a pagar (badge Crédito + diferença). Desconto no item aplica no residual. Desmarque o abate só para cobrar avulso. Comissão do serviço fica no preço de tabela.",
+        "Se há crédito, “Abater 1 crédito” vem marcado. Cobertura do pacote (R$) default = preço cheio. Baixe a cobertura se o plano não cobre tudo — o residual é a diferença a pagar (badge Crédito + diferença). Desconto % no item aplica no residual. Desmarque o abate só para cobrar avulso. Comissão do serviço fica no preço de tabela.",
     },
     {
       title: "Desconto da comanda",
       detail:
-        "No rodapé do drawer, Desconto da comanda (R$) → Aplicar. Isso reduz o total antes do pagamento.",
+        "No rodapé do drawer, Desconto da comanda (%) → o painel mostra o R$ equivalente sobre o subtotal → Aplicar. Isso reduz o total antes do pagamento.",
     },
     {
       title: "Pagar (parcial ou total)",
