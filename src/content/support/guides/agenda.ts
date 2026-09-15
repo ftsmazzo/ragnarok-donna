@@ -4,7 +4,7 @@ import type { SupportGuide } from "./types";
 export const guideAgenda: SupportGuide = {
   id: "agenda",
   title: "Agenda",
-  status: "draft",
+  status: "ready",
   href: "/agenda",
   menuPath: "Agenda",
   aliases: [
@@ -108,7 +108,7 @@ export const guideAgenda: SupportGuide = {
 export const guideListaEspera: SupportGuide = {
   id: "lista-espera",
   title: "Lista de espera",
-  status: "draft",
+  status: "ready",
   href: "/lista-espera",
   menuPath: "Configurações → Lista de espera",
   aliases: [

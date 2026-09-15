@@ -4,7 +4,7 @@ import type { SupportGuide } from "./types";
 export const guideClientes: SupportGuide = {
   id: "clientes",
   title: "Clientes",
-  status: "draft",
+  status: "ready",
   href: "/clientes",
   menuPath: "Cadastros → Clientes",
   aliases: [
@@ -72,7 +72,7 @@ export const guideClientes: SupportGuide = {
 export const guideProfissionais: SupportGuide = {
   id: "profissionais",
   title: "Profissionais",
-  status: "draft",
+  status: "ready",
   href: "/profissionais",
   menuPath: "Cadastros → Profissionais",
   aliases: [
@@ -133,7 +133,7 @@ export const guideProfissionais: SupportGuide = {
 export const guideServicos: SupportGuide = {
   id: "servicos",
   title: "Serviços",
-  status: "draft",
+  status: "ready",
   href: "/servicos",
   menuPath: "Cadastros → Serviços",
   aliases: ["serviço", "serviços", "corte", "barba", "duração", "preço", "agendável online"],
@@ -175,7 +175,7 @@ export const guideServicos: SupportGuide = {
 export const guideProdutos: SupportGuide = {
   id: "produtos",
   title: "Produtos",
-  status: "draft",
+  status: "ready",
   href: "/produtos",
   menuPath: "Cadastros → Produtos",
   aliases: [
@@ -235,7 +235,7 @@ export const guideProdutos: SupportGuide = {
 export const guidePacotes: SupportGuide = {
   id: "pacotes",
   title: "Pacotes e créditos",
-  status: "draft",
+  status: "ready",
   href: "/pacotes",
   menuPath: "Cadastros → Pacotes",
   aliases: [

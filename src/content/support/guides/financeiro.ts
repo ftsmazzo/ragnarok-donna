@@ -3,7 +3,7 @@ import type { SupportGuide } from "./types";
 export const guideCaixa: SupportGuide = {
   id: "caixa",
   title: "Caixa do dia",
-  status: "draft",
+  status: "ready",
   href: "/caixa",
   menuPath: "Financeiro → Caixa",
   aliases: [
@@ -82,7 +82,7 @@ export const guideCaixa: SupportGuide = {
 export const guideComissoes: SupportGuide = {
   id: "comissoes",
   title: "Comissões",
-  status: "draft",
+  status: "ready",
   href: "/comissoes",
   menuPath: "Financeiro → Comissões",
   aliases: [
@@ -162,7 +162,7 @@ export const guideComissoes: SupportGuide = {
 export const guideFluxoCaixa: SupportGuide = {
   id: "fluxo-caixa",
   title: "Fluxo de caixa",
-  status: "draft",
+  status: "ready",
   href: "/relatorios/fluxo",
   menuPath: "Financeiro → Fluxo de caixa",
   aliases: [
@@ -215,7 +215,7 @@ export const guideFluxoCaixa: SupportGuide = {
 export const guideContas: SupportGuide = {
   id: "contas",
   title: "Contas a pagar / receber",
-  status: "draft",
+  status: "ready",
   href: "/contas",
   menuPath: "Financeiro → Contas",
   aliases: [

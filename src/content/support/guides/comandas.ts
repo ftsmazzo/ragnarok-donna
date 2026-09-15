@@ -4,7 +4,7 @@ import type { SupportGuide } from "./types";
 export const guideComandas: SupportGuide = {
   id: "comandas",
   title: "Comandas (abrir, itens, pagar, fechar)",
-  status: "draft",
+  status: "ready",
   href: "/comandas",
   menuPath: "Comandas → Abertas",
   aliases: [
@@ -131,7 +131,7 @@ export const guideComandas: SupportGuide = {
 export const guideComandasHistorico: SupportGuide = {
   id: "comandas-historico",
   title: "Histórico e reabrir comanda",
-  status: "draft",
+  status: "ready",
   href: "/comandas/historico",
   menuPath: "Comandas → Histórico",
   aliases: [
@@ -204,7 +204,7 @@ export const guideComandasHistorico: SupportGuide = {
 export const guideConsumoPwa: SupportGuide = {
   id: "consumo-pwa",
   title: "Venda / Consumo no celular",
-  status: "draft",
+  status: "ready",
   href: "/pwa/consumo",
   menuPath: "Comandas → Venda / Consumo (celular)",
   aliases: [

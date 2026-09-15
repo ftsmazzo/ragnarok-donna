@@ -3,7 +3,7 @@ import type { SupportGuide } from "./types";
 export const guideInicio: SupportGuide = {
   id: "inicio",
   title: "Início",
-  status: "draft",
+  status: "ready",
   href: "/inicio",
   menuPath: "Início",
   aliases: [
@@ -59,7 +59,7 @@ export const guideInicio: SupportGuide = {
 export const guideConversasIa: SupportGuide = {
   id: "conversas-ia",
   title: "Conversas IA (WhatsApp da Donna)",
-  status: "draft",
+  status: "ready",
   href: "/conversas",
   menuPath: "Conversas IA",
   aliases: [
@@ -126,7 +126,7 @@ export const guideConversasIa: SupportGuide = {
 export const guideEmpresa: SupportGuide = {
   id: "empresa",
   title: "Dados da empresa",
-  status: "draft",
+  status: "ready",
   href: "/configuracoes/empresa",
   menuPath: "Configurações → Dados da empresa",
   aliases: [
@@ -176,7 +176,7 @@ export const guideEmpresa: SupportGuide = {
 export const guideEquipeAcesso: SupportGuide = {
   id: "equipe-acesso",
   title: "Equipe de acesso",
-  status: "draft",
+  status: "ready",
   href: "/configuracoes/equipe",
   menuPath: "Configurações → Equipe de acesso",
   aliases: [
@@ -234,7 +234,7 @@ export const guideEquipeAcesso: SupportGuide = {
 export const guideMinhaConta: SupportGuide = {
   id: "minha-conta",
   title: "Minha conta",
-  status: "draft",
+  status: "ready",
   href: "/configuracoes/conta",
   menuPath: "Configurações → Minha conta",
   aliases: ["minha conta", "perfil", "trocar senha", "senha", "conta"],
@@ -267,7 +267,7 @@ export const guideMinhaConta: SupportGuide = {
 export const guideAgenteDonna: SupportGuide = {
   id: "agente-donna",
   title: "Agente (Donna)",
-  status: "draft",
+  status: "ready",
   href: "/configuracoes/agente",
   menuPath: "Configurações → Agente (Donna)",
   aliases: [
@@ -328,7 +328,7 @@ export const guideAgenteDonna: SupportGuide = {
 export const guideDisparos: SupportGuide = {
   id: "disparos",
   title: "Disparos WhatsApp",
-  status: "draft",
+  status: "ready",
   href: "/configuracoes/disparos",
   menuPath: "Configurações → Disparos WhatsApp",
   aliases: [
@@ -385,7 +385,7 @@ export const guideDisparos: SupportGuide = {
 export const guidePwaApp: SupportGuide = {
   id: "pwa-app",
   title: "App celular (PWA)",
-  status: "draft",
+  status: "ready",
   href: "/pwa/conversas",
   menuPath: "Configurações → App celular (PWA)",
   aliases: [

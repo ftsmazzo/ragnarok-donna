@@ -4,7 +4,7 @@ import type { SupportGuide } from "./types";
 export const guideRelatoriosVisao: SupportGuide = {
   id: "relatorios-visao",
   title: "Relatórios — visão geral",
-  status: "draft",
+  status: "ready",
   href: "/relatorios",
   menuPath: "Relatórios → Visão geral",
   aliases: [
@@ -65,7 +65,7 @@ export const guideRelatoriosVisao: SupportGuide = {
 export const guideAlertas: SupportGuide = {
   id: "alertas",
   title: "Alertas",
-  status: "draft",
+  status: "ready",
   href: "/alertas",
   menuPath: "Relatórios → Alertas",
   aliases: ["alerta", "alertas", "aviso", "crítico", "comanda aberta"],
@@ -114,7 +114,7 @@ export const guideAlertas: SupportGuide = {
 export const guideRelatorioAgendamentos: SupportGuide = {
   id: "relatorio-agendamentos",
   title: "Relatório de agendamentos",
-  status: "draft",
+  status: "ready",
   href: "/relatorios/agendamentos",
   menuPath: "Relatórios → Agendamentos",
   aliases: [
@@ -162,7 +162,7 @@ export const guideRelatorioAgendamentos: SupportGuide = {
 export const guideRelatorioFinanceiro: SupportGuide = {
   id: "relatorio-financeiro",
   title: "Relatório financeiro",
-  status: "draft",
+  status: "ready",
   href: "/relatorios/financeiro",
   menuPath: "Relatórios → Financeiro",
   aliases: [
@@ -209,7 +209,7 @@ export const guideRelatorioFinanceiro: SupportGuide = {
 export const guideRelatorioComandas: SupportGuide = {
   id: "relatorio-comandas",
   title: "Relatório de comandas",
-  status: "draft",
+  status: "ready",
   href: "/relatorios/comandas",
   menuPath: "Relatórios → Comandas",
   aliases: ["relatório comanda", "ticket médio", "tempo aberta"],
@@ -252,7 +252,7 @@ export const guideRelatorioComandas: SupportGuide = {
 export const guideRelatorioEstoque: SupportGuide = {
   id: "relatorio-estoque",
   title: "Relatório de estoque",
-  status: "draft",
+  status: "ready",
   href: "/relatorios/estoque",
   menuPath: "Relatórios → Estoque",
   aliases: ["estoque relatório", "ruptura", "mínimo", "abaixo do mínimo"],
@@ -295,7 +295,7 @@ export const guideRelatorioEstoque: SupportGuide = {
 export const guideRelatorioExtras: SupportGuide = {
   id: "relatorio-extras",
   title: "Extras / metas",
-  status: "draft",
+  status: "ready",
   href: "/relatorios/extras",
   menuPath: "Relatórios → Extras / metas",
   aliases: ["metas", "extras", "meta barbeiro", "ranking extras"],
@@ -343,7 +343,7 @@ export const guideRelatorioExtras: SupportGuide = {
 export const guideRelatorioPerfil: SupportGuide = {
   id: "relatorio-perfil",
   title: "Perfil do cliente (relatório)",
-  status: "draft",
+  status: "ready",
   href: "/relatorios/perfil",
   menuPath: "Relatórios → Perfil do cliente",
   aliases: [

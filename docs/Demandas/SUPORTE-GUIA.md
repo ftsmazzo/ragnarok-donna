@@ -10,34 +10,33 @@ Código: `src/content/support/guides/`
 |--------|-------------|
 | `skeleton` | Só mapa (onde fica, aliases, notas). Sem passos. |
 | `draft` | Passos e objeções escritos; falta validar no produto. |
-| `ready` | Validado — agente pode responder com confiança. |
+| `ready` | Validado no código/UI — agente responde com confiança. |
 
-Hoje: **S1–S8** em `draft`; **S9** wiring feito (agente usa `draft`+`ready`). Validar na loja → promover a `ready`.
+Hoje: **30/30 `ready`**; wiring **S9** em produção. Ajustar guias quando a UI mudar.
 
-## Como enriquecer (por sprint)
+## Como enriquecer (manutenção)
 
-1. Escolher 1–2 guias da fila abaixo.
-2. Preencher `steps[]` (passo a passo real da UI).
-3. Preencher `objections[]` (“não acho”, “não deixa fechar”, permissão…).
-4. Ajustar `roles` se barbeiro/recepção vê diferente.
-5. `status: "draft"` → validar na loja → `status: "ready"` + `lastVerified`.
-6. Agente já consome `draft`|`ready` via `search_guides` / `get_guide` (S9). FAQ continua como fallback.
+1. Ao mudar tela/fluxo no produto, atualizar o guia correspondente.
+2. Manter `steps[]` e `objections[]` alinhados à UI real.
+3. Ajustar `roles` se barbeiro/recepção vê diferente.
+4. `lastVerified` = data da conferência; status `ready` (ou `draft` se incerto).
+5. Agente consome `draft`|`ready` via `search_guides` / `get_guide`. FAQ é fallback.
 
-## Fila sugerida de sprints
+## Fila de sprints (histórico)
 
 | Sprint | Guias | Status |
 |--------|-------|--------|
-| **S1** | `comandas`, `comandas-historico` | **draft** (tip reabrir corrigido no nav-hints) |
-| **S2** | `pacotes`, `consumo-pwa` | **draft** (uso interno esclarecido → Produtos) |
-| **S3** | `agenda`, `lista-espera` | **draft** (espera = só Donna; painel consulta) |
-| **S4** | `caixa`, `comissoes` | **draft** |
-| **S5** | `clientes`, `profissionais`, `servicos`, `produtos` | **draft** |
-| **S6** | Relatórios (`relatorios-*`, `alertas`, `fluxo-caixa`, `contas`) | **draft** |
-| **S7** | `conversas-ia`, `agente-donna`, `disparos`, `pwa-app` | **draft** |
-| **S8** | `empresa`, `equipe-acesso`, `minha-conta`, `inicio` | **draft** |
+| **S1** | `comandas`, `comandas-historico` | **ready** |
+| **S2** | `pacotes`, `consumo-pwa` | **ready** |
+| **S3** | `agenda`, `lista-espera` | **ready** |
+| **S4** | `caixa`, `comissoes` | **ready** |
+| **S5** | `clientes`, `profissionais`, `servicos`, `produtos` | **ready** |
+| **S6** | Relatórios (`relatorios-*`, `alertas`, `fluxo-caixa`, `contas`) | **ready** |
+| **S7** | `conversas-ia`, `agente-donna`, `disparos`, `pwa-app` | **ready** |
+| **S8** | `empresa`, `equipe-acesso`, `minha-conta`, `inicio` | **ready** |
 | **S9** | Wiring do agente (tools + prompt + deep-link `href`) | **feito** |
 
-### S9 — o que entrou no runtime
+### S9 — runtime
 
 - Tools: `search_guides`, `get_guide` (preferidos); `search_help` / `get_feature_hint` fallback.
 - Prompt: ordem guia → FAQ; citar `menuPath` + `href`.
@@ -53,4 +52,4 @@ Hoje: **S1–S8** em `draft`; **S9** wiring feito (agente usa `draft`+`ready`). 
 
 ## FAQ legado
 
-`faq.ts` e `nav-hints.ts` continuam até os guias `ready` substituírem. Na S1, corrigir o tip “comanda fechada não reabre” em `nav-hints`.
+`faq.ts` e `nav-hints.ts` permanecem como fallback e atalhos de “onde fica”. O guia `ready` é a fonte preferida do agente.
