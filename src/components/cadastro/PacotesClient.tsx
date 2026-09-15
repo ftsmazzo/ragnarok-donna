@@ -6,7 +6,45 @@ import { CadastroSearch } from "@/components/cadastro/CadastroSearch";
 import { StatusBadge } from "@/components/cadastro/StatusBadge";
 import { CatalogDrawer } from "@/components/cadastro/CatalogDrawer";
 import { formatMoney } from "@/lib/format";
+import {
+  PackageSaleModal,
+  type PackageSaleOption,
+} from "@/components/pacotes/PackageSaleModal";
 import type { PackageRow } from "@/lib/cadastros";
+
+function buildItemLabel(
+  p: PackageRow,
+  services: Array<{ id: string; name: string }>,
+  products: Array<{ id: string; name: string }>
+): string {
+  return p.items
+    .map((item) => {
+      const name =
+        (item.serviceId && services.find((s) => s.id === item.serviceId)?.name) ||
+        (item.productId && products.find((pr) => pr.id === item.productId)?.name) ||
+        "Item";
+      return `${item.qty}× ${name}`;
+    })
+    .join(" · ");
+}
+
+function sellablePackages(
+  rows: PackageRow[],
+  services: Array<{ id: string; name: string }>,
+  products: Array<{ id: string; name: string }>
+): PackageSaleOption[] {
+  return rows
+    .filter(
+      (p) => p.isActive && p.itemCount > 0 && p.unresolvedServiceCount === 0
+    )
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      priceCents: p.priceCents,
+      expiresAfterDays: p.expiresAfterDays,
+      itemLabel: buildItemLabel(p, services, products),
+    }));
+}
 
 type Props = {
   rows: PackageRow[];
@@ -18,8 +56,10 @@ type Props = {
 
 export function PacotesClient({ rows, total, q, services, products }: Props) {
   const [open, setOpen] = useState(false);
+  const [saleOpen, setSaleOpen] = useState(false);
   const [editing, setEditing] = useState<PackageRow | null>(null);
   const unresolvedTotal = rows.filter((p) => p.unresolvedServiceCount > 0).length;
+  const salePackages = sellablePackages(rows, services, products);
 
   return (
     <>
@@ -27,16 +67,26 @@ export function PacotesClient({ rows, total, q, services, products }: Props) {
         title="Pacotes"
         subtitle={`${total} pacote(s)`}
         actions={
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            + Novo pacote
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn btn-outline"
+              disabled={salePackages.length === 0}
+              onClick={() => setSaleOpen(true)}
+            >
+              Vender pacote
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              + Novo pacote
+            </button>
+          </>
         }
       />
 
@@ -108,6 +158,12 @@ export function PacotesClient({ rows, total, q, services, products }: Props) {
         pkg={editing}
         serviceOptions={services}
         productOptions={products}
+      />
+
+      <PackageSaleModal
+        open={saleOpen}
+        onClose={() => setSaleOpen(false)}
+        packages={salePackages}
       />
     </>
   );

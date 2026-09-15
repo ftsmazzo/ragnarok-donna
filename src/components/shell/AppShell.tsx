@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { ToastHost } from "@/components/ui/Toast";
 import { SupportChatWidget } from "@/components/support/SupportChatWidget";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -41,22 +42,24 @@ export function AppShell({ children, session }: AppShellProps) {
   }, [tabletMode]);
 
   return (
-    <div
-      className={[
-        "app-shell",
-        collapsed ? "is-collapsed" : "",
-        tabletMode ? "is-tablet-mode" : "",
-        session.themeClass ?? "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
-      <Sidebar session={session} />
-      <div className="app-main">
-        <Topbar session={session} onToggleSidebar={() => setCollapsed((v) => !v)} />
-        <main className="app-content">{children}</main>
+    <ToastHost>
+      <div
+        className={[
+          "app-shell",
+          collapsed ? "is-collapsed" : "",
+          tabletMode ? "is-tablet-mode" : "",
+          session.themeClass ?? "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <Sidebar session={session} />
+        <div className="app-main">
+          <Topbar session={session} onToggleSidebar={() => setCollapsed((v) => !v)} />
+          <main className="app-content">{children}</main>
+        </div>
+        <SupportChatWidget role={session.role} variant="painel" />
       </div>
-      <SupportChatWidget role={session.role} variant="painel" />
-    </div>
+    </ToastHost>
   );
 }

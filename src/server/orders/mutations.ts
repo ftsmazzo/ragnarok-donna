@@ -238,6 +238,8 @@ export async function addOrderItem(input: {
   staffId?: string;
   qty?: number;
   discountCents?: number;
+  /** Observação da venda (pacote). */
+  saleNotes?: string;
   /** Usar crédito de pacote (serviço a R$ 0; comissão no preço de tabela). */
   usePackageCredit?: boolean;
 }): Promise<ActionResult> {
@@ -273,6 +275,7 @@ export async function addOrderItem(input: {
         packageId: input.catalogId,
         staffId: staffIdInput,
         tenantId: tenant.id,
+        saleNotes: input.saleNotes,
       });
     }
 
@@ -471,6 +474,7 @@ async function addPackageSaleItem(input: {
   packageId: string;
   staffId?: string;
   tenantId: string;
+  saleNotes?: string;
 }): Promise<ActionResult> {
   const db = createDb();
   const [orderRow] = await db
@@ -561,7 +565,13 @@ async function addPackageSaleItem(input: {
       commissionCents: commission.commissionCents,
       performedAt: new Date(),
       // Carteira só libera ao fechar/pagar a comanda (evita crédito órfão).
-      meta: { packageSale: true, walletPending: true },
+      meta: {
+        packageSale: true,
+        walletPending: true,
+        ...(input.saleNotes?.trim()
+          ? { saleNotes: input.saleNotes.trim().slice(0, 2000) }
+          : {}),
+      },
     })
     .returning({ id: schema.orderItems.id });
 
