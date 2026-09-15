@@ -3149,7 +3149,7 @@ input {
 
 .package-item-row {
   display: grid;
-  grid-template-columns: 1fr 72px auto;
+  grid-template-columns: 90px 1fr 72px auto;
   gap: 8px;
   margin-bottom: 8px;
 }

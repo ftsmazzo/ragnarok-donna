@@ -64,12 +64,31 @@ export function OrderDrawer({
   const credits = order.credits ?? [];
 
   const creditByService = new Map<string, number>();
+  const creditByProduct = new Map<string, number>();
   for (const c of credits) {
-    creditByService.set(c.serviceId, (creditByService.get(c.serviceId) ?? 0) + c.remainingQty);
+    if (c.serviceId) {
+      creditByService.set(
+        c.serviceId,
+        (creditByService.get(c.serviceId) ?? 0) + c.remainingQty
+      );
+    }
+    if (c.productId) {
+      creditByProduct.set(
+        c.productId,
+        (creditByProduct.get(c.productId) ?? 0) + c.remainingQty
+      );
+    }
   }
   const selectedCreditQty =
-    itemType === "service" && catalogId ? creditByService.get(catalogId) ?? 0 : 0;
-  const willUseCredit = itemType === "service" && useCredit && selectedCreditQty > 0;
+    itemType === "service" && catalogId
+      ? creditByService.get(catalogId) ?? 0
+      : itemType === "product" && catalogId
+        ? creditByProduct.get(catalogId) ?? 0
+        : 0;
+  const willUseCredit =
+    (itemType === "service" || itemType === "product") &&
+    useCredit &&
+    selectedCreditQty > 0;
   const selectedPackage =
     itemType === "package" && catalogId
       ? packages.find((p) => p.id === catalogId) ?? null
@@ -254,7 +273,10 @@ export function OrderDrawer({
                       <strong>{group.packageName}</strong>
                       <span>
                         {group.lines
-                          .map((c) => `${c.remainingQty}× ${c.serviceName}`)
+                          .map(
+                            (c) =>
+                              `${c.remainingQty}× ${c.serviceName ?? c.productName ?? "Item"}`
+                          )
                           .join(" · ")}
                       </span>
                     </div>
@@ -309,7 +331,11 @@ export function OrderDrawer({
                       <span className="order-badge is-credit">Crédito</span>
                     ) : null}
                     {item.packageSale ? (
-                      <span className="order-badge is-package">Venda pacote</span>
+                      <span className="order-badge is-package">
+                        {item.walletPending
+                          ? "Venda pacote · libera ao fechar"
+                          : "Venda pacote"}
+                      </span>
                     ) : null}
                   </strong>
                   <span className="muted">
@@ -395,13 +421,16 @@ export function OrderDrawer({
                       : `${c.name} · ${formatMoney(c.priceCents)}`}
                     {itemType === "service" && creditByService.has(c.id)
                       ? ` · ${creditByService.get(c.id)} créd.`
-                      : ""}
+                      : itemType === "product" && creditByProduct.has(c.id)
+                        ? ` · ${creditByProduct.get(c.id)} créd.`
+                        : ""}
                   </option>
                 ))}
               </select>
             </label>
 
-            {itemType === "service" && selectedCreditQty > 0 ? (
+            {(itemType === "service" || itemType === "product") &&
+            selectedCreditQty > 0 ? (
               <label
                 className={
                   useCredit
@@ -425,8 +454,8 @@ export function OrderDrawer({
             {itemType === "package" ? (
               <div className="order-package-sale-hint">
                 <p>
-                  <strong>Vender pacote / gerar carteira</strong> — o cliente paga o valor nesta
-                  comanda e os créditos ficam disponíveis na hora.
+                  <strong>Vender pacote / gerar carteira</strong> — o cliente paga nesta
+                  comanda; os créditos só liberam ao fechar/pagar (sem crédito órfão).
                 </p>
                 {selectedPackage?.itemLabel ? (
                   <p className="muted">Incluso: {selectedPackage.itemLabel}</p>

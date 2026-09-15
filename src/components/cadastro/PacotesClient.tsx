@@ -13,9 +13,10 @@ type Props = {
   total: number;
   q: string;
   services: Array<{ id: string; name: string }>;
+  products: Array<{ id: string; name: string }>;
 };
 
-export function PacotesClient({ rows, total, q, services }: Props) {
+export function PacotesClient({ rows, total, q, services, products }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PackageRow | null>(null);
   const unresolvedTotal = rows.filter((p) => p.unresolvedServiceCount > 0).length;
@@ -106,6 +107,7 @@ export function PacotesClient({ rows, total, q, services }: Props) {
         onClose={() => setOpen(false)}
         pkg={editing}
         serviceOptions={services}
+        productOptions={products}
       />
     </>
   );

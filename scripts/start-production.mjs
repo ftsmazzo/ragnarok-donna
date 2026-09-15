@@ -235,6 +235,11 @@ CREATE INDEX IF NOT EXISTS memberships_branch_idx ON memberships (branch_id);
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS package_id uuid;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS avatar_url text;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS commission_bps integer;
+
+ALTER TABLE client_package_credits ALTER COLUMN service_id DROP NOT NULL;
+ALTER TABLE client_package_credits ADD COLUMN IF NOT EXISTS product_id uuid REFERENCES products(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS client_package_credits_product_idx ON client_package_credits (tenant_id, product_id);
 
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivery_status varchar(24) NOT NULL DEFAULT 'pending';
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at timestamptz;

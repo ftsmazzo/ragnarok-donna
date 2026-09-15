@@ -199,9 +199,8 @@ export const clientPackageCredits = pgTable(
     clientPackageId: uuid("client_package_id")
       .notNull()
       .references(() => clientPackages.id, { onDelete: "cascade" }),
-    serviceId: uuid("service_id")
-      .notNull()
-      .references(() => services.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id").references(() => services.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }),
     totalQty: integer("total_qty").notNull().default(1),
     remainingQty: integer("remaining_qty").notNull().default(1),
     ...timestamps,
@@ -209,6 +208,7 @@ export const clientPackageCredits = pgTable(
   (t) => [
     index("client_package_credits_pkg_idx").on(t.clientPackageId),
     index("client_package_credits_service_idx").on(t.tenantId, t.serviceId),
+    index("client_package_credits_product_idx").on(t.tenantId, t.productId),
   ]
 );
 

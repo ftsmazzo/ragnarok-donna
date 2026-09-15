@@ -381,7 +381,11 @@ export async function addOrderItem(input: {
     let appliedDiscount = discountCents;
     let totalCents = lineGross - appliedDiscount;
     let meta: Record<string, unknown> = {};
-    let useCredit = Boolean(input.usePackageCredit && input.itemType === "service" && serviceId);
+    let useCredit = Boolean(
+      input.usePackageCredit &&
+        ((input.itemType === "service" && serviceId) ||
+          (input.itemType === "product" && productId))
+    );
 
     if (useCredit) {
       const [orderRow] = await db
@@ -396,13 +400,12 @@ export async function addOrderItem(input: {
         throw new AppError("VALIDATION", "No uso de crédito, adicione 1 unidade por vez");
       }
 
-      const {
-        debitOneCredit,
-      } = await import("../packages/credits");
+      const { debitOneCredit } = await import("../packages/credits");
       const debit = await debitOneCredit({
         tenantId: tenant.id,
         clientId: orderRow.clientId,
-        serviceId: serviceId!,
+        serviceId: serviceId ?? undefined,
+        productId: productId ?? undefined,
       });
       appliedDiscount = lineGross;
       totalCents = 0;
@@ -487,6 +490,7 @@ async function addPackageSaleItem(input: {
       name: schema.packages.name,
       priceCents: schema.packages.priceCents,
       expiresAfterDays: schema.packages.expiresAfterDays,
+      commissionBps: schema.packages.commissionBps,
       items: schema.packages.items,
     })
     .from(schema.packages)
@@ -501,22 +505,25 @@ async function addPackageSaleItem(input: {
     .limit(1);
   if (!pkg) throw new AppError("VALIDATION", "Pacote inválido");
 
-  const { normalizePackageItems, createClientPackageFromSale, resolvePackageServiceItems } =
-    await import("../packages/credits");
+  const { resolvePackageServiceItems } = await import("../packages/credits");
   const { items } = await resolvePackageServiceItems(input.tenantId, pkg.items, {
     healPackageId: pkg.id,
   });
   if (items.length === 0) {
     throw new AppError(
       "VALIDATION",
-      "Configure os serviços deste pacote em Cadastros → Pacotes"
+      "Configure os serviços/produtos deste pacote em Cadastros → Pacotes"
     );
   }
 
   let staffId: string | null = input.staffId || null;
+  let staffCommissionBps: number | null = null;
   if (staffId) {
     const [st] = await db
-      .select({ id: schema.staff.id })
+      .select({
+        id: schema.staff.id,
+        defaultCommissionBps: schema.staff.defaultCommissionBps,
+      })
       .from(schema.staff)
       .where(
         and(
@@ -527,7 +534,13 @@ async function addPackageSaleItem(input: {
       )
       .limit(1);
     if (!st) throw new AppError("VALIDATION", "Profissional inválido");
+    staffCommissionBps = st.defaultCommissionBps;
   }
+
+  const commission = calcCommission(
+    pkg.priceCents,
+    pkg.commissionBps ?? staffCommissionBps
+  );
 
   const [row] = await db
     .insert(schema.orderItems)
@@ -544,33 +557,13 @@ async function addPackageSaleItem(input: {
       unitPriceCents: pkg.priceCents,
       discountCents: 0,
       totalCents: pkg.priceCents,
-      commissionBps: null,
-      commissionCents: null,
+      commissionBps: commission.commissionBps,
+      commissionCents: commission.commissionCents,
       performedAt: new Date(),
-      meta: { packageSale: true },
+      // Carteira só libera ao fechar/pagar a comanda (evita crédito órfão).
+      meta: { packageSale: true, walletPending: true },
     })
     .returning({ id: schema.orderItems.id });
-
-  const clientPackageId = await createClientPackageFromSale({
-    tenantId: input.tenantId,
-    clientId: orderRow.clientId,
-    packageId: pkg.id,
-    orderId: input.orderId,
-    orderItemId: row.id,
-    packageName: pkg.name,
-    expiresAfterDays: pkg.expiresAfterDays,
-    items,
-  });
-
-  await db
-    .update(schema.orderItems)
-    .set({
-      meta: { packageSale: true, clientPackageId },
-      updatedAt: new Date(),
-    })
-    .where(
-      and(eq(schema.orderItems.id, row.id), eq(schema.orderItems.tenantId, input.tenantId))
-    );
 
   await recalculateOrderTotal(input.orderId, input.tenantId);
   return { ok: true, id: row.id };
@@ -788,6 +781,15 @@ export async function closeOrder(orderId: string): Promise<ActionResult> {
     }
 
     const db = createDb();
+    if (detail.clientId) {
+      const { activateClientPackagesForOrder } = await import("../packages/credits");
+      await activateClientPackagesForOrder({
+        tenantId: tenant.id,
+        orderId,
+        clientId: detail.clientId,
+      });
+    }
+
     await db
       .update(schema.orders)
       .set({
@@ -915,6 +917,38 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
     }
 
     const db = createDb();
+
+    const orderItems = await db
+      .select({
+        id: schema.orderItems.id,
+        meta: schema.orderItems.meta,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.orderId, orderId),
+          eq(schema.orderItems.tenantId, tenant.id)
+        )
+      );
+
+    const { cancelClientPackageSale } = await import("../packages/credits");
+    for (const item of orderItems) {
+      const meta = (item.meta ?? {}) as Record<string, unknown>;
+      if (meta.packageSale && typeof meta.clientPackageId === "string") {
+        try {
+          await cancelClientPackageSale({
+            tenantId: tenant.id,
+            clientPackageId: meta.clientPackageId,
+          });
+        } catch {
+          throw new AppError(
+            "VALIDATION",
+            "Há pacote com crédito já usado nesta comanda — não dá para cancelar"
+          );
+        }
+      }
+    }
+
     await db
       .update(schema.orders)
       .set({

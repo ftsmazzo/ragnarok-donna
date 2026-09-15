@@ -12,6 +12,14 @@ function moneyToCents(raw: string): number {
   return Math.round(n * 100);
 }
 
+function pctToBps(raw?: string): number | null {
+  const t = raw?.trim();
+  if (!t) return null;
+  const n = Number(String(t).replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) throw new AppError("VALIDATION", "Comissão inválida");
+  return Math.round(n * 100);
+}
+
 async function assertCatalogWrite() {
   const session = await requireSession();
   requireCapability(session, "catalog.write");
@@ -260,6 +268,7 @@ export async function createPackage(input: {
   price: string;
   bookableOnline?: boolean;
   expiresAfterDays?: number | null;
+  commissionPct?: string;
   items?: Array<{ serviceId?: string; productId?: string; qty: number }>;
 }): Promise<ActionResult> {
   try {
@@ -268,11 +277,16 @@ export async function createPackage(input: {
     const name = input.name.trim();
     if (name.length < 2) throw new AppError("VALIDATION", "Nome obrigatório");
     const items = (input.items ?? [])
-      .filter((i) => i.serviceId)
-      .map((i) => ({ serviceId: i.serviceId, qty: Math.max(1, i.qty || 1) }));
+      .filter((i) => i.serviceId || i.productId)
+      .map((i) => ({
+        ...(i.serviceId ? { serviceId: i.serviceId } : {}),
+        ...(i.productId ? { productId: i.productId } : {}),
+        qty: Math.max(1, i.qty || 1),
+      }));
     if (items.length === 0) {
-      throw new AppError("VALIDATION", "Inclua ao menos 1 serviço no pacote");
+      throw new AppError("VALIDATION", "Inclua ao menos 1 serviço ou produto no pacote");
     }
+    const commissionBps = pctToBps(input.commissionPct);
     const db = createDb();
     const [row] = await db
       .insert(schema.packages)
@@ -285,6 +299,7 @@ export async function createPackage(input: {
           input.expiresAfterDays && input.expiresAfterDays > 0
             ? input.expiresAfterDays
             : null,
+        commissionBps,
         bookableOnline: input.bookableOnline !== false,
         isActive: true,
         items,
@@ -306,6 +321,7 @@ export async function updatePackage(
     price: string;
     bookableOnline?: boolean;
     expiresAfterDays?: number | null;
+    commissionPct?: string;
     items?: Array<{ serviceId?: string; productId?: string; qty: number }>;
   }
 ): Promise<ActionResult> {
@@ -315,11 +331,16 @@ export async function updatePackage(
     const name = input.name.trim();
     if (name.length < 2) throw new AppError("VALIDATION", "Nome obrigatório");
     const items = (input.items ?? [])
-      .filter((i) => i.serviceId)
-      .map((i) => ({ serviceId: i.serviceId, qty: Math.max(1, i.qty || 1) }));
+      .filter((i) => i.serviceId || i.productId)
+      .map((i) => ({
+        ...(i.serviceId ? { serviceId: i.serviceId } : {}),
+        ...(i.productId ? { productId: i.productId } : {}),
+        qty: Math.max(1, i.qty || 1),
+      }));
     if (items.length === 0) {
-      throw new AppError("VALIDATION", "Inclua ao menos 1 serviço no pacote");
+      throw new AppError("VALIDATION", "Inclua ao menos 1 serviço ou produto no pacote");
     }
+    const commissionBps = pctToBps(input.commissionPct);
     const db = createDb();
     const [row] = await db
       .update(schema.packages)
@@ -331,6 +352,7 @@ export async function updatePackage(
           input.expiresAfterDays && input.expiresAfterDays > 0
             ? input.expiresAfterDays
             : null,
+        commissionBps,
         bookableOnline: input.bookableOnline !== false,
         items,
         updatedAt: new Date(),

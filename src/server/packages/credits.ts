@@ -5,8 +5,10 @@ export type ClientCreditBalance = {
   creditId: string;
   clientPackageId: string;
   packageName: string;
-  serviceId: string;
-  serviceName: string;
+  serviceId: string | null;
+  serviceName: string | null;
+  productId: string | null;
+  productName: string | null;
   remainingQty: number;
   expiresAt: Date | null;
 };
@@ -16,7 +18,14 @@ export type CatalogPackage = {
   name: string;
   priceCents: number;
   expiresAfterDays: number | null;
-  items: Array<{ serviceId: string; serviceName: string; qty: number }>;
+  commissionBps: number | null;
+  items: Array<{
+    serviceId?: string;
+    serviceName?: string;
+    productId?: string;
+    productName?: string;
+    qty: number;
+  }>;
 };
 
 type PackageItem = {
@@ -68,34 +77,44 @@ export function normalizePackageItems(raw: unknown): PackageItem[] {
     );
 }
 
-/** Resolve serviceExternalId → serviceId e opcionalmente persiste no pacote. */
+/** Resolve externalIds → serviceId/productId e opcionalmente persiste no pacote. */
 export async function resolvePackageServiceItems(
   tenantId: string,
   rawItems: unknown,
   opts?: { healPackageId?: string }
 ): Promise<{
-  items: Array<{ serviceId: string; qty: number }>;
+  items: Array<{ serviceId?: string; productId?: string; qty: number }>;
+  serviceItems: Array<{ serviceId: string; qty: number }>;
+  productItems: Array<{ productId: string; qty: number }>;
   unresolvedCount: number;
   healed: boolean;
   lines: Array<{
     serviceId?: string;
     productId?: string;
     serviceExternalId?: string;
+    productExternalId?: string;
     qty: number;
   }>;
 }> {
   const db = createDb();
   const normalized = normalizePackageItems(rawItems);
-  const externalIds = [
+  const serviceExternalIds = [
     ...new Set(
       normalized
         .filter((i) => !i.serviceId && i.serviceExternalId)
         .map((i) => String(i.serviceExternalId))
     ),
   ];
+  const productExternalIds = [
+    ...new Set(
+      normalized
+        .filter((i) => !i.productId && i.productExternalId)
+        .map((i) => String(i.productExternalId))
+    ),
+  ];
 
-  const byExternal = new Map<string, string>();
-  if (externalIds.length > 0) {
+  const serviceByExternal = new Map<string, string>();
+  if (serviceExternalIds.length > 0) {
     const rows = await db
       .select({ id: schema.services.id, externalId: schema.services.externalId })
       .from(schema.services)
@@ -103,33 +122,71 @@ export async function resolvePackageServiceItems(
         and(
           eq(schema.services.tenantId, tenantId),
           isNull(schema.services.deletedAt),
-          inArray(schema.services.externalId, externalIds)
+          inArray(schema.services.externalId, serviceExternalIds)
         )
       );
     for (const r of rows) {
-      if (r.externalId) byExternal.set(String(r.externalId), r.id);
+      if (r.externalId) serviceByExternal.set(String(r.externalId), r.id);
+    }
+  }
+
+  const productByExternal = new Map<string, string>();
+  if (productExternalIds.length > 0) {
+    const rows = await db
+      .select({ id: schema.products.id, externalId: schema.products.externalId })
+      .from(schema.products)
+      .where(
+        and(
+          eq(schema.products.tenantId, tenantId),
+          isNull(schema.products.deletedAt),
+          inArray(schema.products.externalId, productExternalIds)
+        )
+      );
+    for (const r of rows) {
+      if (r.externalId) productByExternal.set(String(r.externalId), r.id);
     }
   }
 
   let healed = false;
   const mapped = normalized.map((i) => {
     let serviceId = i.serviceId;
+    let productId = i.productId;
     if (!serviceId && i.serviceExternalId) {
-      const resolved = byExternal.get(String(i.serviceExternalId));
+      const resolved = serviceByExternal.get(String(i.serviceExternalId));
       if (resolved) {
         serviceId = resolved;
         healed = true;
       }
     }
-    return { ...i, serviceId };
+    if (!productId && i.productExternalId) {
+      const resolved = productByExternal.get(String(i.productExternalId));
+      if (resolved) {
+        productId = resolved;
+        healed = true;
+      }
+    }
+    return { ...i, serviceId, productId };
   });
 
-  const items = mapped
-    .filter((i): i is PackageItem & { serviceId: string } => Boolean(i.serviceId))
-    .map((i) => ({ serviceId: i.serviceId, qty: i.qty }));
+  const serviceItems: Array<{ serviceId: string; qty: number }> = [];
+  const productItems: Array<{ productId: string; qty: number }> = [];
+  for (const i of mapped) {
+    if (i.serviceId) {
+      serviceItems.push({ serviceId: i.serviceId, qty: i.qty });
+    } else if (i.productId) {
+      productItems.push({ productId: i.productId, qty: i.qty });
+    }
+  }
+  const items = [
+    ...serviceItems.map((i) => ({ serviceId: i.serviceId, qty: i.qty })),
+    ...productItems.map((i) => ({ productId: i.productId, qty: i.qty })),
+  ];
 
   const unresolvedCount = mapped.filter(
-    (i) => !i.serviceId && !i.productId && Boolean(i.serviceExternalId || !i.productExternalId)
+    (i) =>
+      !i.serviceId &&
+      !i.productId &&
+      Boolean(i.serviceExternalId || i.productExternalId)
   ).length;
 
   if (opts?.healPackageId && healed) {
@@ -155,12 +212,15 @@ export async function resolvePackageServiceItems(
 
   return {
     items,
+    serviceItems,
+    productItems,
     unresolvedCount,
     healed,
     lines: mapped.map((i) => ({
       serviceId: i.serviceId,
       productId: i.productId,
       serviceExternalId: i.serviceExternalId,
+      productExternalId: i.productExternalId,
       qty: i.qty,
     })),
   };
@@ -177,6 +237,7 @@ export async function listCatalogPackages(): Promise<CatalogPackage[]> {
       name: schema.packages.name,
       priceCents: schema.packages.priceCents,
       expiresAfterDays: schema.packages.expiresAfterDays,
+      commissionBps: schema.packages.commissionBps,
       items: schema.packages.items,
     })
     .from(schema.packages)
@@ -191,22 +252,24 @@ export async function listCatalogPackages(): Promise<CatalogPackage[]> {
 
   const resolvedRows = await Promise.all(
     rows.map(async (row) => {
-      const { items } = await resolvePackageServiceItems(tenant.id, row.items, {
+      const resolved = await resolvePackageServiceItems(tenant.id, row.items, {
         healPackageId: row.id,
       });
-      return { row, items };
+      return { row, resolved };
     })
   );
 
   const serviceIds = new Set<string>();
-  for (const { items } of resolvedRows) {
-    for (const item of items) serviceIds.add(item.serviceId);
+  const productIds = new Set<string>();
+  for (const { resolved } of resolvedRows) {
+    for (const item of resolved.serviceItems) serviceIds.add(item.serviceId);
+    for (const item of resolved.productItems) productIds.add(item.productId);
   }
 
-  const services =
+  const [services, products] = await Promise.all([
     serviceIds.size === 0
-      ? []
-      : await db
+      ? Promise.resolve([] as Array<{ id: string; name: string }>)
+      : db
           .select({ id: schema.services.id, name: schema.services.name })
           .from(schema.services)
           .where(
@@ -215,21 +278,43 @@ export async function listCatalogPackages(): Promise<CatalogPackage[]> {
               isNull(schema.services.deletedAt),
               inArray(schema.services.id, [...serviceIds])
             )
-          );
+          ),
+    productIds.size === 0
+      ? Promise.resolve([] as Array<{ id: string; name: string }>)
+      : db
+          .select({ id: schema.products.id, name: schema.products.name })
+          .from(schema.products)
+          .where(
+            and(
+              eq(schema.products.tenantId, tenant.id),
+              isNull(schema.products.deletedAt),
+              inArray(schema.products.id, [...productIds])
+            )
+          ),
+  ]);
 
-  const nameById = new Map(services.map((s) => [s.id, s.name]));
+  const serviceNameById = new Map(services.map((s) => [s.id, s.name]));
+  const productNameById = new Map(products.map((p) => [p.id, p.name]));
 
   return resolvedRows
-    .map(({ row, items }) => ({
+    .map(({ row, resolved }) => ({
       id: row.id,
       name: row.name,
       priceCents: row.priceCents,
       expiresAfterDays: row.expiresAfterDays,
-      items: items.map((i) => ({
-        serviceId: i.serviceId,
-        serviceName: nameById.get(i.serviceId) ?? "Serviço",
-        qty: i.qty,
-      })),
+      commissionBps: row.commissionBps,
+      items: [
+        ...resolved.serviceItems.map((i) => ({
+          serviceId: i.serviceId,
+          serviceName: serviceNameById.get(i.serviceId) ?? "Serviço",
+          qty: i.qty,
+        })),
+        ...resolved.productItems.map((i) => ({
+          productId: i.productId,
+          productName: productNameById.get(i.productId) ?? "Produto",
+          qty: i.qty,
+        })),
+      ],
     }))
     .filter((p) => p.items.length > 0);
 }
@@ -247,18 +332,23 @@ export async function listClientCredits(clientId: string): Promise<ClientCreditB
       packageName: schema.clientPackages.name,
       serviceId: schema.clientPackageCredits.serviceId,
       serviceName: schema.services.name,
+      productId: schema.clientPackageCredits.productId,
+      productName: schema.products.name,
       remainingQty: schema.clientPackageCredits.remainingQty,
       expiresAt: schema.clientPackages.expiresAt,
-      status: schema.clientPackages.status,
     })
     .from(schema.clientPackageCredits)
     .innerJoin(
       schema.clientPackages,
       eq(schema.clientPackageCredits.clientPackageId, schema.clientPackages.id)
     )
-    .innerJoin(
+    .leftJoin(
       schema.services,
       eq(schema.clientPackageCredits.serviceId, schema.services.id)
+    )
+    .leftJoin(
+      schema.products,
+      eq(schema.clientPackageCredits.productId, schema.products.id)
     )
     .where(
       and(
@@ -272,7 +362,7 @@ export async function listClientCredits(clientId: string): Promise<ClientCreditB
         )
       )
     )
-    .orderBy(asc(schema.services.name), asc(schema.clientPackages.expiresAt));
+    .orderBy(asc(schema.clientPackages.expiresAt));
 
   return rows.map((r) => ({
     creditId: r.creditId,
@@ -280,6 +370,8 @@ export async function listClientCredits(clientId: string): Promise<ClientCreditB
     packageName: r.packageName,
     serviceId: r.serviceId,
     serviceName: r.serviceName,
+    productId: r.productId,
+    productName: r.productName,
     remainingQty: r.remainingQty,
     expiresAt: r.expiresAt,
   }));
@@ -320,10 +412,15 @@ export async function remainingCreditsForService(
 export async function debitOneCredit(input: {
   tenantId: string;
   clientId: string;
-  serviceId: string;
+  serviceId?: string;
+  productId?: string;
 }): Promise<{ creditId: string; clientPackageId: string }> {
   const db = createDb();
   const now = new Date();
+  if (!input.serviceId && !input.productId) {
+    const { AppError } = await import("../errors");
+    throw new AppError("VALIDATION", "Informe serviço ou produto para abater crédito");
+  }
 
   const [credit] = await db
     .select({
@@ -340,7 +437,9 @@ export async function debitOneCredit(input: {
       and(
         eq(schema.clientPackageCredits.tenantId, input.tenantId),
         eq(schema.clientPackages.clientId, input.clientId),
-        eq(schema.clientPackageCredits.serviceId, input.serviceId),
+        input.serviceId
+          ? eq(schema.clientPackageCredits.serviceId, input.serviceId)
+          : eq(schema.clientPackageCredits.productId, input.productId!),
         eq(schema.clientPackages.status, "active"),
         gt(schema.clientPackageCredits.remainingQty, 0),
         or(
@@ -357,7 +456,12 @@ export async function debitOneCredit(input: {
 
   if (!credit) {
     const { AppError } = await import("../errors");
-    throw new AppError("VALIDATION", "Cliente sem crédito disponível para este serviço");
+    throw new AppError(
+      "VALIDATION",
+      input.serviceId
+        ? "Cliente sem crédito disponível para este serviço"
+        : "Cliente sem crédito disponível para este produto"
+    );
   }
 
   await db
@@ -444,7 +548,7 @@ export async function createClientPackageFromSale(input: {
   orderItemId: string;
   packageName: string;
   expiresAfterDays: number | null;
-  items: Array<{ serviceId: string; qty: number }>;
+  items: Array<{ serviceId?: string; productId?: string; qty: number }>;
 }): Promise<string> {
   const db = createDb();
   const now = new Date();
@@ -452,6 +556,22 @@ export async function createClientPackageFromSale(input: {
     input.expiresAfterDays && input.expiresAfterDays > 0
       ? new Date(now.getTime() + input.expiresAfterDays * 24 * 60 * 60 * 1000)
       : null;
+
+  const creditRows = input.items
+    .filter((item) => item.serviceId || item.productId)
+    .map((item) => ({
+      tenantId: input.tenantId,
+      clientPackageId: "" as string,
+      serviceId: item.serviceId ?? null,
+      productId: item.productId ?? null,
+      totalQty: item.qty,
+      remainingQty: item.qty,
+    }));
+
+  if (creditRows.length === 0) {
+    const { AppError } = await import("../errors");
+    throw new AppError("VALIDATION", "Pacote sem itens de crédito para liberar");
+  }
 
   const [pkg] = await db
     .insert(schema.clientPackages)
@@ -468,19 +588,96 @@ export async function createClientPackageFromSale(input: {
     })
     .returning({ id: schema.clientPackages.id });
 
-  if (input.items.length > 0) {
-    await db.insert(schema.clientPackageCredits).values(
-      input.items.map((item) => ({
-        tenantId: input.tenantId,
-        clientPackageId: pkg.id,
-        serviceId: item.serviceId,
-        totalQty: item.qty,
-        remainingQty: item.qty,
-      }))
-    );
-  }
+  await db.insert(schema.clientPackageCredits).values(
+    creditRows.map((row) => ({
+      ...row,
+      clientPackageId: pkg.id,
+    }))
+  );
 
   return pkg.id;
+}
+
+/** Libera carteiras de vendas de pacote desta comanda (chamar ao fechar/pagar). */
+export async function activateClientPackagesForOrder(input: {
+  tenantId: string;
+  orderId: string;
+  clientId: string;
+}): Promise<number> {
+  const db = createDb();
+  const items = await db
+    .select({
+      id: schema.orderItems.id,
+      packageId: schema.orderItems.packageId,
+      meta: schema.orderItems.meta,
+    })
+    .from(schema.orderItems)
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, input.tenantId),
+        eq(schema.orderItems.orderId, input.orderId),
+        eq(schema.orderItems.itemType, "package")
+      )
+    );
+
+  let activated = 0;
+  for (const item of items) {
+    const meta = (item.meta ?? {}) as Record<string, unknown>;
+    if (!meta.packageSale) continue;
+    if (typeof meta.clientPackageId === "string" && meta.clientPackageId) continue;
+    if (!item.packageId) continue;
+
+    const [pkg] = await db
+      .select({
+        id: schema.packages.id,
+        name: schema.packages.name,
+        expiresAfterDays: schema.packages.expiresAfterDays,
+        items: schema.packages.items,
+      })
+      .from(schema.packages)
+      .where(
+        and(
+          eq(schema.packages.id, item.packageId),
+          eq(schema.packages.tenantId, input.tenantId)
+        )
+      )
+      .limit(1);
+    if (!pkg) continue;
+
+    const { items: creditItems } = await resolvePackageServiceItems(
+      input.tenantId,
+      pkg.items,
+      { healPackageId: pkg.id }
+    );
+    if (creditItems.length === 0) continue;
+
+    const clientPackageId = await createClientPackageFromSale({
+      tenantId: input.tenantId,
+      clientId: input.clientId,
+      packageId: pkg.id,
+      orderId: input.orderId,
+      orderItemId: item.id,
+      packageName: pkg.name,
+      expiresAfterDays: pkg.expiresAfterDays,
+      items: creditItems,
+    });
+
+    await db
+      .update(schema.orderItems)
+      .set({
+        meta: { ...meta, packageSale: true, clientPackageId },
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.orderItems.id, item.id),
+          eq(schema.orderItems.tenantId, input.tenantId)
+        )
+      );
+    activated += 1;
+  }
+
+  return activated;
 }
 
 export async function cancelClientPackageSale(input: {
@@ -541,8 +738,10 @@ export type ClientPackageWalletEntry = {
   expiresAt: Date | null;
   credits: Array<{
     creditId: string;
-    serviceId: string;
-    serviceName: string;
+    serviceId: string | null;
+    serviceName: string | null;
+    productId: string | null;
+    productName: string | null;
     totalQty: number;
     remainingQty: number;
   }>;
@@ -590,21 +789,26 @@ export async function listClientPackageWallet(
       clientPackageId: schema.clientPackageCredits.clientPackageId,
       serviceId: schema.clientPackageCredits.serviceId,
       serviceName: schema.services.name,
+      productId: schema.clientPackageCredits.productId,
+      productName: schema.products.name,
       totalQty: schema.clientPackageCredits.totalQty,
       remainingQty: schema.clientPackageCredits.remainingQty,
     })
     .from(schema.clientPackageCredits)
-    .innerJoin(
+    .leftJoin(
       schema.services,
       eq(schema.clientPackageCredits.serviceId, schema.services.id)
+    )
+    .leftJoin(
+      schema.products,
+      eq(schema.clientPackageCredits.productId, schema.products.id)
     )
     .where(
       and(
         eq(schema.clientPackageCredits.tenantId, tenant.id),
         inArray(schema.clientPackageCredits.clientPackageId, pkgIds)
       )
-    )
-    .orderBy(asc(schema.services.name));
+    );
 
   const redemptionRows =
     pkgIds.length === 0
@@ -640,6 +844,8 @@ export async function listClientPackageWallet(
       creditId: c.creditId,
       serviceId: c.serviceId,
       serviceName: c.serviceName,
+      productId: c.productId,
+      productName: c.productName,
       totalQty: c.totalQty,
       remainingQty: c.remainingQty,
     });

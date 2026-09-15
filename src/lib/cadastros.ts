@@ -78,6 +78,7 @@ export type PackageRow = {
   description: string | null;
   priceCents: number;
   expiresAfterDays: number | null;
+  commissionBps: number | null;
   items: Array<{
     serviceId?: string;
     productId?: string;
@@ -240,6 +241,7 @@ export async function listPackages(opts: { q?: string }) {
       description: schema.packages.description,
       priceCents: schema.packages.priceCents,
       expiresAfterDays: schema.packages.expiresAfterDays,
+      commissionBps: schema.packages.commissionBps,
       items: schema.packages.items,
       itemCount: sql<number>`coalesce(jsonb_array_length(${schema.packages.items}), 0)::int`.as(
         "item_count"
@@ -266,6 +268,7 @@ export async function listPackages(opts: { q?: string }) {
         description: r.description,
         priceCents: r.priceCents,
         expiresAfterDays: r.expiresAfterDays,
+        commissionBps: r.commissionBps,
         items: lines,
         itemCount: Number(r.itemCount ?? lines.length),
         unresolvedServiceCount: unresolvedCount,

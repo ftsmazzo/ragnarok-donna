@@ -230,6 +230,8 @@ export const packages = pgTable(
     description: text("description"),
     priceCents: integer("price_cents").notNull().default(0),
     expiresAfterDays: integer("expires_after_days"),
+    /** Comissão pela venda do pacote (bps; 4000 = 40%). */
+    commissionBps: integer("commission_bps"),
     isActive: boolean("is_active").notNull().default(true),
     bookableOnline: boolean("bookable_online").notNull().default(true),
     items: jsonb("items")

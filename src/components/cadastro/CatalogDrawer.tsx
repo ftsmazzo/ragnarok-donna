@@ -43,6 +43,7 @@ type PackageDefaults = {
   priceCents?: number;
   bookableOnline?: boolean;
   expiresAfterDays?: number | null;
+  commissionBps?: number | null;
   items?: Array<{
     serviceId?: string;
     productId?: string;
@@ -53,6 +54,13 @@ type PackageDefaults = {
 };
 
 type ServiceOption = { id: string; name: string };
+type ProductOption = { id: string; name: string };
+
+type PackageLine = {
+  kind: "service" | "product";
+  catalogId: string;
+  qty: number;
+};
 
 type Props = {
   kind: Kind;
@@ -62,6 +70,7 @@ type Props = {
   service?: ServiceDefaults | null;
   pkg?: PackageDefaults | null;
   serviceOptions?: ServiceOption[];
+  productOptions?: ProductOption[];
 };
 
 function centsToPrice(cents?: number) {
@@ -69,12 +78,18 @@ function centsToPrice(cents?: number) {
   return (cents / 100).toFixed(2);
 }
 
-function linesFromPkg(pkg?: PackageDefaults | null) {
-  const rows = (pkg?.items ?? []).map((i) => ({
-    serviceId: i.serviceId ? String(i.serviceId) : "",
-    qty: Math.max(1, i.qty || 1),
-  }));
-  return rows.length > 0 ? rows : [{ serviceId: "", qty: 1 }];
+function linesFromPkg(pkg?: PackageDefaults | null): PackageLine[] {
+  const rows = (pkg?.items ?? []).map((i) => {
+    if (i.productId && !i.serviceId) {
+      return { kind: "product" as const, catalogId: String(i.productId), qty: Math.max(1, i.qty || 1) };
+    }
+    return {
+      kind: "service" as const,
+      catalogId: i.serviceId ? String(i.serviceId) : "",
+      qty: Math.max(1, i.qty || 1),
+    };
+  });
+  return rows.length > 0 ? rows : [{ kind: "service", catalogId: "", qty: 1 }];
 }
 
 export function CatalogDrawer({
@@ -85,11 +100,12 @@ export function CatalogDrawer({
   service,
   pkg,
   serviceOptions = [],
+  productOptions = [],
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [packageLines, setPackageLines] = useState(linesFromPkg(pkg));
+  const [packageLines, setPackageLines] = useState<PackageLine[]>(linesFromPkg(pkg));
 
   useEffect(() => {
     if (!open || kind !== "package") return;
@@ -121,7 +137,15 @@ export function CatalogDrawer({
     if (kind === "package") {
       formData.set(
         "itemsJson",
-        JSON.stringify(packageLines.filter((l) => l.serviceId))
+        JSON.stringify(
+          packageLines
+            .filter((l) => l.catalogId)
+            .map((l) =>
+              l.kind === "product"
+                ? { productId: l.catalogId, qty: l.qty }
+                : { serviceId: l.catalogId, qty: l.qty }
+            )
+        )
       );
     }
     startTransition(async () => {
@@ -313,43 +337,95 @@ export function CatalogDrawer({
               </label>
             </div>
 
+            <label className="form-field">
+              <span>Comissão pela venda (%)</span>
+              <input
+                name="commissionPct"
+                type="number"
+                min={0}
+                max={100}
+                step={0.01}
+                placeholder="Ex.: 40"
+                defaultValue={
+                  pkg?.commissionBps != null ? String(pkg.commissionBps / 100) : ""
+                }
+              />
+            </label>
+
             <div className="package-items-editor">
               <div className="package-items-head">
-                <strong>Serviços inclusos</strong>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() =>
-                    setPackageLines((rows) => [...rows, { serviceId: "", qty: 1 }])
-                  }
-                >
-                  + Serviço
-                </button>
+                <strong>Itens inclusos</strong>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() =>
+                      setPackageLines((rows) => [
+                        ...rows,
+                        { kind: "service", catalogId: "", qty: 1 },
+                      ])
+                    }
+                  >
+                    + Serviço
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() =>
+                      setPackageLines((rows) => [
+                        ...rows,
+                        { kind: "product", catalogId: "", qty: 1 },
+                      ])
+                    }
+                  >
+                    + Produto
+                  </button>
+                </div>
               </div>
               {(pkg?.unresolvedServiceCount ?? 0) > 0 ||
-              packageLines.some((l) => !l.serviceId) ? (
+              packageLines.some((l) => !l.catalogId) ? (
                 <p className="form-error" style={{ marginBottom: 8 }}>
-                  Há serviço(s) sem vínculo (comum em importação). Selecione o serviço
-                  correspondente e salve para o pacote voltar a aparecer na comanda.
+                  Há item(ns) sem vínculo (comum em importação). Selecione serviço/produto e
+                  salve para o pacote voltar a aparecer na comanda.
                 </p>
               ) : null}
               {packageLines.map((line, idx) => (
                 <div key={idx} className="package-item-row">
                   <select
-                    value={line.serviceId}
+                    value={line.kind}
                     onChange={(e) =>
                       setPackageLines((rows) =>
                         rows.map((r, i) =>
-                          i === idx ? { ...r, serviceId: e.target.value } : r
+                          i === idx
+                            ? {
+                                kind: e.target.value as "service" | "product",
+                                catalogId: "",
+                                qty: r.qty,
+                              }
+                            : r
+                        )
+                      )
+                    }
+                    aria-label="Tipo do item"
+                  >
+                    <option value="service">Serviço</option>
+                    <option value="product">Produto</option>
+                  </select>
+                  <select
+                    value={line.catalogId}
+                    onChange={(e) =>
+                      setPackageLines((rows) =>
+                        rows.map((r, i) =>
+                          i === idx ? { ...r, catalogId: e.target.value } : r
                         )
                       )
                     }
                     required
                   >
                     <option value="" disabled>
-                      Selecione o serviço…
+                      {line.kind === "product" ? "Selecione o produto…" : "Selecione o serviço…"}
                     </option>
-                    {serviceOptions.map((s) => (
+                    {(line.kind === "product" ? productOptions : serviceOptions).map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
                       </option>
@@ -384,7 +460,7 @@ export function CatalogDrawer({
                 </div>
               ))}
               <p className="client-profile-hint muted">
-                Ex.: Barba Recorrência × 8. Na comanda, cada uso abate 1 crédito a R$ 0.
+                Créditos liberam ao pagar/fechar a comanda. Cada uso abate 1 crédito a R$ 0.
               </p>
             </div>
 

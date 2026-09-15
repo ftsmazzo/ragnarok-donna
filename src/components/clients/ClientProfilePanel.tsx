@@ -300,7 +300,10 @@ export function ClientProfilePanel({
                       {p.credits.map((c) => (
                         <li key={c.creditId}>
                           <div>
-                            <strong>{c.serviceName}</strong>
+                            <strong>{c.serviceName ?? c.productName ?? "Item"}</strong>
+                            <span className="muted">
+                              {c.productId ? "Produto" : "Serviço"}
+                            </span>
                           </div>
                           <em>
                             {c.remainingQty} rest. de {c.totalQty}

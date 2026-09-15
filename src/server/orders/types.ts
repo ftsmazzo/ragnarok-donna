@@ -33,6 +33,7 @@ export type OrderItemDetail = {
   performedAt: Date | null;
   redeemed: boolean;
   packageSale: boolean;
+  walletPending: boolean;
 };
 
 export type OrderPaymentDetail = {

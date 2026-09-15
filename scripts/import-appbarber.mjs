@@ -249,6 +249,7 @@ async function main() {
       name: cleanStr(r.Descricao, 160) || "Pacote",
       price_cents: parseMoney(r.ValorTotal || r.ValorVenda),
       expires_after_days: r.Expiracao ? Number(r.Expiracao) : null,
+      commission_bps: parseCommissionBps(r.Comissao),
       is_active: true,
       bookable_online: String(r.CodDisponivel) === "1",
       items: pkgItemsByCode.get(String(r.Codigo)) ?? [],
@@ -260,6 +261,7 @@ async function main() {
         insert into packages ${sql(batch)}
         on conflict (tenant_id, external_source, external_id) do update set
           name = excluded.name, price_cents = excluded.price_cents,
+          commission_bps = excluded.commission_bps,
           items = excluded.items, updated_at = now()
       `;
     }

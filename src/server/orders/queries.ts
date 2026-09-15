@@ -430,6 +430,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
         performedAt: item.performedAt,
         redeemed: Boolean(meta.redeemed),
         packageSale: Boolean(meta.packageSale),
+        walletPending: Boolean(meta.packageSale) && !meta.clientPackageId,
       };
     }),
     payments,
@@ -509,7 +510,9 @@ export async function listCatalogForOrders(): Promise<{
       name: p.name,
       priceCents: p.priceCents,
       expiresAfterDays: p.expiresAfterDays,
-      itemLabel: p.items.map((i) => `${i.qty}× ${i.serviceName}`).join(" · "),
+      itemLabel: p.items
+        .map((i) => `${i.qty}× ${i.serviceName ?? i.productName ?? "Item"}`)
+        .join(" · "),
     }));
   } catch {
     packages = [];
