@@ -1,0 +1,130 @@
+import type { SupportGuide } from "./types";
+
+export const guideInicio: SupportGuide = {
+  id: "inicio",
+  title: "Início",
+  status: "skeleton",
+  href: "/inicio",
+  menuPath: "Início",
+  aliases: ["início", "home", "dashboard", "painel inicial"],
+  roles: ["owner", "admin", "reception", "staff"],
+  intents: ["onde_fica"],
+  summary: "Tela inicial do painel (unidade ou visão consolidada da rede).",
+  steps: [],
+  objections: [],
+  relatedGuideIds: ["relatorios-visao", "agenda"],
+  lastVerified: null,
+};
+
+export const guideConversasIa: SupportGuide = {
+  id: "conversas-ia",
+  title: "Conversas IA (WhatsApp da Donna)",
+  status: "skeleton",
+  href: "/conversas",
+  menuPath: "Conversas IA",
+  aliases: ["conversas", "inbox", "whatsapp cliente", "donna zap", "mensagens"],
+  roles: ["owner", "admin", "reception"],
+  intents: ["onde_fica", "como_fazer", "objecao"],
+  summary: "Inbox do WhatsApp atendido pela Donna — não é o chat de suporte deste app.",
+  steps: [],
+  objections: [],
+  relatedGuideIds: ["agente-donna", "disparos", "pwa-app"],
+  lastVerified: null,
+  enrichNotes: ["Separar claramente deste chat de Suporte"],
+};
+
+export const guideEmpresa: SupportGuide = {
+  id: "empresa",
+  title: "Dados da empresa",
+  status: "skeleton",
+  href: "/configuracoes/empresa",
+  menuPath: "Configurações → Dados da empresa",
+  aliases: ["empresa", "unidade", "filial", "dados da empresa"],
+  roles: ["owner", "admin"],
+  intents: ["onde_fica", "como_fazer"],
+  summary: "Dados cadastrais e configurações da unidade/rede.",
+  steps: [],
+  objections: [],
+  relatedGuideIds: ["equipe-acesso"],
+  lastVerified: null,
+};
+
+export const guideEquipeAcesso: SupportGuide = {
+  id: "equipe-acesso",
+  title: "Equipe de acesso",
+  status: "skeleton",
+  href: "/configuracoes/equipe",
+  menuPath: "Configurações → Equipe de acesso",
+  aliases: ["equipe", "login", "senha", "permissão", "usuário", "acesso"],
+  roles: ["owner", "admin"],
+  intents: ["onde_fica", "como_fazer", "permissao"],
+  summary: "Quem entra no painel: convites, papéis e vínculo com profissional.",
+  steps: [],
+  objections: [],
+  relatedGuideIds: ["profissionais", "minha-conta"],
+  lastVerified: null,
+};
+
+export const guideMinhaConta: SupportGuide = {
+  id: "minha-conta",
+  title: "Minha conta",
+  status: "skeleton",
+  href: "/configuracoes/conta",
+  menuPath: "Configurações → Minha conta",
+  aliases: ["minha conta", "perfil", "trocar senha"],
+  roles: ["owner", "admin", "reception", "staff"],
+  intents: ["onde_fica", "como_fazer"],
+  summary: "Dados do usuário logado (senha, preferências).",
+  steps: [],
+  objections: [],
+  relatedGuideIds: ["equipe-acesso"],
+  lastVerified: null,
+};
+
+export const guideAgenteDonna: SupportGuide = {
+  id: "agente-donna",
+  title: "Agente (Donna)",
+  status: "skeleton",
+  href: "/configuracoes/agente",
+  menuPath: "Configurações → Agente (Donna)",
+  aliases: ["donna", "agente", "persona", "whatsapp config", "instância"],
+  roles: ["owner", "admin"],
+  intents: ["onde_fica", "como_fazer", "objecao"],
+  summary: "Configuração da Donna no WhatsApp (persona, conexão, proxy).",
+  steps: [],
+  objections: [],
+  relatedGuideIds: ["conversas-ia", "disparos"],
+  lastVerified: null,
+};
+
+export const guideDisparos: SupportGuide = {
+  id: "disparos",
+  title: "Disparos WhatsApp",
+  status: "skeleton",
+  href: "/configuracoes/disparos",
+  menuPath: "Configurações → Disparos WhatsApp",
+  aliases: ["disparo", "disparos", "broadcast", "campanha", "mensagem em massa"],
+  roles: ["owner", "admin"],
+  intents: ["onde_fica", "como_gerar", "como_fazer"],
+  summary: "Campanhas / disparos de mensagem pelo WhatsApp da unidade.",
+  steps: [],
+  objections: [],
+  relatedGuideIds: ["conversas-ia", "agente-donna"],
+  lastVerified: null,
+};
+
+export const guidePwaApp: SupportGuide = {
+  id: "pwa-app",
+  title: "App celular (PWA)",
+  status: "skeleton",
+  href: "/pwa/conversas",
+  menuPath: "Configurações → App celular (PWA)",
+  aliases: ["pwa", "app celular", "celular", "instalar app"],
+  roles: ["owner", "admin", "reception", "staff"],
+  intents: ["onde_fica", "como_fazer"],
+  summary: "Atalhos mobile: conversas, consumo e operação no celular.",
+  steps: [],
+  objections: [],
+  relatedGuideIds: ["consumo-pwa", "conversas-ia"],
+  lastVerified: null,
+};
