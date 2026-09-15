@@ -131,18 +131,49 @@ export function filterNavForRole(
     .filter((item): item is NavItem => item !== null);
 }
 
+export type NavLink = {
+  href: string;
+  label: string;
+  /** Frases que o suporte escreve (caminho de menu, rótulo). */
+  phrases: string[];
+};
+
 /** Lista plana de hrefs do menu (unidade + consolidado). */
 export function listNavHrefs(): string[] {
-  const out = new Set<string>();
+  return [...new Set(listNavLinks().map((l) => l.href))].sort();
+}
+
+/** Rótulo + frases para deep-link no chat de suporte. */
+export function listNavLinks(): NavLink[] {
+  const byHref = new Map<string, NavLink>();
+
+  function add(href: string, label: string, extra: string[] = []) {
+    const cur = byHref.get(href);
+    const phrases = extra.concat(label);
+    if (!cur) {
+      byHref.set(href, { href, label, phrases: [...new Set(phrases)] });
+      return;
+    }
+    cur.phrases = [...new Set([...cur.phrases, ...phrases])];
+  }
+
   for (const source of [NAV, NAV_CONSOLIDATED]) {
     for (const item of source) {
-      if (item.href) out.add(item.href);
+      if (item.href) add(item.href, item.label);
       for (const child of item.children ?? []) {
-        out.add(child.href);
+        add(child.href, child.label, [
+          `${item.label} → ${child.label}`,
+          `${item.label} -> ${child.label}`,
+        ]);
+        if (item.label === "Comandas" && child.href === "/comandas") {
+          const cur = byHref.get("/comandas");
+          if (cur) cur.label = "Comandas";
+        }
       }
     }
   }
-  return [...out].sort();
+
+  return [...byHref.values()];
 }
 
 /** Profissionais: barbeiro vai direto para a própria ficha. */

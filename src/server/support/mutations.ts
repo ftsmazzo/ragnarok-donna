@@ -13,6 +13,7 @@ import { assertCanUseSupport, getOrCreateSupportThread } from "./queries";
 import { buildSupportSystemPrompt } from "./prompt";
 import { executeSupportTool, SUPPORT_TOOL_DEFS } from "./tools";
 import { searchGuides, getGuidePayload } from "@/content/support/guides";
+import { linkifySupportReply } from "@/lib/support-deeplinks";
 import { searchHelp } from "./knowledge";
 
 export type SupportActionResult =
@@ -167,9 +168,13 @@ function offlineReply(userText: string, memberRole?: MemberRole | null): string 
         full.inRoleScope === false
           ? " (pode exigir dono/admin no menu)."
           : "";
-      return `${full.summary} ${steps} Menu: ${full.menuPath}. Abra [${full.title}](${full.href})${scope}`;
+      return linkifySupportReply(
+        `${full.summary} ${steps} Menu: ${full.menuPath}. Abra [${full.title}](${full.href})${scope}`
+      );
     }
-    return `${hit.summary} Menu: ${hit.menuPath}. Abra [${hit.title}](${hit.href})`;
+    return linkifySupportReply(
+      `${hit.summary} Menu: ${hit.menuPath}. Abra [${hit.title}](${hit.href})`
+    );
   }
   const hits = searchHelp(userText, 2);
   if (hits.length) {
@@ -345,13 +350,14 @@ export async function sendSupportMessage(input: {
       }
     }
 
-    const reply =
+    const reply = linkifySupportReply(
       finalText ||
-      (queued
-        ? "Passei pra fila humana. Quando alguém da Fábrica estiver online, responde por aqui."
-        : escalateReason
-          ? offlineHumanReply()
-          : offlineReply(text, session.role));
+        (queued
+          ? "Passei pra fila humana. Quando alguém da Fábrica estiver online, responde por aqui."
+          : escalateReason
+            ? offlineHumanReply()
+            : offlineReply(text, session.role))
+    );
 
     await db.insert(schema.supportMessages).values({
       tenantId: tenant.id,
