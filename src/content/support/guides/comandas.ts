@@ -50,22 +50,22 @@ export const guideComandas: SupportGuide = {
     {
       title: "Lançar serviço",
       detail:
-        "No drawer: Tipo = Serviço → escolha o serviço → profissional (obrigatório) → quantidade → Adicionar item. Dá para aplicar desconto no item (R$), salvo se estiver abatendo crédito de pacote.",
+        "No drawer: Tipo = Serviço → escolha o serviço → profissional (obrigatório) → quantidade → Adicionar item. Dá para aplicar desconto no item (R$). Com crédito de pacote marcado, o desconto aplica no residual após a cobertura.",
     },
     {
       title: "Lançar produto",
       detail:
-        "Tipo = Produto → escolha o produto → qtd → Adicionar. Baixa estoque. Barbeiro no painel só pode lançar produtos (não serviço/pacote) na comanda.",
+        "Tipo = Produto → escolha o produto → qtd → Adicionar. Só entram produtos ativos marcados para venda. Baixa estoque. Barbeiro no painel só pode lançar produtos (não serviço/pacote) na comanda.",
     },
     {
       title: "Vender pacote (gerar carteira)",
       detail:
-        "Tipo = Vender pacote → escolha o pacote → Vender pacote / gerar carteira. O valor entra na comanda. Os créditos só liberam quando a comanda for paga/fechada (badge “libera ao fechar”). Detalhes no guia Pacotes.",
+        "Tipo = Vender pacote → pacote → Vender pacote / gerar carteira (comanda com cliente). Atalho denso: Cadastros → Pacotes → Vender pacote (modal Comprar). Créditos liberam ao pagar/fechar, salvo pagar no modal. Detalhes no guia Pacotes.",
     },
     {
-      title: "Usar crédito de pacote",
+      title: "Usar crédito de pacote (abate + diferença)",
       detail:
-        "Se o cliente tem crédito para aquele serviço/produto, o abate (1 crédito — R$ 0) vem marcado por padrão. Desmarque só se for cobrar avulso. Comissão do serviço continua no preço de tabela.",
+        "Se há crédito, “Abater 1 crédito” vem marcado. Cobertura do pacote (R$) default = preço cheio. Baixe a cobertura se o plano não cobre tudo — o residual é a diferença a pagar (badge Crédito + diferença). Desconto no item aplica no residual. Desmarque o abate só para cobrar avulso. Comissão do serviço fica no preço de tabela.",
     },
     {
       title: "Desconto da comanda",

@@ -12,7 +12,7 @@ Código: `src/content/support/guides/`
 | `draft` | Passos e objeções escritos; falta validar no produto. |
 | `ready` | Validado no código/UI — agente responde com confiança. |
 
-Hoje: **30/30 `ready`**; wiring **S9** em produção. Ondas de aprofundamento: filtro por papel + guias densos (Agenda, Equipe, Conversas).
+Hoje: **30/30 `ready`**; wiring **S9** em produção. Ondas: (1) papel + Agenda/Equipe/Conversas · (2) Pacotes/Clientes/Produtos/Relatórios densos.
 
 ## Como enriquecer (manutenção)
 
