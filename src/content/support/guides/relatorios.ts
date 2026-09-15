@@ -35,6 +35,11 @@ export const guideRelatoriosVisao: SupportGuide = {
         "Cards de Receita (pagamentos), Ticket médio, Agendamentos e Estoque baixo; gráficos de receita no tempo, mix de pagamento, agenda por status, top serviços e profissionais; bloco O que fazer esta semana.",
     },
     {
+      title: "Receita vs comanda aberta",
+      detail:
+        "Receita conta pagamentos de comandas fechadas. Comanda só aberta no balcão não entra no faturamento até Pagar/Fechar no Caixa ou na comanda.",
+    },
+    {
       title: "Atalhos",
       detail:
         "Centro de alertas, Abrir em cada alerta, e grade Detalhamentos (Alertas, Agendamentos, Financeiro, Comandas, Estoque, etc.).",
@@ -255,7 +260,14 @@ export const guideRelatorioEstoque: SupportGuide = {
   status: "ready",
   href: "/relatorios/estoque",
   menuPath: "Relatórios → Estoque",
-  aliases: ["estoque relatório", "ruptura", "mínimo", "abaixo do mínimo"],
+  aliases: [
+    "estoque relatório",
+    "ruptura",
+    "mínimo",
+    "abaixo do mínimo",
+    "relatório estoque",
+    "produto sumiu",
+  ],
   roles: ["owner", "admin"],
   intents: ["onde_fica", "como_gerar", "objecao"],
   summary:
@@ -269,7 +281,7 @@ export const guideRelatorioEstoque: SupportGuide = {
     {
       title: "Filtrar",
       detail:
-        "Escopo Tudo / Barbearia / Bar; período; Busca (produto, categoria ou marca); Filtro Todos ativos ou Só abaixo do mínimo; Gerar.",
+        "Escopo Tudo / Barbearia / Bar; período; Busca (produto, categoria ou marca); Filtro Todos ativos ou Só abaixo do mínimo; Gerar. Bar = categorias de bebida/comida típicas do bar.",
     },
     {
       title: "O que aparece",
@@ -280,12 +292,27 @@ export const guideRelatorioEstoque: SupportGuide = {
       title: "Exportar",
       detail: "CSV do snapshot de saldo/preço (não só vendas do período).",
     },
+    {
+      title: "Ajustar cadastro",
+      detail:
+        "Saldo e mínimo se editam em Cadastros → Produtos. Relatório só consulta. Para o item entrar na comanda, marque Disponível para venda na ficha do produto.",
+    },
   ],
   objections: [
     {
       concern: "Lista vazia",
       reply:
         "Cadastre em Cadastros → Produtos ou troque a aba Barbearia/Bar / filtro de mínimo.",
+    },
+    {
+      concern: "Vejo no relatório / planilha e não acho na comanda",
+      reply:
+        "O relatório lista o estoque; a comanda só mostra produtos à venda. Em Produtos, marque Disponível para venda (caso clássico após import).",
+    },
+    {
+      concern: "Saldo diferente da planilha da loja",
+      reply:
+        "Atualize o estoque em Cadastros → Produtos ou peça sync com o relatório exportado. Vendas e uso interno baixam o saldo no app.",
     },
   ],
   relatedGuideIds: ["produtos", "consumo-pwa", "alertas"],
@@ -352,6 +379,8 @@ export const guideRelatorioPerfil: SupportGuide = {
     "recompra",
     "follow-up",
     "perdidos que voltaram",
+    "recorrência relatório",
+    "quem sumiu",
   ],
   roles: ["owner", "admin", "reception"],
   intents: ["onde_fica", "como_gerar", "como_fazer", "objecao"],
@@ -366,17 +395,17 @@ export const guideRelatorioPerfil: SupportGuide = {
     {
       title: "Abas",
       detail:
-        "Retorno, Recorrência, Voltaram esta semana, Serviços, Produtos. Default: Retorno.",
+        "Retorno (sumiu há X dias), Recorrência (parou o ciclo), Voltaram esta semana, Serviços e Produtos a reoferecer. Default: Retorno.",
     },
     {
       title: "Ajustar critérios",
       detail:
-        "Formulário: Mín. sem vir (dias), Janela máx., Recorrência parada, Ciclo serviço, Recompra produto → Atualizar. Sem presets Esta semana/Este mês.",
+        "Formulário: Mín. sem vir (dias), Janela máx., Recorrência parada, Ciclo serviço, Recompra produto → Atualizar. Sem presets Esta semana/Este mês nesta tela.",
     },
     {
       title: "Follow-up",
       detail:
-        "Por linha (quando houver telefone): Copiar msg, Enviar Zap, Donna. Sem tel. aparece badge. Atalhos Pedir follow-up à Donna / Abrir Donna → Conversas.",
+        "Por linha (com telefone): Copiar msg, Enviar Zap, Donna. Sem tel. aparece badge. Atalhos Pedir follow-up à Donna / Abrir Donna → Conversas. Isso NÃO é o chat de Suporte do painel.",
     },
     {
       title: "Exportar",
@@ -388,9 +417,19 @@ export const guideRelatorioPerfil: SupportGuide = {
     {
       concern: "Cliente sem botão de Zap",
       reply:
-        "Precisa ter telefone no cadastro. Cadastre/atualize em Clientes e atualize o relatório.",
+        "Precisa ter telefone no cadastro. Atualize em Clientes e regenere o relatório.",
+    },
+    {
+      concern: "Lista vazia / poucos nomes",
+      reply:
+        "Afrouxe Mín. sem vir ou Janela máx. e clique Atualizar. Quem nunca veio ou está ativo toda semana não entra em Retorno.",
+    },
+    {
+      concern: "Estou falando com o suporte ou com o cliente?",
+      reply:
+        "Perfil + Zap/Donna fala com o cliente final. O FAB Suporte do canto é só dúvida de operar o app (equipe).",
     },
   ],
-  relatedGuideIds: ["clientes", "conversas-ia", "alertas"],
+  relatedGuideIds: ["clientes", "conversas-ia", "alertas", "agente-donna"],
   lastVerified: "2026-09-15",
 };

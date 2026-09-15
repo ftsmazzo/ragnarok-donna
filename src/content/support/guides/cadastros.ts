@@ -16,6 +16,8 @@ export const guideClientes: SupportGuide = {
     "indicação",
     "por onde conheceu",
     "inativar cliente",
+    "carteira cliente",
+    "histórico cliente",
   ],
   roles: ["owner", "admin", "reception", "staff"],
   intents: ["onde_fica", "como_fazer", "objecao"],
@@ -30,12 +32,22 @@ export const guideClientes: SupportGuide = {
     {
       title: "Novo cliente",
       detail:
-        "Botão + Novo cliente → preencha nome (obrigatório), telefone, e-mail, foto, por onde conheceu, indicação, nascimento, observações → Salvar.",
+        "Botão + Novo cliente → nome (obrigatório), telefone, e-mail, foto, por onde conheceu, indicação, nascimento, observações → Salvar. Telefone ajuda follow-up Zap em Relatórios → Perfil.",
     },
     {
-      title: "Ficha (abas)",
+      title: "Ficha — abas",
       detail:
-        "Clique no cliente: Resumo (totais e créditos), Cadastro, Pacotes (saldo/repor/renovar), Agenda, Comandas, Consumo. Edite o cadastro na aba Cadastro e Salvar.",
+        "Clique no cliente: Resumo (totais e créditos), Cadastro, Pacotes (saldo / Vender pacote / Repor / Renovar), Agenda, Comandas, Consumo. Edite na aba Cadastro → Salvar.",
+    },
+    {
+      title: "Vender pacote pela ficha",
+      detail:
+        "Aba Pacotes → Vender pacote (se houver pacote vendável). Modal: pacote, obs, expiração, forma de pagamento e Comprar. Alternativa: Cadastros → Pacotes → Vender pacote (escolhe o cliente ali).",
+    },
+    {
+      title: "Carteira e comanda",
+      detail:
+        "Na aba Pacotes: remaining/total, validade, Repor créditos, Renovar (nova venda), Abrir comanda. Sem venda ainda, a lista fica vazia até o primeiro pacote.",
     },
     {
       title: "Foto",
@@ -45,7 +57,7 @@ export const guideClientes: SupportGuide = {
     {
       title: "Por onde conheceu",
       detail:
-        "Campo no cadastro: Indicação, Instagram, Google, Passou na frente, WhatsApp, Outro — útil para marketing.",
+        "Campo no cadastro: Indicação, Instagram, Google, Passou na frente, WhatsApp, Outro — útil para marketing / perfil.",
     },
     {
       title: "Inativar / reativar",
@@ -62,10 +74,20 @@ export const guideClientes: SupportGuide = {
     {
       concern: "Onde vejo se tem pacote?",
       reply:
-        "Abra a ficha → aba Pacotes (ou o resumo de créditos no Resumo). Detalhes no guia Pacotes.",
+        "Ficha → aba Pacotes (ou créditos no Resumo). Na comanda aberta, o bloco Carteira de pacotes no topo lista o que dá para abater.",
+    },
+    {
+      concern: "Botão Vender pacote não aparece na ficha",
+      reply:
+        "Só lista pacotes vendáveis (serviço/produto vinculado). Em Cadastros → Pacotes, corrija os que estão com “serviço sem vínculo” e salve.",
+    },
+    {
+      concern: "Sem telefone no follow-up / Zap",
+      reply:
+        "Cadastre o celular na aba Cadastro. Relatório → Perfil e Conversas usam esse número.",
     },
   ],
-  relatedGuideIds: ["pacotes", "agenda", "comandas"],
+  relatedGuideIds: ["pacotes", "agenda", "comandas", "relatorio-perfil"],
   lastVerified: "2026-09-15",
 };
 
@@ -185,6 +207,9 @@ export const guideProdutos: SupportGuide = {
     "sku",
     "uso interno",
     "para venda",
+    "não aparece na comanda",
+    "trufa",
+    "saldo estoque",
   ],
   roles: ["owner", "admin"],
   intents: ["onde_fica", "como_fazer", "objecao"],
@@ -193,7 +218,7 @@ export const guideProdutos: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Cadastros → Produtos (/produtos). Busca por nome, categoria, marca ou SKU.",
+        "Menu → Cadastros → Produtos (/produtos). Busca por nome, categoria, marca ou SKU. Coluna “À venda” mostra se entra na comanda.",
     },
     {
       title: "Novo / editar",
@@ -201,26 +226,36 @@ export const guideProdutos: SupportGuide = {
         "Nome, categoria, marca, SKU, preço, estoque, estoque mínimo, disponível para venda, uso interno. Comissão % se houver no cadastro.",
     },
     {
-      title: "Venda",
+      title: "Venda na comanda / PWA",
       detail:
-        "Marcado para venda: entra na comanda (Tipo Produto) e na aba Venda do celular (/pwa/consumo). Baixa estoque ao lançar.",
+        "Marcado para venda (for_sale): entra na comanda (Tipo Produto) e na aba Venda do celular (/pwa/consumo). Baixa estoque ao lançar. Sem essa marca, o produto existe no cadastro/relatório mas some do lançamento.",
     },
     {
       title: "Uso interno",
       detail:
-        "Marque Uso interno. Na lista de produtos, use a ação de baixar 1 un. (confirmação). Não gera comanda nem desconto de barbeiro — só baixa estoque.",
+        "Marque Uso interno. Na lista, ação de baixar 1 un. (confirmação). Não gera comanda nem desconto de barbeiro — só baixa estoque. Itens só de uso (ex. Hidro Nutrição) não precisam aparecer na venda.",
     },
     {
       title: "Pacote com produto",
       detail:
         "No cadastro do pacote dá para incluir produto como crédito. Abate na comanda ao lançar o produto com crédito marcado.",
     },
+    {
+      title: "Relatório de estoque",
+      detail:
+        "Relatórios → Estoque: saldo, mínimo, Barbearia/Bar, abaixo do mínimo. Se o saldo do relatório da loja diferir do app, ajuste o estoque aqui ou regenere o período.",
+    },
   ],
   objections: [
     {
-      concern: "Produto não aparece no celular",
+      concern: "Produto não aparece na comanda / no celular",
       reply:
-        "Precisa estar ativo, para venda e com estoque > 0. Confira Cadastros → Produtos.",
+        "Abra Cadastros → Produtos → edite: precisa estar ativo e marcado para venda. Estoque 0 ainda lista na comanda do painel, mas o PWA de venda costuma exigir estoque > 0.",
+    },
+    {
+      concern: "Está no relatório de estoque e não acho no lançamento",
+      reply:
+        "Relatório lista o cadastro; a comanda só mostra “à venda”. Marque Disponível para venda e salve (caso clássico após import com flag zerada).",
     },
     {
       concern: "Onde baixo produto da casa (algodão, etc.)?",
@@ -250,73 +285,91 @@ export const guidePacotes: SupportGuide = {
     "vender pacote",
     "gerar carteira",
     "abate crédito",
+    "diferença",
+    "cobertura do pacote",
+    "comprar pacote",
   ],
   roles: ["owner", "admin", "reception"],
   intents: ["onde_fica", "como_fazer", "como_gerar", "objecao"],
   summary:
-    "Catálogo de pacotes; venda na comanda; carteira na ficha do cliente; abate de crédito; repor/renovar.",
+    "Catálogo de pacotes; venda densa (modal Comprar); carteira; abate + diferença/desconto; repor/renovar.",
   steps: [
     {
       title: "Onde fica o catálogo",
       detail:
-        "Menu → Cadastros → Pacotes (/pacotes). Cadastre nome, preço, validade (dias), comissão pela venda (%) e itens (serviços e/ou produtos com quantidade).",
+        "Menu → Cadastros → Pacotes (/pacotes). Cadastre nome, preço, validade (dias), comissão pela venda (%) e itens (serviços e/ou produtos com quantidade). Botão Vender pacote no topo quando há pacote vendável.",
     },
     {
       title: "Cadastrar ou corrigir pacote",
       detail:
-        "Novo pacote ou clique na linha para editar. Inclua ao menos um serviço ou produto. Pacotes importados sem serviço vinculado aparecem com aviso — selecione o serviço e salve para voltarem a aparecer na venda da comanda.",
+        "Novo pacote ou clique na linha. Inclua ao menos um serviço ou produto. Pacotes importados sem vínculo mostram aviso (“serviço não vinculado”) — selecione o serviço e salve para voltarem em Vender pacote e na comanda.",
     },
     {
-      title: "Vender / gerar carteira",
+      title: "Venda densa (modal Comprar)",
       detail:
-        "Na comanda do cliente: Tipo → Vender pacote → escolha o pacote → Vender pacote / gerar carteira. O valor entra no total da comanda. A carteira só libera ao pagar/fechar (item com badge “libera ao fechar”).",
+        "Cadastros → Pacotes → Vender pacote, ou ficha do cliente → aba Pacotes → Vender pacote. Modal: cliente (se ainda não veio da ficha), pacote, preview (itens/valor/obs/expiração), + Formas de pagamento, opcional “Pagar e liberar carteira agora” → Comprar. Toast de sucesso ao concluir.",
+    },
+    {
+      title: "Venda pela comanda",
+      detail:
+        "Comanda com cliente vinculado: Tipo → Vender pacote → pacote → Vender pacote / gerar carteira. Valor entra no total. Créditos só liberam ao pagar/fechar (badge “libera ao fechar”), salvo se usou o fluxo do modal com pagar na hora.",
     },
     {
       title: "Ver saldo do cliente",
       detail:
-        "Cadastros → Clientes → abra a ficha → aba Pacotes (também resume no Resumo). Mostra créditos restantes/total, validade e últimos usos. Atalho Abrir comanda. Na comanda aberta, o bloco Carteira de pacotes no topo lista créditos disponíveis.",
+        "Clientes → ficha → aba Pacotes (e Resumo). Na comanda aberta, bloco Carteira de pacotes no topo. Atalho Abrir comanda na ficha.",
     },
     {
-      title: "Abater crédito no atendimento",
+      title: "Abater crédito (e diferença)",
       detail:
-        "Na comanda, ao lançar serviço ou produto coberto, o abate (1 crédito — R$ 0) vem marcado por padrão. Desmarque só para cobrar avulso. Comissão do serviço/produto continua no preço de tabela.",
+        "Ao lançar serviço/produto coberto, “Abater 1 crédito” vem marcado. Cobertura do pacote (R$) default = preço de tabela (100%). Se a cobertura for menor, o residual é a diferença a pagar (badge Crédito + diferença). Desconto no item continua visível e aplica só no residual — não substitui o abate. Desmarque o crédito só para cobrar avulso. Comissão do serviço fica no preço de tabela.",
+    },
+    {
+      title: "Desconto da comanda",
+      detail:
+        "No rodapé do drawer: Desconto da comanda (R$) → Aplicar. É outro mecanismo: reduz o total a pagar da comanda, não “vira” crédito de pacote.",
     },
     {
       title: "Repor créditos",
       detail:
-        "Na ficha (aba Pacotes) ou na carteira da comanda: Repor créditos. Soma de novo a quantidade do pacote nos créditos existentes e pode estender a validade — sem lançar venda nova (ajuste operacional).",
+        "Ficha (aba Pacotes) ou carteira da comanda: Repor. Soma de novo a quantidade do pacote e pode estender validade — sem lançar venda nova.",
     },
     {
       title: "Renovar (nova venda)",
       detail:
-        "Na ficha → Renovar (nova venda). Usa comanda aberta do cliente ou abre uma nova, lança o pacote de novo (valor + comissão da venda). Créditos novos liberam ao fechar/pagar essa comanda.",
+        "Ficha → Renovar (nova venda). Usa comanda aberta ou abre outra, lança o pacote de novo (valor + comissão). Créditos novos liberam ao fechar/pagar essa comanda.",
     },
   ],
   objections: [
     {
-      concern: "Pacote não aparece na lista de venda da comanda",
+      concern: "Pacote não aparece na lista de venda",
       reply:
-        "Em Cadastros → Pacotes, abra o pacote: falta vincular o serviço (comum após import). Salve com os serviços corretos. Só pacotes ativos com pelo menos um item resolvido entram na venda.",
+        "Cadastros → Pacotes: abra o pacote e vincule o serviço (comum após import). Só ativos com item resolvido entram no modal e na comanda. Empty state na tela explica o aviso de vínculo.",
     },
     {
       concern: "Vendi e o cliente ainda não tem crédito",
       reply:
-        "Normal: libera só ao Pagar e fechar / Fechar a comanda. Até lá o item mostra “libera ao fechar”.",
+        "Na comanda clássica: libera só ao Pagar e fechar / Fechar. Até lá o item mostra “libera ao fechar”. No modal, se marcou pagar e liberar agora, a carteira sobe na hora.",
     },
     {
       concern: "Cobrou o serviço mesmo com pacote",
       reply:
-        "No lançamento, confira se o checkbox de crédito estava marcado (padrão sim). Se desmarcou, cobra avulso. Veja também se ainda há crédito restante na carteira para aquele serviço.",
+        "Confira se o abate estava marcado e se ainda há crédito daquele serviço. Se a cobertura foi menor que o preço, a diferença a pagar é esperada (não é bug).",
+    },
+    {
+      concern: "Abate e desconto juntos",
+      reply:
+        "Abate = consome 1 crédito (cobertura em R$). Desconto do item = redução comercial no residual. Desconto da comanda = no total. São três controles distintos.",
     },
     {
       concern: "Diferença entre repor e renovar",
       reply:
-        "Repor: só recoloca créditos no pacote já existente (sem cobrir de novo). Renovar: vende o pacote de novo na comanda (entra dinheiro e comissão).",
+        "Repor: só recoloca créditos (sem cobrar de novo). Renovar: vende o pacote de novo na comanda (entra dinheiro e comissão).",
     },
     {
       concern: "Onde vejo comissão da venda do pacote",
       reply:
-        "No cadastro do pacote há Comissão pela venda (%). Na comanda, o item de venda do pacote grava a comissão; o profissional da venda entra se você escolher um no lançamento. Relatório em Financeiro → Comissões.",
+        "No cadastro do pacote: Comissão pela venda (%). O item de venda na comanda grava a comissão; escolha profissional no lançamento se precisar. Relatório: Financeiro → Comissões.",
     },
   ],
   relatedGuideIds: ["comandas", "clientes", "servicos", "produtos", "comissoes"],
