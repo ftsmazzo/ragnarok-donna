@@ -176,12 +176,20 @@ export function PackageSaleModal({
           />
         )}
 
+        {packages.length === 0 ? (
+          <p className="order-wallet-warn">
+            Nenhum pacote pronto para venda. Em Cadastros → Pacotes, abra os que estão com
+            “serviço sem vínculo”, selecione o serviço/produto e salve — aí voltam aqui.
+          </p>
+        ) : null}
+
         <label className="form-field">
           <span>Pacote *</span>
           <select
             value={packageId}
             onChange={(e) => setPackageId(e.target.value)}
             required
+            disabled={packages.length === 0}
           >
             <option value="">Selecione o pacote…</option>
             {packages.map((p) => (
@@ -226,8 +234,9 @@ export function PackageSaleModal({
         ) : null}
 
         <div className="package-sale-pay-grid">
+          <p className="package-sale-pay-heading">+ Formas de pagamento</p>
           <label className="form-field">
-            <span>Forma de pagamento{payAndClose ? " *" : ""}</span>
+            <span>Forma{payAndClose ? " *" : ""}</span>
             <PaymentMethodSelect
               value={method}
               onChange={setMethod}

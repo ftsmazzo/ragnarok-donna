@@ -4578,6 +4578,14 @@ input {
   gap: 12px;
 }
 
+.package-sale-pay-heading {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+}
+
 @media (max-width: 560px) {
   .package-sale-pay-grid {
     grid-template-columns: 1fr;

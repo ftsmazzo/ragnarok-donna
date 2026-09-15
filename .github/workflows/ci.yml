@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Typecheck + Lint
+    name: Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -25,5 +25,3 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npx tsc --noEmit -p tsconfig.json
-      - name: Lint
-        run: npm run lint

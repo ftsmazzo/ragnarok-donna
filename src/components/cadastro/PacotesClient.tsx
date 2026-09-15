@@ -93,7 +93,21 @@ export function PacotesClient({ rows, total, q, services, products }: Props) {
       {unresolvedTotal > 0 ? (
         <p className="client-profile-hint" style={{ marginBottom: 12 }}>
           {unresolvedTotal} pacote(s) com serviço não vinculado — abra e selecione o serviço
-          para voltar a aparecer na venda da comanda.
+          para voltar a aparecer em <strong>Vender pacote</strong> e na comanda.
+        </p>
+      ) : null}
+
+      {salePackages.length === 0 && total > 0 ? (
+        <p className="order-wallet-warn" style={{ marginBottom: 12 }}>
+          Há pacotes cadastrados, mas nenhum está pronto para venda (falta vínculo de serviço).
+          Corrija acima e o botão <strong>Vender pacote</strong> libera.
+        </p>
+      ) : null}
+
+      {total === 0 ? (
+        <p className="client-profile-hint" style={{ marginBottom: 12 }}>
+          Nenhum pacote ainda. Crie com <strong>+ Novo pacote</strong> (nome, preço, itens e
+          validade) — depois use <strong>Vender pacote</strong> (cliente + pagamento + Comprar).
         </p>
       ) : null}
 
