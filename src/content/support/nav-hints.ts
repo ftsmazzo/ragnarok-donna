@@ -105,8 +105,30 @@ export const FEATURE_HINTS: FeatureHint[] = [
   },
   {
     id: "alertas",
-    aliases: ["alerta", "alertas"],
+    aliases: ["alerta", "alertas", "crítico"],
     title: "Alertas",
     where: "Relatórios → Alertas",
+    tip: "Semana atual (SP). Abrir pode ir a telas só dono/admin (ex. estoque).",
+  },
+  {
+    id: "relatorios",
+    aliases: ["relatório", "relatorios", "painel gerencial", "visão geral"],
+    title: "Visão geral",
+    where: "Relatórios → Visão geral",
+    tip: "Receita = pagamentos de comandas fechadas no Caixa. Só dono/admin.",
+  },
+  {
+    id: "fluxo",
+    aliases: ["fluxo", "fluxo de caixa"],
+    title: "Fluxo de caixa",
+    where: "Financeiro → Fluxo de caixa",
+    tip: "Relatório do período; Caixa do dia é a sessão de hoje (abrir/fechar).",
+  },
+  {
+    id: "contas",
+    aliases: ["contas", "contas a pagar", "vales abertos"],
+    title: "Contas",
+    where: "Financeiro → Contas",
+    tip: "Vales abertos + saídas de caixa. Não é cadastro de boleto de fornecedor.",
   },
 ];

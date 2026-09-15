@@ -170,6 +170,23 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     menuPath: "Relatórios → Alertas",
   },
   {
+    id: "receita-zerada",
+    question: "Por que o relatório financeiro / painel está sem receita?",
+    answer:
+      "A receita conta pagamentos de comandas fechadas no Caixa. Comanda só aberta no balcão não entra. Feche a comanda (Pagar e fechar) e filtre o período de novo em Relatórios.",
+    tags: ["receita", "financeiro", "faturamento", "caixa", "relatório"],
+    menuPath: "Relatórios → Financeiro",
+  },
+  {
+    id: "fluxo-vs-caixa",
+    question: "Qual a diferença entre Caixa e Fluxo de caixa?",
+    answer:
+      "Caixa (/caixa) é a sessão do dia: abrir, sangria, fechar. Fluxo (/relatorios/fluxo) é o relatório do período (disponível aprox., crédito, vales). Os dois se alimentam dos mesmos pagamentos.",
+    tags: ["fluxo", "caixa", "financeiro"],
+    menuPath: "Financeiro → Fluxo de caixa",
+  },
+
+  {
     id: "fora-escopo",
     question: "Posso perguntar preço do plano ou agendar cliente por aqui?",
     answer:

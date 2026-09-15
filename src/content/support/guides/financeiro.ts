@@ -162,31 +162,106 @@ export const guideComissoes: SupportGuide = {
 export const guideFluxoCaixa: SupportGuide = {
   id: "fluxo-caixa",
   title: "Fluxo de caixa",
-  status: "skeleton",
+  status: "draft",
   href: "/relatorios/fluxo",
   menuPath: "Financeiro → Fluxo de caixa",
-  aliases: ["fluxo", "fluxo de caixa", "entrada saída"],
+  aliases: [
+    "fluxo",
+    "fluxo de caixa",
+    "entrada saída",
+    "disponível",
+    "cartão crédito",
+  ],
   roles: ["owner", "admin"],
-  intents: ["onde_fica", "como_gerar"],
-  summary: "Visão de entradas e saídas no tempo.",
-  steps: [],
-  objections: [],
-  relatedGuideIds: ["caixa", "relatorio-financeiro", "contas"],
-  lastVerified: null,
+  intents: ["onde_fica", "como_gerar", "objecao"],
+  summary:
+    "Entradas/saídas no período: disponível aproximado, crédito, vales e caixa operacional.",
+  steps: [
+    {
+      title: "Onde fica",
+      detail:
+        "Menu → Financeiro → Fluxo de caixa (também em Relatórios). Rota /relatorios/fluxo. Só dono/admin.",
+    },
+    {
+      title: "Filtrar",
+      detail: "Esta semana / Este mês ou De/Até + Gerar.",
+    },
+    {
+      title: "O que aparece",
+      detail:
+        "Total movimentado; Disponível aprox. (dinheiro + PIX + débito); Cartão crédito; Vales; gráficos de entradas e mix; bloco Caixa operacional (entradas, saídas, saldo movimentos).",
+    },
+    {
+      title: "Atalhos",
+      detail: "Caixa do dia → /caixa; CSV; nota sobre taxas e link para Comissões.",
+    },
+  ],
+  objections: [
+    {
+      concern: "Sem movimentação no período",
+      reply:
+        "O fluxo se alimenta de pagamentos ao fechar comanda no Caixa e de movimentos da sessão. Feche comandas e confira o período.",
+    },
+    {
+      concern: "Diferença entre Fluxo e Caixa do dia",
+      reply:
+        "Caixa = sessão de hoje (abrir/fechar, sangria). Fluxo = relatório do período (visão gerencial; disponível sem taxas de adquirente).",
+    },
+  ],
+  relatedGuideIds: ["caixa", "relatorio-financeiro", "contas", "comissoes"],
+  lastVerified: "2026-09-15",
 };
 
 export const guideContas: SupportGuide = {
   id: "contas",
   title: "Contas a pagar / receber",
-  status: "skeleton",
+  status: "draft",
   href: "/contas",
   menuPath: "Financeiro → Contas",
-  aliases: ["contas", "contas a pagar", "contas a receber", "boleto"],
+  aliases: [
+    "contas",
+    "contas a pagar",
+    "contas a receber",
+    "vales abertos",
+    "boleto",
+  ],
   roles: ["owner", "admin"],
-  intents: ["onde_fica", "como_fazer"],
-  summary: "Lançamentos de contas da unidade.",
-  steps: [],
-  objections: [],
-  relatedGuideIds: ["caixa", "fluxo-caixa"],
-  lastVerified: null,
+  intents: ["onde_fica", "como_fazer", "como_gerar", "objecao"],
+  summary:
+    "Resumo: vales abertos a pagar, crédito a receber no período e saídas de caixa.",
+  steps: [
+    {
+      title: "Onde fica",
+      detail: "Menu → Financeiro → Contas (/contas). Só dono/admin.",
+    },
+    {
+      title: "Filtrar",
+      detail:
+        "Esta semana / Este mês ou De/Até + Gerar (o card a receber usa o período).",
+    },
+    {
+      title: "O que aparece",
+      detail:
+        "Cards A pagar (vales/abertos), A receber (crédito), Saídas de caixa. Lista de vales/adiantamentos abertos e lista de saídas de caixa no período.",
+    },
+    {
+      title: "Atalhos",
+      detail:
+        "Caixa, Comissões e CSV (vales abertos + saídas). O crédito a receber é só no card — sem tabela linha a linha.",
+    },
+  ],
+  objections: [
+    {
+      concern: "Não acho boleto / conta de fornecedor",
+      reply:
+        "Esta tela agrega vales de profissionais e saídas do Caixa — não é ERP de boletos. Lance vale em Comissões e sangria/saída no Caixa.",
+    },
+    {
+      concern: "Nenhum vale aberto",
+      reply:
+        "Lance em Financeiro → Comissões (tipo vale) se precisar. Saídas vazias = sem sangria/saída no Caixa no período.",
+    },
+  ],
+  relatedGuideIds: ["caixa", "fluxo-caixa", "comissoes"],
+  lastVerified: "2026-09-15",
 };
