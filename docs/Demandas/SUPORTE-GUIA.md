@@ -12,7 +12,7 @@ Código: `src/content/support/guides/`
 | `draft` | Passos e objeções escritos; falta validar no produto. |
 | `ready` | Validado — agente pode responder com confiança. |
 
-Hoje: maioria `skeleton`; **S1–S6** em `draft`.
+Hoje: restante `skeleton` (S8); **S1–S7** em `draft`.
 
 ## Como enriquecer (por sprint)
 
@@ -33,7 +33,7 @@ Hoje: maioria `skeleton`; **S1–S6** em `draft`.
 | **S4** | `caixa`, `comissoes` | **draft** |
 | **S5** | `clientes`, `profissionais`, `servicos`, `produtos` | **draft** |
 | **S6** | Relatórios (`relatorios-*`, `alertas`, `fluxo-caixa`, `contas`) | **draft** |
-| **S7** | `conversas-ia`, `agente-donna`, `disparos`, `pwa-app` | pendente |
+| **S7** | `conversas-ia`, `agente-donna`, `disparos`, `pwa-app` | **draft** |
 | **S8** | `empresa`, `equipe-acesso`, `minha-conta`, `inicio` | pendente |
 | **S9** | Wiring do agente (tools + prompt + deep-link `href`) | pendente |
 

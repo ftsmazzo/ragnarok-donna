@@ -149,10 +149,27 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "agente-donna-config",
     question: "Onde configuro a Donna?",
     answer:
-      "Configurações → Agente (Donna). No topo: WhatsApp da unidade (vincular instância existente, gerar QR, ver se está conectado, trocar foto/nome). Abaixo: persona, tom e alerta humano. Este suporte do painel é outro agente — não misture.",
+      "Configurações → Agente (Donna). No topo: WhatsApp da unidade (vincular instância, gerar QR, foto/nome). Abaixo: persona, tom e alerta humano. Este suporte do painel é outro agente — não misture.",
     tags: ["agente", "donna", "configuração", "persona", "whatsapp", "qr", "instância"],
     menuPath: "Configurações → Agente (Donna)",
   },
+  {
+    id: "conversas-vs-suporte",
+    question: "Conversas IA é o mesmo que o chat de Suporte?",
+    answer:
+      "Não. Conversas IA = WhatsApp do cliente com a Donna (Assumir / Devolver à IA). O botão Suporte / Central de ajuda é dúvida de como usar o app (Fábrica).",
+    tags: ["conversas", "suporte", "donna", "inbox"],
+    menuPath: "Conversas IA",
+  },
+  {
+    id: "disparos-nao-enviam",
+    question: "Liguei os disparos e não sai mensagem no Zap",
+    answer:
+      "Disparos são regras automáticas (confirmação, retorno, blast). O envio global pode estar bloqueado no servidor até liberar a migração — o toggle da unidade sozinho não basta. Follow-up pontual: Relatórios → Perfil do cliente.",
+    tags: ["disparos", "confirmação", "blast", "whatsapp"],
+    menuPath: "Configurações → Disparos WhatsApp",
+  },
+
   {
     id: "bloqueio-agenda",
     question: "Como bloqueio um horário na agenda?",
