@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
 import type {
@@ -42,6 +42,24 @@ type Props = {
 
 type ItemType = "service" | "product" | "package";
 
+function parsePct(raw: unknown): number {
+  const n = Number(String(raw ?? "").replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(100, Math.max(0, n));
+}
+
+/** Converte % → centavos sobre a base (preço ou residual). */
+function discountCentsFromPercent(baseCents: number, percent: number): number {
+  const pct = parsePct(percent);
+  if (pct <= 0 || baseCents <= 0) return 0;
+  return Math.round((baseCents * pct) / 100);
+}
+
+function orderDiscountPercent(totalCents: number, discountCents: number): string {
+  if (totalCents <= 0 || discountCents <= 0) return "";
+  return ((discountCents / totalCents) * 100).toFixed(2).replace(/\.?0+$/, "");
+}
+
 export function OrderDrawer({
   open,
   order,
@@ -60,6 +78,11 @@ export function OrderDrawer({
   const [itemType, setItemType] = useState<ItemType>("service");
   const [catalogId, setCatalogId] = useState("");
   const [useCredit, setUseCredit] = useState(true);
+  const [itemDiscountPct, setItemDiscountPct] = useState("");
+  const [coveredReais, setCoveredReais] = useState("");
+  const [orderDiscountPct, setOrderDiscountPct] = useState(() =>
+    orderDiscountPercent(order.totalCents, order.discountCents)
+  );
   const [linkClientOpen, setLinkClientOpen] = useState(false);
   const [pickClientId, setPickClientId] = useState("");
   const [confirmTopUpId, setConfirmTopUpId] = useState<string | null>(null);
@@ -68,6 +91,15 @@ export function OrderDrawer({
   const canEdit = permissions.canWrite && isOpen;
   const due = Math.max(0, order.totalCents - order.discountCents);
   const credits = order.credits ?? [];
+
+  useEffect(() => {
+    setOrderDiscountPct(orderDiscountPercent(order.totalCents, order.discountCents));
+  }, [order.id, order.totalCents, order.discountCents]);
+
+  useEffect(() => {
+    setCoveredReais("");
+    setItemDiscountPct("");
+  }, [catalogId, itemType]);
 
   const creditByService = new Map<string, number>();
   const creditByProduct = new Map<string, number>();
@@ -100,6 +132,28 @@ export function OrderDrawer({
       ? (itemType === "service" ? services : products).find((c) => c.id === catalogId)
           ?.priceCents ?? 0
       : 0;
+  const coveredCentsPreview = willUseCredit
+    ? coveredReais.trim() === ""
+      ? selectedCatalogPriceCents
+      : Math.max(
+          0,
+          Math.min(
+            selectedCatalogPriceCents,
+            Math.round(Number(String(coveredReais).replace(",", ".")) * 100) || 0
+          )
+        )
+      : 0;
+  const itemDiscountBaseCents = willUseCredit
+    ? Math.max(0, selectedCatalogPriceCents - coveredCentsPreview)
+    : selectedCatalogPriceCents;
+  const itemDiscountCentsPreview = discountCentsFromPercent(
+    itemDiscountBaseCents,
+    parsePct(itemDiscountPct)
+  );
+  const orderDiscountCentsPreview = discountCentsFromPercent(
+    order.totalCents,
+    parsePct(orderDiscountPct)
+  );
   const selectedPackage =
     itemType === "package" && catalogId
       ? packages.find((p) => p.id === catalogId) ?? null
@@ -165,6 +219,25 @@ export function OrderDrawer({
     formData.set("itemType", itemType);
     formData.set("catalogId", catalogId);
     if (willUseCredit) formData.set("usePackageCredit", "1");
+
+    const pct = parsePct(formData.get("discountPercent"));
+    if (pct > 0 && (itemType === "service" || itemType === "product")) {
+      const coveredRaw = formData.get("coveredReais");
+      const covered =
+        willUseCredit && coveredRaw != null && String(coveredRaw).trim() !== ""
+          ? Math.round(Number(String(coveredRaw).replace(",", ".")) * 100)
+          : willUseCredit
+            ? selectedCatalogPriceCents
+            : 0;
+      const base = willUseCredit
+        ? Math.max(0, selectedCatalogPriceCents - Math.min(selectedCatalogPriceCents, covered))
+        : selectedCatalogPriceCents;
+      const discountCents = discountCentsFromPercent(base, pct);
+      formData.set("discountReais", (discountCents / 100).toFixed(2));
+    } else {
+      formData.set("discountReais", "0");
+    }
+
     run(async () => {
       const result = await addOrderItemAction(formData);
       if (result.ok) {
@@ -172,6 +245,8 @@ export function OrderDrawer({
         setCatalogId("");
         setItemType("service");
         setUseCredit(true);
+        setItemDiscountPct("");
+        setCoveredReais("");
       }
       return result;
     });
@@ -180,7 +255,8 @@ export function OrderDrawer({
   function handleDiscount(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const reais = Number(String(formData.get("discountReais") ?? "").replace(",", "."));
+    const pct = parsePct(formData.get("discountPercent"));
+    const reais = discountCentsFromPercent(order.totalCents, pct) / 100;
     run(() => setOrderDiscountAction(order.id, reais));
   }
 
@@ -271,7 +347,12 @@ export function OrderDrawer({
           </div>
           <div className="client-stat">
             <span className="meta-label">Desconto</span>
-            <strong>{formatMoney(order.discountCents)}</strong>
+            <strong>
+              {formatMoney(order.discountCents)}
+              {order.totalCents > 0 && order.discountCents > 0
+                ? ` (${((order.discountCents / order.totalCents) * 100).toFixed(0)}%)`
+                : ""}
+            </strong>
           </div>
           <div className="client-stat">
             <span className="meta-label">Pago</span>
@@ -593,11 +674,16 @@ export function OrderDrawer({
                   min={0}
                   step={0.01}
                   max={selectedCatalogPriceCents / 100}
-                  defaultValue={(selectedCatalogPriceCents / 100).toFixed(2)}
+                  value={
+                    coveredReais === ""
+                      ? (selectedCatalogPriceCents / 100).toFixed(2)
+                      : coveredReais
+                  }
+                  onChange={(e) => setCoveredReais(e.target.value)}
                 />
                 <span className="client-profile-hint muted">
                   Quanto o crédito cobre. Tabela {formatMoney(selectedCatalogPriceCents)} —
-                  se cobrir menos, a diferença entra a pagar (desconto aplica no residual).
+                  se cobrir menos, a diferença entra a pagar (desconto % aplica no residual).
                 </span>
               </label>
             ) : null}
@@ -647,13 +733,26 @@ export function OrderDrawer({
             </label>
             {itemType !== "package" ? (
               <label className="form-field">
-                <span>Desconto no item (R$)</span>
-                <input name="discountReais" type="number" min={0} step={0.01} defaultValue={0} />
-                {willUseCredit ? (
-                  <span className="client-profile-hint muted">
-                    Desconto comercial no residual após o abate (não substitui o crédito).
-                  </span>
-                ) : null}
+                <span>Desconto no item (%)</span>
+                <input
+                  name="discountPercent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={itemDiscountPct}
+                  onChange={(e) => setItemDiscountPct(e.target.value)}
+                  placeholder="0"
+                />
+                <span className="client-profile-hint muted">
+                  {parsePct(itemDiscountPct) > 0
+                    ? `= ${formatMoney(itemDiscountCentsPreview)} sobre ${formatMoney(itemDiscountBaseCents)}${
+                        willUseCredit ? " (residual após abate)" : ""
+                      }`
+                    : willUseCredit
+                      ? "Digite a % — o R$ é calculado no residual após o abate."
+                      : "Digite a % — o R$ é calculado automaticamente sobre o preço."}
+                </span>
               </label>
             ) : null}
             <button
@@ -673,19 +772,27 @@ export function OrderDrawer({
         {canEdit ? (
           <form className="form-stack" onSubmit={handleDiscount} style={{ marginTop: 12 }}>
             <label className="form-field">
-              <span>Desconto da comanda (R$)</span>
+              <span>Desconto da comanda (%)</span>
               <div className="form-row-2">
                 <input
-                  name="discountReais"
+                  name="discountPercent"
                   type="number"
                   min={0}
+                  max={100}
                   step={0.01}
-                  defaultValue={(order.discountCents / 100).toFixed(2)}
+                  value={orderDiscountPct}
+                  onChange={(e) => setOrderDiscountPct(e.target.value)}
+                  placeholder="0"
                 />
                 <button type="submit" className="btn btn-outline" disabled={pending}>
                   Aplicar
                 </button>
               </div>
+              <span className="client-profile-hint muted">
+                {parsePct(orderDiscountPct) > 0
+                  ? `= ${formatMoney(orderDiscountCentsPreview)} sobre o subtotal ${formatMoney(order.totalCents)}`
+                  : `Sobre o subtotal ${formatMoney(order.totalCents)}. Digite a % e Aplicar.`}
+              </span>
             </label>
           </form>
         ) : null}
