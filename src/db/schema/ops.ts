@@ -294,6 +294,35 @@ export const loyaltyLedger = pgTable(
 );
 
 /**
+ * Extrato da Conta do Cliente (crédito/débito em dinheiro).
+ * `delta_cents` > 0 = crédito; < 0 = débito. Saldo em clients.account_balance_cents.
+ */
+export const clientAccountLedger = pgTable(
+  "client_account_ledger",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    deltaCents: integer("delta_cents").notNull(),
+    balanceAfterCents: integer("balance_after_cents").notNull(),
+    reason: varchar("reason", { length: 64 }).notNull(),
+    notes: varchar("notes", { length: 240 }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    paymentId: uuid("payment_id").references(() => payments.id, { onDelete: "set null" }),
+    createdByUserId: uuid("created_by_user_id"),
+    ...timestamps,
+  },
+  (t) => [
+    index("client_account_ledger_client_idx").on(t.tenantId, t.clientId),
+    index("client_account_ledger_created_idx").on(t.tenantId, t.createdAt),
+  ]
+);
+
+/**
  * Vales, bônus, descontos e liquidações de comissão do profissional.
  * amount_cents sempre positivo; o efeito no “a pagar” depende de kind.
  */

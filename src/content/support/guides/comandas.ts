@@ -75,12 +75,12 @@ export const guideComandas: SupportGuide = {
     {
       title: "Pagar (parcial ou total)",
       detail:
-        "Botão Pagamento: escolha forma (PIX, PIX chave, Link Rede, Infinity, Dinheiro, Débito, Crédito, Transferência, Outro) e o valor. Pode pagar em partes; o Saldo mostra o que falta.",
+        "Botão Pagar: escolha forma (PIX, Conta do cliente, Dinheiro…) e o valor. Conta do cliente só com crédito positivo e não entra no caixa. Pode pagar em partes; o Saldo mostra o que falta.",
     },
     {
       title: "Pagar e fechar / Fechar",
       detail:
-        "Se ainda há saldo: Pagar e fechar → escolha a forma → Confirmar e fechar (quita o restante e fecha). Se saldo já é zero: Fechar comanda. Precisa ter ao menos 1 item. Comanda fechada vai para o Histórico.",
+        "Se ainda há saldo: Pagar e fechar → forma → Confirmar e fechar; ou Lançar na conta e fechar (consome crédito / deixa fiado). Se saldo já é zero: Fechar comanda. Precisa ter ao menos 1 item.",
     },
     {
       title: "Cancelar comanda aberta",

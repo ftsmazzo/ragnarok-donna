@@ -18,6 +18,7 @@ const PAYMENT_METHODS = [
   "transfer",
   "rede_link",
   "infinity",
+  "client_account",
   "other",
 ] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -715,7 +716,7 @@ export async function addPayment(input: {
   amountCents: number;
 }): Promise<ActionResult> {
   try {
-    await assertFullOrderWrite();
+    const session = await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     await assertOpenOrder(input.orderId, tenant.id);
 
@@ -735,24 +736,58 @@ export async function addPayment(input: {
       throw new AppError("VALIDATION", `Valor excede o saldo (restante ${resto})`);
     }
 
+    const method = input.method as PaymentMethod;
+    const amountCents = Math.round(input.amountCents);
+
+    if (method === "client_account") {
+      if (!detail.clientId) {
+        throw new AppError("VALIDATION", "Vincule um cliente para usar a Conta do Cliente");
+      }
+      const credit = detail.clientAccountBalanceCents ?? 0;
+      if (credit <= 0) {
+        throw new AppError("VALIDATION", "Cliente sem crédito na conta");
+      }
+      if (amountCents > credit) {
+        const disp = (credit / 100).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        });
+        throw new AppError("VALIDATION", `Crédito disponível na conta: ${disp}`);
+      }
+    }
+
     const db = createDb();
     const [row] = await db
       .insert(schema.payments)
       .values({
         tenantId: tenant.id,
         orderId: input.orderId,
-        method: input.method as PaymentMethod,
-        amountCents: Math.round(input.amountCents),
+        method,
+        amountCents,
       })
       .returning({ id: schema.payments.id });
 
-    const { recordPaymentInCash } = await import("../finance/mutations");
-    await recordPaymentInCash({
-      tenantId: tenant.id,
-      orderId: input.orderId,
-      method: input.method as PaymentMethod,
-      amountCents: Math.round(input.amountCents),
-    });
+    if (method === "client_account" && detail.clientId) {
+      const { applyClientAccountDelta } = await import("../clients/account");
+      await applyClientAccountDelta({
+        tenantId: tenant.id,
+        clientId: detail.clientId,
+        deltaCents: -amountCents,
+        reason: "order_payment",
+        notes: "Pagamento com crédito da conta",
+        orderId: input.orderId,
+        paymentId: row.id,
+        createdByUserId: session.user.id,
+      });
+    } else {
+      const { recordPaymentInCash } = await import("../finance/mutations");
+      await recordPaymentInCash({
+        tenantId: tenant.id,
+        orderId: input.orderId,
+        method,
+        amountCents,
+      });
+    }
 
     return { ok: true, id: row.id };
   } catch (err) {
@@ -1012,6 +1047,59 @@ export async function payAndCloseOrder(input: {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: "Não foi possível pagar e fechar" };
+  }
+}
+
+/**
+ * Lança o restante da comanda como débito na Conta do Cliente e fecha.
+ * Se o cliente tem crédito, consome o crédito; o que faltar vira saldo negativo (fiado).
+ */
+export async function closeOrderToClientAccount(orderId: string): Promise<ActionResult> {
+  try {
+    const session = await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    await assertOpenOrder(orderId, tenant.id);
+
+    const detail = await getOrderDetail(orderId);
+    if (detail.items.length === 0) {
+      throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
+    }
+    if (!detail.clientId) {
+      throw new AppError("VALIDATION", "Vincule um cliente para lançar na Conta do Cliente");
+    }
+    if (detail.balanceCents <= 0) {
+      return await closeOrder(orderId);
+    }
+
+    const amountCents = detail.balanceCents;
+    const db = createDb();
+    const [row] = await db
+      .insert(schema.payments)
+      .values({
+        tenantId: tenant.id,
+        orderId,
+        method: "client_account",
+        amountCents,
+      })
+      .returning({ id: schema.payments.id });
+
+    const { applyClientAccountDelta } = await import("../clients/account");
+    await applyClientAccountDelta({
+      tenantId: tenant.id,
+      clientId: detail.clientId,
+      deltaCents: -amountCents,
+      reason: "order_debt",
+      notes: "Restante da comanda lançado na conta",
+      orderId,
+      paymentId: row.id,
+      createdByUserId: session.user.id,
+    });
+
+    return await closeOrder(orderId);
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível lançar na conta e fechar" };
   }
 }
 

@@ -35,6 +35,7 @@ export type ClientListItem = {
   phone: string | null;
   email: string | null;
   loyaltyPoints: number;
+  accountBalanceCents: number;
   isActive: boolean;
   deletedAt: Date | null;
 };
@@ -46,6 +47,7 @@ export type ClientDetail = ClientListItem & {
   avatarUrl: string | null;
   tags: string[];
   preferences: Record<string, unknown>;
+  accountBalanceCents: number;
   createdAt: Date;
   updatedAt: Date;
   externalSource: string | null;
@@ -102,6 +104,7 @@ export type ClientProfile = {
   recentItems: ClientOrderItem[];
   topServices: ClientTopService[];
   packages: import("../packages/credits").ClientPackageWalletEntry[];
+  account: import("./account").ClientAccountSummary;
 };
 
 function clientFilterWhere(tenantId: string, filter: ClientFilter) {
@@ -163,6 +166,7 @@ export async function listClients(opts: {
       phone: schema.clients.phone,
       email: schema.clients.email,
       loyaltyPoints: schema.clients.loyaltyPoints,
+      accountBalanceCents: schema.clients.accountBalanceCents,
       isActive: schema.clients.isActive,
       deletedAt: schema.clients.deletedAt,
     })
@@ -199,6 +203,7 @@ export async function getClient(clientId: string): Promise<ClientDetail> {
       birthDate: schema.clients.birthDate,
       avatarUrl: schema.clients.avatarUrl,
       loyaltyPoints: schema.clients.loyaltyPoints,
+      accountBalanceCents: schema.clients.accountBalanceCents,
       isActive: schema.clients.isActive,
       deletedAt: schema.clients.deletedAt,
       tags: schema.clients.tags,
@@ -397,6 +402,18 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
         return await listClientPackageWallet(clientId);
       } catch {
         return [];
+      }
+    })(),
+    account: await (async () => {
+      try {
+        const { getClientAccount } = await import("./account");
+        return await getClientAccount(clientId);
+      } catch {
+        return {
+          clientId,
+          balanceCents: client.accountBalanceCents ?? 0,
+          ledger: [],
+        };
       }
     })(),
   };

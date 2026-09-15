@@ -61,6 +61,8 @@ export type OrderDetail = {
   payments: OrderPaymentDetail[];
   paidCents: number;
   balanceCents: number;
+  /** Saldo da Conta do Cliente (crédito > 0, débito < 0). Null se sem cliente. */
+  clientAccountBalanceCents: number | null;
   credits: import("../packages/credits").ClientCreditBalance[];
 };
 

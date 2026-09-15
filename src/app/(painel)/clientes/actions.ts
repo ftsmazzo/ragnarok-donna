@@ -107,3 +107,25 @@ export async function sellCatalogPackageToClientAction(input: {
   }
   return result;
 }
+
+export async function postClientAccountAction(
+  formData: FormData
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const { postClientAccountManual } = await import("@/server/clients/account");
+  const clientId = String(formData.get("clientId") ?? "");
+  const kindRaw = String(formData.get("kind") ?? "credit");
+  const kind = kindRaw === "debit" ? "debit" : "credit";
+  const amountReais = Number(String(formData.get("amountReais") ?? "").replace(",", "."));
+  const result = await postClientAccountManual({
+    clientId,
+    kind,
+    amountCents: Math.round(amountReais * 100),
+    notes: String(formData.get("notes") ?? ""),
+  });
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath(`/clientes?id=${clientId}`);
+    revalidatePath("/comandas");
+  }
+  return result;
+}
