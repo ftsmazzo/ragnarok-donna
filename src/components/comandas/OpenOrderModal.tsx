@@ -52,14 +52,17 @@ export function OpenOrderModal({ open, onClose, onCreated }: Props) {
     >
       {error ? <div className="form-error">{error}</div> : null}
       <form id="open-order-form" className="form-stack" onSubmit={handleSubmit}>
-        <ClientPicker value={clientId} onChange={(id) => setClientId(id)} />
+        <div className="client-picker is-recommended">
+          <ClientPicker value={clientId} onChange={(id) => setClientId(id)} required />
+        </div>
         <input type="hidden" name="clientId" value={clientId} />
         <label className="form-field">
           <span>Observações</span>
           <textarea name="notes" rows={2} maxLength={500} placeholder="Opcional" />
         </label>
         <p className="client-profile-hint muted">
-          Cliente opcional — você pode abrir a comanda e vincular depois pelos itens.
+          Recomendado escolher o cliente agora. Sem cliente não dá para vender ou usar pacote — dá
+          para vincular depois na comanda.
         </p>
       </form>
     </Modal>

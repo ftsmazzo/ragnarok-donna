@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { ClientesView } from "@/components/clients/ClientesView";
 import { getClient, getClientProfile, listClients, type ClientFilter } from "@/server/clients";
+import { listCatalogForOrders } from "@/server/orders";
 import { NotFoundError } from "@/server/errors";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,10 @@ export default async function ClientesPage({ searchParams }: Props) {
   const sp = await searchParams;
   const filter = (sp.filter as ClientFilter) || "ativos";
   const page = Number(sp.page) || 1;
-  const data = await listClients({ q: sp.q, filter, page });
+  const [data, catalog] = await Promise.all([
+    listClients({ q: sp.q, filter, page }),
+    listCatalogForOrders(),
+  ]);
 
   let selectedClient = null;
   let selectedProfile = null;
@@ -38,6 +42,7 @@ export default async function ClientesPage({ searchParams }: Props) {
         selectedClient={selectedClient}
         selectedProfile={selectedProfile}
         drawerMode={drawerMode}
+        catalogPackages={catalog.packages}
       />
     </Suspense>
   );

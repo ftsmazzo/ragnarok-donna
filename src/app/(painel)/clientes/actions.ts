@@ -14,7 +14,10 @@ import {
   type ClientDetail,
   type ClientProfile,
 } from "@/server/clients/queries";
-import { renewOrTopUpClientPackage } from "@/server/packages/mutations";
+import {
+  renewOrTopUpClientPackage,
+  sellCatalogPackageToClient,
+} from "@/server/packages/mutations";
 
 export async function createClientAction(formData: FormData): Promise<ActionResult> {
   return createClient({
@@ -81,6 +84,23 @@ export async function renewOrTopUpClientPackageAction(input: {
     revalidatePath("/clientes");
     revalidatePath("/comandas");
     if (input.clientId) revalidatePath(`/clientes?id=${input.clientId}`);
+    if ("orderId" in result && result.orderId) {
+      revalidatePath(`/comandas?id=${result.orderId}`);
+    }
+  }
+  return result;
+}
+
+export async function sellCatalogPackageToClientAction(input: {
+  clientId: string;
+  packageId: string;
+  staffId?: string;
+}) {
+  const result = await sellCatalogPackageToClient(input);
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath("/comandas");
+    revalidatePath(`/clientes?id=${input.clientId}`);
     if ("orderId" in result && result.orderId) {
       revalidatePath(`/comandas?id=${result.orderId}`);
     }

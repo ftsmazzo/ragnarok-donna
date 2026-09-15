@@ -3,8 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
-import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
+import {
+  renewOrTopUpClientPackageAction,
+  sellCatalogPackageToClientAction,
+} from "@/app/(painel)/clientes/actions";
 import { openOrderAction } from "@/app/(painel)/comandas/actions";
+import { Modal } from "@/components/ui/Modal";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelApptStatus, labelOrderStatus, labelPaymentMethod } from "@/lib/format";
 
@@ -16,12 +20,20 @@ export type ClientProfileTab =
   | "comandas"
   | "consumo";
 
+type CatalogPackageOption = {
+  id: string;
+  name: string;
+  priceCents: number;
+  itemLabel?: string | null;
+};
+
 type Props = {
   client: ClientDetail;
   profile: ClientProfile;
   tab: ClientProfileTab;
   onTabChange: (tab: ClientProfileTab) => void;
   cadastroForm: React.ReactNode;
+  catalogPackages?: CatalogPackageOption[];
   onPackagesChanged?: () => void;
 };
 
@@ -47,11 +59,14 @@ export function ClientProfilePanel({
   tab,
   onTabChange,
   cadastroForm,
+  catalogPackages = [],
   onPackagesChanged,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [pkgError, setPkgError] = useState("");
+  const [sellPackageId, setSellPackageId] = useState("");
+  const [confirmTopUpId, setConfirmTopUpId] = useState<string | null>(null);
   const {
     stats,
     recentAppointments,
@@ -107,6 +122,27 @@ export function ClientProfilePanel({
         return;
       }
       router.push(`/comandas?id=${result.id}`);
+    });
+  }
+
+  function sellCatalogPackage() {
+    if (!sellPackageId) return;
+    setPkgError("");
+    startTransition(async () => {
+      const result = await sellCatalogPackageToClientAction({
+        clientId: client.id,
+        packageId: sellPackageId,
+      });
+      if (!result.ok) {
+        setPkgError(result.error ?? "Não foi possível vender o pacote");
+        return;
+      }
+      if ("orderId" in result && result.orderId) {
+        router.push(`/comandas?id=${result.orderId}`);
+        return;
+      }
+      onPackagesChanged?.();
+      router.refresh();
     });
   }
 
@@ -259,6 +295,33 @@ export function ClientProfilePanel({
       {tab === "pacotes" ? (
         <div className="client-profile-section">
           {pkgError ? <div className="form-error">{pkgError}</div> : null}
+          {catalogPackages.length > 0 ? (
+            <div className="catalog-package-line" style={{ marginBottom: 14 }}>
+              <label className="form-field" style={{ flex: "1 1 180px", margin: 0 }}>
+                <span>Vender pacote do catálogo</span>
+                <select
+                  value={sellPackageId}
+                  onChange={(e) => setSellPackageId(e.target.value)}
+                >
+                  <option value="">Selecione o pacote…</option>
+                  {catalogPackages.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {formatMoney(p.priceCents)}
+                      {p.itemLabel ? ` · ${p.itemLabel}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={pending || !sellPackageId}
+                onClick={sellCatalogPackage}
+              >
+                Vender pacote
+              </button>
+            </div>
+          ) : null}
           <div className="order-wallet-head" style={{ marginBottom: 12 }}>
             <strong>Carteira de pacotes</strong>
             <button
@@ -331,7 +394,7 @@ export function ClientProfilePanel({
                         type="button"
                         className="btn btn-outline btn-sm"
                         disabled={pending}
-                        onClick={() => runPackageAction(p.clientPackageId, "topup")}
+                        onClick={() => setConfirmTopUpId(p.clientPackageId)}
                       >
                         Repor créditos
                       </button>
@@ -449,6 +512,41 @@ export function ClientProfilePanel({
           )}
         </div>
       ) : null}
+
+      <Modal
+        open={confirmTopUpId != null}
+        onClose={() => setConfirmTopUpId(null)}
+        title="Repor créditos"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setConfirmTopUpId(null)}
+              disabled={pending}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending || !confirmTopUpId}
+              onClick={() => {
+                const id = confirmTopUpId;
+                if (!id) return;
+                setConfirmTopUpId(null);
+                runPackageAction(id, "topup");
+              }}
+            >
+              Confirmar reposição
+            </button>
+          </>
+        }
+      >
+        <p className="client-profile-hint">
+          Os créditos deste pacote serão repostos conforme o template, sem cobrança na comanda.
+        </p>
+      </Modal>
     </>
   );
 }

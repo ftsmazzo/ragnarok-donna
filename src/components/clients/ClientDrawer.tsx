@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
+import type { CatalogPackage } from "@/server/orders/types";
 import {
   createClientAction,
   deactivateClientAction,
@@ -21,11 +22,20 @@ type Props = {
   mode: Mode;
   client: ClientDetail | null;
   profile: ClientProfile | null;
+  catalogPackages?: CatalogPackage[];
   onClose: () => void;
   onSaved: (id: string) => void;
 };
 
-export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: Props) {
+export function ClientDrawer({
+  open,
+  mode,
+  client,
+  profile,
+  catalogPackages = [],
+  onClose,
+  onSaved,
+}: Props) {
   const [error, setError] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [tab, setTab] = useState<ClientProfileTab>("resumo");
@@ -324,6 +334,7 @@ export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: 
             tab={tab}
             onTabChange={setTab}
             cadastroForm={cadastroForm}
+            catalogPackages={catalogPackages}
             onPackagesChanged={() => onSaved(client.id)}
           />
         ) : (

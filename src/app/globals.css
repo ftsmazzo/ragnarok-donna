@@ -3071,9 +3071,83 @@ input {
 
 .order-wallet-line-actions {
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.order-wallet-group {
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
+}
+
+.order-wallet-group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.order-wallet-group-head em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.order-wallet-credit-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
+}
+
+.order-wallet-credit-lines li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #f8fafb;
+  border: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.order-client-link {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid #c5daf0;
+  background: #eef6ff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-client-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-picker.is-recommended .form-field > span {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.catalog-package-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.catalog-package-line select {
+  min-width: 0;
+  width: 100%;
 }
 
 .order-package-sale-hint {
@@ -3159,15 +3233,33 @@ input {
 }
 
 .package-item-row {
-  display: grid;
-  grid-template-columns: 90px 1fr 72px auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
 }
 
 .package-item-row select,
 .package-item-row input {
   width: 100%;
+  min-width: 0;
+  flex: 1 1 140px;
+}
+
+.package-item-row select:first-child {
+  flex: 0 0 110px;
+}
+
+.package-item-row input[type="number"] {
+  flex: 0 0 72px;
+}
+
+.package-item-row .btn {
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 .cell-danger {

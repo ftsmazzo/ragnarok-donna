@@ -112,7 +112,7 @@ export const guideComandas: SupportGuide = {
     {
       concern: "Cliente sem nome na comanda e não vende pacote",
       reply:
-        "Vincule o cliente ao abrir (ou abra pela Agenda com cliente). Sem cliente não dá para vender/usar pacote.",
+        "Na própria comanda use Vincular cliente (busca por nome/telefone). Ou abra a comanda já com cliente, ou venda pela ficha: aba Pacotes → Vender pacote.",
     },
     {
       concern: "Removi o item e deu erro de pacote",

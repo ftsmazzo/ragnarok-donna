@@ -13,6 +13,7 @@ export {
   openOrder,
   reopenOrder,
   removeOrderItem,
+  setOrderClient,
   setOrderDiscount,
 } from "./mutations";
 export type {

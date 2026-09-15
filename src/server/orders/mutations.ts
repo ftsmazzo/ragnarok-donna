@@ -820,6 +820,91 @@ export async function closeOrder(orderId: string): Promise<ActionResult> {
   }
 }
 
+export async function setOrderClient(input: {
+  orderId: string;
+  clientId: string;
+}): Promise<ActionResult> {
+  try {
+    await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+    const orderId = input.orderId.trim();
+    const clientId = input.clientId.trim();
+    if (!orderId || !clientId) {
+      throw new AppError("VALIDATION", "Comanda e cliente são obrigatórios");
+    }
+
+    const [order] = await db
+      .select({ clientId: schema.orders.clientId })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.id, orderId),
+          eq(schema.orders.tenantId, tenant.id),
+          isNull(schema.orders.deletedAt)
+        )
+      )
+      .limit(1);
+    if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
+    await assertOpenOrder(orderId, tenant.id);
+
+    const [client] = await db
+      .select({ id: schema.clients.id })
+      .from(schema.clients)
+      .where(
+        and(
+          eq(schema.clients.id, clientId),
+          eq(schema.clients.tenantId, tenant.id),
+          eq(schema.clients.isActive, true),
+          isNull(schema.clients.deletedAt)
+        )
+      )
+      .limit(1);
+    if (!client) throw new AppError("VALIDATION", "Cliente não encontrado ou inativo");
+
+    if (order.clientId && order.clientId !== clientId) {
+      const orderItems = await db
+        .select({
+          itemType: schema.orderItems.itemType,
+          meta: schema.orderItems.meta,
+        })
+        .from(schema.orderItems)
+        .where(
+          and(
+            eq(schema.orderItems.orderId, orderId),
+            eq(schema.orderItems.tenantId, tenant.id)
+          )
+        );
+      for (const item of orderItems) {
+        const meta = (item.meta ?? {}) as Record<string, unknown>;
+        if (meta.redeemed) {
+          throw new AppError(
+            "VALIDATION",
+            "Não dá para trocar o cliente: há item com crédito de pacote já usado nesta comanda."
+          );
+        }
+        if (meta.packageSale || item.itemType === "package") {
+          throw new AppError(
+            "VALIDATION",
+            "Não dá para trocar o cliente: há venda de pacote nesta comanda."
+          );
+        }
+      }
+    }
+
+    await db
+      .update(schema.orders)
+      .set({ clientId, updatedAt: new Date() })
+      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+
+    return { ok: true, id: orderId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível vincular o cliente" };
+  }
+}
+
 /** Reabre comanda fechada (owner/admin). Não apaga pagamentos já lançados. */
 export async function reopenOrder(orderId: string): Promise<ActionResult> {
   try {

@@ -21,9 +21,12 @@ import {
   payAndCloseOrderAction,
   reopenOrderAction,
   removeOrderItemAction,
+  setOrderClientAction,
   setOrderDiscountAction,
 } from "@/app/(painel)/comandas/actions";
 import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
+import { ClientPicker } from "@/components/agenda/ClientPicker";
+import type { ClientCreditBalance } from "@/server/packages/credits";
 
 type Props = {
   open: boolean;
@@ -57,6 +60,9 @@ export function OrderDrawer({
   const [itemType, setItemType] = useState<ItemType>("service");
   const [catalogId, setCatalogId] = useState("");
   const [useCredit, setUseCredit] = useState(true);
+  const [linkClientOpen, setLinkClientOpen] = useState(false);
+  const [pickClientId, setPickClientId] = useState("");
+  const [confirmTopUpId, setConfirmTopUpId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const isOpen = order.status === "open";
   const canEdit = permissions.canWrite && isOpen;
@@ -108,6 +114,9 @@ export function OrderDrawer({
     creditsByPackage.set(c.clientPackageId, cur);
   }
 
+  const showClientLinker = canEdit && (!order.clientId || linkClientOpen);
+  const packageBlockedNoClient = itemType === "package" && !order.clientId;
+
   function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError("");
     startTransition(async () => {
@@ -118,6 +127,29 @@ export function OrderDrawer({
       }
       onChanged();
     });
+  }
+
+  function linkClient() {
+    if (!pickClientId) return;
+    run(async () => {
+      const result = await setOrderClientAction(order.id, pickClientId);
+      if (result.ok) {
+        setLinkClientOpen(false);
+        setPickClientId("");
+      }
+      return result;
+    });
+  }
+
+  function applyWalletCredit(c: ClientCreditBalance) {
+    if (c.serviceId) {
+      setItemType("service");
+      setCatalogId(c.serviceId);
+    } else if (c.productId) {
+      setItemType("product");
+      setCatalogId(c.productId);
+    }
+    setUseCredit(true);
   }
 
   function handleAddItem(e: React.FormEvent<HTMLFormElement>) {
@@ -251,6 +283,56 @@ export function OrderDrawer({
           {order.closedAt ? ` · Fechada ${formatDateTimeSp(order.closedAt)}` : null}
         </p>
 
+        {canEdit && order.clientId && !linkClientOpen ? (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ marginBottom: 10 }}
+            onClick={() => setLinkClientOpen(true)}
+          >
+            Trocar cliente
+          </button>
+        ) : null}
+
+        {showClientLinker ? (
+          <section className="order-client-link">
+            <strong>{order.clientId ? "Trocar cliente" : "Vincular cliente"}</strong>
+            <p className="client-profile-hint muted">
+              {order.clientId
+                ? "Só é possível trocar se não houver crédito usado ou venda de pacote na comanda."
+                : "Necessário para vender pacote ou usar créditos da carteira."}
+            </p>
+            <ClientPicker
+              value={pickClientId}
+              onChange={(id) => setPickClientId(id)}
+              required
+            />
+            <div className="order-client-link-actions">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={pending || !pickClientId}
+                onClick={linkClient}
+              >
+                {order.clientId ? "Confirmar troca" : "Vincular cliente"}
+              </button>
+              {order.clientId ? (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  disabled={pending}
+                  onClick={() => {
+                    setLinkClientOpen(false);
+                    setPickClientId("");
+                  }}
+                >
+                  Cancelar
+                </button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
         {order.clientId ? (
           <section className="order-wallet">
             <div className="order-wallet-head">
@@ -263,59 +345,90 @@ export function OrderDrawer({
             </div>
             {credits.length === 0 ? (
               <p className="order-wallet-empty">
-                Cliente sem créditos. Em Tipo escolha Pacote → Vender pacote / gerar carteira.
+                Cliente sem créditos. Em Tipo escolha Vender pacote → selecione o pacote.
               </p>
             ) : (
               <ul className="order-wallet-list">
                 {[...creditsByPackage.values()].map((group) => (
-                  <li key={group.clientPackageId}>
-                    <div>
+                  <li key={group.clientPackageId} className="order-wallet-group">
+                    <div className="order-wallet-group-head">
                       <strong>{group.packageName}</strong>
-                      <span>
-                        {group.lines
-                          .map(
-                            (c) =>
-                              `${c.remainingQty}× ${c.serviceName ?? c.productName ?? "Item"}`
-                          )
-                          .join(" · ")}
-                      </span>
-                    </div>
-                    <div className="order-wallet-line-actions">
                       <em>
                         {group.lines.reduce((s, c) => s + c.remainingQty, 0)} rest.
                         {group.lines[0]?.expiresAt
                           ? ` · até ${formatDateTimeSp(group.lines[0].expiresAt).slice(0, 10)}`
                           : ""}
                       </em>
-                      {canEdit ? (
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          disabled={pending}
-                          onClick={() =>
-                            run(() =>
-                              renewOrTopUpClientPackageAction({
-                                clientPackageId: group.clientPackageId,
-                                mode: "topup",
-                                orderId: order.id,
-                              })
-                            )
-                          }
-                        >
-                          Repor
-                        </button>
-                      ) : null}
                     </div>
+                    <ul className="order-wallet-credit-lines">
+                      {group.lines.map((c) => (
+                        <li key={c.creditId}>
+                          <div>
+                            <strong>{c.serviceName ?? c.productName ?? "Item"}</strong>
+                            <span>{c.remainingQty} disponível(is)</span>
+                          </div>
+                          {canEdit && c.remainingQty > 0 ? (
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              disabled={pending}
+                              onClick={() => applyWalletCredit(c)}
+                            >
+                              Usar
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                    {canEdit ? (
+                      <div className="order-wallet-line-actions">
+                        {confirmTopUpId === group.clientPackageId ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={pending}
+                              onClick={() => {
+                                const id = group.clientPackageId;
+                                setConfirmTopUpId(null);
+                                run(() =>
+                                  renewOrTopUpClientPackageAction({
+                                    clientPackageId: id,
+                                    mode: "topup",
+                                    orderId: order.id,
+                                  })
+                                );
+                              }}
+                            >
+                              Confirmar
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              disabled={pending}
+                              onClick={() => setConfirmTopUpId(null)}
+                            >
+                              Cancelar
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            disabled={pending}
+                            onClick={() => setConfirmTopUpId(group.clientPackageId)}
+                          >
+                            Repor
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             )}
           </section>
-        ) : (
-          <p className="order-wallet-warn">
-            Comanda sem cliente: não dá para vender/usar pacote. Abra com cliente vinculado.
-          </p>
-        )}
+        ) : null}
 
         <h3 className="client-profile-heading">Itens</h3>
         {order.items.length === 0 ? (
@@ -376,8 +489,12 @@ export function OrderDrawer({
                 <select
                   value={itemType}
                   onChange={(e) => {
-                    setItemType(e.target.value as ItemType);
+                    const next = e.target.value as ItemType;
+                    setItemType(next);
                     setCatalogId("");
+                    if (next === "package" && !order.clientId) {
+                      setLinkClientOpen(true);
+                    }
                   }}
                 >
                   <option value="service">Serviço</option>
@@ -451,6 +568,12 @@ export function OrderDrawer({
               </label>
             ) : null}
 
+            {itemType === "package" && packages.length === 0 ? (
+              <p className="order-wallet-warn">
+                Nenhum pacote vendável — Cadastros → Pacotes (vincule serviços no pacote).
+              </p>
+            ) : null}
+
             {itemType === "package" ? (
               <div className="order-package-sale-hint">
                 <p>
@@ -484,7 +607,11 @@ export function OrderDrawer({
                 <input name="discountReais" type="number" min={0} step={0.01} defaultValue={0} />
               </label>
             ) : null}
-            <button type="submit" className="btn btn-outline" disabled={pending || !catalogId}>
+            <button
+              type="submit"
+              className="btn btn-outline"
+              disabled={pending || !catalogId || packageBlockedNoClient}
+            >
               {itemType === "package"
                 ? "+ Vender pacote / gerar carteira"
                 : willUseCredit

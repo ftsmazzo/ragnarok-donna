@@ -111,3 +111,78 @@ export async function renewOrTopUpClientPackage(input: {
     return { ok: false, error: "Não foi possível renovar o pacote" };
   }
 }
+
+export async function sellCatalogPackageToClient(input: {
+  clientId: string;
+  packageId: string;
+  staffId?: string;
+}): Promise<RenewResult> {
+  try {
+    const { requireTenantContext, requireSession } = await import("../context/tenant");
+    const { requireCapability } = await import("../permissions/guards");
+    const session = await requireSession();
+    requireCapability(session, "orders.write");
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const clientId = input.clientId.trim();
+    const packageId = input.packageId.trim();
+    if (!clientId || !packageId) {
+      return { ok: false, error: "Cliente e pacote são obrigatórios" };
+    }
+
+    const [client] = await db
+      .select({ id: schema.clients.id })
+      .from(schema.clients)
+      .where(
+        and(
+          eq(schema.clients.id, clientId),
+          eq(schema.clients.tenantId, tenant.id),
+          eq(schema.clients.isActive, true),
+          isNull(schema.clients.deletedAt)
+        )
+      )
+      .limit(1);
+    if (!client) return { ok: false, error: "Cliente não encontrado ou inativo" };
+
+    let orderId = "";
+    const [open] = await db
+      .select({ id: schema.orders.id })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.tenantId, tenant.id),
+          eq(schema.orders.clientId, clientId),
+          eq(schema.orders.status, "open"),
+          isNull(schema.orders.deletedAt)
+        )
+      )
+      .orderBy(desc(schema.orders.openedAt))
+      .limit(1);
+
+    if (open) {
+      orderId = open.id;
+    } else {
+      const { openOrder } = await import("../orders/mutations");
+      const opened = await openOrder({ clientId });
+      if (!opened.ok) return opened;
+      orderId = opened.id;
+    }
+
+    const { addOrderItem } = await import("../orders/mutations");
+    const sold = await addOrderItem({
+      orderId,
+      itemType: "package",
+      catalogId: packageId,
+      staffId: input.staffId?.trim() || undefined,
+      qty: 1,
+    });
+    if (!sold.ok) return sold;
+    return { ok: true, id: sold.id, orderId };
+  } catch (err) {
+    if (err instanceof AppError || err instanceof ForbiddenError) {
+      return { ok: false, error: err.message };
+    }
+    return { ok: false, error: "Não foi possível vender o pacote" };
+  }
+}
