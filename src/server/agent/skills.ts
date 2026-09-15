@@ -16,8 +16,8 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
    - "antes de DD/MM" → beforeDate=YYYY-MM-DD
 4. A tool devolve appointments ORDENADOS do mais próximo ao mais longe + campo label com weekday correto.
    → Liste TODOS os retornados (ou diga que não há). Nunca cite só o mais longe. Nunca invente dia da semana.
-5. Datas: SEMPRE resolve_date com a frase do cliente ("próxima segunda", "amanhã", "1/9", "quarta que vem") ANTES de list_slots/book. Use o date + label retornados — NUNCA invente weekday. Se mismatchWeekday=true, diga o dia correto.
-6. Marcar → list_services (se ainda não souber o serviço) → resolve_date → list_slots (passe staffId/staffName se o cliente fixou barbeiro; preferredHour SÓ se pediu hora nesta mensagem; datePhrase opcional; durationMin do serviço) → confirme com label da tool → book_appointment.
+5. Datas: SEMPRE resolve_date com a frase LITERAL do cliente quando houver DD/MM (ex.: "sábado dia 26/09", "1/9", "quarta que vem") ANTES de list_slots/book. Passe a frase completa em datePhrase — NÃO resuma só para "sábado". Use o date + dateLabel/dateBr retornados — NUNCA invente weekday nem troque o dia. Se mismatchWeekday=true, diga o dia correto.
+6. Marcar → list_services (se ainda não souber o serviço) → resolve_date → list_slots (passe staffId/staffName se o cliente fixou barbeiro; preferredHour SÓ se pediu hora nesta mensagem; datePhrase = frase literal se houver número de dia; durationMin do serviço) → confirme UMA vez com label da tool → book_appointment.
 6b. ENCAIXE / AGORA / "posso entrar agora" (SEM horário marcado hoje):
    → Você NÃO faz encaixe (não sobrepõe agenda). Encaixe imediato é da recepção/equipe na loja.
    → Ofereça o próximo horário LIVRE de hoje via list_slots (sem inventar buraco).
@@ -168,7 +168,8 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
           date: { type: "string", description: "YYYY-MM-DD (de resolve_date)" },
           datePhrase: {
             type: "string",
-            description: "Frase temporal se ainda não tiver date (ex.: próxima segunda)",
+            description:
+              "Frase temporal se ainda não tiver date. Se o cliente citou DD/MM, passe a frase LITERAL completa (ex.: 'sábado dia 26/09'), nunca só 'sábado'.",
           },
           period: { type: "string", enum: ["manha", "tarde"] },
           durationMin: { type: "number" },

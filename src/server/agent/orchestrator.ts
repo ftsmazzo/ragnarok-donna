@@ -34,6 +34,10 @@ import {
 } from "./skills";
 import { executeTool } from "./tools";
 import { buildCalendarContext, resolveTemporalPhrase } from "./temporal";
+import {
+  applySchedulingIntentToToolArgs,
+  extractSchedulingIntent,
+} from "./scheduling-intent";
 import { extractWaitlistContextFromThread } from "./waitlist-context";
 import type { AgentSkillName, AgentToolName, OrchestratorInput, OrchestratorResult } from "./types";
 
@@ -70,10 +74,10 @@ REGRAS:
 13. HORÁRIO OCUPADO (só se a tool disser staffDayFull ou preferredHourOccupied SEM slots do barbeiro): ofereça 2–3 alternativas curtas; se recusar, ofereça lista de espera; se recusar a espera → handoff_human. Se slots.length>0, NUNCA diga que está cheio — liste os horários.
 13b. BARBEIRO FIXADO pelo cliente: list_slots com o nome dele e mostre 2–3 próximos livres. Sem menu "outro barbeiro / outro dia" nessa hora. Sem insistir em escolha de caminho.
 14. LISTA DE ESPERA: quando o cliente aceitar esperar, chame add_to_waitlist com o telefone da conversa. NUNCA use handoff_human por falha ou sucesso da espera — a Donna resolve sozinha. Se a tool falhar, peça desculpa e tente de novo (ou confirme telefone), sem chamar a equipe.
-15. DATAS: para "próxima segunda", "amanhã", "quarta que vem", "1/9" etc. chame resolve_date (ou list_slots com datePhrase). Fale sempre o weekday do CALENDÁRIO / dateLabel da tool. Se o cliente disser "segunda 1/9" e 1/9 for terça, corrija com educação usando o note da tool.
+15. DATAS: chame resolve_date / list_slots com a frase LITERAL do cliente quando houver DD/MM (ex.: "sábado dia 26/09"). O servidor força a data absoluta — você DEVE repetir exatamente dateLabel/dateBr da tool. NUNCA diga "próximo sábado" de cabeça se a tool trouxe outro dia. Se mismatchWeekday=true, corrija com educação usando o note da tool.
 16. ENCAIXE / AGORA: você NÃO sobrepõe agenda. Ofereça o próximo slot LIVRE (list_slots). Se insistir em entrar agora sem vaga → handoff_human. Encaixe imediato é da recepção na loja.
 17. "TÔ NA BARBEARIA" / CHEGUEI: se o cliente JÁ TEM horário hoje, isso é check-in (sistema marca "chegou") — NÃO trate como pedido de encaixe. Se NÃO tem horário hoje, aí sim ofereça próximo slot ou handoff.
-18. Seja DIRETA no agendamento: não repita pergunta de serviço se já souber; não force o cliente a escolher entre caminhos abstratos.
+18. Seja DIRETA no agendamento: não repita pergunta de serviço se já souber; não force o cliente a escolher entre caminhos abstratos. Depois de book_appointment ok, confirme UMA vez — se o cliente só agradecer, não reenvie a confirmação.
 `.trim();
 }
 
@@ -128,6 +132,46 @@ function parseToolArgs(raw: string): Record<string, unknown> {
     // ignore
   }
   return {};
+}
+
+function isShortThanks(text: string): boolean {
+  const t = text.trim();
+  if (t.length > 40) return false;
+  return /^(obrigad[oa]|valeu|vlw|ok|obrigado[!.]?|thanks|tmj|fechado|show)([!.?\s]|$)/i.test(t);
+}
+
+async function recentBookingMeta(conversationId: string): Promise<boolean> {
+  const db = createDb();
+  const [row] = await db
+    .select({ meta: schema.conversations.meta })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.id, conversationId))
+    .limit(1);
+  const raw = (row?.meta as Record<string, unknown> | null)?.bookingConfirmedAt;
+  if (typeof raw !== "string") return false;
+  const ts = Date.parse(raw);
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts < 10 * 60_000;
+}
+
+async function markBookingConfirmed(conversationId: string) {
+  const db = createDb();
+  const [row] = await db
+    .select({ meta: schema.conversations.meta })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.id, conversationId))
+    .limit(1);
+  if (!row) return;
+  await db
+    .update(schema.conversations)
+    .set({
+      meta: {
+        ...((row.meta as Record<string, unknown> | null) ?? {}),
+        bookingConfirmedAt: new Date().toISOString(),
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.conversations.id, conversationId));
 }
 
 function lastDonnaMessage(history: string[]): string | null {
@@ -274,6 +318,26 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   const historyBlock = history.length
     ? `Histórico recente:\n${history.join("\n")}`
     : "Histórico: (início da conversa)";
+
+  const inboundOnly = history
+    .filter((l) => l.startsWith("cliente:"))
+    .map((l) => l.replace(/^cliente:\s*/i, ""))
+    .join("\n");
+  const schedulingIntent = extractSchedulingIntent(input.userText, {
+    inboundHistory: inboundOnly,
+  });
+
+  // Pós-agendamento: "obrigada" / "ok" → não reconfirmar
+  if (isShortThanks(input.userText)) {
+    const recentBook = await recentBookingMeta(input.conversationId);
+    if (recentBook) {
+      return {
+        reply: "Por nada — te esperamos! Qualquer coisa é só chamar.",
+        skills: ["skill.schedule"],
+        toolCalls: [],
+      };
+    }
+  }
 
   // Recusou alternativas → oferta de espera imediata (sem LLM = sem silêncio/timeout)
   if (isSoftRefusalOfAlternatives(input.userText, history)) {
@@ -422,14 +486,16 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         if (name === "list_client_appointments" && !args.phoneE164 && !args.clientId) {
           args.phoneE164 = input.phoneE164;
         }
+        if (name === "list_slots" || name === "resolve_date" || name === "book_appointment") {
+          Object.assign(args, applySchedulingIntentToToolArgs(name, args, schedulingIntent));
+        }
         if (name === "list_slots") {
           const missingDate =
             !args.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(args.date));
-          if (missingDate && !args.datePhrase) {
-            const inboundOnly = history
-              .filter((l) => l.startsWith("cliente:"))
-              .map((l) => l.replace(/^cliente:\s*/i, ""))
-              .join("\n");
+          if (missingDate && !args.datePhrase && schedulingIntent.date) {
+            args.date = schedulingIntent.date;
+            args.datePhrase = schedulingIntent.datePhrase || input.userText;
+          } else if (missingDate && !args.datePhrase) {
             const guessed =
               resolveTemporalPhrase(input.userText) ||
               resolveTemporalPhrase(`${inboundOnly}\n${input.userText}`);
@@ -439,34 +505,16 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
             }
           }
           if (args.preferredHour == null || args.preferredHour === "") {
-            // Só infere hora da MENSAGEM ATUAL — não do histórico inteiro
-            // (evita menu falso de "ocupado" quando o cliente só diz "com o Gustavo").
-            const timeRe =
-              /(?:às|as|á)\s*(\d{1,2})\s*h?\b|(\d{1,2})\s*h\b|(\d{1,2}):00\b/gi;
-            let inferred: number | null = null;
-            let m: RegExpExecArray | null;
-            while ((m = timeRe.exec(input.userText))) {
-              const h = Number(m[1] || m[2] || m[3]);
-              if (h >= 7 && h <= 22) inferred = h;
+            if (schedulingIntent.preferredHour != null) {
+              args.preferredHour = schedulingIntent.preferredHour;
             }
-            if (inferred != null) args.preferredHour = inferred;
           }
-          if (!args.staffId && !args.staffName) {
-            const staffHint =
-              /(?:com\s+(?:o|a)\s+|quero\s+(?:o|a)\s+)([A-Za-zÁ-ú]{3,})/i.exec(input.userText);
-            const name = staffHint?.[1]?.trim();
-            if (
-              name &&
-              !/^(amanh[aã]|hoje|tarde|manh[aã]|corte|barba|combo|horario|horário|mesmo|voce|você)$/i.test(
-                name
-              )
-            ) {
-              args.staffName = name;
-            }
+          if (!args.staffId && !args.staffName && schedulingIntent.staffName) {
+            args.staffName = schedulingIntent.staffName;
           }
         }
         if (name === "resolve_date" && !args.phrase) {
-          args.phrase = input.userText;
+          args.phrase = schedulingIntent.datePhrase || input.userText;
         }
         if (name === "add_to_waitlist") {
           const ctx = extractWaitlistContextFromThread(history, input.userText);
@@ -530,6 +578,9 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         toolCallsAudit.push({ name, ok: exec.ok });
         toolsFired.push(name);
         if (name === "handoff_human" && exec.ok) handoff = true;
+        if (name === "book_appointment" && exec.ok) {
+          await markBookingConfirmed(input.conversationId);
+        }
         if (name === "list_slots" && exec.ok && exec.data && typeof exec.data === "object") {
           const data = exec.data as {
             alternatives?: { label?: string }[];

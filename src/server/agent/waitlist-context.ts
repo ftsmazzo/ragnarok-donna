@@ -72,13 +72,14 @@ export function extractWaitlistContextFromThread(
     null;
   const staffName = staffFromClient || staffFromDonnaOccupied;
 
-  const preferredHour =
-    extractHour(`${inbound}\n${currentUserText}`) ?? extractHour(donna);
+  // Hora: só do CLIENTE (inbound + mensagem atual) — nunca das falas da Donna
+  const preferredHour = extractHour(`${inbound}\n${currentUserText}`);
 
   let desiredDate =
-    extractDateBr(donna) ||
+    extractDateBr(currentUserText) ||
     extractDateBr(inbound) ||
     resolveTemporalPhrase(`${inbound}\n${currentUserText}`)?.date ||
+    extractDateBr(donna) ||
     null;
 
   // Donna costuma citar "segunda 31/08" no início da mensagem de ocupado

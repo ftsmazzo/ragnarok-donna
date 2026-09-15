@@ -5,6 +5,7 @@ import {
 } from "./domain-waitlist";
 import { suggestBookingAlternatives } from "./suggest-alternatives";
 import { describeDate, resolveTemporalPhrase } from "./temporal";
+import { extractSchedulingIntent } from "./scheduling-intent";
 import { getConnectionForTenant, deliverWhatsAppText } from "./outbound";
 import { dayBoundsSp } from "@/server/agenda/utils";
 import { TOOL_CATALOG } from "./catalog";
@@ -29,6 +30,7 @@ import {
   cancelAppointmentForAgent,
   listFreeSlotsForTenant,
 } from "./domain-agenda";
+import { isLockedStaffName } from "@/server/house-rules/defaults";
 import {
   addOrderItemForAgent,
   listOpenOrdersForAgent,
@@ -775,10 +777,26 @@ export async function executeTool(
         const datePhrase = String(args.datePhrase ?? args.dayHint ?? "").trim();
         let date = String(args.date ?? "").trim();
         let resolvedMeta: ReturnType<typeof resolveTemporalPhrase> = null;
+        let dateCorrected = false;
+
+        // Preferir parse da frase; se divergir do date do LLM, a frase (com DD/MM) ganha.
         if (datePhrase) {
           resolvedMeta = resolveTemporalPhrase(datePhrase);
-          if (resolvedMeta && (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))) {
-            date = resolvedMeta.date;
+          if (resolvedMeta) {
+            if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date !== resolvedMeta.date) {
+              if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && date !== resolvedMeta.date) {
+                dateCorrected = true;
+              }
+              date = resolvedMeta.date;
+            }
+          }
+        }
+        // Rede de segurança: se ainda sem date, tenta intent da frase
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) && datePhrase) {
+          const intent = extractSchedulingIntent(datePhrase);
+          if (intent.date) {
+            date = intent.date;
+            resolvedMeta = intent.resolved;
           }
         }
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) && datePhrase) {
@@ -874,6 +892,7 @@ export async function executeTool(
             weekday: dateInfo.weekday,
             weekdayShort: dateInfo.weekdayShort,
             dateBr: dateInfo.dateBr,
+            dateCorrected,
             period,
             preferredHour,
             preferredHourOccupied,
@@ -891,7 +910,7 @@ export async function executeTool(
                 : [],
             alternatives: alts?.alternatives ?? [],
             instruction:
-              "Ao falar a data com o cliente, use dateLabel (weekday real). Nunca diga outro dia da semana. Se slots.length>0, liste 2–3 horários e ofereça agendar — NÃO diga que está cheio.",
+              "Fale ao cliente exatamente dateLabel/dateBr desta tool — NÃO invente outro dia (ex.: não diga 19/09 se dateBr é 26/09). Se slots.length>0, liste 2–3 horários e ofereça agendar — NÃO diga que está cheio.",
             ...(staffHasOtherSlots
               ? {
                   flowInstruction:
@@ -928,7 +947,8 @@ export async function executeTool(
           result = { ok: false, error: "phrase obrigatória (ex.: próxima segunda, amanhã, 1/9)" };
           break;
         }
-        const resolved = resolveTemporalPhrase(phrase);
+        const intent = extractSchedulingIntent(phrase);
+        const resolved = intent.resolved ?? resolveTemporalPhrase(phrase);
         if (!resolved) {
           result = {
             ok: false,
@@ -940,15 +960,16 @@ export async function executeTool(
           ok: true,
           data: {
             ...resolved,
+            absoluteDatePresent: intent.absoluteDatePresent,
             instruction:
-              "Use date (YYYY-MM-DD) em list_slots/book_appointment e fale label ao cliente. Se mismatchWeekday, corrija o dia da semana.",
+              "Use date (YYYY-MM-DD) em list_slots/book_appointment e fale exatamente label/dateBr ao cliente. Nunca troque por outro sábado/dia. Se mismatchWeekday, corrija o dia da semana.",
           },
         };
         break;
       }
       case "book_appointment": {
         const clientId = String(args.clientId ?? "");
-        const staffId = String(args.staffId ?? "");
+        let staffId = String(args.staffId ?? "");
         const date = String(args.date ?? "");
         const hour = Number(args.hour);
         const minuteRaw = args.minute != null ? Number(args.minute) : 0;
@@ -958,6 +979,44 @@ export async function executeTool(
           result = { ok: false, error: "clientId, staffId, date e hour obrigatórios" };
           break;
         }
+
+        const dbBook = createDb();
+        const [staffRow] = await dbBook
+          .select({ id: schema.staff.id, name: schema.staff.name })
+          .from(schema.staff)
+          .where(
+            and(
+              eq(schema.staff.id, staffId),
+              eq(schema.staff.tenantId, ctx.tenantId),
+              isNull(schema.staff.deletedAt)
+            )
+          )
+          .limit(1);
+        if (!staffRow) {
+          result = { ok: false, error: "Profissional inválido" };
+          break;
+        }
+
+        const requested = String(args.clientRequestedStaff ?? args.staffName ?? "")
+          .toLowerCase()
+          .trim();
+        if (isLockedStaffName(staffRow.name)) {
+          const staffNorm = staffRow.name.toLowerCase();
+          const first = staffNorm.split(/\s+/)[0] ?? staffNorm;
+          const clientAsked =
+            requested.length >= 3 &&
+            (staffNorm.includes(requested) ||
+              requested.includes(first) ||
+              first.includes(requested));
+          if (!clientAsked && !args.allowLockedStaff) {
+            result = {
+              ok: false,
+              error: `${staffRow.name} tem agenda restrita (carteira fechada). Só marque se o cliente pediu esse profissional pelo nome — confirme com ele ou ofereça outro barbeiro.`,
+            };
+            break;
+          }
+        }
+
         const booked = await bookAppointmentForAgent({
           tenantId: ctx.tenantId,
           clientId,
@@ -980,7 +1039,8 @@ export async function executeTool(
                 hour,
                 minute,
                 ...describeDate(date),
-                confirmationHint: `Confirme com o cliente usando label (weekday real), não invente o dia.`,
+                confirmationHint:
+                  "Confirme UMA vez com label (weekday real). Não peça telefone de novo se já tem. Se o cliente só agradecer depois, não reenvie a confirmação.",
               },
             }
           : { ok: false, error: booked.error };
