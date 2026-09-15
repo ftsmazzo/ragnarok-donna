@@ -3,17 +3,57 @@ import type { SupportGuide } from "./types";
 export const guideInicio: SupportGuide = {
   id: "inicio",
   title: "Início",
-  status: "skeleton",
+  status: "draft",
   href: "/inicio",
   menuPath: "Início",
-  aliases: ["início", "home", "dashboard", "painel inicial"],
+  aliases: [
+    "início",
+    "home",
+    "dashboard",
+    "painel inicial",
+    "gestão da rede",
+    "comparativo",
+  ],
   roles: ["owner", "admin", "reception", "staff"],
-  intents: ["onde_fica"],
-  summary: "Tela inicial do painel (unidade ou visão consolidada da rede).",
-  steps: [],
-  objections: [],
-  relatedGuideIds: ["relatorios-visao", "agenda"],
-  lastVerified: null,
+  intents: ["onde_fica", "objecao", "permissao"],
+  summary:
+    "Tela inicial da unidade (atalhos e resumo) ou comparativo da rede no modo consolidado.",
+  steps: [
+    {
+      title: "Onde fica",
+      detail:
+        "Menu → Início (/inicio). Na visão consolidada o título vira Gestão da rede / Comparativo Donna.",
+    },
+    {
+      title: "Unidade",
+      detail:
+        "Cards Agenda hoje, Comandas abertas, Receita/Ticket ou Agendamentos; Alertas da semana; Esta semana; gráficos; atalhos (Agenda, Comandas, Caixa, Conversas, Clientes…). Botão Abrir agenda se tiver permissão.",
+    },
+    {
+      title: "Rede / consolidado",
+      detail:
+        "Comparativo por unidade (Total Donna / Total rede). Não é operar uma loja — escolha a unidade na topbar para agenda/caixa.",
+    },
+    {
+      title: "Celular",
+      detail:
+        "No mobile, /inicio sem ?painel=1 costuma redirecionar: gestão → Conversas PWA; barbeiro → Consumo; tablet → Agenda. Use Painel (?painel=1) se precisar do início.",
+    },
+  ],
+  objections: [
+    {
+      concern: "Apareceu Você não tem permissão",
+      reply:
+        "Banner de acesso negado (?acesso=negado). Peça ao dono liberar o papel em Equipe de acesso ou use uma tela que seu perfil vê.",
+    },
+    {
+      concern: "Barbeiro: precisa vincular profissional",
+      reply:
+        "Conta staff sem profissional vinculado. Dono: Configurações → Equipe de acesso → vincular o usuário ao profissional.",
+    },
+  ],
+  relatedGuideIds: ["agenda", "relatorios-visao", "equipe-acesso", "pwa-app"],
+  lastVerified: "2026-09-15",
 };
 
 export const guideConversasIa: SupportGuide = {
@@ -86,49 +126,142 @@ export const guideConversasIa: SupportGuide = {
 export const guideEmpresa: SupportGuide = {
   id: "empresa",
   title: "Dados da empresa",
-  status: "skeleton",
+  status: "draft",
   href: "/configuracoes/empresa",
   menuPath: "Configurações → Dados da empresa",
-  aliases: ["empresa", "unidade", "filial", "dados da empresa"],
+  aliases: [
+    "empresa",
+    "unidade",
+    "filial",
+    "dados da empresa",
+    "endereço",
+    "nome fantasia",
+  ],
   roles: ["owner", "admin"],
-  intents: ["onde_fica", "como_fazer"],
-  summary: "Dados cadastrais e configurações da unidade/rede.",
-  steps: [],
-  objections: [],
-  relatedGuideIds: ["equipe-acesso"],
-  lastVerified: null,
+  intents: ["onde_fica", "como_fazer", "objecao", "permissao"],
+  summary:
+    "Cadastro da unidade que a Donna usa nas conversas (identidade, endereço, textos).",
+  steps: [
+    {
+      title: "Onde fica",
+      detail:
+        "Menu → Configurações → Dados da empresa (/configuracoes/empresa). Só dono/admin.",
+    },
+    {
+      title: "Preencher",
+      detail:
+        "Identidade (nome fantasia obrigatório, tagline, slogan, desde); Endereço e contato; Redes; Horários; Textos para a IA (diferenciais, sobre, serviços falados).",
+    },
+    {
+      title: "Salvar",
+      detail:
+        "Salvar dados da empresa. Mensagem: Dados salvos. A Donna já usa estas informações.",
+    },
+  ],
+  objections: [
+    {
+      concern: "Onde conecto o WhatsApp?",
+      reply:
+        "Não é nesta tela. WhatsApp operacional: Conversas IA ou Configurações → Agente (Donna).",
+    },
+    {
+      concern: "Gerente não vê Dados da empresa",
+      reply: "Só dono e administrador. Peça a um deles para atualizar o cadastro.",
+    },
+  ],
+  relatedGuideIds: ["agente-donna", "conversas-ia", "equipe-acesso"],
+  lastVerified: "2026-09-15",
 };
 
 export const guideEquipeAcesso: SupportGuide = {
   id: "equipe-acesso",
   title: "Equipe de acesso",
-  status: "skeleton",
+  status: "draft",
   href: "/configuracoes/equipe",
   menuPath: "Configurações → Equipe de acesso",
-  aliases: ["equipe", "login", "senha", "permissão", "usuário", "acesso"],
+  aliases: [
+    "equipe",
+    "login",
+    "senha",
+    "permissão",
+    "usuário",
+    "acesso",
+    "criar acesso",
+    "vincular profissional",
+  ],
   roles: ["owner", "admin"],
-  intents: ["onde_fica", "como_fazer", "permissao"],
-  summary: "Quem entra no painel: convites, papéis e vínculo com profissional.",
-  steps: [],
-  objections: [],
-  relatedGuideIds: ["profissionais", "minha-conta"],
-  lastVerified: null,
+  intents: ["onde_fica", "como_fazer", "permissao", "objecao"],
+  summary:
+    "Quem entra no painel: criar login, papéis e vínculo com profissional.",
+  steps: [
+    {
+      title: "Onde fica",
+      detail:
+        "Menu → Configurações → Equipe de acesso (/configuracoes/equipe). Só dono/admin.",
+    },
+    {
+      title: "Barbeiro sem login",
+      detail:
+        "Bloco Profissionais sem acesso → Criar acesso (e-mail, senha opcional) → Confirmar acesso. Vários: Criar todos.",
+    },
+    {
+      title: "Gerente / admin / leitura",
+      detail:
+        "Outros acessos: Nome, E-mail, Senha opcional, Papel (Dono, Administrador, Gerente, Somente leitura), Unidade se preciso → Criar usuário.",
+    },
+    {
+      title: "Ajustar na tabela",
+      detail:
+        "Papel, Unidade e Profissional vinculado mudam na hora (sem botão Salvar). Barbeiro precisa do vínculo profissional.",
+    },
+  ],
+  objections: [
+    {
+      concern: "Barbeiro não vê comissões / profissionais",
+      reply:
+        "Falta vínculo: na tabela, selecione o Profissional vinculado. Sem isso o sistema manda aviso no Início.",
+    },
+    {
+      concern: "Não acho papel Barbeiro no convite manual",
+      reply:
+        "Barbeiro nasce do bloco Profissionais sem acesso (Criar acesso), não do formulário Outros acessos.",
+    },
+  ],
+  relatedGuideIds: ["profissionais", "minha-conta", "comissoes", "inicio"],
+  lastVerified: "2026-09-15",
 };
 
 export const guideMinhaConta: SupportGuide = {
   id: "minha-conta",
   title: "Minha conta",
-  status: "skeleton",
+  status: "draft",
   href: "/configuracoes/conta",
   menuPath: "Configurações → Minha conta",
-  aliases: ["minha conta", "perfil", "trocar senha"],
+  aliases: ["minha conta", "perfil", "trocar senha", "senha", "conta"],
   roles: ["owner", "admin", "reception", "staff"],
-  intents: ["onde_fica", "como_fazer"],
-  summary: "Dados do usuário logado (senha, preferências).",
-  steps: [],
-  objections: [],
+  intents: ["onde_fica", "como_fazer", "objecao"],
+  summary: "Trocar a própria senha do painel (e-mail só leitura).",
+  steps: [
+    {
+      title: "Onde fica",
+      detail:
+        "Menu → Configurações → Minha conta (/configuracoes/conta) ou atalho Conta na topbar. Todos com login.",
+    },
+    {
+      title: "Alterar senha",
+      detail:
+        "Senha atual, Nova senha (mín. 8), Confirmar → Atualizar senha. Vale para todas as organizações desse e-mail.",
+    },
+  ],
+  objections: [
+    {
+      concern: "Não consigo mudar o e-mail",
+      reply:
+        "Nesta tela o e-mail é só exibição. Peça ao dono outro usuário em Equipe de acesso se precisar de login novo.",
+    },
+  ],
   relatedGuideIds: ["equipe-acesso"],
-  lastVerified: null,
+  lastVerified: "2026-09-15",
 };
 
 export const guideAgenteDonna: SupportGuide = {

@@ -141,8 +141,8 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "equipe-acesso",
     question: "Como libero acesso pra recepção ou barbeiro?",
     answer:
-      "Configurações → Equipe de acesso. Cadastre o e-mail, escolha o papel e vincule o profissional se for barbeiro.",
-    tags: ["equipe", "acesso", "login", "permissão"],
+      "Configurações → Equipe de acesso. Barbeiro: Criar acesso em Profissionais sem acesso e vincule o profissional na tabela. Gerente/admin: formulário Outros acessos (papel + e-mail).",
+    tags: ["equipe", "acesso", "login", "permissão", "barbeiro"],
     menuPath: "Configurações → Equipe de acesso",
   },
   {
