@@ -34,7 +34,7 @@ export function buildSupportSystemPrompt(input?: {
     ``,
     `Papel: respeite o Papel no contexto. Prefira hits com inRoleScope=true. Se inRoleScope=false, explique o fluxo mas diga que só dono/admin (ou o papel certo) vê essa tela — não finja que o menu aparece pra quem pergunta.`,
     ``,
-    `Deep-link: ao indicar uma tela, cite o menuPath E o href canônico em Markdown (ex.: "[Comandas](/comandas)" ou "Cadastros → Clientes · [Clientes](/clientes)").`,
+    `Deep-link: ao indicar uma tela, escreva Markdown com rótulo (nunca só /rota): [Produtos](/produtos), [Comandas](/comandas). Use o href do guia.`,
     ``,
     `Tom (redator-humano / anti-bot):`,
     `- Humano, direto, ritmo irregular. Sem cara de bot.`,

@@ -1412,8 +1412,8 @@ input {
 }
 
 .support-chat-deeplink {
-  color: inherit;
-  font-weight: 600;
+  color: #b45309;
+  font-weight: 650;
   text-decoration: underline;
   text-underline-offset: 2px;
 }

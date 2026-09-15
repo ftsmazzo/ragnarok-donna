@@ -116,7 +116,7 @@ export function executeSupportTool(
         hits,
         instruction:
           hits.length > 0
-            ? "Chame get_guide com o id do melhor hit (prefira inRoleScope=true). Inclua menuPath e o href na resposta (deep-link)."
+            ? "Chame get_guide com o id do melhor hit (prefira inRoleScope=true). Na resposta use Markdown [Nome da tela](/rota), nunca só /rota."
             : "Nenhum guia. Tente search_help ou get_feature_hint.",
       },
     };
@@ -142,7 +142,7 @@ export function executeSupportTool(
       data: {
         ...guide,
         instruction:
-          "Baseie a resposta nestes passos/objeções. Cite menuPath e ofereça o href (ex.: Abra /comandas). Se inRoleScope=false, avise que o perfil de quem pergunta pode não ver o menu — oriente a pedir ao dono/admin.",
+          "Baseie a resposta nestes passos/objeções. Sempre que citar uma tela, use [rótulo](href) — ex.: [Produtos](/produtos), [Comandas](/comandas). Se inRoleScope=false, avise que o perfil de quem pergunta pode não ver o menu — oriente a pedir ao dono/admin.",
       },
     };
   }
