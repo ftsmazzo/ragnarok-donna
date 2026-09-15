@@ -197,12 +197,25 @@ async function main() {
       price_cents: parseMoney(r.Valor),
       stock_qty: Number(r.Saldo) || 0,
       min_qty: Number(r.QtdMinima) || 0,
-      // DisponivelVenda no AppBarber desta unidade veio sempre 0 (provável venda online).
-      // disponivelApresentacao=1 = aparece para vender/consumir na loja.
-      for_sale:
-        r.disponivelApresentacao === "1" ||
-        r.DisponivelVenda === "1" ||
-        r.DisponivelVenda === "Sim",
+      // DisponivelVenda nesta unidade vem quase sempre 0 (venda online).
+      // disponivelApresentacao=1 = aparece no balcão. Fallback: categorias de venda.
+      for_sale: (() => {
+        const cat = String(r.Categoria || "").toLowerCase();
+        const internal =
+          r.Uso === "Sim" || cat.includes("uso");
+        if (
+          r.disponivelApresentacao === "1" ||
+          r.DisponivelVenda === "1" ||
+          r.DisponivelVenda === "Sim"
+        ) {
+          return true;
+        }
+        // Comida/bebida/venda: liberar mesmo com flags AppBarber zeradas
+        if (!internal && (cat.includes("venda") || cat.includes("comida") || cat.includes("bebida"))) {
+          return true;
+        }
+        return !internal;
+      })(),
       for_internal_use:
         r.Uso === "Sim" ||
         String(r.Categoria || "")
