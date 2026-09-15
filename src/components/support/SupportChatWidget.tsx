@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { SUGGESTED_PROMPTS } from "@/content/support/suggestions";
+import { listNavHrefs } from "@/components/shell/nav";
 import type { SupportMessageDto, SupportThreadDto } from "@/lib/support-types";
 import { hasCapability } from "@/server/permissions/capabilities";
 import type { MemberRole } from "@/server/types";
@@ -26,19 +27,67 @@ function roleLabel(role: SupportMessageDto["role"]) {
   return "Sistema";
 }
 
-/** Torna rotas internas (/agenda, /comandas) clicáveis no bubble. */
-function renderBodyWithDeepLinks(body: string): ReactNode {
+const VALID_DEEPLINKS = new Set(listNavHrefs());
+
+function isValidRoute(href: string): boolean {
+  return VALID_DEEPLINKS.has(href);
+}
+
+function renderTextWithBareLinks(body: string, keyPrefix: string): ReactNode[] {
   const parts = body.split(/(\/[a-z][\w\-]*(?:\/[\w\-.?=&%]*)*)/gi);
   return parts.map((part, i) => {
-    if (part.startsWith("/") && /^\/[a-z][\w\-]*(?:\/[\w\-.?=&%]*)*$/i.test(part)) {
+    if (part.startsWith("/") && /^\/[a-z][\w\-]*(?:\/[\w\-.?=&%]*)*$/i.test(part) && isValidRoute(part)) {
       return (
-        <Link key={`${i}-${part}`} href={part} className="support-chat-deeplink">
+        <Link key={`${keyPrefix}-${i}-${part}`} href={part} className="support-chat-deeplink">
           {part}
         </Link>
       );
     }
-    return <span key={i}>{part}</span>;
+    return <span key={`${keyPrefix}-${i}`}>{part}</span>;
   });
+}
+
+/** Torna rotas internas (/agenda, /comandas) clicáveis no bubble. */
+function renderBodyWithDeepLinks(body: string): ReactNode {
+  const chunks: ReactNode[] = [];
+  const markdownLink = /\[([^\]\n]+)\]\((\/[a-z][\w\-]*(?:\/[\w\-.?=&%]*)*)\)/gi;
+  let cursor = 0;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = markdownLink.exec(body)) !== null) {
+    if (match.index > cursor) {
+      chunks.push(...renderTextWithBareLinks(body.slice(cursor, match.index), `plain-${cursor}`));
+    }
+    const label = match[1].trim();
+    const href = match[2];
+    if (isValidRoute(href)) {
+      chunks.push(
+        <Link key={`md-${match.index}-${href}`} href={href} className="support-chat-deeplink">
+          {label}
+        </Link>
+      );
+    } else {
+      chunks.push(<span key={`md-txt-${match.index}`}>{match[0]}</span>);
+    }
+    cursor = match.index + match[0].length;
+  }
+
+  if (cursor < body.length) {
+    chunks.push(...renderTextWithBareLinks(body.slice(cursor), `tail-${cursor}`));
+  }
+
+  if (chunks.length === 0) {
+    if (body.startsWith("/") && /^\/[a-z][\w\-]*(?:\/[\w\-.?=&%]*)*$/i.test(body) && isValidRoute(body)) {
+      return (
+        <Link href={body} className="support-chat-deeplink">
+          {body}
+        </Link>
+      );
+    }
+    return <span>{body}</span>;
+  }
+
+  return chunks;
 }
 
 /**

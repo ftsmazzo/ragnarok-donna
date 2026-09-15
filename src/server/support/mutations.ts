@@ -167,9 +167,9 @@ function offlineReply(userText: string, memberRole?: MemberRole | null): string 
         full.inRoleScope === false
           ? " (pode exigir dono/admin no menu)."
           : "";
-      return `${full.summary} ${steps} Menu: ${full.menuPath}. Abra ${full.href}${scope}`;
+      return `${full.summary} ${steps} Menu: ${full.menuPath}. Abra [${full.title}](${full.href})${scope}`;
     }
-    return `${hit.summary} Menu: ${hit.menuPath}. Abra ${hit.href}`;
+    return `${hit.summary} Menu: ${hit.menuPath}. Abra [${hit.title}](${hit.href})`;
   }
   const hits = searchHelp(userText, 2);
   if (hits.length) {
