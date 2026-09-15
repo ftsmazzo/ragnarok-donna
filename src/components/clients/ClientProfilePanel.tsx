@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
+import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
 import {
-  renewOrTopUpClientPackageAction,
-  sellCatalogPackageToClientAction,
-} from "@/app/(painel)/clientes/actions";
+  PackageSaleModal,
+  type PackageSaleOption,
+} from "@/components/pacotes/PackageSaleModal";
 import { openOrderAction } from "@/app/(painel)/comandas/actions";
 import { Modal } from "@/components/ui/Modal";
 import { formatDateTimeSp } from "@/lib/datetime";
@@ -20,12 +21,7 @@ export type ClientProfileTab =
   | "comandas"
   | "consumo";
 
-type CatalogPackageOption = {
-  id: string;
-  name: string;
-  priceCents: number;
-  itemLabel?: string | null;
-};
+type CatalogPackageOption = PackageSaleOption;
 
 type Props = {
   client: ClientDetail;
@@ -65,7 +61,7 @@ export function ClientProfilePanel({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [pkgError, setPkgError] = useState("");
-  const [sellPackageId, setSellPackageId] = useState("");
+  const [saleOpen, setSaleOpen] = useState(false);
   const [confirmTopUpId, setConfirmTopUpId] = useState<string | null>(null);
   const {
     stats,
@@ -125,26 +121,13 @@ export function ClientProfilePanel({
     });
   }
 
-  function sellCatalogPackage() {
-    if (!sellPackageId) return;
-    setPkgError("");
-    startTransition(async () => {
-      const result = await sellCatalogPackageToClientAction({
-        clientId: client.id,
-        packageId: sellPackageId,
-      });
-      if (!result.ok) {
-        setPkgError(result.error ?? "Não foi possível vender o pacote");
-        return;
-      }
-      if ("orderId" in result && result.orderId) {
-        router.push(`/comandas?id=${result.orderId}`);
-        return;
-      }
-      onPackagesChanged?.();
-      router.refresh();
-    });
-  }
+  const salePackages: PackageSaleOption[] = catalogPackages.map((p) => ({
+    id: p.id,
+    name: p.name,
+    priceCents: p.priceCents,
+    itemLabel: p.itemLabel ?? "",
+    expiresAfterDays: p.expiresAfterDays ?? null,
+  }));
 
   return (
     <>
@@ -295,28 +278,13 @@ export function ClientProfilePanel({
       {tab === "pacotes" ? (
         <div className="client-profile-section">
           {pkgError ? <div className="form-error">{pkgError}</div> : null}
-          {catalogPackages.length > 0 ? (
+          {salePackages.length > 0 ? (
             <div className="catalog-package-line" style={{ marginBottom: 14 }}>
-              <label className="form-field" style={{ flex: "1 1 180px", margin: 0 }}>
-                <span>Vender pacote do catálogo</span>
-                <select
-                  value={sellPackageId}
-                  onChange={(e) => setSellPackageId(e.target.value)}
-                >
-                  <option value="">Selecione o pacote…</option>
-                  {catalogPackages.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} · {formatMoney(p.priceCents)}
-                      {p.itemLabel ? ` · ${p.itemLabel}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
-                disabled={pending || !sellPackageId}
-                onClick={sellCatalogPackage}
+                disabled={pending}
+                onClick={() => setSaleOpen(true)}
               >
                 Vender pacote
               </button>
@@ -547,6 +515,18 @@ export function ClientProfilePanel({
           Os créditos deste pacote serão repostos conforme o template, sem cobrança na comanda.
         </p>
       </Modal>
+
+      <PackageSaleModal
+        open={saleOpen}
+        onClose={() => setSaleOpen(false)}
+        packages={salePackages}
+        initialClientId={client.id}
+        initialClientName={client.name}
+        onSuccess={() => {
+          onPackagesChanged?.();
+          router.refresh();
+        }}
+      />
     </>
   );
 }

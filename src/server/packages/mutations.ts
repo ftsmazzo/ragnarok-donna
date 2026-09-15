@@ -117,6 +117,21 @@ export async function sellCatalogPackageToClient(input: {
   packageId: string;
   staffId?: string;
 }): Promise<RenewResult> {
+  return completePackageSale({
+    ...input,
+    payAndClose: false,
+  });
+}
+
+export async function completePackageSale(input: {
+  clientId: string;
+  packageId: string;
+  staffId?: string;
+  notes?: string;
+  method?: string;
+  payAndClose?: boolean;
+  amountCents?: number;
+}): Promise<RenewResult> {
   try {
     const { requireTenantContext, requireSession } = await import("../context/tenant");
     const { requireCapability } = await import("../permissions/guards");
@@ -169,15 +184,35 @@ export async function sellCatalogPackageToClient(input: {
       orderId = opened.id;
     }
 
-    const { addOrderItem } = await import("../orders/mutations");
+    const { addOrderItem, addPayment, closeOrder } = await import("../orders/mutations");
     const sold = await addOrderItem({
       orderId,
       itemType: "package",
       catalogId: packageId,
       staffId: input.staffId?.trim() || undefined,
       qty: 1,
+      saleNotes: input.notes,
     });
     if (!sold.ok) return sold;
+
+    if (input.payAndClose) {
+      const method = input.method?.trim();
+      if (!method) {
+        return { ok: false, error: "Selecione a forma de pagamento" };
+      }
+      const amountCents =
+        input.amountCents != null && Number.isFinite(input.amountCents)
+          ? Math.round(input.amountCents)
+          : undefined;
+      if (amountCents == null || amountCents <= 0) {
+        return { ok: false, error: "Informe o valor pago" };
+      }
+      const pay = await addPayment({ orderId, method, amountCents });
+      if (!pay.ok) return pay;
+      const closed = await closeOrder(orderId);
+      if (!closed.ok) return closed;
+    }
+
     return { ok: true, id: sold.id, orderId };
   } catch (err) {
     if (err instanceof AppError || err instanceof ForbiddenError) {

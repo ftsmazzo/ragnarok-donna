@@ -570,7 +570,17 @@ export function OrderDrawer({
 
             {itemType === "package" && packages.length === 0 ? (
               <p className="order-wallet-warn">
-                Nenhum pacote vendável — Cadastros → Pacotes (vincule serviços no pacote).
+                Nenhum pacote vendável nesta lista. Corrija o vínculo em{" "}
+                <a href="/pacotes">Cadastros → Pacotes</a>
+                {" "}ou use <strong>Vender pacote</strong> naquela tela (cliente + Comprar).
+              </p>
+            ) : null}
+
+            {itemType === "package" && packages.length > 0 ? (
+              <p className="client-profile-hint muted">
+                Atalho denso:{" "}
+                <a href="/pacotes">Cadastros → Pacotes → Vender pacote</a>
+                {" "}(cliente, pagamento e Comprar numa tela).
               </p>
             ) : null}
 

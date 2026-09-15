@@ -1,4 +1,7 @@
 :root {
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --header: #f39c12;
   --header-ink: #1a1208;
   --accent: #00a65a;
@@ -4465,5 +4468,139 @@ input {
   .agent-config-footer {
     position: static;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+  }
+
+  .toast {
+    transition: none !important;
+  }
+}
+
+.toast-host {
+  position: fixed;
+  top: calc(var(--topbar-h) + 10px);
+  right: 16px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: #fff;
+  background: var(--ink);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity var(--motion-base) var(--ease-out),
+    transform var(--motion-base) var(--ease-out);
+}
+
+.toast.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-success {
+  background: var(--success);
+}
+
+.toast-error {
+  background: var(--danger);
+}
+
+.toast-info {
+  background: var(--info);
+}
+
+.package-sale-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.package-sale-preview {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.package-sale-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.package-sale-preview th,
+.package-sale-preview td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  text-align: left;
+}
+
+.package-sale-preview th {
+  background: #f8f9fb;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.package-sale-preview textarea {
+  width: 100%;
+  min-width: 120px;
+  min-height: 52px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.package-sale-expiry {
+  white-space: nowrap;
+}
+
+.package-sale-pay-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.package-sale-pay-heading {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+}
+
+@media (max-width: 560px) {
+  .package-sale-pay-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.package-sale-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.package-sale-checkbox input {
+  width: auto;
+  margin: 0;
 }
 
