@@ -61,15 +61,17 @@ export const FEATURE_HINTS: FeatureHint[] = [
   },
   {
     id: "caixa",
-    aliases: ["caixa", "dinheiro"],
+    aliases: ["caixa", "dinheiro", "sangria", "suprimento"],
     title: "Caixa",
     where: "Financeiro → Caixa",
+    tip: "Abrir com fundo → pagamentos entram na sessão; Suprimento/Sangria/Vale; Fechar com contagem. Só escreve no dia de hoje.",
   },
   {
     id: "comissoes",
-    aliases: ["comissão", "comissões"],
+    aliases: ["comissão", "comissões", "vale", "repasse"],
     title: "Comissões",
     where: "Financeiro → Comissões",
+    tip: "Barbeiro vê só as próprias. Dono lança vale/bônus/pagamento. Crédito de pacote comissiona no preço de tabela.",
   },
   {
     id: "conversas",

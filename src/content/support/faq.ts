@@ -108,16 +108,17 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
   {
     id: "caixa",
     question: "Onde vejo o caixa do dia?",
-    answer: "Menu Financeiro → Caixa. Lá entram entradas e saídas da unidade.",
-    tags: ["caixa", "financeiro", "dinheiro"],
+    answer:
+      "Financeiro → Caixa. No dia de hoje: Abrir caixa (fundo), ver movimentos, Suprimento/Sangria/Vale e Fechar com a contagem. Pagamentos de comanda entram na sessão quando o caixa está aberto. Dias anteriores são só consulta.",
+    tags: ["caixa", "financeiro", "dinheiro", "sangria", "suprimento"],
     menuPath: "Financeiro → Caixa",
   },
   {
     id: "comissoes",
     question: "Onde vejo comissões?",
     answer:
-      "Financeiro → Comissões. Barbeiro vê as próprias; dono/admin vê de todos. Consumo com −30% aparece como desconto nesses lançamentos.",
-    tags: ["comissão", "comissões", "financeiro"],
+      "Financeiro → Comissões. Barbeiro vê só as próprias; dono/admin vê todos, filtra período e exporta CSV. Lá (ou no Caixa) lança vale, bônus, desconto ou pagamento. Consumo com −30% e crédito de pacote (comissão na tabela) entram nesse cálculo.",
+    tags: ["comissão", "comissões", "financeiro", "vale"],
     menuPath: "Financeiro → Comissões",
   },
   {
