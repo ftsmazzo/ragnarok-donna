@@ -76,7 +76,6 @@ export const guideCaixa: SupportGuide = {
   ],
   relatedGuideIds: ["comandas", "comissoes", "fluxo-caixa", "contas"],
   lastVerified: "2026-09-15",
-  enrichNotes: ["Promover para ready após validação na loja"],
 };
 
 export const guideComissoes: SupportGuide = {
@@ -155,7 +154,6 @@ export const guideComissoes: SupportGuide = {
   ],
   relatedGuideIds: ["comandas", "pacotes", "consumo-pwa", "profissionais", "caixa"],
   lastVerified: "2026-09-15",
-  enrichNotes: ["Promover para ready após validação na loja"],
 };
 
 

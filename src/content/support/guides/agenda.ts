@@ -102,7 +102,6 @@ export const guideAgenda: SupportGuide = {
   ],
   relatedGuideIds: ["lista-espera", "clientes", "comandas", "servicos", "profissionais"],
   lastVerified: "2026-09-15",
-  enrichNotes: ["Promover para ready após validação na recepção"],
 };
 
 export const guideListaEspera: SupportGuide = {

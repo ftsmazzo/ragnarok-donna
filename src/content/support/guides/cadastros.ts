@@ -321,6 +321,5 @@ export const guidePacotes: SupportGuide = {
   ],
   relatedGuideIds: ["comandas", "clientes", "servicos", "produtos", "comissoes"],
   lastVerified: "2026-09-15",
-  enrichNotes: ["Promover para ready após validação na recepção"],
 };
 

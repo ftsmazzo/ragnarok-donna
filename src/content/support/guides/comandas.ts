@@ -122,10 +122,7 @@ export const guideComandas: SupportGuide = {
   ],
   relatedGuideIds: ["comandas-historico", "pacotes", "consumo-pwa", "caixa", "comissoes"],
   lastVerified: "2026-09-15",
-  enrichNotes: [
-    "Validar com recepção na loja → promover status para ready",
-    "Permissão reabrir: só owner/admin (isOwnerRole)",
-  ],
+  enrichNotes: ["Permissão reabrir: só owner/admin (isOwnerRole)"],
 };
 
 export const guideComandasHistorico: SupportGuide = {
@@ -197,7 +194,6 @@ export const guideComandasHistorico: SupportGuide = {
   ],
   relatedGuideIds: ["comandas", "comissoes", "caixa"],
   lastVerified: "2026-09-15",
-  enrichNotes: ["Promover para ready após validação na recepção"],
 };
 
 /** S2 — enriquecido a partir de ConsumoMobileApp + staff-consumption + Produtos (uso interno). */
