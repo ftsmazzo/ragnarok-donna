@@ -3,7 +3,7 @@
  * Sprint a sprint: status skeleton → draft → ready.
  */
 
-export type SupportRole = "owner" | "admin" | "reception" | "staff";
+export type SupportRole = "owner" | "admin" | "reception" | "staff" | "readonly";
 
 export type SupportIntent =
   | "onde_fica"

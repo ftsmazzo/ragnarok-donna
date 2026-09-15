@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import type { ChatMessage } from "@/server/agent/llm";
 import { chatCompletionWithFallback } from "@/server/agent/llm";
+import type { MemberRole } from "@/server/types";
 import { AppError, isAppError } from "../errors";
 import { roleLabel } from "../permissions/roles";
 import {
@@ -152,17 +153,21 @@ function parseToolArgs(raw: string): Record<string, unknown> {
 }
 
 /** Fallback sem LLM: guia → FAQ + mensagem honesta. */
-function offlineReply(userText: string): string {
-  const guideHits = searchGuides(userText, 1);
+function offlineReply(userText: string, memberRole?: MemberRole | null): string {
+  const guideHits = searchGuides(userText, { memberRole, limit: 1 });
   if (guideHits.length) {
     const hit = guideHits[0];
-    const full = getGuidePayload(hit.id);
+    const full = getGuidePayload(hit.id, { memberRole });
     if (full?.steps.length) {
       const steps = full.steps
         .slice(0, 4)
         .map((s) => `${s.title}: ${s.detail}`)
         .join(" ");
-      return `${full.summary} ${steps} Menu: ${full.menuPath}. Abra ${full.href}`;
+      const scope =
+        full.inRoleScope === false
+          ? " (pode exigir dono/admin no menu)."
+          : "";
+      return `${full.summary} ${steps} Menu: ${full.menuPath}. Abra ${full.href}${scope}`;
     }
     return `${hit.summary} Menu: ${hit.menuPath}. Abra ${hit.href}`;
   }
@@ -283,11 +288,11 @@ export async function sendSupportMessage(input: {
         messages: history,
         tools: SUPPORT_TOOL_DEFS,
         temperature: 0.55,
-        maxTokens: 500,
+        maxTokens: 900,
       });
 
       if (!result) {
-        finalText = offlineReply(text);
+        finalText = offlineReply(text, session.role);
         break;
       }
 
@@ -300,7 +305,9 @@ export async function sendSupportMessage(input: {
 
         for (const call of result.toolCalls) {
           const args = parseToolArgs(call.function.arguments);
-          const toolOut = executeSupportTool(call.function.name, args);
+          const toolOut = executeSupportTool(call.function.name, args, {
+            memberRole: session.role,
+          });
           if (toolOut.escalate) {
             escalateReason = toolOut.escalateReason || "Handoff via tool";
           }
@@ -314,7 +321,7 @@ export async function sendSupportMessage(input: {
         continue;
       }
 
-      finalText = result.content?.trim() || offlineReply(text);
+      finalText = result.content?.trim() || offlineReply(text, session.role);
       break;
     }
 
@@ -331,7 +338,7 @@ export async function sendSupportMessage(input: {
       queued = marked.queued;
       if (!queued && !finalText) {
         // IA pediu humano sem canal e não deixou texto — responde com FAQ se houver
-        finalText = offlineReply(text);
+        finalText = offlineReply(text, session.role);
         if (finalText.startsWith("Não consegui")) {
           finalText = offlineHumanReply();
         }
@@ -344,7 +351,7 @@ export async function sendSupportMessage(input: {
         ? "Passei pra fila humana. Quando alguém da Fábrica estiver online, responde por aqui."
         : escalateReason
           ? offlineHumanReply()
-          : offlineReply(text));
+          : offlineReply(text, session.role));
 
     await db.insert(schema.supportMessages).values({
       tenantId: tenant.id,

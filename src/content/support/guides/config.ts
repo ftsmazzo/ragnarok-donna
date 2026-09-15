@@ -102,9 +102,29 @@ export const guideConversasIa: SupportGuide = {
         "Em modo IA: Assumir atendimento. Em humano: digite em Responder ao cliente… → Enviar; depois Devolver à IA. Ficha do cliente se houver cadastro.",
     },
     {
+      title: "Pediu humano (banner / fila)",
+      detail:
+        "Quando o cliente pede a equipe, a Donna para de responder sozinha. No PWA Conversas: badge Pediu humano e banner “Cliente pediu atendimento humano — toque em Assumir.” No painel, abra a conversa — linha Pedido de humano em… no drawer até alguém Assumir atendimento.",
+    },
+    {
+      title: "Sincronizar inbox vs Configurações → Agente",
+      detail:
+        "Conectar/QR vale para os dois lugares (mesma instância). Sincronizar inbox só aparece em Conversas IA (puxa threads da Evolution). Persona, tom e alerta de handoff ficam em Configurações → Agente (Donna).",
+    },
+    {
+      title: "Limpar inbox",
+      detail:
+        "Botão Limpar inbox no topo de Conversas. Confirmação: “Apagar todas as conversas e mensagens deste estabelecimento?” — irreversível; não apaga o WhatsApp, só o histórico guardado no painel.",
+    },
+    {
+      title: "PWA Assumir",
+      detail:
+        "Configurações → App celular (PWA) ou link App celular em Conversas. Abas Todas / IA / Humanos; Assumir e Devolver à IA iguais ao desktop, otimizado para celular da recepção.",
+    },
+    {
       title: "Atalhos",
       detail:
-        "App celular → /pwa/conversas; Lista de retorno → relatório Perfil. Limpar inbox apaga todas as conversas da unidade — use com cuidado.",
+        "App celular → /pwa/conversas; Lista de retorno → relatório Perfil.",
     },
   ],
   objections: [
@@ -117,6 +137,31 @@ export const guideConversasIa: SupportGuide = {
       concern: "Barbeiro não vê Conversas",
       reply:
         "Só dono, admin e gerente. Barbeiro usa Venda / Consumo no celular e a Agenda.",
+    },
+    {
+      concern: "QR não conecta / fica Aguardando QR",
+      reply:
+        "No celular: WhatsApp → Aparelhos conectados → escaneie de novo. Use Gerar QR / Atualizar QR no Painel WhatsApp · Donna. Se travou, dono em Agente (Donna): Recriar do zero ou Trocar instância (confirme antes).",
+    },
+    {
+      concern: "Status Desconectado",
+      reply:
+        "Repareie o QR. Enquanto desconectado, a Donna não responde e Disparos/convites por Zap falham. Card mostra Conectado, Aguardando QR ou Desconectado.",
+    },
+    {
+      concern: "Limpei o inbox por engano",
+      reply:
+        "Não há desfazer — histórico do painel foi apagado. Mensagens antigas no aparelho do WhatsApp podem existir, mas threads novas só voltam com Sincronizar inbox ou novas conversas dos clientes.",
+    },
+    {
+      concern: "Cliente pediu humano e ninguém assume",
+      reply:
+        "Abra Conversas (filtro IA ou Todas), procure Pediu humano / Pedido de humano e clique Assumir atendimento. Confira Celular da equipe em Agente (Donna) para alerta no Zap da recepção.",
+    },
+    {
+      concern: "Donna respondeu errado — devolver ou mudar persona?",
+      reply:
+        "Na conversa: Assumir, corrija o cliente, Devolver à IA quando quiser. Para mudar jeito de falar no futuro: Configurações → Agente (Donna) (tom, vocabulário, Identidade) — não confundir com devolver uma thread.",
     },
   ],
   relatedGuideIds: ["agente-donna", "disparos", "pwa-app", "lista-espera"],
@@ -214,6 +259,11 @@ export const guideEquipeAcesso: SupportGuide = {
       detail:
         "Papel, Unidade e Profissional vinculado mudam na hora (sem botão Salvar). Barbeiro precisa do vínculo profissional.",
     },
+    {
+      title: "Quem vê o quê",
+      detail:
+        "Dono/Administrador: acesso total — Equipe de acesso, Dados da empresa, Agente (Donna), relatórios financeiros (Financeiro, Comandas, Estoque, Fluxo…), módulos e Configurações. Gerente: Agenda, Clientes, Comandas, Caixa, Alertas, Conversas IA, Disparos WhatsApp, Lista de espera, relatórios operacionais (Agendamentos, Extras, Perfil) — sem Equipe, Empresa, Agente, financeiro/estoque nem cadastro de Serviços/Produtos/Pacotes. Barbeiro: Agenda (só a própria coluna), Comandas, Comissões (próprias), Profissionais (ficha dele), Venda / Consumo (celular) — sem Conversas IA. Somente leitura: Início, Agenda e Clientes em consulta + Relatórios → Agendamentos; sem comandas, caixa nem conversas.",
+    },
   ],
   objections: [
     {
@@ -225,6 +275,26 @@ export const guideEquipeAcesso: SupportGuide = {
       concern: "Não acho papel Barbeiro no convite manual",
       reply:
         "Barbeiro nasce do bloco Profissionais sem acesso (Criar acesso), não do formulário Outros acessos.",
+    },
+    {
+      concern: "Apareceu acesso negado ao abrir uma tela",
+      reply:
+        "Redirecionamento para /inicio?acesso=negado: seu papel não entra naquela rota. Dono ajusta o Papel em Equipe de acesso ou use um menu permitido (ex.: barbeiro → Agenda/Consumo).",
+    },
+    {
+      concern: "Esqueci a senha",
+      reply:
+        "Quem lembra a senha atual: Configurações → Minha conta → Atualizar senha. Esqueceu tudo: dono/admin recria ou redefine em Equipe de acesso (nova senha ou convite).",
+    },
+    {
+      concern: "Quero liberar login de todos os barbeiros de uma vez",
+      reply:
+        "Profissionais sem acesso → Criar todos (N) — cria acesso para quem tem e-mail no cadastro. Opcional envia WhatsApp se Conversas estiver Conectado.",
+    },
+    {
+      concern: "Convite por WhatsApp não chegou",
+      reply:
+        "No bloco de criação aparece aviso se WhatsApp desconectado — pareie em Conversas IA (Painel WhatsApp · Donna) antes de Criar acesso / Criar todos.",
     },
   ],
   relatedGuideIds: ["profissionais", "minha-conta", "comissoes", "inicio"],
@@ -292,7 +362,12 @@ export const guideAgenteDonna: SupportGuide = {
     {
       title: "WhatsApp da unidade",
       detail:
-        "Card no topo: conectar (QR / Vincular), status, Salvar nome, Trocar foto, Recriar do zero / Trocar instância (com confirmação). No celular: WhatsApp → Aparelhos conectados.",
+        "Painel WhatsApp · Donna: Criar instância e conectar / Vincular instância existente, status Conectado · Aguardando QR · Desconectado, Atualizar QR. Conectado: Nome no WhatsApp + Salvar nome, Trocar foto, Sincronizar inbox (também em Conversas). Recriar do zero e Trocar instância (sair do nome antigo) pedem confirmação — apagam sessão Evolution antiga. No celular: WhatsApp → Aparelhos conectados.",
+    },
+    {
+      title: "QR / instância travada",
+      detail:
+        "Se Vínculo atual difere do sugerido, use Trocar instância. Recriar do zero exige variáveis Evolution no servidor — gera instância nova + QR. Depois escaneie com o número oficial da barbearia.",
     },
     {
       title: "Persona e tom",
@@ -319,6 +394,11 @@ export const guideAgenteDonna: SupportGuide = {
       concern: "QR / instância não funciona",
       reply:
         "Confira se o aparelho concluiu Aparelhos conectados. Recriar do zero ou Trocar instância apaga a sessão antiga — confirme antes. Inbox também mostra o status e Sincronizar.",
+    },
+    {
+      concern: "Nome no WhatsApp vs nome da instância Evolution",
+      reply:
+        "Nome no WhatsApp (Salvar nome) é o que o cliente vê no Zap — ex.: Sara | Ragnarok. O nome técnico da instância na Evolution (barbearia-xyz) é outro; Trocar instância não substitui editar o nome visível — use Salvar nome com sessão Conectado.",
     },
   ],
   relatedGuideIds: ["conversas-ia", "disparos", "pwa-app"],

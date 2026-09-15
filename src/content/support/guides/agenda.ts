@@ -21,8 +21,12 @@ export const guideAgenda: SupportGuide = {
     "desconfirmar",
     "pensamento rápido",
     "remarcar",
+    "ausente",
+    "cancelado",
+    "no-show",
+    "realizado",
   ],
-  roles: ["owner", "admin", "reception", "staff"],
+  roles: ["owner", "admin", "reception", "staff", "readonly"],
   intents: ["onde_fica", "como_fazer", "objecao"],
   summary:
     "Grade por profissional: marcar, remarcar, encaixe, bloqueio, confirmar e abrir comanda do horário.",
@@ -45,7 +49,32 @@ export const guideAgenda: SupportGuide = {
     {
       title: "Ver / editar um horário",
       detail:
-        "Clique no card do agendamento para abrir os detalhes: remarcar, trocar serviço/profissional, status, encaixe, abrir comanda. Clique com o botão direito (desktop) abre menu rápido (comanda, no local, ausente, confirmar…).",
+        "Clique no card do agendamento para abrir Agendamento (detalhe). Clique com o botão direito (desktop) abre o menu rápido (comanda, No Local, Ausente, Confirmar…).",
+    },
+    {
+      title: "Remarcar (Editar agendamento)",
+      detail:
+        "No detalhe, botão Editar → modal Editar agendamento: mude data/hora, cliente, serviço, profissional ou observação e salve. Só quem tem permissão de escrita na agenda vê Editar (Somente leitura não altera).",
+    },
+    {
+      title: "No Local e fluxo do atendimento",
+      detail:
+        "No detalhe ou menu de contexto: No Local (status chegou — na grade aparece · no local). Depois Em atendimento e Finalizar horário (vira Realizado no status e nos relatórios). Barbeiro vinculado pode marcar status nos próprios horários; cancelar/ausente exige gerente/dono.",
+    },
+    {
+      title: "Check-in pelo WhatsApp",
+      detail:
+        "Se o cliente manda que está na barbearia e já tem horário hoje, a Donna faz check-in automático (equivalente a chegada). A recepção confere na grade o · no local ou o status no detalhe.",
+    },
+    {
+      title: "Ausente e Cancelado",
+      detail:
+        "No detalhe (botões Ausente e Cancelado) ou menu de contexto — só com permissão de cancelamento (dono, admin, gerente). Ausente = no-show (cliente faltou). Cancelado = desistência antes ou no dia. Horários encerrados somem das ações rápidas.",
+    },
+    {
+      title: "Quem pode cancelar / marcar status",
+      detail:
+        "Gerente e dono/admin: escrevem na agenda, cancelam (Ausente/Cancelado) e mudam qualquer horário. Barbeiro: vê só a própria coluna (profissional vinculado), marca No Local / Em atendimento / Finalizar horário nos seus — não vê Ausente/Cancelado. Somente leitura: consulta a grade, sem botões de alteração.",
     },
     {
       title: "Confirmar / desconfirmar",
@@ -98,6 +127,26 @@ export const guideAgenda: SupportGuide = {
       concern: "Foto do cliente na agenda",
       reply:
         "Cadastre a foto em Clientes (ou no drawer do agendamento, se disponível). Ela aparece no card da grade.",
+    },
+    {
+      concern: "Já abri comanda e quero cancelar o horário",
+      reply:
+        "Ausente/Cancelado no agendamento libera o slot (e pode avisar lista de espera), mas não fecha a comanda sozinho. Vá em Comandas → Abertas, ajuste ou feche a comanda à parte.",
+    },
+    {
+      concern: "Barbeiro só vê os horários dele?",
+      reply:
+        "Sim: com Profissional vinculado em Equipe de acesso, a grade filtra só a coluna desse profissional. Sem vínculo, o Início avisa para o dono configurar.",
+    },
+    {
+      concern: "Cliquei Ausente/Cancelado e o status não mudou",
+      reply:
+        "Barbeiro não tem botões Ausente/Cancelado — peça à recepção. Se deu erro na tela, recarregue a Agenda. Horário já Realizado/Cancelado/Ausente não aceita a mesma ação de novo.",
+    },
+    {
+      concern: "Diferença entre Ausente e Cancelado",
+      reply:
+        "Cancelado = desmarcou ou a loja cancelou antes de contar falta. Ausente = faltou (no-show), útil para relatório Agendamentos e métricas de ausência. Os dois liberam o horário na grade.",
     },
   ],
   relatedGuideIds: ["lista-espera", "clientes", "comandas", "servicos", "profissionais"],

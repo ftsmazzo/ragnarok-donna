@@ -32,6 +32,8 @@ export function buildSupportSystemPrompt(input?: {
     `Fonte da verdade: Guia operacional (tools search_guides + get_guide). FAQ (search_help) é legado/complemento.`,
     `Ordem típica: search_guides → get_guide(id) → responder. Se vazio, search_help e/ou get_feature_hint.`,
     ``,
+    `Papel: respeite o Papel no contexto. Prefira hits com inRoleScope=true. Se inRoleScope=false, explique o fluxo mas diga que só dono/admin (ou o papel certo) vê essa tela — não finja que o menu aparece pra quem pergunta.`,
+    ``,
     `Deep-link: ao indicar uma tela, cite o menuPath E o href canônico (ex.: "Abra /comandas" ou "Cadastros → Clientes → /clientes"). O chat torna /rota clicável.`,
     ``,
     `Tom (redator-humano / anti-bot):`,

@@ -1,4 +1,5 @@
 import type { ChatToolDef } from "@/server/agent/llm";
+import type { MemberRole } from "@/server/types";
 import { getGuideById, getGuidePayload, searchGuides } from "@/content/support/guides";
 import { supportHumanChannelConfigured } from "./channel";
 import { getFeatureHint, searchHelp } from "./knowledge";
@@ -90,18 +91,24 @@ export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
 export type SupportToolResult = {
   ok: boolean;
   data: Record<string, unknown>;
-  /** Se true, o orquestrador deve marcar a thread como human. */
   escalate?: boolean;
   escalateReason?: string;
 };
 
+export type SupportToolContext = {
+  memberRole?: MemberRole | null;
+};
+
 export function executeSupportTool(
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  ctx?: SupportToolContext
 ): SupportToolResult {
+  const memberRole = ctx?.memberRole ?? null;
+
   if (name === "search_guides") {
     const query = String(args.query ?? "").trim();
-    const hits = searchGuides(query);
+    const hits = searchGuides(query, { memberRole, limit: 5 });
     return {
       ok: true,
       data: {
@@ -109,7 +116,7 @@ export function executeSupportTool(
         hits,
         instruction:
           hits.length > 0
-            ? "Chame get_guide com o id do melhor hit. Inclua menuPath e o href na resposta (deep-link)."
+            ? "Chame get_guide com o id do melhor hit (prefira inRoleScope=true). Inclua menuPath e o href na resposta (deep-link)."
             : "Nenhum guia. Tente search_help ou get_feature_hint.",
       },
     };
@@ -117,7 +124,7 @@ export function executeSupportTool(
 
   if (name === "get_guide") {
     const id = String(args.id ?? "").trim();
-    const guide = getGuidePayload(id);
+    const guide = getGuidePayload(id, { memberRole });
     if (!guide) {
       const known = getGuideById(id);
       return {
@@ -135,7 +142,7 @@ export function executeSupportTool(
       data: {
         ...guide,
         instruction:
-          "Baseie a resposta nestes passos/objeções. Cite menuPath e ofereça o href como link (ex.: Abra /comandas).",
+          "Baseie a resposta nestes passos/objeções. Cite menuPath e ofereça o href (ex.: Abra /comandas). Se inRoleScope=false, avise que o perfil de quem pergunta pode não ver o menu — oriente a pedir ao dono/admin.",
       },
     };
   }
