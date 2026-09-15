@@ -78,8 +78,14 @@ export type PackageRow = {
   description: string | null;
   priceCents: number;
   expiresAfterDays: number | null;
-  items: Array<{ serviceId?: string; productId?: string; qty: number }>;
+  items: Array<{
+    serviceId?: string;
+    productId?: string;
+    serviceExternalId?: string;
+    qty: number;
+  }>;
   itemCount: number;
+  unresolvedServiceCount: number;
   isActive: boolean;
   bookableOnline: boolean;
 };
@@ -245,13 +251,33 @@ export async function listPackages(opts: { q?: string }) {
     .where(where)
     .orderBy(asc(schema.packages.name));
 
+  const { resolvePackageServiceItems } = await import("@/server/packages/credits");
+
+  const mapped = await Promise.all(
+    rows.map(async (r) => {
+      const { lines, unresolvedCount } = await resolvePackageServiceItems(
+        tenant.id,
+        r.items,
+        { healPackageId: r.id }
+      );
+      return {
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        priceCents: r.priceCents,
+        expiresAfterDays: r.expiresAfterDays,
+        items: lines,
+        itemCount: Number(r.itemCount ?? lines.length),
+        unresolvedServiceCount: unresolvedCount,
+        isActive: r.isActive,
+        bookableOnline: r.bookableOnline,
+      };
+    })
+  );
+
   return {
-    rows: rows.map((r) => ({
-      ...r,
-      items: Array.isArray(r.items) ? r.items : [],
-      itemCount: Number(r.itemCount ?? 0),
-    })),
-    total: rows.length,
+    rows: mapped,
+    total: mapped.length,
     q: q ?? "",
   };
 }

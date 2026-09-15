@@ -231,11 +231,15 @@ async function main() {
     for (const it of readJson("pacote-itens", EXTRAS_DIR)) {
       const code = String(it.PacoteCodigo);
       if (!pkgItemsByCode.has(code)) pkgItemsByCode.set(code, []);
+      const serviceExternalId = it.SerCodigo ? String(it.SerCodigo) : null;
+      const productExternalId = it.ProCodigo ? String(it.ProCodigo) : null;
       pkgItemsByCode.get(code).push({
         description: it.Descricao,
         qty: Number(it.Quantidade) || 1,
-        serviceExternalId: it.SerCodigo || null,
-        productExternalId: it.ProCodigo || null,
+        serviceExternalId,
+        productExternalId,
+        serviceId: serviceExternalId ? serviceMap.get(serviceExternalId) ?? null : null,
+        productId: productExternalId ? productMap.get(productExternalId) ?? null : null,
         valueCents: parseMoney(it.Valor),
       });
     }

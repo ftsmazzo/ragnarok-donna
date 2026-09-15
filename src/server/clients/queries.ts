@@ -101,6 +101,7 @@ export type ClientProfile = {
   recentOrders: ClientTimelineOrder[];
   recentItems: ClientOrderItem[];
   topServices: ClientTopService[];
+  packages: import("../packages/credits").ClientPackageWalletEntry[];
 };
 
 function clientFilterWhere(tenantId: string, filter: ClientFilter) {
@@ -390,5 +391,13 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
       count: Number(s.count),
       totalCents: Number(s.totalCents),
     })),
+    packages: await (async () => {
+      try {
+        const { listClientPackageWallet } = await import("../packages/credits");
+        return await listClientPackageWallet(clientId);
+      } catch {
+        return [];
+      }
+    })(),
   };
 }

@@ -1,32 +1,114 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
+import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
+import { openOrderAction } from "@/app/(painel)/comandas/actions";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelApptStatus, labelOrderStatus, labelPaymentMethod } from "@/lib/format";
 
-type Tab = "resumo" | "cadastro" | "agenda" | "comandas" | "consumo";
+export type ClientProfileTab =
+  | "resumo"
+  | "cadastro"
+  | "pacotes"
+  | "agenda"
+  | "comandas"
+  | "consumo";
 
 type Props = {
   client: ClientDetail;
   profile: ClientProfile;
-  tab: Tab;
-  onTabChange: (tab: Tab) => void;
+  tab: ClientProfileTab;
+  onTabChange: (tab: ClientProfileTab) => void;
   cadastroForm: React.ReactNode;
+  onPackagesChanged?: () => void;
 };
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: ClientProfileTab; label: string }[] = [
   { id: "resumo", label: "Resumo" },
   { id: "cadastro", label: "Cadastro" },
+  { id: "pacotes", label: "Pacotes" },
   { id: "agenda", label: "Agenda" },
   { id: "comandas", label: "Comandas" },
   { id: "consumo", label: "Consumo" },
 ];
 
-export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastroForm }: Props) {
-  const { stats, recentAppointments, recentOrders, recentItems, topServices } = profile;
+function packageStatusLabel(status: string) {
+  if (status === "active") return "Ativo";
+  if (status === "exhausted") return "Esgotado";
+  if (status === "expired") return "Expirado";
+  return status;
+}
+
+export function ClientProfilePanel({
+  client,
+  profile,
+  tab,
+  onTabChange,
+  cadastroForm,
+  onPackagesChanged,
+}: Props) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [pkgError, setPkgError] = useState("");
+  const {
+    stats,
+    recentAppointments,
+    recentOrders,
+    recentItems,
+    topServices,
+    packages = [],
+  } = profile;
   const prefEntries = Object.entries(client.preferences ?? {}).filter(
     ([, v]) => v !== null && v !== undefined && v !== ""
   );
+  const activeCreditTotal = packages.reduce(
+    (sum, p) =>
+      sum +
+      (p.status === "active"
+        ? p.credits.reduce((s, c) => s + c.remainingQty, 0)
+        : 0),
+    0
+  );
+
+  function runPackageAction(
+    clientPackageId: string,
+    mode: "topup" | "renew"
+  ) {
+    setPkgError("");
+    startTransition(async () => {
+      const result = await renewOrTopUpClientPackageAction({
+        clientPackageId,
+        mode,
+        clientId: client.id,
+      });
+      if (!result.ok) {
+        setPkgError(result.error);
+        return;
+      }
+      if (mode === "renew" && result.orderId) {
+        router.push(`/comandas?id=${result.orderId}`);
+        return;
+      }
+      onPackagesChanged?.();
+      router.refresh();
+    });
+  }
+
+  function openComanda() {
+    setPkgError("");
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("clientId", client.id);
+      const result = await openOrderAction(fd);
+      if (!result.ok) {
+        setPkgError(result.error ?? "Não foi possível abrir comanda");
+        return;
+      }
+      router.push(`/comandas?id=${result.id}`);
+    });
+  }
 
   return (
     <>
@@ -39,6 +121,9 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
             onClick={() => onTabChange(t.id)}
           >
             {t.label}
+            {t.id === "pacotes" && packages.length > 0 ? (
+              <span className="drawer-tab-badge">{activeCreditTotal || packages.length}</span>
+            ) : null}
             {t.id === "agenda" && stats.appointmentsTotal > 0 ? (
               <span className="drawer-tab-badge">{stats.appointmentsTotal}</span>
             ) : null}
@@ -65,8 +150,8 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
               <strong>{formatMoney(stats.totalSpentCents)}</strong>
             </div>
             <div className="client-stat">
-              <span className="meta-label">Pontos fidelidade</span>
-              <strong>{client.loyaltyPoints.toLocaleString("pt-BR")}</strong>
+              <span className="meta-label">Créditos pacote</span>
+              <strong>{activeCreditTotal.toLocaleString("pt-BR")}</strong>
             </div>
           </div>
 
@@ -89,6 +174,32 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
             <p className="client-profile-hint">
               Lista de espera: <strong>{stats.waitlistTotal}</strong> registro(s).
             </p>
+          ) : null}
+
+          {packages.length > 0 ? (
+            <div className="client-profile-block">
+              <h3 className="client-profile-heading">Pacotes</h3>
+              <ul className="client-top-list">
+                {packages.slice(0, 3).map((p) => (
+                  <li key={p.clientPackageId}>
+                    <span>
+                      {p.packageName} · {packageStatusLabel(p.status)}
+                    </span>
+                    <span>
+                      {p.credits.reduce((s, c) => s + c.remainingQty, 0)}/
+                      {p.credits.reduce((s, c) => s + c.totalQty, 0)} créd.
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => onTabChange("pacotes")}
+              >
+                Ver carteira
+              </button>
+            </div>
           ) : null}
 
           {topServices.length > 0 ? (
@@ -144,6 +255,101 @@ export function ClientProfilePanel({ client, profile, tab, onTabChange, cadastro
       ) : null}
 
       {tab === "cadastro" ? cadastroForm : null}
+
+      {tab === "pacotes" ? (
+        <div className="client-profile-section">
+          {pkgError ? <div className="form-error">{pkgError}</div> : null}
+          <div className="order-wallet-head" style={{ marginBottom: 12 }}>
+            <strong>Carteira de pacotes</strong>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              disabled={pending}
+              onClick={openComanda}
+            >
+              Abrir comanda
+            </button>
+          </div>
+          {packages.length === 0 ? (
+            <p className="client-profile-empty">
+              Nenhum pacote vendido. Venda um pacote na comanda para gerar a carteira.
+            </p>
+          ) : (
+            <ul className="client-package-list">
+              {packages.map((p) => {
+                const remaining = p.credits.reduce((s, c) => s + c.remainingQty, 0);
+                const total = p.credits.reduce((s, c) => s + c.totalQty, 0);
+                return (
+                  <li key={p.clientPackageId} className="client-package-card">
+                    <div className="client-package-card-head">
+                      <div>
+                        <strong>{p.packageName}</strong>
+                        <span className="muted">
+                          {packageStatusLabel(p.status)} · comprado{" "}
+                          {formatDateTimeSp(p.purchasedAt).slice(0, 10)}
+                          {p.expiresAt
+                            ? ` · vale até ${formatDateTimeSp(p.expiresAt).slice(0, 10)}`
+                            : ""}
+                        </span>
+                      </div>
+                      <em>
+                        {remaining}/{total} créd.
+                      </em>
+                    </div>
+                    <ul className="order-wallet-list">
+                      {p.credits.map((c) => (
+                        <li key={c.creditId}>
+                          <div>
+                            <strong>{c.serviceName}</strong>
+                          </div>
+                          <em>
+                            {c.remainingQty} rest. de {c.totalQty}
+                          </em>
+                        </li>
+                      ))}
+                    </ul>
+                    {p.recentRedemptions.length > 0 ? (
+                      <div className="client-package-uses">
+                        <span className="meta-label">Últimos usos</span>
+                        <ul>
+                          {p.recentRedemptions.map((u) => (
+                            <li key={u.orderItemId}>
+                              {u.description}
+                              {u.performedAt
+                                ? ` · ${formatDateTimeSp(u.performedAt).slice(0, 16)}`
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    <div className="client-package-actions">
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        disabled={pending}
+                        onClick={() => runPackageAction(p.clientPackageId, "topup")}
+                      >
+                        Repor créditos
+                      </button>
+                      {p.packageId ? (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={pending}
+                          onClick={() => runPackageAction(p.clientPackageId, "renew")}
+                        >
+                          Renovar (nova venda)
+                        </button>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
       {tab === "agenda" ? (
         <div className="client-profile-section">

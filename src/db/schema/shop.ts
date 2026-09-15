@@ -233,7 +233,17 @@ export const packages = pgTable(
     isActive: boolean("is_active").notNull().default(true),
     bookableOnline: boolean("bookable_online").notNull().default(true),
     items: jsonb("items")
-      .$type<Array<{ serviceId?: string; productId?: string; qty: number }>>()
+      .$type<
+        Array<{
+          serviceId?: string;
+          productId?: string;
+          serviceExternalId?: string;
+          productExternalId?: string;
+          qty: number;
+          description?: string;
+          valueCents?: number;
+        }>
+      >()
       .notNull()
       .default([]),
     ...externalRef(),

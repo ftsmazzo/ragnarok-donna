@@ -101,9 +101,9 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "pacote-credito",
     question: "Como abate pacote / crédito na comanda?",
     answer:
-      "Com o cliente que tem pacote ativo, na comanda escolha o serviço coberto pelo crédito. O sistema abate a quantidade e calcula comissão conforme a tabela.",
-    tags: ["pacote", "crédito", "recorrência", "comanda"],
-    menuPath: "Comandas → Abertas / Cadastros → Pacotes",
+      "Na ficha do cliente (aba Pacotes) você vê o saldo. Na comanda, ao lançar um serviço coberto, o abate de 1 crédito (R$ 0) vem marcado por padrão — desmarque só se for cobrar avulso. Para vender/gerar carteira: Tipo → Vender pacote. Repor créditos na ficha ou na carteira da comanda; renovar (nova venda) abre/usa comanda com o valor do pacote.",
+    tags: ["pacote", "crédito", "recorrência", "comanda", "renovar"],
+    menuPath: "Comandas / Cadastros → Clientes (aba Pacotes) / Cadastros → Pacotes",
   },
   {
     id: "caixa",

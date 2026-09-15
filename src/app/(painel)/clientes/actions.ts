@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import {
   createClient,
   deactivateClient,
@@ -13,6 +14,7 @@ import {
   type ClientDetail,
   type ClientProfile,
 } from "@/server/clients/queries";
+import { renewOrTopUpClientPackage } from "@/server/packages/mutations";
 
 export async function createClientAction(formData: FormData): Promise<ActionResult> {
   return createClient({
@@ -66,4 +68,22 @@ export async function getClientFichaAction(
       error: err instanceof Error ? err.message : "Não foi possível abrir a ficha",
     };
   }
+}
+
+export async function renewOrTopUpClientPackageAction(input: {
+  clientPackageId: string;
+  mode: "topup" | "renew";
+  orderId?: string;
+  clientId?: string;
+}) {
+  const result = await renewOrTopUpClientPackage(input);
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath("/comandas");
+    if (input.clientId) revalidatePath(`/clientes?id=${input.clientId}`);
+    if ("orderId" in result && result.orderId) {
+      revalidatePath(`/comandas?id=${result.orderId}`);
+    }
+  }
+  return result;
 }

@@ -23,6 +23,7 @@ import {
   removeOrderItemAction,
   setOrderDiscountAction,
 } from "@/app/(painel)/comandas/actions";
+import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
 
 type Props = {
   open: boolean;
@@ -69,6 +70,24 @@ export function OrderDrawer({
   const selectedCreditQty =
     itemType === "service" && catalogId ? creditByService.get(catalogId) ?? 0 : 0;
   const willUseCredit = itemType === "service" && useCredit && selectedCreditQty > 0;
+  const selectedPackage =
+    itemType === "package" && catalogId
+      ? packages.find((p) => p.id === catalogId) ?? null
+      : null;
+
+  const creditsByPackage = new Map<
+    string,
+    { clientPackageId: string; packageName: string; lines: typeof credits }
+  >();
+  for (const c of credits) {
+    const cur = creditsByPackage.get(c.clientPackageId) ?? {
+      clientPackageId: c.clientPackageId,
+      packageName: c.packageName,
+      lines: [],
+    };
+    cur.lines.push(c);
+    creditsByPackage.set(c.clientPackageId, cur);
+  }
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError("");
@@ -217,26 +236,54 @@ export function OrderDrawer({
           <section className="order-wallet">
             <div className="order-wallet-head">
               <strong>Carteira de pacotes</strong>
-              <span>{credits.length > 0 ? `${credits.reduce((s, c) => s + c.remainingQty, 0)} crédito(s)` : "Sem créditos"}</span>
+              <span>
+                {credits.length > 0
+                  ? `${credits.reduce((s, c) => s + c.remainingQty, 0)} crédito(s) disponível(is)`
+                  : "Sem créditos"}
+              </span>
             </div>
             {credits.length === 0 ? (
               <p className="order-wallet-empty">
-                Cliente sem créditos. Venda um pacote abaixo para gerar a carteira.
+                Cliente sem créditos. Em Tipo escolha Pacote → Vender pacote / gerar carteira.
               </p>
             ) : (
               <ul className="order-wallet-list">
-                {credits.map((c) => (
-                  <li key={c.creditId}>
+                {[...creditsByPackage.values()].map((group) => (
+                  <li key={group.clientPackageId}>
                     <div>
-                      <strong>{c.serviceName}</strong>
-                      <span>{c.packageName}</span>
+                      <strong>{group.packageName}</strong>
+                      <span>
+                        {group.lines
+                          .map((c) => `${c.remainingQty}× ${c.serviceName}`)
+                          .join(" · ")}
+                      </span>
                     </div>
-                    <em>
-                      {c.remainingQty} rest.
-                      {c.expiresAt
-                        ? ` · até ${formatDateTimeSp(c.expiresAt).slice(0, 10)}`
-                        : ""}
-                    </em>
+                    <div className="order-wallet-line-actions">
+                      <em>
+                        {group.lines.reduce((s, c) => s + c.remainingQty, 0)} rest.
+                        {group.lines[0]?.expiresAt
+                          ? ` · até ${formatDateTimeSp(group.lines[0].expiresAt).slice(0, 10)}`
+                          : ""}
+                      </em>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={pending}
+                          onClick={() =>
+                            run(() =>
+                              renewOrTopUpClientPackageAction({
+                                clientPackageId: group.clientPackageId,
+                                mode: "topup",
+                                orderId: order.id,
+                              })
+                            )
+                          }
+                        >
+                          Repor
+                        </button>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -309,7 +356,7 @@ export function OrderDrawer({
                 >
                   <option value="service">Serviço</option>
                   <option value="product">Produto</option>
-                  <option value="package">Pacote</option>
+                  <option value="package">Vender pacote</option>
                 </select>
               </label>
               <label className="form-field">
@@ -355,23 +402,38 @@ export function OrderDrawer({
             </label>
 
             {itemType === "service" && selectedCreditQty > 0 ? (
-              <label className="form-check order-credit-toggle">
+              <label
+                className={
+                  useCredit
+                    ? "form-check order-credit-toggle is-on"
+                    : "form-check order-credit-toggle"
+                }
+              >
                 <input
                   type="checkbox"
                   checked={useCredit}
                   onChange={(e) => setUseCredit(e.target.checked)}
                 />
                 <span>
-                  Usar 1 crédito do pacote ({selectedCreditQty} disponível
-                  {selectedCreditQty > 1 ? "s" : ""}) — cobra R$ 0 e mantém comissão da tabela
+                  {useCredit
+                    ? `1 crédito — R$ 0 (${selectedCreditQty} disponível${selectedCreditQty > 1 ? "s" : ""}). Desmarque para cobrar avulso.`
+                    : `Cobrar avulso (há ${selectedCreditQty} crédito${selectedCreditQty > 1 ? "s" : ""} — marque para abater).`}
                 </span>
               </label>
             ) : null}
 
             {itemType === "package" ? (
-              <p className="client-profile-hint">
-                A venda gera a carteira na hora. O cliente paga o valor do pacote nesta comanda.
-              </p>
+              <div className="order-package-sale-hint">
+                <p>
+                  <strong>Vender pacote / gerar carteira</strong> — o cliente paga o valor nesta
+                  comanda e os créditos ficam disponíveis na hora.
+                </p>
+                {selectedPackage?.itemLabel ? (
+                  <p className="muted">Incluso: {selectedPackage.itemLabel}</p>
+                ) : (
+                  <p className="muted">Selecione o pacote para ver os créditos que serão criados.</p>
+                )}
+              </div>
             ) : null}
 
             <label className="form-field">
@@ -395,9 +457,9 @@ export function OrderDrawer({
             ) : null}
             <button type="submit" className="btn btn-outline" disabled={pending || !catalogId}>
               {itemType === "package"
-                ? "+ Vender pacote"
+                ? "+ Vender pacote / gerar carteira"
                 : willUseCredit
-                  ? "+ Lançar com crédito"
+                  ? "+ Lançar com 1 crédito (R$ 0)"
                   : "+ Adicionar item"}
             </button>
           </form>

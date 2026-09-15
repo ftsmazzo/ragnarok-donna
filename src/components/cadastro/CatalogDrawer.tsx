@@ -43,7 +43,13 @@ type PackageDefaults = {
   priceCents?: number;
   bookableOnline?: boolean;
   expiresAfterDays?: number | null;
-  items?: Array<{ serviceId?: string; productId?: string; qty: number }>;
+  items?: Array<{
+    serviceId?: string;
+    productId?: string;
+    serviceExternalId?: string;
+    qty: number;
+  }>;
+  unresolvedServiceCount?: number;
 };
 
 type ServiceOption = { id: string; name: string };
@@ -64,9 +70,10 @@ function centsToPrice(cents?: number) {
 }
 
 function linesFromPkg(pkg?: PackageDefaults | null) {
-  const rows = (pkg?.items ?? [])
-    .filter((i) => i.serviceId)
-    .map((i) => ({ serviceId: String(i.serviceId), qty: Math.max(1, i.qty || 1) }));
+  const rows = (pkg?.items ?? []).map((i) => ({
+    serviceId: i.serviceId ? String(i.serviceId) : "",
+    qty: Math.max(1, i.qty || 1),
+  }));
   return rows.length > 0 ? rows : [{ serviceId: "", qty: 1 }];
 }
 
@@ -319,6 +326,13 @@ export function CatalogDrawer({
                   + Serviço
                 </button>
               </div>
+              {(pkg?.unresolvedServiceCount ?? 0) > 0 ||
+              packageLines.some((l) => !l.serviceId) ? (
+                <p className="form-error" style={{ marginBottom: 8 }}>
+                  Há serviço(s) sem vínculo (comum em importação). Selecione o serviço
+                  correspondente e salve para o pacote voltar a aparecer na comanda.
+                </p>
+              ) : null}
               {packageLines.map((line, idx) => (
                 <div key={idx} className="package-item-row">
                   <select

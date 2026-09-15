@@ -8,7 +8,7 @@ import {
   reactivateClientAction,
   updateClientAction,
 } from "@/app/(painel)/clientes/actions";
-import { ClientProfilePanel } from "@/components/clients/ClientProfilePanel";
+import { ClientProfilePanel, type ClientProfileTab } from "@/components/clients/ClientProfilePanel";
 import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
@@ -28,7 +28,7 @@ type Props = {
 export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: Props) {
   const [error, setError] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
-  const [tab, setTab] = useState<"resumo" | "cadastro" | "agenda" | "comandas" | "consumo">("resumo");
+  const [tab, setTab] = useState<ClientProfileTab>("resumo");
   const [pending, startTransition] = useTransition();
   const [avatarUrl, setAvatarUrl] = useState("");
 
@@ -324,6 +324,7 @@ export function ClientDrawer({ open, mode, client, profile, onClose, onSaved }: 
             tab={tab}
             onTabChange={setTab}
             cadastroForm={cadastroForm}
+            onPackagesChanged={() => onSaved(client.id)}
           />
         ) : (
           cadastroForm

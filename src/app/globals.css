@@ -3052,6 +3052,87 @@ input {
   align-items: flex-start;
 }
 
+.order-credit-toggle.is-on {
+  background: #dff3e3;
+  border-color: #81c784;
+  font-weight: 500;
+}
+
+.order-wallet-line-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.order-package-sale-hint {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  background: #eef6ff;
+  border: 1px solid #c5daf0;
+  font-size: 13px;
+}
+
+.order-package-sale-hint p {
+  margin: 0;
+}
+
+.order-package-sale-hint p + p {
+  margin-top: 4px;
+}
+
+.client-package-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.client-package-card {
+  border: 1px solid var(--line);
+  background: #f8fafb;
+  padding: 12px;
+}
+
+.client-package-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.client-package-card-head div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.client-package-card-head em {
+  font-style: normal;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.client-package-uses {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.client-package-uses ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  color: var(--muted);
+}
+
+.client-package-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .package-items-editor {
   border: 1px solid var(--line);
   padding: 10px;

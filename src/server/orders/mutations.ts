@@ -501,12 +501,11 @@ async function addPackageSaleItem(input: {
     .limit(1);
   if (!pkg) throw new AppError("VALIDATION", "Pacote inválido");
 
-  const { normalizePackageItems, createClientPackageFromSale } = await import(
-    "../packages/credits"
-  );
-  const items = normalizePackageItems(pkg.items)
-    .filter((i): i is { serviceId: string; qty: number } => Boolean(i.serviceId))
-    .map((i) => ({ serviceId: i.serviceId!, qty: i.qty }));
+  const { normalizePackageItems, createClientPackageFromSale, resolvePackageServiceItems } =
+    await import("../packages/credits");
+  const { items } = await resolvePackageServiceItems(input.tenantId, pkg.items, {
+    healPackageId: pkg.id,
+  });
   if (items.length === 0) {
     throw new AppError(
       "VALIDATION",

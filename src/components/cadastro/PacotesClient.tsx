@@ -18,6 +18,7 @@ type Props = {
 export function PacotesClient({ rows, total, q, services }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PackageRow | null>(null);
+  const unresolvedTotal = rows.filter((p) => p.unresolvedServiceCount > 0).length;
 
   return (
     <>
@@ -37,6 +38,13 @@ export function PacotesClient({ rows, total, q, services }: Props) {
           </button>
         }
       />
+
+      {unresolvedTotal > 0 ? (
+        <p className="client-profile-hint" style={{ marginBottom: 12 }}>
+          {unresolvedTotal} pacote(s) com serviço não vinculado — abra e selecione o serviço
+          para voltar a aparecer na venda da comanda.
+        </p>
+      ) : null}
 
       <section className="panel">
         <div className="panel-toolbar">
@@ -72,6 +80,11 @@ export function PacotesClient({ rows, total, q, services }: Props) {
                       {p.name}
                       {p.description ? (
                         <small className="cell-meta">{p.description}</small>
+                      ) : null}
+                      {p.unresolvedServiceCount > 0 ? (
+                        <small className="cell-meta" style={{ color: "var(--danger, #b42318)" }}>
+                          {p.unresolvedServiceCount} serviço(s) sem vínculo — edite para corrigir
+                        </small>
                       ) : null}
                     </td>
                     <td>{p.itemCount}</td>
