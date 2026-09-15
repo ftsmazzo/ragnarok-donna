@@ -121,7 +121,7 @@ export const guideComandas: SupportGuide = {
     },
   ],
   relatedGuideIds: ["comandas-historico", "pacotes", "consumo-pwa", "caixa", "comissoes"],
-  lastVerified: "2026-03-24",
+  lastVerified: "2026-09-15",
   enrichNotes: [
     "Validar com recepção na loja → promover status para ready",
     "Permissão reabrir: só owner/admin (isOwnerRole)",
@@ -196,7 +196,7 @@ export const guideComandasHistorico: SupportGuide = {
     },
   ],
   relatedGuideIds: ["comandas", "comissoes", "caixa"],
-  lastVerified: "2026-03-24",
+  lastVerified: "2026-09-15",
   enrichNotes: ["Promover para ready após validação na recepção"],
 };
 
