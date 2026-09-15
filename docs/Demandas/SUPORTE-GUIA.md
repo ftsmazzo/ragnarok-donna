@@ -12,7 +12,7 @@ Código: `src/content/support/guides/`
 | `draft` | Passos e objeções escritos; falta validar no produto. |
 | `ready` | Validado — agente pode responder com confiança. |
 
-Hoje: maioria `skeleton`; **S1 + S2** em `draft`.
+Hoje: maioria `skeleton`; **S1–S3** em `draft`.
 
 ## Como enriquecer (por sprint)
 
@@ -29,7 +29,7 @@ Hoje: maioria `skeleton`; **S1 + S2** em `draft`.
 |--------|-------|--------|
 | **S1** | `comandas`, `comandas-historico` | **draft** (tip reabrir corrigido no nav-hints) |
 | **S2** | `pacotes`, `consumo-pwa` | **draft** (uso interno esclarecido → Produtos) |
-| **S3** | `agenda`, `lista-espera` | pendente |
+| **S3** | `agenda`, `lista-espera` | **draft** (espera = só Donna; painel consulta) |
 | **S4** | `caixa`, `comissoes` | pendente |
 | **S5** | `clientes`, `profissionais`, `servicos`, `produtos` | pendente |
 | **S6** | Relatórios (`relatorios-*`, `alertas`, `fluxo-caixa`, `contas`) | pendente |

@@ -131,7 +131,8 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
   {
     id: "lista-espera",
     question: "Onde fica a lista de espera?",
-    answer: "Configurações → Lista de espera (também há atalho na Agenda).",
+    answer:
+      "Configurações → Lista de espera (também há atalho na Agenda). É a fila da Donna no WhatsApp: a loja consulta quem aguarda ou já foi notificado. Entrada na fila e aviso de vaga são da Donna — para marcar na hora, use a Agenda.",
     tags: ["espera", "lista", "waitlist"],
     menuPath: "Configurações → Lista de espera",
   },

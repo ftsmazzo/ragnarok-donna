@@ -10,10 +10,10 @@ export type FeatureHint = {
 export const FEATURE_HINTS: FeatureHint[] = [
   {
     id: "agenda",
-    aliases: ["agenda", "grade", "horário", "agendar", "marcar"],
+    aliases: ["agenda", "grade", "horário", "agendar", "marcar", "encaixe", "bloqueio"],
     title: "Agenda",
     where: "Menu → Agenda",
-    tip: "Calendário na sidebar; pensamento rápido no canto direito (desktop).",
+    tip: "Slot vazio para marcar; Pensamento rápido (desktop) lista buracos do dia. Encaixe/bloqueio/comanda no detalhe ou menu do horário.",
   },
   {
     id: "clientes",
@@ -82,7 +82,8 @@ export const FEATURE_HINTS: FeatureHint[] = [
     id: "espera",
     aliases: ["lista de espera", "espera", "waitlist"],
     title: "Lista de espera",
-    where: "Configurações → Lista de espera",
+    where: "Configurações → Lista de espera (atalho na Agenda)",
+    tip: "Fila da Donna no WhatsApp — o painel só consulta quem aguarda/foi notificado.",
   },
   {
     id: "equipe",
