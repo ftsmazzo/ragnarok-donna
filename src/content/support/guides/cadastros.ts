@@ -322,12 +322,12 @@ export const guidePacotes: SupportGuide = {
     {
       title: "Abater crédito (e diferença)",
       detail:
-        "Ao lançar serviço/produto coberto, “Abater 1 crédito” vem marcado. Cobertura do pacote (R$) default = preço de tabela (100%). Se a cobertura for menor, o residual é a diferença a pagar (badge Crédito + diferença). Desconto no item continua visível e aplica só no residual — não substitui o abate. Desmarque o crédito só para cobrar avulso. Comissão do serviço fica no preço de tabela.",
+        "Ao lançar serviço/produto coberto, “Abater 1 crédito” vem marcado. Cobertura do pacote (R$) default = preço de tabela (100%). Se a cobertura for menor, o residual é a diferença a pagar (badge Crédito + diferença). Desconto % no item continua visível e aplica só no residual — não substitui o abate. Desmarque o crédito só para cobrar avulso. Comissão do serviço fica no preço de tabela.",
     },
     {
       title: "Desconto da comanda",
       detail:
-        "No rodapé do drawer: Desconto da comanda (R$) → Aplicar. É outro mecanismo: reduz o total a pagar da comanda, não “vira” crédito de pacote.",
+        "No rodapé do drawer: Desconto da comanda (%) → o painel calcula o R$ sobre o subtotal → Aplicar. É outro mecanismo: reduz o total a pagar da comanda, não “vira” crédito de pacote.",
     },
     {
       title: "Repor créditos",
@@ -359,7 +359,7 @@ export const guidePacotes: SupportGuide = {
     {
       concern: "Abate e desconto juntos",
       reply:
-        "Abate = consome 1 crédito (cobertura em R$). Desconto do item = redução comercial no residual. Desconto da comanda = no total. São três controles distintos.",
+        "Abate = consome 1 crédito (cobertura em R$). Desconto do item = % comercial no residual (R$ calculado). Desconto da comanda = % no subtotal. São três controles distintos.",
     },
     {
       concern: "Diferença entre repor e renovar",
