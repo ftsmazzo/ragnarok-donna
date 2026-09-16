@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/cadastro/StatusBadge";
 import { ClientDrawer } from "@/components/clients/ClientDrawer";
 import type { ClientDetail, ClientFilter, ClientListItem, ClientProfile } from "@/server/clients/queries";
 import type { CatalogPackage } from "@/server/orders/types";
-import { formatPhone } from "@/lib/format";
+import { formatMoney, formatPhone } from "@/lib/format";
 
 type ListData = {
   rows: ClientListItem[];
@@ -120,6 +120,7 @@ export function ClientesView({
                 <th>Nome</th>
                 <th>Telefone</th>
                 <th>E-mail</th>
+                <th>Conta</th>
                 <th>Pontos</th>
                 <th>Status</th>
               </tr>
@@ -127,7 +128,7 @@ export function ClientesView({
             <tbody>
               {data.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="table-empty">
+                  <td colSpan={6} className="table-empty">
                     Nenhum cliente encontrado.
                   </td>
                 </tr>
@@ -141,6 +142,11 @@ export function ClientesView({
                     <td className="cell-strong">{c.name}</td>
                     <td>{formatPhone(c.phone)}</td>
                     <td>{c.email ?? "—"}</td>
+                    <td>
+                      {c.accountBalanceCents === 0
+                        ? "—"
+                        : formatMoney(c.accountBalanceCents)}
+                    </td>
                     <td>{c.loyaltyPoints.toLocaleString("pt-BR")}</td>
                     <td>
                       <StatusBadge

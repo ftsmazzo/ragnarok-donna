@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
-import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
+import { renewOrTopUpClientPackageAction, postClientAccountAction } from "@/app/(painel)/clientes/actions";
 import {
   PackageSaleModal,
   type PackageSaleOption,
@@ -11,11 +11,12 @@ import {
 import { openOrderAction } from "@/app/(painel)/comandas/actions";
 import { Modal } from "@/components/ui/Modal";
 import { formatDateTimeSp } from "@/lib/datetime";
-import { formatMoney, labelApptStatus, labelOrderStatus, labelPaymentMethod } from "@/lib/format";
+import { formatMoney, labelApptStatus, labelOrderStatus, labelPaymentMethod, labelClientAccountReason } from "@/lib/format";
 
 export type ClientProfileTab =
   | "resumo"
   | "cadastro"
+  | "conta"
   | "pacotes"
   | "agenda"
   | "comandas"
@@ -36,6 +37,7 @@ type Props = {
 const TABS: { id: ClientProfileTab; label: string }[] = [
   { id: "resumo", label: "Resumo" },
   { id: "cadastro", label: "Cadastro" },
+  { id: "conta", label: "Conta" },
   { id: "pacotes", label: "Pacotes" },
   { id: "agenda", label: "Agenda" },
   { id: "comandas", label: "Comandas" },
@@ -61,6 +63,7 @@ export function ClientProfilePanel({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [pkgError, setPkgError] = useState("");
+  const [accountError, setAccountError] = useState("");
   const [saleOpen, setSaleOpen] = useState(false);
   const [confirmTopUpId, setConfirmTopUpId] = useState<string | null>(null);
   const {
@@ -70,6 +73,11 @@ export function ClientProfilePanel({
     recentItems,
     topServices,
     packages = [],
+    account = {
+      clientId: client.id,
+      balanceCents: client.accountBalanceCents ?? 0,
+      ledger: [],
+    },
   } = profile;
   const prefEntries = Object.entries(client.preferences ?? {}).filter(
     ([, v]) => v !== null && v !== undefined && v !== ""
@@ -140,6 +148,11 @@ export function ClientProfilePanel({
             onClick={() => onTabChange(t.id)}
           >
             {t.label}
+            {t.id === "conta" && account.balanceCents !== 0 ? (
+              <span className="drawer-tab-badge">
+                {account.balanceCents > 0 ? "+" : "−"}
+              </span>
+            ) : null}
             {t.id === "pacotes" && packages.length > 0 ? (
               <span className="drawer-tab-badge">{activeCreditTotal || packages.length}</span>
             ) : null}
@@ -167,6 +180,26 @@ export function ClientProfilePanel({
             <div className="client-stat">
               <span className="meta-label">Total consumido</span>
               <strong>{formatMoney(stats.totalSpentCents)}</strong>
+            </div>
+            <div className="client-stat">
+              <span className="meta-label">Conta do cliente</span>
+              <strong
+                style={{
+                  color:
+                    account.balanceCents > 0
+                      ? "var(--success, #2e7d32)"
+                      : account.balanceCents < 0
+                        ? "var(--danger, #c62828)"
+                        : undefined,
+                }}
+              >
+                {formatMoney(account.balanceCents)}
+                {account.balanceCents > 0
+                  ? " crédito"
+                  : account.balanceCents < 0
+                    ? " débito"
+                    : ""}
+              </strong>
             </div>
             <div className="client-stat">
               <span className="meta-label">Créditos pacote</span>
@@ -274,6 +307,121 @@ export function ClientProfilePanel({
       ) : null}
 
       {tab === "cadastro" ? cadastroForm : null}
+
+      {tab === "conta" ? (
+        <div className="client-profile-section">
+          <div className="client-stats">
+            <div className="client-stat">
+              <span className="meta-label">Saldo atual</span>
+              <strong
+                style={{
+                  color:
+                    account.balanceCents > 0
+                      ? "var(--success, #2e7d32)"
+                      : account.balanceCents < 0
+                        ? "var(--danger, #c62828)"
+                        : undefined,
+                }}
+              >
+                {formatMoney(account.balanceCents)}
+              </strong>
+            </div>
+            <div className="client-stat">
+              <span className="meta-label">Situação</span>
+              <strong>
+                {account.balanceCents > 0
+                  ? "Crédito (a favor do cliente)"
+                  : account.balanceCents < 0
+                    ? "Débito / fiado"
+                    : "Zerada"}
+              </strong>
+            </div>
+          </div>
+
+          <p className="client-profile-hint muted">
+            Positivo = crédito pré-pago para usar na comanda. Negativo = cliente deve à loja.
+          </p>
+
+          {accountError ? <p className="form-error">{accountError}</p> : null}
+
+          <form
+            className="form-stack"
+            style={{ marginTop: 12 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const fd = new FormData(form);
+              fd.set("clientId", client.id);
+              setAccountError("");
+              startTransition(async () => {
+                const result = await postClientAccountAction(fd);
+                if (!result.ok) {
+                  setAccountError(result.error);
+                  return;
+                }
+                form.reset();
+                router.refresh();
+              });
+            }}
+          >
+            <div className="form-row-2">
+              <label className="form-field">
+                <span>Lançamento</span>
+                <select name="kind" defaultValue="credit" required>
+                  <option value="credit">+ Crédito</option>
+                  <option value="debit">+ Débito</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span>Valor (R$) *</span>
+                <input
+                  name="amountReais"
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  required
+                  placeholder="0,00"
+                />
+              </label>
+            </div>
+            <label className="form-field">
+              <span>Observação</span>
+              <input name="notes" type="text" maxLength={240} placeholder="Opcional" />
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={pending}>
+              {pending ? "…" : "Lançar na conta"}
+            </button>
+          </form>
+
+          <div className="client-profile-block" style={{ marginTop: 20 }}>
+            <h3 className="section-title">Extrato</h3>
+            {account.ledger.length === 0 ? (
+              <p className="client-profile-hint muted">Nenhuma movimentação ainda.</p>
+            ) : (
+              <ul className="order-wallet-list">
+                {account.ledger.map((entry) => (
+                  <li key={entry.id} className="order-wallet-group">
+                    <div className="order-wallet-group-head">
+                      <strong>
+                        {entry.deltaCents > 0 ? "+" : ""}
+                        {formatMoney(entry.deltaCents)}
+                      </strong>
+                      <span className="meta-label">
+                        saldo {formatMoney(entry.balanceAfterCents)}
+                      </span>
+                    </div>
+                    <p className="client-profile-hint" style={{ margin: 0 }}>
+                      {labelClientAccountReason(entry.reason)}
+                      {entry.notes ? ` — ${entry.notes}` : ""}
+                    </p>
+                    <span className="meta-label">{formatDateTimeSp(entry.createdAt)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {tab === "pacotes" ? (
         <div className="client-profile-section">

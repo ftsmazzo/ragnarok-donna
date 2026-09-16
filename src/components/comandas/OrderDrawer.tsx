@@ -18,6 +18,7 @@ import {
   addPaymentAction,
   cancelOrderAction,
   closeOrderAction,
+  closeOrderToClientAccountAction,
   payAndCloseOrderAction,
   reopenOrderAction,
   removeOrderItemAction,
@@ -26,6 +27,7 @@ import {
 } from "@/app/(painel)/comandas/actions";
 import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
+import { PaymentMethodSelect } from "@/lib/paymentMethods";
 import type { ClientCreditBalance } from "@/server/packages/credits";
 
 type Props = {
@@ -91,6 +93,10 @@ export function OrderDrawer({
   const canEdit = permissions.canWrite && isOpen;
   const due = Math.max(0, order.totalCents - order.discountCents);
   const credits = order.credits ?? [];
+  const clientAccountCents = order.clientAccountBalanceCents;
+  const clientCreditAvailable =
+    clientAccountCents != null && clientAccountCents > 0 ? clientAccountCents : 0;
+  const hasPackageSale = order.items.some((item) => item.itemType === "package");
 
   useEffect(() => {
     setOrderDiscountPct(orderDiscountPercent(order.totalCents, order.discountCents));
@@ -358,6 +364,12 @@ export function OrderDrawer({
             <span className="meta-label">Pago</span>
             <strong>{formatMoney(order.paidCents)}</strong>
           </div>
+          {order.clientAccountDebtCents > 0 ? (
+            <div className="client-stat">
+              <span className="meta-label">Na conta</span>
+              <strong>{formatMoney(order.clientAccountDebtCents)}</strong>
+            </div>
+          ) : null}
           <div className="client-stat">
             <span className="meta-label">Saldo</span>
             <strong>{formatMoney(order.balanceCents)}</strong>
@@ -368,6 +380,28 @@ export function OrderDrawer({
           Aberta em {formatDateTimeSp(order.openedAt)}
           {order.closedAt ? ` · Fechada ${formatDateTimeSp(order.closedAt)}` : null}
         </p>
+
+        {order.clientId && clientAccountCents != null && clientAccountCents !== 0 ? (
+          <p
+            className="order-wallet-warn"
+            style={{
+              marginBottom: 12,
+              color:
+                clientAccountCents > 0
+                  ? "var(--success, #2e7d32)"
+                  : "var(--danger, #c62828)",
+            }}
+          >
+            Conta do cliente:{" "}
+            <strong>
+              {formatMoney(clientAccountCents)}
+              {clientAccountCents > 0 ? " de crédito" : " em débito"}
+            </strong>
+            {clientAccountCents > 0
+              ? " — use “Conta do cliente” no pagamento."
+              : " — fiado em aberto."}
+          </p>
+        ) : null}
 
         {canEdit && order.clientId && !linkClientOpen ? (
           <button
@@ -842,18 +876,21 @@ export function OrderDrawer({
         <form id="pay-form" className="form-stack" onSubmit={handlePayment}>
           <label className="form-field">
             <span>Forma *</span>
-            <select name="method" required defaultValue="pix">
-              <option value="pix">PIX</option>
-              <option value="pix_key">PIX chave</option>
-              <option value="rede_link">Link Rede</option>
-              <option value="infinity">Maquininha Infinity</option>
-              <option value="cash">Dinheiro</option>
-              <option value="debit">Débito</option>
-              <option value="credit">Crédito</option>
-              <option value="transfer">Transferência</option>
-              <option value="other">Outro</option>
-            </select>
+            <PaymentMethodSelect
+              name="method"
+              required
+              includeClientAccount={!hasPackageSale}
+              defaultValue={
+                clientCreditAvailable > 0 && !hasPackageSale ? "client_account" : "pix"
+              }
+            />
           </label>
+          {clientCreditAvailable > 0 ? (
+            <p className="client-profile-hint muted">
+              Crédito disponível: {formatMoney(clientCreditAvailable)}. Pagamento via conta
+              não entra no caixa.
+            </p>
+          ) : null}
           <label className="form-field">
             <span>Valor (R$) *</span>
             <input
@@ -862,7 +899,14 @@ export function OrderDrawer({
               min={0.01}
               step={0.01}
               required
-              defaultValue={(order.balanceCents / 100).toFixed(2)}
+              defaultValue={(
+                Math.min(
+                  order.balanceCents,
+                  clientCreditAvailable > 0 && !hasPackageSale
+                    ? clientCreditAvailable
+                    : order.balanceCents
+                ) / 100
+              ).toFixed(2)}
             />
           </label>
         </form>
@@ -882,6 +926,26 @@ export function OrderDrawer({
             >
               Voltar
             </button>
+            {order.clientId && order.balanceCents > 0 && !hasPackageSale ? (
+              <button
+                type="button"
+                className="btn btn-outline"
+                disabled={pending}
+                title="Lança o restante na Conta do Cliente (crédito ou fiado) e fecha"
+                onClick={() =>
+                  run(async () => {
+                    const result = await closeOrderToClientAccountAction(order.id);
+                    if (result.ok) {
+                      setPayCloseOpen(false);
+                      onClose();
+                    }
+                    return result;
+                  })
+                }
+              >
+                {pending ? "…" : "Lançar na conta e fechar"}
+              </button>
+            ) : null}
             <button
               type="submit"
               form="pay-close-form"
@@ -916,18 +980,23 @@ export function OrderDrawer({
           </p>
           <label className="form-field">
             <span>Forma *</span>
-            <select name="method" required defaultValue="pix">
-              <option value="pix">PIX</option>
-              <option value="pix_key">PIX chave</option>
-              <option value="rede_link">Link Rede</option>
-              <option value="infinity">Maquininha Infinity</option>
-              <option value="cash">Dinheiro</option>
-              <option value="debit">Débito</option>
-              <option value="credit">Crédito</option>
-              <option value="transfer">Transferência</option>
-              <option value="other">Outro</option>
-            </select>
+            <PaymentMethodSelect
+              name="method"
+              required
+              includeClientAccount={!hasPackageSale}
+              defaultValue={
+                clientCreditAvailable >= order.balanceCents && !hasPackageSale
+                  ? "client_account"
+                  : "pix"
+              }
+            />
           </label>
+          {order.clientId ? (
+            <p className="client-profile-hint muted">
+              Sem receber agora? Use <strong>Lançar na conta e fechar</strong> — consome
+              crédito existente ou deixa o restante como débito (fiado).
+            </p>
+          ) : null}
         </form>
       </Modal>
 

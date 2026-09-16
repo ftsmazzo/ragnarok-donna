@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "node scripts/start-production.mjs",
     "lint": "next lint",
+    "check:client-account": "tsx scripts/check-client-account.ts",
     "check:support-guides": "tsx scripts/check-support-guides.ts",
     "check:support-reliability": "tsx scripts/check-support-reliability.ts",
     "db:generate": "drizzle-kit generate",

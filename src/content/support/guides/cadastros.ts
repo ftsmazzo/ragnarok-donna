@@ -18,16 +18,19 @@ export const guideClientes: SupportGuide = {
     "inativar cliente",
     "carteira cliente",
     "histórico cliente",
+    "conta do cliente",
+    "crédito cliente",
+    "fiado",
   ],
   roles: ["owner", "admin", "reception", "staff"],
   intents: ["onde_fica", "como_fazer", "objecao"],
   summary:
-    "Cadastro e ficha do cliente: dados, foto, origem, histórico de agenda/comandas e carteira de pacotes.",
+    "Cadastro e ficha do cliente: dados, foto, origem, Conta do Cliente (crédito/débito), histórico e carteira de pacotes.",
   steps: [
     {
       title: "Onde fica",
       detail:
-        "Menu → Cadastros → Clientes (/clientes). Busca por nome, telefone ou e-mail. Filtros: Ativos, Removidos, Todos.",
+        "Menu → Cadastros → Clientes (/clientes). Busca por nome, telefone ou e-mail. Filtros: Ativos, Removidos, Todos. A coluna Conta mostra saldo ≠ 0.",
     },
     {
       title: "Novo cliente",
@@ -37,7 +40,12 @@ export const guideClientes: SupportGuide = {
     {
       title: "Ficha — abas",
       detail:
-        "Clique no cliente: Resumo (totais e créditos), Cadastro, Pacotes (saldo / Vender pacote / Repor / Renovar), Agenda, Comandas, Consumo. Edite na aba Cadastro → Salvar.",
+        "Clique no cliente: Resumo (totais, Conta do Cliente e créditos), Cadastro, Conta (+crédito/+débito e extrato), Pacotes, Agenda, Comandas, Consumo.",
+    },
+    {
+      title: "Conta do Cliente",
+      detail:
+        "Aba Conta: saldo positivo = crédito pré-pago; negativo = débito/fiado. Lance +Crédito ou +Débito com valor e observação. Na comanda, use forma Conta do cliente para abater crédito, ou “Lançar na conta e fechar” para deixar o restante como fiado.",
     },
     {
       title: "Vender pacote pela ficha",

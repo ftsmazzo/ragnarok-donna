@@ -69,6 +69,7 @@ const PAYMENT_METHOD: Record<string, string> = {
   transfer: "Transferência",
   rede_link: "Link Rede",
   infinity: "Maquininha Infinity",
+  client_account: "Conta do cliente",
   other: "Outro",
 };
 
@@ -103,6 +104,18 @@ const ADVANCE_KIND: Record<string, string> = {
 
 export function labelAdvanceKind(kind: string): string {
   return ADVANCE_KIND[kind] ?? kind;
+}
+
+const CLIENT_ACCOUNT_REASON: Record<string, string> = {
+  manual_credit: "Crédito manual",
+  manual_debit: "Débito manual",
+  order_payment: "Pagamento de comanda",
+  order_debt: "Débito de comanda",
+  order_reversal: "Estorno ao reabrir comanda",
+};
+
+export function labelClientAccountReason(reason: string): string {
+  return CLIENT_ACCOUNT_REASON[reason] ?? reason;
 }
 
 const WAITLIST_STATUS: Record<string, string> = {

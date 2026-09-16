@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
-import { createDb, schema } from "@/db";
+import { createDb, schema, type DbTransaction } from "@/db";
 
 export type ClientCreditBalance = {
   creditId: string;
@@ -81,7 +81,8 @@ export function normalizePackageItems(raw: unknown): PackageItem[] {
 export async function resolvePackageServiceItems(
   tenantId: string,
   rawItems: unknown,
-  opts?: { healPackageId?: string }
+  opts?: { healPackageId?: string },
+  transaction?: DbTransaction
 ): Promise<{
   items: Array<{ serviceId?: string; productId?: string; qty: number }>;
   serviceItems: Array<{ serviceId: string; qty: number }>;
@@ -96,7 +97,7 @@ export async function resolvePackageServiceItems(
     qty: number;
   }>;
 }> {
-  const db = createDb();
+  const db = transaction ?? createDb();
   const normalized = normalizePackageItems(rawItems);
   const serviceExternalIds = [
     ...new Set(
@@ -549,8 +550,8 @@ export async function createClientPackageFromSale(input: {
   packageName: string;
   expiresAfterDays: number | null;
   items: Array<{ serviceId?: string; productId?: string; qty: number }>;
-}): Promise<string> {
-  const db = createDb();
+}, transaction?: DbTransaction): Promise<string> {
+  const db = transaction ?? createDb();
   const now = new Date();
   const expiresAt =
     input.expiresAfterDays && input.expiresAfterDays > 0
@@ -603,8 +604,8 @@ export async function activateClientPackagesForOrder(input: {
   tenantId: string;
   orderId: string;
   clientId: string;
-}): Promise<number> {
-  const db = createDb();
+}, transaction?: DbTransaction): Promise<number> {
+  const db = transaction ?? createDb();
   const items = await db
     .select({
       id: schema.orderItems.id,
@@ -647,20 +648,24 @@ export async function activateClientPackagesForOrder(input: {
     const { items: creditItems } = await resolvePackageServiceItems(
       input.tenantId,
       pkg.items,
-      { healPackageId: pkg.id }
+      { healPackageId: pkg.id },
+      transaction
     );
     if (creditItems.length === 0) continue;
 
-    const clientPackageId = await createClientPackageFromSale({
-      tenantId: input.tenantId,
-      clientId: input.clientId,
-      packageId: pkg.id,
-      orderId: input.orderId,
-      orderItemId: item.id,
-      packageName: pkg.name,
-      expiresAfterDays: pkg.expiresAfterDays,
-      items: creditItems,
-    });
+    const clientPackageId = await createClientPackageFromSale(
+      {
+        tenantId: input.tenantId,
+        clientId: input.clientId,
+        packageId: pkg.id,
+        orderId: input.orderId,
+        orderItemId: item.id,
+        packageName: pkg.name,
+        expiresAfterDays: pkg.expiresAfterDays,
+        items: creditItems,
+      },
+      transaction
+    );
 
     await db
       .update(schema.orderItems)

@@ -25,6 +25,8 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npx tsc --noEmit -p tsconfig.json
+      - name: Client account reliability
+        run: npm run check:client-account
       - name: Support guides
         run: npm run check:support-guides
       - name: Support reliability

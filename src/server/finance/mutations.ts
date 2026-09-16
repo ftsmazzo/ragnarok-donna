@@ -1,5 +1,5 @@
-import { and, eq, isNull } from "drizzle-orm";
-import { createDb, schema } from "@/db";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
@@ -16,6 +16,7 @@ const PAYMENT_METHODS = [
   "transfer",
   "rede_link",
   "infinity",
+  "client_account",
   "other",
 ] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -152,24 +153,47 @@ export async function addCashMovement(input: {
   }
 }
 
-/** Chamado ao registrar pagamento de comanda — não falha a comanda se caixa fechado. */
-export async function recordPaymentInCash(input: {
+type PaymentCashInput = {
   tenantId: string;
   orderId: string;
   method: PaymentMethod;
   amountCents: number;
-}): Promise<void> {
-  const sessionId = await findOpenCashSessionId(input.tenantId);
-  if (!sessionId) return;
+};
 
-  const db = createDb();
-  await db.insert(schema.cashMovements).values({
+/** Usa o mesmo commit do pagamento; caixa fechado continua sendo um no-op. */
+export async function recordPaymentInCashTx(
+  tx: DbTransaction,
+  input: PaymentCashInput
+): Promise<void> {
+  // Conta do cliente não movimenta caixa físico.
+  if (input.method === "client_account") return;
+
+  const [session] = await tx
+    .select({ id: schema.cashSessions.id })
+    .from(schema.cashSessions)
+    .where(
+      and(
+        eq(schema.cashSessions.tenantId, input.tenantId),
+        isNull(schema.cashSessions.closedAt)
+      )
+    )
+    .orderBy(desc(schema.cashSessions.openedAt))
+    .limit(1)
+    .for("update");
+  if (!session) return;
+
+  await tx.insert(schema.cashMovements).values({
     tenantId: input.tenantId,
-    cashSessionId: sessionId,
+    cashSessionId: session.id,
     orderId: input.orderId,
     direction: "in",
     method: input.method,
     amountCents: input.amountCents,
     description: "Pagamento de comanda",
   });
+}
+
+export async function recordPaymentInCash(input: PaymentCashInput): Promise<void> {
+  const db = createDb();
+  await db.transaction((tx) => recordPaymentInCashTx(tx, input));
 }

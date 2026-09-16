@@ -59,6 +59,7 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "transfer",
   "rede_link",
   "infinity",
+  "client_account",
   "other",
 ]);
 

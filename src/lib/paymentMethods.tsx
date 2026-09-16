@@ -8,26 +8,41 @@ export const PAYMENT_METHOD_OPTIONS = [
   { value: "debit", label: "Débito" },
   { value: "credit", label: "Crédito" },
   { value: "transfer", label: "Transferência" },
+  { value: "client_account", label: "Conta do cliente" },
   { value: "other", label: "Outro" },
 ] as const;
 
 export function PaymentMethodSelect(props: {
   name?: string;
   value?: string;
+  defaultValue?: string;
   onChange?: (value: string) => void;
   required?: boolean;
   id?: string;
+  includeClientAccount?: boolean;
 }) {
-  const { name = "method", value, onChange, required, id } = props;
+  const {
+    name = "method",
+    value,
+    defaultValue,
+    onChange,
+    required,
+    id,
+    includeClientAccount = false,
+  } = props;
+  const options = includeClientAccount
+    ? PAYMENT_METHOD_OPTIONS
+    : PAYMENT_METHOD_OPTIONS.filter((option) => option.value !== "client_account");
   return (
     <select
       id={id}
       name={name}
       required={required}
       value={value}
+      defaultValue={value === undefined ? defaultValue : undefined}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
     >
-      {PAYMENT_METHOD_OPTIONS.map((o) => (
+      {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
         </option>

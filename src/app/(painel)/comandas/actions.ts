@@ -6,6 +6,7 @@ import {
   addPayment,
   cancelOrder,
   closeOrder,
+  closeOrderToClientAccount,
   openOrder,
   payAndCloseOrder,
   reopenOrder,
@@ -117,6 +118,15 @@ export async function payAndCloseOrderAction(formData: FormData) {
     method: String(formData.get("method") ?? "pix"),
   });
   if (result.ok) revalidateOrders(orderId);
+  return result;
+}
+
+export async function closeOrderToClientAccountAction(orderId: string) {
+  const result = await closeOrderToClientAccount(orderId);
+  if (result.ok) {
+    revalidateOrders(orderId);
+    revalidatePath("/clientes");
+  }
   return result;
 }
 
