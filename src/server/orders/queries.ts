@@ -329,6 +329,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
       totalCents: schema.orders.totalCents,
       discountCents: schema.orders.discountCents,
       notes: schema.orders.notes,
+      meta: schema.orders.meta,
     })
     .from(schema.orders)
     .leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
@@ -387,6 +388,12 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
 
   const paidCents = payments.reduce((s, p) => s + p.amountCents, 0);
   const due = Math.max(0, order.totalCents - order.discountCents);
+  const orderMeta = (order.meta ?? {}) as Record<string, unknown>;
+  const clientAccountDebtCents =
+    typeof orderMeta.clientAccountDebtCents === "number" &&
+    Number.isFinite(orderMeta.clientAccountDebtCents)
+      ? Math.max(0, Math.round(orderMeta.clientAccountDebtCents))
+      : 0;
 
   let credits: Awaited<ReturnType<typeof import("../packages/credits").listClientCredits>> =
     [];
@@ -442,7 +449,8 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
     }),
     payments,
     paidCents,
-    balanceCents: due - paidCents,
+    balanceCents: due - paidCents - clientAccountDebtCents,
+    clientAccountDebtCents,
     clientAccountBalanceCents: order.clientId
       ? (order.clientAccountBalanceCents ?? 0)
       : null,

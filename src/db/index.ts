@@ -3,6 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema";
 
 export type Db = PostgresJsDatabase<typeof schema>;
+export type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 /** Evita múltiplos pools por hot-reload / imports repetidos (Next.js). */
 const globalForDb = globalThis as typeof globalThis & {

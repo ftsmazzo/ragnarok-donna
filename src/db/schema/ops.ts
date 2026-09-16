@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   integer,
   jsonb,
   pgTable,
@@ -10,6 +11,7 @@ import {
   varchar,
   index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import {
   appointmentStatusEnum,
   externalRef,
@@ -229,7 +231,10 @@ export const payments = pgTable(
     ...externalRef(),
     ...timestamps,
   },
-  (t) => [index("payments_order_idx").on(t.orderId)]
+  (t) => [
+    index("payments_order_idx").on(t.orderId),
+    check("payments_amount_positive_chk", sql`${t.amountCents} > 0`),
+  ]
 );
 
 /** Caixa do dia */
@@ -319,6 +324,8 @@ export const clientAccountLedger = pgTable(
   (t) => [
     index("client_account_ledger_client_idx").on(t.tenantId, t.clientId),
     index("client_account_ledger_created_idx").on(t.tenantId, t.createdAt),
+    uniqueIndex("client_account_ledger_payment_uidx").on(t.paymentId),
+    check("client_account_ledger_delta_nonzero_chk", sql`${t.deltaCents} <> 0`),
   ]
 );
 

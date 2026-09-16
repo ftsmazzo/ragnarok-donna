@@ -113,8 +113,11 @@ export async function postClientAccountAction(
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const { postClientAccountManual } = await import("@/server/clients/account");
   const clientId = String(formData.get("clientId") ?? "");
-  const kindRaw = String(formData.get("kind") ?? "credit");
-  const kind = kindRaw === "debit" ? "debit" : "credit";
+  const kindRaw = String(formData.get("kind") ?? "");
+  if (kindRaw !== "credit" && kindRaw !== "debit") {
+    return { ok: false, error: "Tipo de lançamento inválido" };
+  }
+  const kind = kindRaw;
   const amountReais = Number(String(formData.get("amountReais") ?? "").replace(",", "."));
   const result = await postClientAccountManual({
     clientId,

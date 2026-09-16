@@ -1,5 +1,5 @@
-import { and, desc, eq } from "drizzle-orm";
-import { createDb, schema } from "@/db";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError, NotFoundError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
@@ -23,7 +23,6 @@ export type ClientAccountSummary = {
 };
 
 const MANUAL_REASONS = new Set(["manual_credit", "manual_debit"]);
-
 export async function getClientAccount(
   clientId: string,
   limit = 40
@@ -70,7 +69,7 @@ export async function getClientAccount(
 }
 
 /** Aplica delta ao saldo e grava extrato. `deltaCents` > 0 crédito, < 0 débito. */
-export async function applyClientAccountDelta(input: {
+export type ClientAccountDeltaInput = {
   tenantId: string;
   clientId: string;
   deltaCents: number;
@@ -79,42 +78,41 @@ export async function applyClientAccountDelta(input: {
   orderId?: string | null;
   paymentId?: string | null;
   createdByUserId?: string | null;
-}): Promise<{ balanceAfterCents: number; ledgerId: string }> {
+};
+
+/** Use dentro da mesma transação da operação financeira que originou o delta. */
+export async function applyClientAccountDeltaTx(
+  tx: DbTransaction,
+  input: ClientAccountDeltaInput
+): Promise<{ balanceAfterCents: number; ledgerId: string }> {
   const delta = Math.round(input.deltaCents);
   if (!Number.isFinite(delta) || delta === 0) {
     throw new AppError("VALIDATION", "Valor da conta inválido");
   }
 
-  const db = createDb();
-  const [client] = await db
-    .select({
-      id: schema.clients.id,
-      accountBalanceCents: schema.clients.accountBalanceCents,
+  const [client] = await tx
+    .update(schema.clients)
+    .set({
+      accountBalanceCents: sql`${schema.clients.accountBalanceCents} + ${delta}`,
+      updatedAt: new Date(),
     })
-    .from(schema.clients)
     .where(
       and(eq(schema.clients.id, input.clientId), eq(schema.clients.tenantId, input.tenantId))
     )
-    .limit(1);
+    .returning({
+      id: schema.clients.id,
+      accountBalanceCents: schema.clients.accountBalanceCents,
+    });
 
   if (!client) throw new NotFoundError("Cliente não encontrado");
 
-  const balanceAfter = client.accountBalanceCents + delta;
-
-  await db
-    .update(schema.clients)
-    .set({ accountBalanceCents: balanceAfter, updatedAt: new Date() })
-    .where(
-      and(eq(schema.clients.id, input.clientId), eq(schema.clients.tenantId, input.tenantId))
-    );
-
-  const [row] = await db
+  const [row] = await tx
     .insert(schema.clientAccountLedger)
     .values({
       tenantId: input.tenantId,
       clientId: input.clientId,
       deltaCents: delta,
-      balanceAfterCents: balanceAfter,
+      balanceAfterCents: client.accountBalanceCents,
       reason: input.reason.slice(0, 64),
       notes: input.notes?.trim() ? input.notes.trim().slice(0, 240) : null,
       orderId: input.orderId ?? null,
@@ -123,7 +121,15 @@ export async function applyClientAccountDelta(input: {
     })
     .returning({ id: schema.clientAccountLedger.id });
 
-  return { balanceAfterCents: balanceAfter, ledgerId: row.id };
+  return { balanceAfterCents: client.accountBalanceCents, ledgerId: row.id };
+}
+
+/** Operação autônoma: saldo e extrato sempre confirmam ou revertem juntos. */
+export async function applyClientAccountDelta(
+  input: ClientAccountDeltaInput
+): Promise<{ balanceAfterCents: number; ledgerId: string }> {
+  const db = createDb();
+  return db.transaction((tx) => applyClientAccountDeltaTx(tx, input));
 }
 
 export async function postClientAccountManual(input: {

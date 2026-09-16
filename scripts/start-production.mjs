@@ -1,5 +1,6 @@
 /**
- * Startup de produção: sobe o Next.js imediatamente e vincula clientes em background.
+ * Startup de produção: garante o schema obrigatório, sobe o Next.js e executa
+ * importações/reparos não críticos em background.
  * Roda no deploy (npm start / Docker) — sem terminal no EasyPanel.
  */
 import { spawn } from "node:child_process";
@@ -298,6 +299,19 @@ CREATE INDEX IF NOT EXISTS client_account_ledger_client_idx
   ON client_account_ledger (tenant_id, client_id);
 CREATE INDEX IF NOT EXISTS client_account_ledger_created_idx
   ON client_account_ledger (tenant_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS client_account_ledger_payment_uidx
+  ON client_account_ledger (payment_id)
+  WHERE payment_id IS NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE client_account_ledger
+    ADD CONSTRAINT client_account_ledger_delta_nonzero_chk CHECK (delta_cents <> 0);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE payments
+    ADD CONSTRAINT payments_amount_positive_chk CHECK (amount_cents > 0);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS client_packages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -632,6 +646,58 @@ CREATE UNIQUE INDEX IF NOT EXISTS tenant_outreach_settings_tenant_uidx
     await sql.end({ timeout: 5 });
   }
 }
+
+async function ensureRequiredAccountSchema() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL não configurada");
+  }
+  const postgres = (await import("postgres")).default;
+  const sql = postgres(process.env.DATABASE_URL, { max: 1 });
+  try {
+    await sql`ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'client_account'`;
+    await sql`
+      ALTER TABLE clients
+      ADD COLUMN IF NOT EXISTS account_balance_cents integer NOT NULL DEFAULT 0
+    `;
+    await sql.unsafe(`
+      CREATE TABLE IF NOT EXISTS client_account_ledger (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        delta_cents integer NOT NULL,
+        balance_after_cents integer NOT NULL,
+        reason varchar(64) NOT NULL,
+        notes varchar(240),
+        order_id uuid REFERENCES orders(id) ON DELETE SET NULL,
+        payment_id uuid REFERENCES payments(id) ON DELETE SET NULL,
+        created_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS client_account_ledger_client_idx
+        ON client_account_ledger (tenant_id, client_id);
+      CREATE INDEX IF NOT EXISTS client_account_ledger_created_idx
+        ON client_account_ledger (tenant_id, created_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS client_account_ledger_payment_uidx
+        ON client_account_ledger (payment_id)
+        WHERE payment_id IS NOT NULL;
+      DO $$ BEGIN
+        ALTER TABLE client_account_ledger
+          ADD CONSTRAINT client_account_ledger_delta_nonzero_chk CHECK (delta_cents <> 0);
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+      DO $$ BEGIN
+        ALTER TABLE payments
+          ADD CONSTRAINT payments_amount_positive_chk CHECK (amount_cents > 0);
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+    `);
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
+await withTimeout(ensureRequiredAccountSchema(), BOOTSTRAP_TIMEOUT_MS);
 
 const server = resolveServer();
 if (!server) {

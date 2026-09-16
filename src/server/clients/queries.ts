@@ -405,16 +405,8 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
       }
     })(),
     account: await (async () => {
-      try {
-        const { getClientAccount } = await import("./account");
-        return await getClientAccount(clientId);
-      } catch {
-        return {
-          clientId,
-          balanceCents: client.accountBalanceCents ?? 0,
-          ledger: [],
-        };
-      }
+      const { getClientAccount } = await import("./account");
+      return getClientAccount(clientId);
     })(),
   };
 }

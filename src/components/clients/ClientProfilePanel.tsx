@@ -360,7 +360,6 @@ export function ClientProfilePanel({
                   return;
                 }
                 form.reset();
-                onPackagesChanged?.();
                 router.refresh();
               });
             }}

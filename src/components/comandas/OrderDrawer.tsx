@@ -96,6 +96,7 @@ export function OrderDrawer({
   const clientAccountCents = order.clientAccountBalanceCents;
   const clientCreditAvailable =
     clientAccountCents != null && clientAccountCents > 0 ? clientAccountCents : 0;
+  const hasPackageSale = order.items.some((item) => item.itemType === "package");
 
   useEffect(() => {
     setOrderDiscountPct(orderDiscountPercent(order.totalCents, order.discountCents));
@@ -363,6 +364,12 @@ export function OrderDrawer({
             <span className="meta-label">Pago</span>
             <strong>{formatMoney(order.paidCents)}</strong>
           </div>
+          {order.clientAccountDebtCents > 0 ? (
+            <div className="client-stat">
+              <span className="meta-label">Na conta</span>
+              <strong>{formatMoney(order.clientAccountDebtCents)}</strong>
+            </div>
+          ) : null}
           <div className="client-stat">
             <span className="meta-label">Saldo</span>
             <strong>{formatMoney(order.balanceCents)}</strong>
@@ -872,7 +879,10 @@ export function OrderDrawer({
             <PaymentMethodSelect
               name="method"
               required
-              defaultValue={clientCreditAvailable > 0 ? "client_account" : "pix"}
+              includeClientAccount={!hasPackageSale}
+              defaultValue={
+                clientCreditAvailable > 0 && !hasPackageSale ? "client_account" : "pix"
+              }
             />
           </label>
           {clientCreditAvailable > 0 ? (
@@ -892,7 +902,9 @@ export function OrderDrawer({
               defaultValue={(
                 Math.min(
                   order.balanceCents,
-                  clientCreditAvailable > 0 ? clientCreditAvailable : order.balanceCents
+                  clientCreditAvailable > 0 && !hasPackageSale
+                    ? clientCreditAvailable
+                    : order.balanceCents
                 ) / 100
               ).toFixed(2)}
             />
@@ -914,7 +926,7 @@ export function OrderDrawer({
             >
               Voltar
             </button>
-            {order.clientId && order.balanceCents > 0 ? (
+            {order.clientId && order.balanceCents > 0 && !hasPackageSale ? (
               <button
                 type="button"
                 className="btn btn-outline"
@@ -971,7 +983,12 @@ export function OrderDrawer({
             <PaymentMethodSelect
               name="method"
               required
-              defaultValue={clientCreditAvailable > 0 ? "client_account" : "pix"}
+              includeClientAccount={!hasPackageSale}
+              defaultValue={
+                clientCreditAvailable >= order.balanceCents && !hasPackageSale
+                  ? "client_account"
+                  : "pix"
+              }
             />
           </label>
           {order.clientId ? (

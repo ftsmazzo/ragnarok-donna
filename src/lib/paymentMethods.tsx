@@ -19,8 +19,20 @@ export function PaymentMethodSelect(props: {
   onChange?: (value: string) => void;
   required?: boolean;
   id?: string;
+  includeClientAccount?: boolean;
 }) {
-  const { name = "method", value, defaultValue, onChange, required, id } = props;
+  const {
+    name = "method",
+    value,
+    defaultValue,
+    onChange,
+    required,
+    id,
+    includeClientAccount = false,
+  } = props;
+  const options = includeClientAccount
+    ? PAYMENT_METHOD_OPTIONS
+    : PAYMENT_METHOD_OPTIONS.filter((option) => option.value !== "client_account");
   return (
     <select
       id={id}
@@ -30,7 +42,7 @@ export function PaymentMethodSelect(props: {
       defaultValue={value === undefined ? defaultValue : undefined}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
     >
-      {PAYMENT_METHOD_OPTIONS.map((o) => (
+      {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
         </option>

@@ -1,11 +1,16 @@
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
-import { createDb, schema } from "@/db";
+import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
 import { isBarberRole, isOwnerRole } from "../permissions/roles";
 import { resolveSessionStaffId } from "../permissions/staff-scope";
 import { assertOwnOrderAccess, getOrderDetail } from "./queries";
+import { applyClientAccountDeltaTx } from "../clients/account";
+import {
+  calculateAccountSettlement,
+  discountKeepsSettledAmount,
+} from "../clients/account-reliability";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -22,6 +27,84 @@ const PAYMENT_METHODS = [
   "other",
 ] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+function accountDebtFromMeta(meta: unknown): number {
+  if (!meta || typeof meta !== "object") return 0;
+  const value = (meta as Record<string, unknown>).clientAccountDebtCents;
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.round(value))
+    : 0;
+}
+
+async function lockOrderFinancialState(
+  tx: DbTransaction,
+  orderId: string,
+  tenantId: string
+) {
+  const [order] = await tx
+    .select({
+      id: schema.orders.id,
+      status: schema.orders.status,
+      clientId: schema.orders.clientId,
+      appointmentId: schema.orders.appointmentId,
+      totalCents: schema.orders.totalCents,
+      discountCents: schema.orders.discountCents,
+      meta: schema.orders.meta,
+    })
+    .from(schema.orders)
+    .where(
+      and(
+        eq(schema.orders.id, orderId),
+        eq(schema.orders.tenantId, tenantId),
+        isNull(schema.orders.deletedAt)
+      )
+    )
+    .for("update");
+
+  if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
+  if (order.status !== "open") {
+    throw new AppError("VALIDATION", "A comanda não está aberta");
+  }
+
+  const [[paymentAgg], [itemAgg]] = await Promise.all([
+    tx
+      .select({
+        paidCents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+      })
+      .from(schema.payments)
+      .where(
+        and(
+          eq(schema.payments.orderId, orderId),
+          eq(schema.payments.tenantId, tenantId)
+        )
+      ),
+    tx
+      .select({
+        count: sql<number>`count(*)::int`,
+        packageCount: sql<number>`count(*) filter (where ${schema.orderItems.itemType} = 'package')::int`,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.orderId, orderId),
+          eq(schema.orderItems.tenantId, tenantId)
+        )
+      ),
+  ]);
+
+  const paidCents = Number(paymentAgg?.paidCents ?? 0);
+  const debtCents = accountDebtFromMeta(order.meta);
+  const dueCents = Math.max(0, order.totalCents - order.discountCents);
+
+  return {
+    ...order,
+    paidCents,
+    debtCents,
+    balanceCents: dueCents - paidCents - debtCents,
+    itemCount: Number(itemAgg?.count ?? 0),
+    packageCount: Number(itemAgg?.packageCount ?? 0),
+  };
+}
 
 async function recalculateOrderTotal(orderId: string, tenantId: string) {
   const db = createDb();
@@ -565,37 +648,96 @@ async function addPackageSaleItem(input: {
     pkg.commissionBps ?? staffCommissionBps
   );
 
-  const [row] = await db
-    .insert(schema.orderItems)
-    .values({
-      tenantId: input.tenantId,
-      orderId: input.orderId,
-      itemType: "package",
-      serviceId: null,
-      productId: null,
-      packageId: pkg.id,
-      staffId,
-      description: `Pacote · ${pkg.name}`,
-      qty: 1,
-      unitPriceCents: pkg.priceCents,
-      discountCents: 0,
-      totalCents: pkg.priceCents,
-      commissionBps: commission.commissionBps,
-      commissionCents: commission.commissionCents,
-      performedAt: new Date(),
-      // Carteira só libera ao fechar/pagar a comanda (evita crédito órfão).
-      meta: {
-        packageSale: true,
-        walletPending: true,
-        ...(input.saleNotes?.trim()
-          ? { saleNotes: input.saleNotes.trim().slice(0, 2000) }
-          : {}),
-      },
-    })
-    .returning({ id: schema.orderItems.id });
+  const rowId = await db.transaction(async (tx) => {
+    const [lockedOrder] = await tx
+      .select({ clientId: schema.orders.clientId, status: schema.orders.status })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.id, input.orderId),
+          eq(schema.orders.tenantId, input.tenantId),
+          isNull(schema.orders.deletedAt)
+        )
+      )
+      .for("update");
+    if (!lockedOrder || lockedOrder.status !== "open") {
+      throw new AppError("VALIDATION", "A comanda não está aberta");
+    }
+    if (!lockedOrder.clientId) {
+      throw new AppError("VALIDATION", "Vincule um cliente à comanda para vender pacote");
+    }
 
-  await recalculateOrderTotal(input.orderId, input.tenantId);
-  return { ok: true, id: row.id };
+    const [accountPayment] = await tx
+      .select({ id: schema.payments.id })
+      .from(schema.payments)
+      .where(
+        and(
+          eq(schema.payments.orderId, input.orderId),
+          eq(schema.payments.tenantId, input.tenantId),
+          eq(schema.payments.method, "client_account")
+        )
+      )
+      .limit(1);
+    if (accountPayment) {
+      throw new AppError(
+        "VALIDATION",
+        "Remova o pagamento pela Conta do Cliente antes de adicionar um pacote"
+      );
+    }
+
+    const [row] = await tx
+      .insert(schema.orderItems)
+      .values({
+        tenantId: input.tenantId,
+        orderId: input.orderId,
+        itemType: "package",
+        serviceId: null,
+        productId: null,
+        packageId: pkg.id,
+        staffId,
+        description: `Pacote · ${pkg.name}`,
+        qty: 1,
+        unitPriceCents: pkg.priceCents,
+        discountCents: 0,
+        totalCents: pkg.priceCents,
+        commissionBps: commission.commissionBps,
+        commissionCents: commission.commissionCents,
+        performedAt: new Date(),
+        // Carteira só libera ao fechar/pagar a comanda (evita crédito órfão).
+        meta: {
+          packageSale: true,
+          walletPending: true,
+          ...(input.saleNotes?.trim()
+            ? { saleNotes: input.saleNotes.trim().slice(0, 2000) }
+            : {}),
+        },
+      })
+      .returning({ id: schema.orderItems.id });
+
+    const [agg] = await tx
+      .select({
+        total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.orderId, input.orderId),
+          eq(schema.orderItems.tenantId, input.tenantId)
+        )
+      );
+    await tx
+      .update(schema.orders)
+      .set({ totalCents: Number(agg?.total ?? 0), updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.orders.id, input.orderId),
+          eq(schema.orders.tenantId, input.tenantId)
+        )
+      );
+    return row.id;
+  });
+
+  return { ok: true, id: rowId };
 }
 
 export async function removeOrderItem(itemId: string): Promise<ActionResult> {
@@ -723,73 +865,117 @@ export async function addPayment(input: {
     if (!PAYMENT_METHODS.includes(input.method as PaymentMethod)) {
       throw new AppError("VALIDATION", "Forma de pagamento inválida");
     }
-    if (!Number.isFinite(input.amountCents) || input.amountCents <= 0) {
+    const amountCents = Math.round(input.amountCents);
+    if (!Number.isFinite(amountCents) || amountCents <= 0) {
       throw new AppError("VALIDATION", "Valor do pagamento inválido");
     }
 
-    const detail = await getOrderDetail(input.orderId);
-    if (input.amountCents > detail.balanceCents + 1) {
-      const resto = (detail.balanceCents / 100).toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      });
-      throw new AppError("VALIDATION", `Valor excede o saldo (restante ${resto})`);
-    }
-
     const method = input.method as PaymentMethod;
-    const amountCents = Math.round(input.amountCents);
+    const db = createDb();
 
     if (method === "client_account") {
-      if (!detail.clientId) {
-        throw new AppError("VALIDATION", "Vincule um cliente para usar a Conta do Cliente");
-      }
-      const credit = detail.clientAccountBalanceCents ?? 0;
-      if (credit <= 0) {
-        throw new AppError("VALIDATION", "Cliente sem crédito na conta");
-      }
-      if (amountCents > credit) {
-        const disp = (credit / 100).toLocaleString("pt-BR", {
+      const paymentId = await db.transaction(async (tx) => {
+        const state = await lockOrderFinancialState(
+          tx,
+          input.orderId,
+          tenant.id
+        );
+        if (state.packageCount > 0) {
+          throw new AppError(
+            "VALIDATION",
+            "Conta do Cliente não está disponível para venda de pacote"
+          );
+        }
+        if (amountCents > state.balanceCents) {
+          const resto = (state.balanceCents / 100).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          });
+          throw new AppError("VALIDATION", `Valor excede o saldo (restante ${resto})`);
+        }
+        if (!state.clientId) {
+          throw new AppError("VALIDATION", "Vincule um cliente para usar a Conta do Cliente");
+        }
+
+        const [client] = await tx
+          .select({ accountBalanceCents: schema.clients.accountBalanceCents })
+          .from(schema.clients)
+          .where(
+            and(
+              eq(schema.clients.id, state.clientId),
+              eq(schema.clients.tenantId, tenant.id)
+            )
+          )
+          .for("update");
+        const credit = client?.accountBalanceCents ?? 0;
+        if (credit <= 0) {
+          throw new AppError("VALIDATION", "Cliente sem crédito na conta");
+        }
+        if (amountCents > credit) {
+          const disp = (credit / 100).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          });
+          throw new AppError("VALIDATION", `Crédito disponível na conta: ${disp}`);
+        }
+
+        const [payment] = await tx
+          .insert(schema.payments)
+          .values({
+            tenantId: tenant.id,
+            orderId: input.orderId,
+            method,
+            amountCents,
+          })
+          .returning({ id: schema.payments.id });
+
+        await applyClientAccountDeltaTx(tx, {
+          tenantId: tenant.id,
+          clientId: state.clientId,
+          deltaCents: -amountCents,
+          reason: "order_payment",
+          notes: "Pagamento com crédito da conta",
+          orderId: input.orderId,
+          paymentId: payment.id,
+          createdByUserId: session.user.id,
+        });
+
+        return payment.id;
+      });
+      return { ok: true, id: paymentId };
+    }
+
+    const paymentId = await db.transaction(async (tx) => {
+      const state = await lockOrderFinancialState(tx, input.orderId, tenant.id);
+      if (amountCents > state.balanceCents) {
+        const resto = (state.balanceCents / 100).toLocaleString("pt-BR", {
           style: "currency",
           currency: "BRL",
         });
-        throw new AppError("VALIDATION", `Crédito disponível na conta: ${disp}`);
+        throw new AppError("VALIDATION", `Valor excede o saldo (restante ${resto})`);
       }
-    }
 
-    const db = createDb();
-    const [row] = await db
-      .insert(schema.payments)
-      .values({
-        tenantId: tenant.id,
-        orderId: input.orderId,
-        method,
-        amountCents,
-      })
-      .returning({ id: schema.payments.id });
+      const [payment] = await tx
+        .insert(schema.payments)
+        .values({
+          tenantId: tenant.id,
+          orderId: input.orderId,
+          method,
+          amountCents,
+        })
+        .returning({ id: schema.payments.id });
 
-    if (method === "client_account" && detail.clientId) {
-      const { applyClientAccountDelta } = await import("../clients/account");
-      await applyClientAccountDelta({
-        tenantId: tenant.id,
-        clientId: detail.clientId,
-        deltaCents: -amountCents,
-        reason: "order_payment",
-        notes: "Pagamento com crédito da conta",
-        orderId: input.orderId,
-        paymentId: row.id,
-        createdByUserId: session.user.id,
-      });
-    } else {
-      const { recordPaymentInCash } = await import("../finance/mutations");
-      await recordPaymentInCash({
+      const { recordPaymentInCashTx } = await import("../finance/mutations");
+      await recordPaymentInCashTx(tx, {
         tenantId: tenant.id,
         orderId: input.orderId,
         method,
         amountCents,
       });
-    }
+      return payment.id;
+    });
 
-    return { ok: true, id: row.id };
+    return { ok: true, id: paymentId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
@@ -804,18 +990,32 @@ export async function setOrderDiscount(
   try {
     await assertFullOrderWrite();
     const tenant = await requireTenantContext();
-    const order = await assertOpenOrder(orderId, tenant.id);
-
     const d = Math.max(0, Math.round(discountCents));
-    if (d > order.totalCents) {
-      throw new AppError("VALIDATION", "Desconto maior que o total da comanda");
-    }
-
     const db = createDb();
-    await db
-      .update(schema.orders)
-      .set({ discountCents: d, updatedAt: new Date() })
-      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+    await db.transaction(async (tx) => {
+      const state = await lockOrderFinancialState(tx, orderId, tenant.id);
+      if (d > state.totalCents) {
+        throw new AppError("VALIDATION", "Desconto maior que o total da comanda");
+      }
+      if (
+        !discountKeepsSettledAmount({
+          totalCents: state.totalCents,
+          discountCents: d,
+          paidCents: state.paidCents,
+          debtCents: state.debtCents,
+        })
+      ) {
+        throw new AppError(
+          "VALIDATION",
+          "O desconto não pode deixar o total menor que o valor já pago ou lançado na conta"
+        );
+      }
+
+      await tx
+        .update(schema.orders)
+        .set({ discountCents: d, updatedAt: new Date() })
+        .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+    });
 
     return { ok: true, id: orderId };
   } catch (err) {
@@ -897,68 +1097,90 @@ export async function setOrderClient(input: {
       throw new AppError("VALIDATION", "Comanda e cliente são obrigatórios");
     }
 
-    const [order] = await db
-      .select({ clientId: schema.orders.clientId })
-      .from(schema.orders)
-      .where(
-        and(
-          eq(schema.orders.id, orderId),
-          eq(schema.orders.tenantId, tenant.id),
-          isNull(schema.orders.deletedAt)
-        )
-      )
-      .limit(1);
-    if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
-    await assertOpenOrder(orderId, tenant.id);
-
-    const [client] = await db
-      .select({ id: schema.clients.id })
-      .from(schema.clients)
-      .where(
-        and(
-          eq(schema.clients.id, clientId),
-          eq(schema.clients.tenantId, tenant.id),
-          eq(schema.clients.isActive, true),
-          isNull(schema.clients.deletedAt)
-        )
-      )
-      .limit(1);
-    if (!client) throw new AppError("VALIDATION", "Cliente não encontrado ou inativo");
-
-    if (order.clientId && order.clientId !== clientId) {
-      const orderItems = await db
-        .select({
-          itemType: schema.orderItems.itemType,
-          meta: schema.orderItems.meta,
-        })
-        .from(schema.orderItems)
+    await db.transaction(async (tx) => {
+      const [order] = await tx
+        .select({ clientId: schema.orders.clientId, status: schema.orders.status })
+        .from(schema.orders)
         .where(
           and(
-            eq(schema.orderItems.orderId, orderId),
-            eq(schema.orderItems.tenantId, tenant.id)
+            eq(schema.orders.id, orderId),
+            eq(schema.orders.tenantId, tenant.id),
+            isNull(schema.orders.deletedAt)
           )
-        );
-      for (const item of orderItems) {
-        const meta = (item.meta ?? {}) as Record<string, unknown>;
-        if (meta.redeemed) {
+        )
+        .for("update");
+      if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
+      if (order.status !== "open") {
+        throw new AppError("VALIDATION", "A comanda não está aberta");
+      }
+
+      const [client] = await tx
+        .select({ id: schema.clients.id })
+        .from(schema.clients)
+        .where(
+          and(
+            eq(schema.clients.id, clientId),
+            eq(schema.clients.tenantId, tenant.id),
+            eq(schema.clients.isActive, true),
+            isNull(schema.clients.deletedAt)
+          )
+        )
+        .limit(1);
+      if (!client) throw new AppError("VALIDATION", "Cliente não encontrado ou inativo");
+
+      if (order.clientId && order.clientId !== clientId) {
+        const [accountPayment] = await tx
+          .select({ id: schema.payments.id })
+          .from(schema.payments)
+          .where(
+            and(
+              eq(schema.payments.orderId, orderId),
+              eq(schema.payments.tenantId, tenant.id),
+              eq(schema.payments.method, "client_account")
+            )
+          )
+          .limit(1);
+        if (accountPayment) {
           throw new AppError(
             "VALIDATION",
-            "Não dá para trocar o cliente: há item com crédito de pacote já usado nesta comanda."
+            "Não dá para trocar o cliente: a Conta do Cliente já foi usada nesta comanda."
           );
         }
-        if (meta.packageSale || item.itemType === "package") {
-          throw new AppError(
-            "VALIDATION",
-            "Não dá para trocar o cliente: há venda de pacote nesta comanda."
+
+        const orderItems = await tx
+          .select({
+            itemType: schema.orderItems.itemType,
+            meta: schema.orderItems.meta,
+          })
+          .from(schema.orderItems)
+          .where(
+            and(
+              eq(schema.orderItems.orderId, orderId),
+              eq(schema.orderItems.tenantId, tenant.id)
+            )
           );
+        for (const item of orderItems) {
+          const meta = (item.meta ?? {}) as Record<string, unknown>;
+          if (meta.redeemed) {
+            throw new AppError(
+              "VALIDATION",
+              "Não dá para trocar o cliente: há item com crédito de pacote já usado nesta comanda."
+            );
+          }
+          if (meta.packageSale || item.itemType === "package") {
+            throw new AppError(
+              "VALIDATION",
+              "Não dá para trocar o cliente: há venda de pacote nesta comanda."
+            );
+          }
         }
       }
-    }
 
-    await db
-      .update(schema.orders)
-      .set({ clientId, updatedAt: new Date() })
-      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+      await tx
+        .update(schema.orders)
+        .set({ clientId, updatedAt: new Date() })
+        .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+    });
 
     return { ok: true, id: orderId };
   } catch (err) {
@@ -978,42 +1200,86 @@ export async function reopenOrder(orderId: string): Promise<ActionResult> {
     const tenant = await requireTenantContext();
     const db = createDb();
 
-    const [order] = await db
-      .select({
-        id: schema.orders.id,
-        status: schema.orders.status,
-        meta: schema.orders.meta,
-      })
-      .from(schema.orders)
-      .where(
-        and(
-          eq(schema.orders.id, orderId),
-          eq(schema.orders.tenantId, tenant.id),
-          isNull(schema.orders.deletedAt)
+    await db.transaction(async (tx) => {
+      const [order] = await tx
+        .select({
+          id: schema.orders.id,
+          status: schema.orders.status,
+          clientId: schema.orders.clientId,
+          meta: schema.orders.meta,
+        })
+        .from(schema.orders)
+        .where(
+          and(
+            eq(schema.orders.id, orderId),
+            eq(schema.orders.tenantId, tenant.id),
+            isNull(schema.orders.deletedAt)
+          )
         )
-      )
-      .limit(1);
+        .for("update");
 
-    if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
-    if (order.status !== "closed") {
-      throw new AppError("VALIDATION", "Só é possível reabrir comanda fechada");
-    }
+      if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
+      if (order.status !== "closed") {
+        throw new AppError("VALIDATION", "Só é possível reabrir comanda fechada");
+      }
 
-    const prevMeta = (order.meta ?? {}) as Record<string, unknown>;
-    await db
-      .update(schema.orders)
-      .set({
-        status: "open",
-        closedAt: null,
-        closedByUserId: null,
-        meta: {
-          ...prevMeta,
-          reopenedAt: new Date().toISOString(),
-          reopenedBy: session.user.id,
-        },
-        updatedAt: new Date(),
-      })
-      .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+      const prevMeta = (order.meta ?? {}) as Record<string, unknown>;
+      const settlementCents =
+        typeof prevMeta.clientAccountSettlementCents === "number"
+          ? Math.max(0, Math.round(prevMeta.clientAccountSettlementCents))
+          : 0;
+      const accountClientId =
+        typeof prevMeta.clientAccountClientId === "string"
+          ? prevMeta.clientAccountClientId
+          : order.clientId;
+      const accountPaymentId =
+        typeof prevMeta.clientAccountPaymentId === "string"
+          ? prevMeta.clientAccountPaymentId
+          : null;
+
+      if (settlementCents > 0 && accountClientId) {
+        await applyClientAccountDeltaTx(tx, {
+          tenantId: tenant.id,
+          clientId: accountClientId,
+          deltaCents: settlementCents,
+          reason: "order_reversal",
+          notes: "Estorno ao reabrir comanda",
+          orderId,
+          createdByUserId: session.user.id,
+        });
+        if (accountPaymentId) {
+          await tx
+            .delete(schema.payments)
+            .where(
+              and(
+                eq(schema.payments.id, accountPaymentId),
+                eq(schema.payments.tenantId, tenant.id),
+                eq(schema.payments.orderId, orderId)
+              )
+            );
+        }
+      }
+
+      const restMeta = { ...prevMeta };
+      delete restMeta.clientAccountDebtCents;
+      delete restMeta.clientAccountSettlementCents;
+      delete restMeta.clientAccountPaymentId;
+      delete restMeta.clientAccountClientId;
+      await tx
+        .update(schema.orders)
+        .set({
+          status: "open",
+          closedAt: null,
+          closedByUserId: null,
+          meta: {
+            ...restMeta,
+            reopenedAt: new Date().toISOString(),
+            reopenedBy: session.user.id,
+          },
+          updatedAt: new Date(),
+        })
+        .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+    });
 
     return { ok: true, id: orderId };
   } catch (err) {
@@ -1029,20 +1295,188 @@ export async function payAndCloseOrder(input: {
   method: string;
 }): Promise<ActionResult> {
   try {
-    await assertFullOrderWrite();
-    const detail = await getOrderDetail(input.orderId);
-    if (detail.items.length === 0) {
-      throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
-    }
-    if (detail.balanceCents > 0) {
-      const pay = await addPayment({
-        orderId: input.orderId,
-        method: input.method,
-        amountCents: detail.balanceCents,
+    const session = await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    if (input.method === "client_account") {
+      const db = createDb();
+      await db.transaction(async (tx) => {
+        const state = await lockOrderFinancialState(
+          tx,
+          input.orderId,
+          tenant.id
+        );
+        if (state.packageCount > 0) {
+          throw new AppError(
+            "VALIDATION",
+            "Conta do Cliente não está disponível para venda de pacote"
+          );
+        }
+        if (state.itemCount === 0) {
+          throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
+        }
+        if (!state.clientId) {
+          throw new AppError("VALIDATION", "Vincule um cliente para usar a Conta do Cliente");
+        }
+        if (state.balanceCents <= 0) {
+          throw new AppError("VALIDATION", "A comanda não possui saldo a pagar");
+        }
+
+        const [client] = await tx
+          .select({ accountBalanceCents: schema.clients.accountBalanceCents })
+          .from(schema.clients)
+          .where(
+            and(
+              eq(schema.clients.id, state.clientId),
+              eq(schema.clients.tenantId, tenant.id)
+            )
+          )
+          .for("update");
+        if (!client || client.accountBalanceCents < state.balanceCents) {
+          throw new AppError(
+            "VALIDATION",
+            "O crédito da Conta do Cliente não cobre o saldo total"
+          );
+        }
+
+        const [payment] = await tx
+          .insert(schema.payments)
+          .values({
+            tenantId: tenant.id,
+            orderId: input.orderId,
+            method: "client_account",
+            amountCents: state.balanceCents,
+          })
+          .returning({ id: schema.payments.id });
+
+        await applyClientAccountDeltaTx(tx, {
+          tenantId: tenant.id,
+          clientId: state.clientId,
+          deltaCents: -state.balanceCents,
+          reason: "order_payment",
+          notes: "Pagamento com crédito da conta",
+          orderId: input.orderId,
+          paymentId: payment.id,
+          createdByUserId: session.user.id,
+        });
+
+        const [updated] = await tx
+          .update(schema.orders)
+          .set({
+            status: "closed",
+            closedAt: new Date(),
+            closedByUserId: session.user.id,
+            meta: {
+              ...((state.meta ?? {}) as Record<string, unknown>),
+              clientAccountDebtCents: 0,
+              clientAccountSettlementCents: state.balanceCents,
+              clientAccountPaymentId: payment.id,
+              clientAccountClientId: state.clientId,
+            },
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.orders.id, input.orderId),
+              eq(schema.orders.tenantId, tenant.id),
+              eq(schema.orders.status, "open")
+            )
+          )
+          .returning({ appointmentId: schema.orders.appointmentId });
+        if (!updated) {
+          throw new AppError("CONFLICT", "A comanda já foi fechada por outra operação");
+        }
+
+        if (updated.appointmentId) {
+          await tx
+            .update(schema.appointments)
+            .set({ status: "completed", updatedAt: new Date() })
+            .where(
+              and(
+                eq(schema.appointments.id, updated.appointmentId),
+                eq(schema.appointments.tenantId, tenant.id)
+              )
+            );
+        }
       });
-      if (!pay.ok) return pay;
+
+      return { ok: true, id: input.orderId };
     }
-    return await closeOrder(input.orderId);
+
+    if (!PAYMENT_METHODS.includes(input.method as PaymentMethod)) {
+      throw new AppError("VALIDATION", "Forma de pagamento inválida");
+    }
+    const method = input.method as PaymentMethod;
+    const db = createDb();
+    await db.transaction(async (tx) => {
+      const state = await lockOrderFinancialState(
+        tx,
+        input.orderId,
+        tenant.id
+      );
+      if (state.itemCount === 0) {
+        throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
+      }
+
+      if (state.balanceCents > 0) {
+        await tx.insert(schema.payments).values({
+          tenantId: tenant.id,
+          orderId: input.orderId,
+          method,
+          amountCents: state.balanceCents,
+        });
+        const { recordPaymentInCashTx } = await import("../finance/mutations");
+        await recordPaymentInCashTx(tx, {
+          tenantId: tenant.id,
+          orderId: input.orderId,
+          method,
+          amountCents: state.balanceCents,
+        });
+      }
+
+      if (state.clientId) {
+        const { activateClientPackagesForOrder } = await import("../packages/credits");
+        await activateClientPackagesForOrder(
+          {
+            tenantId: tenant.id,
+            orderId: input.orderId,
+            clientId: state.clientId,
+          },
+          tx
+        );
+      }
+
+      const [updated] = await tx
+        .update(schema.orders)
+        .set({
+          status: "closed",
+          closedAt: new Date(),
+          closedByUserId: session.user.id,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.orders.id, input.orderId),
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.status, "open")
+          )
+        )
+        .returning({ appointmentId: schema.orders.appointmentId });
+      if (!updated) {
+        throw new AppError("CONFLICT", "A comanda já foi fechada por outra operação");
+      }
+      if (updated.appointmentId) {
+        await tx
+          .update(schema.appointments)
+          .set({ status: "completed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.appointments.id, updated.appointmentId),
+              eq(schema.appointments.tenantId, tenant.id)
+            )
+          );
+      }
+    });
+    return { ok: true, id: input.orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
@@ -1058,44 +1492,112 @@ export async function closeOrderToClientAccount(orderId: string): Promise<Action
   try {
     const session = await assertFullOrderWrite();
     const tenant = await requireTenantContext();
-    await assertOpenOrder(orderId, tenant.id);
-
-    const detail = await getOrderDetail(orderId);
-    if (detail.items.length === 0) {
-      throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
-    }
-    if (!detail.clientId) {
-      throw new AppError("VALIDATION", "Vincule um cliente para lançar na Conta do Cliente");
-    }
-    if (detail.balanceCents <= 0) {
-      return await closeOrder(orderId);
-    }
-
-    const amountCents = detail.balanceCents;
     const db = createDb();
-    const [row] = await db
-      .insert(schema.payments)
-      .values({
-        tenantId: tenant.id,
-        orderId,
-        method: "client_account",
-        amountCents,
-      })
-      .returning({ id: schema.payments.id });
+    await db.transaction(async (tx) => {
+      const state = await lockOrderFinancialState(tx, orderId, tenant.id);
+      if (state.packageCount > 0) {
+        throw new AppError(
+          "VALIDATION",
+          "Conta do Cliente não está disponível para venda de pacote"
+        );
+      }
+      if (state.itemCount === 0) {
+        throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
+      }
+      if (!state.clientId) {
+        throw new AppError("VALIDATION", "Vincule um cliente para lançar na Conta do Cliente");
+      }
 
-    const { applyClientAccountDelta } = await import("../clients/account");
-    await applyClientAccountDelta({
-      tenantId: tenant.id,
-      clientId: detail.clientId,
-      deltaCents: -amountCents,
-      reason: "order_debt",
-      notes: "Restante da comanda lançado na conta",
-      orderId,
-      paymentId: row.id,
-      createdByUserId: session.user.id,
+      let paymentId: string | null = null;
+      let debtCents = 0;
+      if (state.balanceCents > 0) {
+        const [client] = await tx
+          .select({ accountBalanceCents: schema.clients.accountBalanceCents })
+          .from(schema.clients)
+          .where(
+            and(
+              eq(schema.clients.id, state.clientId),
+              eq(schema.clients.tenantId, tenant.id)
+            )
+          )
+          .for("update");
+        if (!client) throw new AppError("NOT_FOUND", "Cliente não encontrado");
+
+        const settlement = calculateAccountSettlement(
+          state.balanceCents,
+          client.accountBalanceCents
+        );
+        const { creditAppliedCents } = settlement;
+        debtCents = settlement.debtCents;
+
+        if (creditAppliedCents > 0) {
+          const [payment] = await tx
+            .insert(schema.payments)
+            .values({
+              tenantId: tenant.id,
+              orderId,
+              method: "client_account",
+              amountCents: creditAppliedCents,
+            })
+            .returning({ id: schema.payments.id });
+          paymentId = payment.id;
+        }
+
+        await applyClientAccountDeltaTx(tx, {
+          tenantId: tenant.id,
+          clientId: state.clientId,
+          deltaCents: settlement.accountDeltaCents,
+          reason: "order_debt",
+          notes: "Restante da comanda lançado na conta",
+          orderId,
+          paymentId,
+          createdByUserId: session.user.id,
+        });
+      }
+
+      const prevMeta = (state.meta ?? {}) as Record<string, unknown>;
+      const [updated] = await tx
+        .update(schema.orders)
+        .set({
+          status: "closed",
+          closedAt: new Date(),
+          closedByUserId: session.user.id,
+          meta: {
+            ...prevMeta,
+            clientAccountDebtCents: debtCents,
+            clientAccountSettlementCents: Math.max(0, state.balanceCents),
+            clientAccountPaymentId: paymentId,
+            clientAccountClientId: state.clientId,
+          },
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.orders.id, orderId),
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.status, "open")
+          )
+        )
+        .returning({ appointmentId: schema.orders.appointmentId });
+      if (!updated) {
+        throw new AppError("CONFLICT", "A comanda já foi fechada por outra operação");
+      }
+
+      if (updated.appointmentId) {
+        await tx
+          .update(schema.appointments)
+          .set({ status: "completed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.appointments.id, updated.appointmentId),
+              eq(schema.appointments.tenantId, tenant.id)
+            )
+          );
+      }
+
     });
 
-    return await closeOrder(orderId);
+    return { ok: true, id: orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };

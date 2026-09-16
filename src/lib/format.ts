@@ -111,6 +111,7 @@ const CLIENT_ACCOUNT_REASON: Record<string, string> = {
   manual_debit: "Débito manual",
   order_payment: "Pagamento de comanda",
   order_debt: "Débito de comanda",
+  order_reversal: "Estorno ao reabrir comanda",
 };
 
 export function labelClientAccountReason(reason: string): string {
