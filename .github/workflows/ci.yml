@@ -27,3 +27,5 @@ jobs:
         run: npx tsc --noEmit -p tsconfig.json
       - name: Support guides
         run: npm run check:support-guides
+      - name: Support reliability
+        run: npm run check:support-reliability
