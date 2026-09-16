@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import type { ChatMessage } from "@/server/agent/llm";
 import { chatCompletionWithFallback } from "@/server/agent/llm";
@@ -15,10 +15,19 @@ import { executeSupportTool, SUPPORT_TOOL_DEFS } from "./tools";
 import { searchGuides, getGuidePayload } from "@/content/support/guides";
 import { linkifySupportReply } from "@/lib/support-deeplinks";
 import { searchHelp } from "./knowledge";
+import {
+  HUMAN_HANDOFF_ALREADY_REPLY,
+  HUMAN_HANDOFF_ACTIVE_REPLY,
+  HUMAN_HANDOFF_PENDING_REPLY,
+  HUMAN_HANDOFF_QUEUED_REPLY,
+  isSuccessfulHttpStatus,
+  publicSupportError,
+  SUPPORT_WEBHOOK_TIMEOUT_MS,
+} from "./reliability";
 
 export type SupportActionResult =
   | { ok: true; threadId: string; reply: string; status: "ai" | "human" }
-  | { ok: false; error: string };
+  | { ok: false; error: string; persisted?: boolean };
 
 async function notifyHandoff(input: {
   tenantId: string;
@@ -27,6 +36,7 @@ async function notifyHandoff(input: {
   userEmail?: string | null;
   threadId: string;
   reason: string;
+  requestId?: string;
 }) {
   const payload = {
     type: "support_handoff",
@@ -39,12 +49,20 @@ async function notifyHandoff(input: {
   if (!webhook) return false;
 
   try {
-    await fetch(webhook, {
+    const response = await fetch(webhook, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(input.requestId ? { "Idempotency-Key": input.requestId } : {}),
+      },
       body: JSON.stringify(payload),
       cache: "no-store",
+      signal: AbortSignal.timeout(SUPPORT_WEBHOOK_TIMEOUT_MS),
     });
+    if (!isSuccessfulHttpStatus(response.status)) {
+      console.warn("[support] webhook handoff rejeitado", response.status);
+      return false;
+    }
     return true;
   } catch (err) {
     console.warn(
@@ -58,9 +76,9 @@ async function notifyHandoff(input: {
 function offlineHumanReply(): string {
   const contact = supportHumanContactHint();
   if (contact) {
-    return `Agora não tem atendente humano neste chat. Continuo te ajudando por aqui. Se for urgente com a Fábrica: ${contact}.`;
+    return `Não consegui notificar o atendimento humano agora. Continuo te ajudando por aqui. Se for urgente com a Fábrica: ${contact}.`;
   }
-  return "Agora não tem atendente humano neste chat — não tem pra onde notificar. Continuo te ajudando por aqui com o que o sistema faz.";
+  return "Não consegui notificar o atendimento humano agora. Continuo te ajudando por aqui com o que o sistema faz.";
 }
 
 async function markHuman(input: {
@@ -70,10 +88,46 @@ async function markHuman(input: {
   tenantName: string;
   userName: string;
   userEmail?: string | null;
-}): Promise<{ queued: boolean }> {
+  requestId?: string;
+}): Promise<{ queued: boolean; alreadyActive: boolean; inProgress: boolean }> {
   const channelOnline = supportHumanChannelConfigured();
   if (!channelOnline) {
-    return { queued: false };
+    return { queued: false, alreadyActive: false, inProgress: false };
+  }
+
+  const db = createDb();
+  const now = new Date();
+  const [claimed] = await db
+    .update(schema.supportThreads)
+    .set({ status: "notifying", updatedAt: now })
+    .where(
+      and(
+        eq(schema.supportThreads.id, input.threadId),
+        eq(schema.supportThreads.tenantId, input.tenantId),
+        ne(schema.supportThreads.status, "human"),
+        ne(schema.supportThreads.status, "notifying")
+      )
+    )
+    .returning({ id: schema.supportThreads.id });
+
+  if (!claimed) {
+    const [current] = await db
+      .select({ status: schema.supportThreads.status })
+      .from(schema.supportThreads)
+      .where(
+        and(
+          eq(schema.supportThreads.id, input.threadId),
+          eq(schema.supportThreads.tenantId, input.tenantId)
+        )
+      )
+      .limit(1);
+    if (current?.status === "human") {
+      return { queued: true, alreadyActive: true, inProgress: false };
+    }
+    if (current?.status === "notifying") {
+      return { queued: false, alreadyActive: false, inProgress: true };
+    }
+    return { queued: false, alreadyActive: false, inProgress: false };
   }
 
   const notified = await notifyHandoff({
@@ -83,15 +137,24 @@ async function markHuman(input: {
     userEmail: input.userEmail,
     threadId: input.threadId,
     reason: input.reason,
+    requestId: input.requestId,
   });
 
   if (!notified) {
-    return { queued: false };
+    await db
+      .update(schema.supportThreads)
+      .set({ status: "ai", updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.supportThreads.id, input.threadId),
+          eq(schema.supportThreads.tenantId, input.tenantId),
+          eq(schema.supportThreads.status, "notifying")
+        )
+      );
+    return { queued: false, alreadyActive: false, inProgress: false };
   }
 
-  const db = createDb();
-  const now = new Date();
-  await db
+  const [activated] = await db
     .update(schema.supportThreads)
     .set({
       status: "human",
@@ -102,9 +165,17 @@ async function markHuman(input: {
     .where(
       and(
         eq(schema.supportThreads.id, input.threadId),
-        eq(schema.supportThreads.tenantId, input.tenantId)
+        eq(schema.supportThreads.tenantId, input.tenantId),
+        eq(schema.supportThreads.status, "notifying")
       )
-    );
+    )
+    .returning({ id: schema.supportThreads.id });
+
+  if (!activated) {
+    // A entrega externa ocorreu; outra aba pode ter cancelado o modo humano
+    // enquanto o webhook estava em voo.
+    return { queued: true, alreadyActive: false, inProgress: false };
+  }
 
   await db.insert(schema.supportMessages).values({
     tenantId: input.tenantId,
@@ -114,7 +185,7 @@ async function markHuman(input: {
     meta: { kind: "escalate" },
   });
 
-  return { queued: true };
+  return { queued: true, alreadyActive: false, inProgress: false };
 }
 
 /** Threads antigas presas em "human" sem canal: volta pra IA. */
@@ -187,23 +258,60 @@ function offlineReply(userText: string, memberRole?: MemberRole | null): string 
 
 export async function sendSupportMessage(input: {
   body: string;
+  requestId?: string;
 }): Promise<SupportActionResult> {
+  let messagePersisted = false;
   try {
     const { session, tenant } = await assertCanUseSupport();
     const text = input.body.trim().slice(0, 4000);
     if (!text) throw new AppError("VALIDATION", "Escreva uma mensagem");
+    const requestId = (input.requestId?.trim() || crypto.randomUUID()).slice(0, 80);
 
     const db = createDb();
     const thread = await getOrCreateSupportThread();
     const now = new Date();
 
-    await db.insert(schema.supportMessages).values({
-      tenantId: tenant.id,
-      threadId: thread.id,
-      role: "user",
-      body: text,
-      authorUserId: session.user.id,
-    });
+    const [inserted] = await db
+      .insert(schema.supportMessages)
+      .values({
+        tenantId: tenant.id,
+        threadId: thread.id,
+        role: "user",
+        body: text,
+        requestId,
+        authorUserId: session.user.id,
+      })
+      .onConflictDoNothing()
+      .returning({ id: schema.supportMessages.id });
+    messagePersisted = true;
+
+    if (!inserted) {
+      const [previousReply] = await db
+        .select({ body: schema.supportMessages.body })
+        .from(schema.supportMessages)
+        .where(
+          and(
+            eq(schema.supportMessages.tenantId, tenant.id),
+            eq(schema.supportMessages.threadId, thread.id),
+            eq(schema.supportMessages.requestId, requestId),
+            eq(schema.supportMessages.role, "assistant")
+          )
+        )
+        .limit(1);
+      if (previousReply) {
+        return {
+          ok: true,
+          threadId: thread.id,
+          reply: previousReply.body,
+          status: thread.status === "human" ? "human" : "ai",
+        };
+      }
+      return {
+        ok: false,
+        error: "Esta mensagem já está sendo processada",
+        persisted: true,
+      };
+    }
 
     await db
       .update(schema.supportThreads)
@@ -220,18 +328,32 @@ export async function sendSupportMessage(input: {
       threadId: thread.id,
       status: thread.status,
     });
-    const humanActive = thread.status === "human" && !released && supportHumanChannelConfigured();
+    const humanActive =
+      thread.status === "human" &&
+      !released &&
+      supportHumanChannelConfigured();
 
     if (humanActive) {
-      const reply =
-        "Sua conversa já está na fila humana. Pode continuar escrevendo — a equipe responde por aqui quando puder.";
+      const forwarded = await notifyHandoff({
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        userName: session.user.name,
+        userEmail: session.user.email,
+        threadId: thread.id,
+        reason: `Detalhe adicional: ${text.slice(0, 180)}`,
+        requestId,
+      });
+      const reply = forwarded
+        ? HUMAN_HANDOFF_ACTIVE_REPLY
+        : "Não consegui encaminhar este detalhe ao canal humano agora. Ele ficou salvo aqui; tente novamente ou volte para a IA.";
       await db.insert(schema.supportMessages).values({
         tenantId: tenant.id,
         threadId: thread.id,
         role: "assistant",
         body: reply,
-        meta: { kind: "human_queue_ack" },
-      });
+        requestId,
+        meta: { kind: "human_queue_ack", forwarded },
+      }).onConflictDoNothing();
       return { ok: true, threadId: thread.id, reply, status: "human" };
     }
 
@@ -239,24 +361,36 @@ export async function sendSupportMessage(input: {
       text
     );
     if (wantsHuman) {
-      const { queued } = await markHuman({
+      const { queued, alreadyActive, inProgress } = await markHuman({
         tenantId: tenant.id,
         threadId: thread.id,
         reason: text.slice(0, 200),
         tenantName: tenant.name,
         userName: session.user.name,
         userEmail: session.user.email,
+        requestId,
       });
-      const reply = queued
-        ? "Beleza — passei pra fila humana. Quando a Fábrica estiver online, alguém entra nessa conversa."
-        : offlineHumanReply();
+      const reply = inProgress
+        ? HUMAN_HANDOFF_PENDING_REPLY
+        : queued
+          ? alreadyActive
+            ? HUMAN_HANDOFF_ALREADY_REPLY
+            : HUMAN_HANDOFF_QUEUED_REPLY
+          : offlineHumanReply();
       await db.insert(schema.supportMessages).values({
         tenantId: tenant.id,
         threadId: thread.id,
         role: "assistant",
         body: reply,
-        meta: { kind: queued ? "escalate_ack" : "escalate_offline" },
-      });
+        requestId,
+        meta: {
+          kind: inProgress
+            ? "escalate_pending"
+            : queued
+              ? "escalate_ack"
+              : "escalate_offline",
+        },
+      }).onConflictDoNothing();
       return {
         ok: true,
         threadId: thread.id,
@@ -282,8 +416,10 @@ export async function sendSupportMessage(input: {
           role: (m.role === "assistant" ? "assistant" : "user") as "assistant" | "user",
           content: m.body,
         })),
-      { role: "user", content: text },
     ];
+    if (inserted) {
+      history.push({ role: "user", content: text });
+    }
 
     let escalateReason: string | null = null;
     let finalText: string | null = null;
@@ -331,6 +467,7 @@ export async function sendSupportMessage(input: {
     }
 
     let queued = false;
+    let handoffInProgress = false;
     if (escalateReason) {
       const marked = await markHuman({
         tenantId: tenant.id,
@@ -339,9 +476,11 @@ export async function sendSupportMessage(input: {
         tenantName: tenant.name,
         userName: session.user.name,
         userEmail: session.user.email,
+        requestId,
       });
       queued = marked.queued;
-      if (!queued && !finalText) {
+      handoffInProgress = marked.inProgress;
+      if (!queued && !handoffInProgress && !finalText) {
         // IA pediu humano sem canal e não deixou texto — responde com FAQ se houver
         finalText = offlineReply(text, session.role);
         if (finalText.startsWith("Não consegui")) {
@@ -352,8 +491,10 @@ export async function sendSupportMessage(input: {
 
     const reply = linkifySupportReply(
       finalText ||
-        (queued
-          ? "Passei pra fila humana. Quando alguém da Fábrica estiver online, responde por aqui."
+        (handoffInProgress
+          ? HUMAN_HANDOFF_PENDING_REPLY
+          : queued
+          ? HUMAN_HANDOFF_QUEUED_REPLY
           : escalateReason
             ? offlineHumanReply()
             : offlineReply(text, session.role))
@@ -364,8 +505,9 @@ export async function sendSupportMessage(input: {
       threadId: thread.id,
       role: "assistant",
       body: reply,
+      requestId,
       meta: escalateReason ? { escalated: queued, escalateAttempt: true } : {},
-    });
+    }).onConflictDoNothing();
 
     await db
       .update(schema.supportThreads)
@@ -384,9 +526,14 @@ export async function sendSupportMessage(input: {
       status: queued ? "human" : "ai",
     };
   } catch (err) {
-    if (isAppError(err)) return { ok: false, error: err.message };
-    const msg = err instanceof Error ? err.message : "Erro no suporte";
-    return { ok: false, error: msg };
+    if (isAppError(err)) {
+      return { ok: false, error: err.message, persisted: messagePersisted };
+    }
+    return {
+      ok: false,
+      error: publicSupportError(err),
+      persisted: messagePersisted,
+    };
   }
 }
 
@@ -399,6 +546,8 @@ export async function escalateSupportHuman(input?: {
     const reason = (input?.reason || "Pedido pelo botão Falar com humano").slice(0, 240);
 
     let queued = false;
+    let alreadyActive = false;
+    let inProgress = false;
     if (thread.status !== "human") {
       const marked = await markHuman({
         tenantId: tenant.id,
@@ -409,20 +558,33 @@ export async function escalateSupportHuman(input?: {
         userEmail: session.user.email,
       });
       queued = marked.queued;
+      alreadyActive = marked.alreadyActive;
+      inProgress = marked.inProgress;
     } else {
       queued = supportHumanChannelConfigured();
+      alreadyActive = queued;
     }
 
-    const reply = queued
-      ? "Ok — fila humana. Pode deixar o detalhe do problema aqui; alguém da Fábrica responde quando estiver online."
-      : offlineHumanReply();
+    const reply = inProgress
+      ? HUMAN_HANDOFF_PENDING_REPLY
+      : queued
+        ? alreadyActive
+          ? HUMAN_HANDOFF_ALREADY_REPLY
+          : HUMAN_HANDOFF_QUEUED_REPLY
+        : offlineHumanReply();
     const db = createDb();
     await db.insert(schema.supportMessages).values({
       tenantId: tenant.id,
       threadId: thread.id,
       role: "assistant",
       body: reply,
-      meta: { kind: queued ? "escalate_button" : "escalate_offline" },
+      meta: {
+        kind: inProgress
+          ? "escalate_pending"
+          : queued
+            ? "escalate_button"
+            : "escalate_offline",
+      },
     });
 
     return {
@@ -433,8 +595,10 @@ export async function escalateSupportHuman(input?: {
     };
   } catch (err) {
     if (isAppError(err)) return { ok: false, error: err.message };
-    const msg = err instanceof Error ? err.message : "Erro no handoff";
-    return { ok: false, error: msg };
+    return {
+      ok: false,
+      error: publicSupportError(err, "Não foi possível chamar o atendimento humano"),
+    };
   }
 }
 
@@ -471,7 +635,9 @@ export async function returnSupportToAi(): Promise<SupportActionResult> {
     return { ok: true, threadId: thread.id, reply, status: "ai" };
   } catch (err) {
     if (isAppError(err)) return { ok: false, error: err.message };
-    const msg = err instanceof Error ? err.message : "Erro";
-    return { ok: false, error: msg };
+    return {
+      ok: false,
+      error: publicSupportError(err, "Não foi possível voltar para a IA"),
+    };
   }
 }

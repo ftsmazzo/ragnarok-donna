@@ -9,6 +9,7 @@
     "start": "node scripts/start-production.mjs",
     "lint": "next lint",
     "check:support-guides": "tsx scripts/check-support-guides.ts",
+    "check:support-reliability": "tsx scripts/check-support-reliability.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push --force",
     "db:studio": "drizzle-kit studio",

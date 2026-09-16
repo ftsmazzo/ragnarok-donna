@@ -1,10 +1,14 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import { roleLabel } from "../permissions/roles";
 import type { SupportMessageDto, SupportThreadDto } from "@/lib/support-types";
+import {
+  SUPPORT_HANDOFF_CLAIM_STALE_MS,
+  toChronologicalOrder,
+} from "./reliability";
 
 export type { SupportMessageDto, SupportThreadDto };
 
@@ -35,7 +39,7 @@ export async function getOrCreateSupportThread(): Promise<SupportThreadDto> {
     .limit(1);
 
   if (!thread) {
-    [thread] = await db
+    await db
       .insert(schema.supportThreads)
       .values({
         tenantId: tenant.id,
@@ -47,10 +51,46 @@ export async function getOrCreateSupportThread(): Promise<SupportThreadDto> {
           userName: session.user.name,
         },
       })
-      .returning();
+      .onConflictDoNothing();
+
+    [thread] = await db
+      .select()
+      .from(schema.supportThreads)
+      .where(
+        and(
+          eq(schema.supportThreads.tenantId, tenant.id),
+          eq(schema.supportThreads.userId, session.user.id)
+        )
+      )
+      .orderBy(desc(schema.supportThreads.updatedAt))
+      .limit(1);
   }
 
-  const messages = await db
+  if (!thread) {
+    throw new Error("Não foi possível criar a conversa de suporte");
+  }
+
+  if (
+    thread.status === "notifying" &&
+    Date.now() - thread.updatedAt.getTime() > SUPPORT_HANDOFF_CLAIM_STALE_MS
+  ) {
+    const cutoff = new Date(Date.now() - SUPPORT_HANDOFF_CLAIM_STALE_MS);
+    const [recovered] = await db
+      .update(schema.supportThreads)
+      .set({ status: "ai", updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.supportThreads.id, thread.id),
+          eq(schema.supportThreads.tenantId, tenant.id),
+          eq(schema.supportThreads.status, "notifying"),
+          lt(schema.supportThreads.updatedAt, cutoff)
+        )
+      )
+      .returning({ id: schema.supportThreads.id });
+    if (recovered) thread = { ...thread, status: "ai" };
+  }
+
+  const recentMessages = await db
     .select({
       id: schema.supportMessages.id,
       role: schema.supportMessages.role,
@@ -64,8 +104,12 @@ export async function getOrCreateSupportThread(): Promise<SupportThreadDto> {
         eq(schema.supportMessages.threadId, thread.id)
       )
     )
-    .orderBy(asc(schema.supportMessages.createdAt))
+    .orderBy(
+      desc(schema.supportMessages.createdAt),
+      desc(schema.supportMessages.id)
+    )
     .limit(200);
+  const messages = toChronologicalOrder(recentMessages);
 
   return {
     id: thread.id,

@@ -332,7 +332,6 @@ CREATE TABLE IF NOT EXISTS support_threads (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS support_threads_tenant_idx ON support_threads (tenant_id);
-CREATE INDEX IF NOT EXISTS support_threads_tenant_user_idx ON support_threads (tenant_id, user_id);
 CREATE INDEX IF NOT EXISTS support_threads_tenant_status_idx ON support_threads (tenant_id, status);
 
 CREATE TABLE IF NOT EXISTS support_messages (
@@ -341,13 +340,55 @@ CREATE TABLE IF NOT EXISTS support_messages (
   thread_id uuid NOT NULL REFERENCES support_threads(id) ON DELETE CASCADE,
   role varchar(24) NOT NULL,
   body text NOT NULL DEFAULT '',
+  request_id varchar(80),
   author_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   meta jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS request_id varchar(80);
 CREATE INDEX IF NOT EXISTS support_messages_thread_created_idx
   ON support_messages (thread_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS support_messages_thread_request_role_uidx
+  ON support_messages (thread_id, request_id, role);
+
+-- Consolida threads duplicadas antes de impor uma conversa por usuário/unidade.
+WITH ranked AS (
+  SELECT
+    id,
+    first_value(id) OVER (
+      PARTITION BY tenant_id, user_id
+      ORDER BY updated_at DESC, id DESC
+    ) AS keep_id,
+    row_number() OVER (
+      PARTITION BY tenant_id, user_id
+      ORDER BY updated_at DESC, id DESC
+    ) AS rn
+  FROM support_threads
+  WHERE user_id IS NOT NULL
+)
+UPDATE support_messages AS message
+SET thread_id = ranked.keep_id
+FROM ranked
+WHERE ranked.rn > 1 AND message.thread_id = ranked.id;
+
+WITH ranked AS (
+  SELECT
+    id,
+    row_number() OVER (
+      PARTITION BY tenant_id, user_id
+      ORDER BY updated_at DESC, id DESC
+    ) AS rn
+  FROM support_threads
+  WHERE user_id IS NOT NULL
+)
+DELETE FROM support_threads AS thread
+USING ranked
+WHERE ranked.rn > 1 AND thread.id = ranked.id;
+
+DROP INDEX IF EXISTS support_threads_tenant_user_idx;
+CREATE UNIQUE INDEX IF NOT EXISTS support_threads_tenant_user_uidx
+  ON support_threads (tenant_id, user_id);
 
 CREATE TABLE IF NOT EXISTS tenant_outreach_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

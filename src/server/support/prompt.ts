@@ -15,7 +15,8 @@ export function buildSupportSystemPrompt(input?: {
 
   const humanRules = input?.humanChannelOnline
     ? [
-        `Handoff humano: canal ONLINE. Só use escalate_human se a pessoa pedir humano de propósito OU se for bug/incidente que o guia/FAQ não cobre.`,
+        `Handoff humano: canal ONLINE. Ele apenas NOTIFICA a equipe por um canal externo; não prometa que alguém responderá dentro deste chat.`,
+        `Só use escalate_human se a pessoa pedir humano de propósito OU se for bug/incidente que o guia/FAQ não cobre.`,
         `Antes de escalate_human: SEMPRE chame search_guides (e get_guide se houver hit). Se o guia cobrir, responda — não escale.`,
       ]
     : [
