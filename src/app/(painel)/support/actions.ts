@@ -2,19 +2,22 @@
 
 import { escalateSupportHuman, returnSupportToAi, sendSupportMessage } from "@/server/support/mutations";
 import { getOrCreateSupportThread } from "@/server/support/queries";
+import { publicSupportError } from "@/server/support/reliability";
 
 export async function loadSupportThreadAction() {
   try {
     const thread = await getOrCreateSupportThread();
     return { ok: true as const, thread };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Erro";
-    return { ok: false as const, error: msg === "FORBIDDEN" ? "Sem permissão" : msg };
+    return {
+      ok: false as const,
+      error: publicSupportError(err, "Não foi possível abrir o suporte"),
+    };
   }
 }
 
-export async function sendSupportMessageAction(body: string) {
-  return sendSupportMessage({ body });
+export async function sendSupportMessageAction(body: string, requestId: string) {
+  return sendSupportMessage({ body, requestId });
 }
 
 export async function escalateSupportAction(reason?: string) {

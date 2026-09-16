@@ -101,21 +101,26 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
   const [pending, startTransition] = useTransition();
   const [booting, setBooting] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const requestVersionRef = useRef(0);
 
   useEffect(() => {
-    if (!open || !canUse) return;
+    if (!open || !canUse || pending) return;
     let cancelled = false;
+    const loadVersion = requestVersionRef.current;
     setBooting(true);
     void loadSupportThreadAction().then((res) => {
       if (cancelled) return;
       setBooting(false);
-      if (res.ok) setThread(res.thread);
-      else setError(res.error);
+      if (res.ok) {
+        if (requestVersionRef.current === loadVersion) setThread(res.thread);
+      } else {
+        setError(res.error);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [open, canUse]);
+  }, [open, canUse, pending]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -138,6 +143,8 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
   function send(text: string) {
     const body = text.trim();
     if (!body || pending) return;
+    const requestId = crypto.randomUUID();
+    requestVersionRef.current += 1;
     setError(null);
     setDraft("");
     const optimistic: SupportMessageDto = {
@@ -149,13 +156,44 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
     refreshOptimistic({ append: [optimistic] });
 
     startTransition(async () => {
-      const res = await sendSupportMessageAction(body);
+      const res = await sendSupportMessageAction(body, requestId);
       if (!res.ok) {
-        setError(res.error);
+        if (res.persisted) {
+          const reload = await loadSupportThreadAction();
+          if (reload.ok) setThread(reload.thread);
+          setError(
+            "A mensagem foi recebida, mas o suporte não conseguiu responder. Tente outra pergunta."
+          );
+        } else {
+          setThread((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  messages: prev.messages.filter((message) => message.id !== optimistic.id),
+                }
+              : prev
+          );
+          setDraft((current) => current || body);
+          setError(res.error);
+        }
         return;
       }
       const reload = await loadSupportThreadAction();
-      if (reload.ok) setThread(reload.thread);
+      if (reload.ok) {
+        setThread(reload.thread);
+      } else {
+        refreshOptimistic({
+          status: res.status,
+          append: [
+            {
+              id: `local-reply-${Date.now()}`,
+              role: "assistant",
+              body: res.reply,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        });
+      }
     });
   }
 
@@ -173,7 +211,21 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
         return;
       }
       const reload = await loadSupportThreadAction();
-      if (reload.ok) setThread(reload.thread);
+      if (reload.ok) {
+        setThread(reload.thread);
+      } else {
+        refreshOptimistic({
+          status: res.status,
+          append: [
+            {
+              id: `local-handoff-${Date.now()}`,
+              role: "assistant",
+              body: res.reply,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        });
+      }
     });
   }
 
@@ -186,7 +238,21 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
         return;
       }
       const reload = await loadSupportThreadAction();
-      if (reload.ok) setThread(reload.thread);
+      if (reload.ok) {
+        setThread(reload.thread);
+      } else {
+        refreshOptimistic({
+          status: res.status,
+          append: [
+            {
+              id: `local-ai-${Date.now()}`,
+              role: "system",
+              body: res.reply,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        });
+      }
     });
   }
 
@@ -221,7 +287,9 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
             <div>
               <strong>Central de ajuda</strong>
               <small>
-                {status === "human" ? "Fila humana · Fábrica IA" : "Ajuda pra operar o app"}
+                {status === "human"
+                  ? "Atendimento externo notificado"
+                  : "Ajuda pra operar o app"}
               </small>
             </div>
             <button
@@ -236,7 +304,7 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
 
           {status === "human" ? (
             <div className="support-chat-banner">
-              Pedido humano ativo — alguém da Fábrica foi notificado.
+              A Fábrica foi notificada. O retorno acontece pelo canal externo da equipe.
               <button type="button" onClick={returnAi} disabled={pending}>
                 Voltar pra IA
               </button>

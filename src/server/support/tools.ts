@@ -76,7 +76,7 @@ export const SUPPORT_TOOL_DEFS: ChatToolDef[] = [
     function: {
       name: "escalate_human",
       description:
-        "Pede humano. Só se a pessoa pedir ou bug real sem resposta no guia/FAQ. Se o canal estiver offline, a tool avisa — continue respondendo.",
+        "Notifica o suporte humano por canal externo. Só se a pessoa pedir ou houver bug real sem resposta no guia/FAQ. Nunca prometa resposta dentro deste chat.",
       parameters: {
         type: "object",
         properties: {

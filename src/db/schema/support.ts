@@ -4,6 +4,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -31,7 +32,7 @@ export const supportThreads = pgTable(
   },
   (t) => [
     index("support_threads_tenant_idx").on(t.tenantId),
-    index("support_threads_tenant_user_idx").on(t.tenantId, t.userId),
+    uniqueIndex("support_threads_tenant_user_uidx").on(t.tenantId, t.userId),
     index("support_threads_tenant_status_idx").on(t.tenantId, t.status),
   ]
 );
@@ -49,11 +50,20 @@ export const supportMessages = pgTable(
       .references(() => supportThreads.id, { onDelete: "cascade" }),
     role: varchar("role", { length: 24 }).notNull(),
     body: text("body").notNull().default(""),
+    /** Idempotência de uma interação enviada pelo cliente web. */
+    requestId: varchar("request_id", { length: 80 }),
     authorUserId: uuid("author_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
     meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
     ...timestamps,
   },
-  (t) => [index("support_messages_thread_created_idx").on(t.threadId, t.createdAt)]
+  (t) => [
+    index("support_messages_thread_created_idx").on(t.threadId, t.createdAt),
+    uniqueIndex("support_messages_thread_request_role_uidx").on(
+      t.threadId,
+      t.requestId,
+      t.role
+    ),
+  ]
 );
