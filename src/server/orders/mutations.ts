@@ -316,8 +316,10 @@ export async function openOrder(input: {
 }
 
 /**
- * Conta Recorrência (Agenda): abre/usa a comanda do horário e lança o serviço
- * com 1 crédito do pacote escolhido (comissão no preço de tabela).
+ * Conta Recorrência (Agenda): abre/usa a comanda do horário e aplica 1 crédito
+ * do pacote no serviço do agendamento (comissão no preço de tabela).
+ *
+ * Converte o item seed in-place (não remove→add) sob lock de transação.
  */
 export async function applyRecurrencePackageFromAppointment(input: {
   appointmentId: string;
@@ -362,7 +364,6 @@ export async function applyRecurrencePackageFromAppointment(input: {
         id: schema.clientPackages.id,
         clientId: schema.clientPackages.clientId,
         status: schema.clientPackages.status,
-        name: schema.clientPackages.name,
       })
       .from(schema.clientPackages)
       .where(
@@ -389,47 +390,163 @@ export async function applyRecurrencePackageFromAppointment(input: {
       orderId = opened.id;
     }
 
-    const items = await db
-      .select({
-        id: schema.orderItems.id,
-        serviceId: schema.orderItems.serviceId,
-        meta: schema.orderItems.meta,
-      })
-      .from(schema.orderItems)
-      .where(
-        and(
-          eq(schema.orderItems.orderId, orderId),
-          eq(schema.orderItems.tenantId, tenant.id),
-          eq(schema.orderItems.serviceId, appt.serviceId)
-        )
+    await assertOpenOrder(orderId, tenant.id);
+
+    const { debitOneCredit } = await import("../packages/credits");
+
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`recurrence:${appt.id}`}))`
       );
 
-    for (const it of items) {
-      const meta = (it.meta ?? {}) as Record<string, unknown>;
-      if (meta.redeemed) {
+      const items = await tx
+        .select({
+          id: schema.orderItems.id,
+          description: schema.orderItems.description,
+          unitPriceCents: schema.orderItems.unitPriceCents,
+          qty: schema.orderItems.qty,
+          discountCents: schema.orderItems.discountCents,
+          commissionBps: schema.orderItems.commissionBps,
+          staffId: schema.orderItems.staffId,
+          meta: schema.orderItems.meta,
+        })
+        .from(schema.orderItems)
+        .where(
+          and(
+            eq(schema.orderItems.orderId, orderId!),
+            eq(schema.orderItems.tenantId, tenant.id),
+            eq(schema.orderItems.serviceId, appt.serviceId!)
+          )
+        )
+        .for("update");
+
+      const alreadyRedeemed = items.find((it) => {
+        const meta = (it.meta ?? {}) as Record<string, unknown>;
+        return Boolean(meta.redeemed);
+      });
+      if (alreadyRedeemed) {
         throw new AppError(
           "VALIDATION",
           "Este serviço já foi lançado com crédito de pacote nesta comanda"
         );
       }
-    }
 
-    // Troca o item seed (preço cheio) pelo lançamento com pacote — sem duplicar.
-    for (const it of items) {
-      const removed = await removeOrderItem(it.id);
-      if (!removed.ok) return removed;
-    }
+      // Só o seed / primeira linha não resgatada — não apaga lançamentos extras.
+      const seed = items[0] ?? null;
 
-    const added = await addOrderItem({
-      orderId,
-      itemType: "service",
-      catalogId: appt.serviceId,
-      staffId: appt.staffId ?? undefined,
-      qty: 1,
-      usePackageCredit: true,
-      clientPackageId: input.clientPackageId,
+      const debit = await debitOneCredit({
+        tenantId: tenant.id,
+        clientId: appt.clientId!,
+        serviceId: appt.serviceId!,
+        clientPackageId: input.clientPackageId,
+        tx,
+      });
+
+      const now = new Date();
+
+      if (seed) {
+        const lineGross = seed.unitPriceCents * seed.qty;
+        const coveredCents = lineGross;
+        const baseName = seed.description.replace(/\s·\sPacote.*$/i, "").trim() || seed.description;
+        const commission = calcCommission(lineGross, seed.commissionBps);
+        await tx
+          .update(schema.orderItems)
+          .set({
+            description: `${baseName} · Pacote`,
+            discountCents: 0,
+            totalCents: 0,
+            commissionBps: commission.commissionBps,
+            commissionCents: commission.commissionCents,
+            staffId: seed.staffId ?? appt.staffId,
+            meta: {
+              redeemed: true,
+              creditId: debit.creditId,
+              clientPackageId: debit.clientPackageId,
+              coveredCents,
+            },
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(schema.orderItems.id, seed.id),
+              eq(schema.orderItems.tenantId, tenant.id)
+            )
+          );
+      } else {
+        const [svc] = await tx
+          .select({
+            id: schema.services.id,
+            name: schema.services.name,
+            priceCents: schema.services.priceCents,
+            commissionBps: schema.services.commissionBps,
+          })
+          .from(schema.services)
+          .where(
+            and(
+              eq(schema.services.id, appt.serviceId!),
+              eq(schema.services.tenantId, tenant.id),
+              isNull(schema.services.deletedAt)
+            )
+          )
+          .limit(1);
+        if (!svc) throw new AppError("VALIDATION", "Serviço inválido");
+
+        let staffId = appt.staffId;
+        let staffCommissionBps: number | null = null;
+        if (staffId) {
+          const [st] = await tx
+            .select({
+              id: schema.staff.id,
+              defaultCommissionBps: schema.staff.defaultCommissionBps,
+            })
+            .from(schema.staff)
+            .where(
+              and(
+                eq(schema.staff.id, staffId),
+                eq(schema.staff.tenantId, tenant.id),
+                isNull(schema.staff.deletedAt)
+              )
+            )
+            .limit(1);
+          if (!st) throw new AppError("VALIDATION", "Profissional inválido");
+          staffCommissionBps = st.defaultCommissionBps;
+        }
+        if (!staffId) {
+          throw new AppError("VALIDATION", "Informe o profissional do serviço");
+        }
+
+        const lineGross = svc.priceCents;
+        const commission = calcCommission(
+          lineGross,
+          svc.commissionBps ?? staffCommissionBps
+        );
+        await tx.insert(schema.orderItems).values({
+          tenantId: tenant.id,
+          orderId: orderId!,
+          itemType: "service",
+          serviceId: svc.id,
+          productId: null,
+          packageId: null,
+          staffId,
+          description: `${svc.name} · Pacote`,
+          qty: 1,
+          unitPriceCents: svc.priceCents,
+          discountCents: 0,
+          totalCents: 0,
+          commissionBps: commission.commissionBps,
+          commissionCents: commission.commissionCents,
+          performedAt: now,
+          meta: {
+            redeemed: true,
+            creditId: debit.creditId,
+            clientPackageId: debit.clientPackageId,
+            coveredCents: lineGross,
+          },
+        });
+      }
     });
-    if (!added.ok) return added;
+
+    await recalculateOrderTotal(orderId, tenant.id);
     return { ok: true, id: orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
