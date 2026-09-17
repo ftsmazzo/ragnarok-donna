@@ -66,4 +66,24 @@ assert.match(mutationSource, /AbortSignal\.timeout\(SUPPORT_WEBHOOK_TIMEOUT_MS\)
 assert.match(mutationSource, /"Idempotency-Key"/);
 assert.match(mutationSource, /\.onConflictDoNothing\(\)/);
 
+const widgetSource = readFileSync(
+  new URL("../src/components/support/SupportChatWidget.tsx", import.meta.url),
+  "utf8"
+);
+assert.match(widgetSource, /aria-modal="true"/);
+assert.match(widgetSource, /aria-labelledby="support-chat-title"/);
+assert.match(widgetSource, /role="log"/);
+assert.match(widgetSource, /role="alert"/);
+assert.match(widgetSource, /Mensagem para o suporte/);
+assert.match(widgetSource, /e\.key === "Escape"/);
+assert.match(widgetSource, /e\.key !== "Tab"/);
+assert.match(widgetSource, /prefers-reduced-motion: reduce/);
+
+const cssSource = readFileSync(
+  new URL("../src/app/globals.css", import.meta.url),
+  "utf8"
+);
+assert.match(cssSource, /\.support-chat-fab:focus-visible/);
+assert.match(cssSource, /\.support-chat-panel\s*\{\s*animation: none !important;/);
+
 console.log("ok: support reliability");
