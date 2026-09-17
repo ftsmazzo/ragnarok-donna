@@ -42,6 +42,7 @@ type Props = {
   ) => void;
   onOpenDetail: (a: AgendaAppointment) => void;
   onVenda: (a: AgendaAppointment) => void;
+  onContaRecorrencia?: (a: AgendaAppointment) => void;
 };
 
 const PAY_METHODS: { value: string; label: string }[] = [
@@ -74,6 +75,7 @@ export function AgendaContextMenu({
   onOpenForm,
   onOpenDetail,
   onVenda,
+  onContaRecorrencia,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
@@ -241,6 +243,23 @@ export function AgendaContextMenu({
             ▤
           </span>
           Abrir Comanda
+        </button>
+      ) : null}
+
+      {permissions.canOpenOrder && a.clientId && a.serviceId && !closed ? (
+        <button
+          type="button"
+          className="agenda-ctx-item"
+          disabled={pending}
+          onClick={() => {
+            onContaRecorrencia?.(a);
+            onClose();
+          }}
+        >
+          <span className="agenda-ctx-ico" aria-hidden>
+            ∞
+          </span>
+          Conta Recorrência
         </button>
       ) : null}
 

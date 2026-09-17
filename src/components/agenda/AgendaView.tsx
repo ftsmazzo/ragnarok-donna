@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { AgendaDetailModal } from "@/components/agenda/AgendaDetailModal";
 import { AgendaEditModal } from "@/components/agenda/AgendaEditModal";
+import { ContaRecorrenciaModal } from "@/components/agenda/ContaRecorrenciaModal";
 import { AgendaFormModal, type AgendaFormMode } from "@/components/agenda/AgendaFormModal";
 import {
   AgendaContextMenu,
@@ -152,6 +153,7 @@ export function AgendaView({
   } | null>(null);
   const [detail, setDetail] = useState<AgendaAppointment | null>(null);
   const [editAppt, setEditAppt] = useState<AgendaAppointment | null>(null);
+  const [recorrencia, setRecorrencia] = useState<AgendaAppointment | null>(null);
   const [ctx, setCtx] = useState<AgendaCtxTarget | null>(null);
   const isToday = data.date === todaySp();
   const now = useAgendaNow(isToday);
@@ -520,9 +522,28 @@ export function AgendaView({
           onSaved={refresh}
           onOpenComanda={openComanda}
           onVenda={openVenda}
+          onContaRecorrencia={(a) => {
+            setDetail(null);
+            setRecorrencia(a);
+          }}
           onEdit={(a) => {
             setDetail(null);
             setEditAppt(a);
+          }}
+        />
+      ) : null}
+
+      {recorrencia ? (
+        <ContaRecorrenciaModal
+          open
+          appointmentId={recorrencia.id}
+          clientName={recorrencia.clientName}
+          serviceName={recorrencia.serviceName}
+          onClose={() => setRecorrencia(null)}
+          onApplied={(orderId) => {
+            setRecorrencia(null);
+            refresh();
+            openComanda(orderId);
           }}
         />
       ) : null}
@@ -553,6 +574,10 @@ export function AgendaView({
         }
         onOpenDetail={(appt) => setDetail(appt)}
         onVenda={openVenda}
+        onContaRecorrencia={(a) => {
+          setCtx(null);
+          setRecorrencia(a);
+        }}
       />
 
       {selectedOrder && orderCatalog && orderPermissions ? (
