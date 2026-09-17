@@ -96,6 +96,10 @@ function slotClass(a: AgendaAppointment): string {
   else if (a.isEncaixe) parts.push("encaixe");
   if (slotDurationMin(a) >= 40) parts.push("is-tall");
   if (a.orderId) parts.push("has-order");
+  const badgeCount =
+    (slotStatusGlyph(a.status) ? 1 : 0) + (a.orderId && a.status !== "blocked" ? 1 : 0);
+  if (badgeCount >= 2) parts.push("has-badges-2");
+  else if (badgeCount === 1) parts.push("has-badges-1");
   return parts.join(" ");
 }
 
@@ -411,6 +415,14 @@ export function AgendaView({
                           const phone = slotPhoneLabel(a);
                           const statusGlyph = slotStatusGlyph(a.status);
                           const tall = slotDurationMin(a) >= 40;
+                          const statusHint = statusGlyph?.title;
+                          const titleParts = [
+                            `${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)}`,
+                            phone,
+                            statusHint,
+                            a.orderId ? "comanda vinculada" : null,
+                            "botão direito: ações",
+                          ].filter(Boolean);
                           return (
                           <div
                             key={a.id}
@@ -435,19 +447,15 @@ export function AgendaView({
                                 y: e.clientY,
                               });
                             }}
-                            title={`${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)}${phone ? ` · ${phone}` : ""} · botão direito: ações`}
+                            title={titleParts.join(" · ")}
                           >
                             {a.status !== "blocked" ? (
                               <span className="slot-badges" aria-hidden>
                                 {statusGlyph ? (
-                                  <span className="slot-badge" title={statusGlyph.title}>
-                                    {statusGlyph.glyph}
-                                  </span>
+                                  <span className="slot-badge">{statusGlyph.glyph}</span>
                                 ) : null}
                                 {a.orderId ? (
-                                  <span className="slot-badge slot-badge-order" title="Comanda vinculada">
-                                    ⌗
-                                  </span>
+                                  <span className="slot-badge slot-badge-order">⌗</span>
                                 ) : null}
                               </span>
                             ) : null}
@@ -463,6 +471,8 @@ export function AgendaView({
                                 <strong>{shortPersonName(a.clientName)}</strong>
                                 {a.isEncaixe ? " · encaixe" : null}
                                 {a.noPreference ? " · sem pref." : null}
+                                {a.status === "arrived" ? " · no local" : null}
+                                {a.status === "in_progress" ? " · em atend." : null}
                                 {a.tags?.[0] ? ` · #${a.tags[0]}` : null}
                                 {tall && phone ? (
                                   <>
@@ -492,13 +502,31 @@ export function AgendaView({
               <i style={{ background: "var(--slot)" }} /> Agendado
             </span>
             <span>
-              <i style={{ background: "#16a34a" }} /> Confirmado
+              <i style={{ background: "#16a34a" }} /> Confirmado ✓
+            </span>
+            <span>
+              <span className="legend-glyph" aria-hidden>
+                ●
+              </span>{" "}
+              No local
+            </span>
+            <span>
+              <span className="legend-glyph" aria-hidden>
+                ▶
+              </span>{" "}
+              Em atendimento
+            </span>
+            <span>
+              <span className="legend-glyph" aria-hidden>
+                ⌗
+              </span>{" "}
+              Comanda
             </span>
             <span>
               <i style={{ background: "var(--slot-block)" }} /> Bloqueio
             </span>
             <span>
-              <i style={{ background: "#9ca3af" }} /> Cancelado / ausente
+              <i style={{ background: "#9ca3af" }} /> Cancelado / ausente ✕
             </span>
             {permissions.canWrite ? (
               <span className="legend-hint">
