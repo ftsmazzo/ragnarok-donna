@@ -104,6 +104,8 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       clientId: schema.appointments.clientId,
       serviceId: schema.appointments.serviceId,
       clientName: schema.clients.name,
+      clientPhone: schema.clients.phone,
+      clientPhoneE164: schema.clients.phoneE164,
       clientAvatarUrl: schema.clients.avatarUrl,
       serviceName: schema.services.name,
       servicePriceCents: schema.services.priceCents,
@@ -183,6 +185,8 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       clientId: schema.appointments.clientId,
       serviceId: schema.appointments.serviceId,
       clientName: schema.clients.name,
+      clientPhone: schema.clients.phone,
+      clientPhoneE164: schema.clients.phoneE164,
       clientAvatarUrl: schema.clients.avatarUrl,
       serviceName: schema.services.name,
       servicePriceCents: schema.services.priceCents,
@@ -226,6 +230,8 @@ function mapAgendaAppointment(r: {
   staffName?: string | null;
   clientId: string | null;
   clientName: string | null;
+  clientPhone?: string | null;
+  clientPhoneE164?: string | null;
   clientAvatarUrl: string | null;
   serviceId: string | null;
   serviceName: string | null;
@@ -253,12 +259,14 @@ function mapAgendaAppointment(r: {
         : r.servicePriceCents != null && r.servicePriceCents > 0
           ? r.servicePriceCents
           : r.priceCents;
+  const phoneRaw = (r.clientPhone ?? r.clientPhoneE164 ?? "").trim() || null;
   return {
     id: r.id,
     staffId: r.staffId,
     staffName: r.staffName ?? null,
     clientId: r.clientId,
     clientName: r.clientName ?? (r.status === "blocked" ? "Bloqueio" : "Sem cliente"),
+    clientPhone: phoneRaw,
     clientAvatarUrl: r.clientAvatarUrl ?? null,
     serviceId: r.serviceId,
     serviceName: r.serviceName,
