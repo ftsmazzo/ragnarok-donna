@@ -182,9 +182,9 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "alerta-comanda",
     question: "Por que aparece alerta de comanda aberta?",
     answer:
-      "Comanda aberta há mais de 1 hora gera alerta pra equipe não esquecer de fechar. Veja também Relatórios → Alertas.",
-    tags: ["alerta", "comanda", "1h"],
-    menuPath: "Relatórios → Alertas",
+      "Comanda aberta há mais de 1 hora gera alerta pra equipe não esquecer de fechar. Veja também Lembretes no menu.",
+    tags: ["alerta", "comanda", "1h", "lembretes"],
+    menuPath: "Lembretes",
   },
   {
     id: "receita-zerada",
