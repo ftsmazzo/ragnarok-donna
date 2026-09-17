@@ -44,7 +44,13 @@ export function OpenOrderModal({ open, onClose, onCreated }: Props) {
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
             Cancelar
           </button>
-          <button type="submit" form="open-order-form" className="btn btn-primary" disabled={pending}>
+          <button
+            type="submit"
+            form="open-order-form"
+            className={`btn btn-primary${pending ? " is-pending" : ""}`}
+            disabled={pending}
+            aria-busy={pending}
+          >
             {pending ? "Abrindo…" : "Abrir comanda"}
           </button>
         </>

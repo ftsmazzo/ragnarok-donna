@@ -1,6 +1,7 @@
 :root {
   --motion-fast: 120ms;
   --motion-base: 180ms;
+  --motion-slow: 280ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --header: #f39c12;
   --header-ink: #1a1208;
@@ -695,6 +696,35 @@ input {
   background: #fff;
   border-color: var(--line);
   color: var(--ink);
+}
+
+.btn.is-pending {
+  position: relative;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.btn.is-pending::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.55;
+  transform-origin: left center;
+  transform: scaleX(0.35);
+  animation: btn-pending-bar var(--motion-slow) var(--ease-out) infinite alternate;
+}
+
+@keyframes btn-pending-bar {
+  from {
+    transform: scaleX(0.2);
+  }
+  to {
+    transform: scaleX(0.85);
+  }
 }
 
 .chip {
@@ -4590,6 +4620,7 @@ input {
   :root {
     --motion-fast: 0ms;
     --motion-base: 0ms;
+    --motion-slow: 0ms;
   }
 
   .toast {
@@ -4602,6 +4633,11 @@ input {
 
   .support-chat-fab {
     transition: none !important;
+  }
+
+  .ui-skeleton,
+  .btn.is-pending::after {
+    animation: none !important;
   }
 }
 
@@ -4786,5 +4822,89 @@ input {
 .package-sale-checkbox input {
   width: auto;
   margin: 0;
+}
+
+/* —— Skeleton / pending (motion Emil) —— */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ui-skeleton {
+  display: inline-block;
+  vertical-align: middle;
+  height: 12px;
+  border-radius: 3px;
+  background: #e5e7eb;
+  opacity: 0.85;
+  animation: ui-skeleton-pulse var(--motion-slow) ease-in-out infinite alternate;
+}
+
+.ui-skeleton-line {
+  display: block;
+  height: 12px;
+  margin-bottom: 8px;
+}
+
+.ui-skeleton-stack {
+  padding: 4px 0;
+}
+
+.ui-skeleton-th {
+  width: 64px;
+  height: 10px;
+}
+
+.ui-skeleton-cell {
+  height: 11px;
+}
+
+.ui-skeleton-title {
+  width: min(220px, 40vw);
+  height: 22px;
+}
+
+.ui-skeleton-btn {
+  width: 110px;
+  height: 32px;
+  border-radius: 3px;
+}
+
+.ui-skeleton-search {
+  width: min(280px, 70%);
+  height: 34px;
+  border-radius: 3px;
+}
+
+.ui-skeleton-picker {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+}
+
+.panel-list-skeleton-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+@keyframes ui-skeleton-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
 }
 

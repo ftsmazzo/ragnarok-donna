@@ -150,8 +150,9 @@ export function PackageSaleModal({
           <button
             type="submit"
             form="package-sale-form"
-            className="btn btn-primary"
+            className={`btn btn-primary${pending ? " is-pending" : ""}`}
             disabled={!canSubmit}
+            aria-busy={pending}
           >
             {pending ? "Comprando…" : "Comprar"}
           </button>
