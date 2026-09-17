@@ -307,12 +307,6 @@ DO $$ BEGIN
     ADD CONSTRAINT client_account_ledger_delta_nonzero_chk CHECK (delta_cents <> 0);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-DO $$ BEGIN
-  ALTER TABLE payments
-    ADD CONSTRAINT payments_amount_positive_chk CHECK (amount_cents > 0);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
 CREATE TABLE IF NOT EXISTS client_packages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -673,24 +667,20 @@ async function ensureRequiredAccountSchema() {
         created_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now()
-      );
+      )
+    `);
+    await sql.unsafe(`
       CREATE INDEX IF NOT EXISTS client_account_ledger_client_idx
-        ON client_account_ledger (tenant_id, client_id);
+        ON client_account_ledger (tenant_id, client_id)
+    `);
+    await sql.unsafe(`
       CREATE INDEX IF NOT EXISTS client_account_ledger_created_idx
-        ON client_account_ledger (tenant_id, created_at);
+        ON client_account_ledger (tenant_id, created_at)
+    `);
+    await sql.unsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS client_account_ledger_payment_uidx
         ON client_account_ledger (payment_id)
-        WHERE payment_id IS NOT NULL;
-      DO $$ BEGIN
-        ALTER TABLE client_account_ledger
-          ADD CONSTRAINT client_account_ledger_delta_nonzero_chk CHECK (delta_cents <> 0);
-      EXCEPTION WHEN duplicate_object THEN NULL;
-      END $$;
-      DO $$ BEGIN
-        ALTER TABLE payments
-          ADD CONSTRAINT payments_amount_positive_chk CHECK (amount_cents > 0);
-      EXCEPTION WHEN duplicate_object THEN NULL;
-      END $$;
+        WHERE payment_id IS NOT NULL
     `);
   } finally {
     await sql.end({ timeout: 5 });
