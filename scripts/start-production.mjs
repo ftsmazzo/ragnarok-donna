@@ -474,6 +474,12 @@ CREATE TABLE IF NOT EXISTS tenant_outreach_settings (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS tenant_outreach_settings_tenant_uidx
   ON tenant_outreach_settings (tenant_id);
+ALTER TABLE tenant_outreach_settings
+  ADD COLUMN IF NOT EXISTS birthday_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE tenant_outreach_settings
+  ADD COLUMN IF NOT EXISTS birthday_discount_pct integer NOT NULL DEFAULT 10;
+ALTER TABLE tenant_outreach_settings
+  ADD COLUMN IF NOT EXISTS template_birthday text NOT NULL DEFAULT '';
 `);
     console.log(
       "[bootstrap] schema staff_advances + client_account + outreach + support_* + agent_profiles.persona ok"
@@ -729,6 +735,18 @@ async function ensureRequiredAccountSchema() {
       CREATE INDEX IF NOT EXISTS stock_movements_created_idx
         ON stock_movements (tenant_id, created_at)
     `);
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS birthday_enabled boolean NOT NULL DEFAULT false
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS birthday_discount_pct integer NOT NULL DEFAULT 10
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS template_birthday text NOT NULL DEFAULT ''
+    `;
   } finally {
     await sql.end({ timeout: 5 });
   }

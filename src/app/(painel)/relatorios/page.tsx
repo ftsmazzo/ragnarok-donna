@@ -41,6 +41,7 @@ const LINKS = [
 
 const PERIOD_LABELS: Record<string, string> = {
   today: "Hoje",
+  tomorrow: "Amanhã",
   last7: "Últimos 7 dias",
   week: "Esta semana",
   last30: "Últimos 30 dias",

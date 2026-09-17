@@ -154,3 +154,12 @@ export async function settleClientAccountDebtAction(
   }
   return result;
 }
+
+export async function sendBirthdayMessageAction(clientId: string) {
+  const { sendBirthdayMessage } = await import("@/server/clients/birthdays");
+  const result = await sendBirthdayMessage(clientId);
+  if (result.ok) {
+    revalidatePath("/clientes/aniversariantes");
+  }
+  return result;
+}

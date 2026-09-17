@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-type PeriodKey = "today" | "last7" | "week" | "last30" | "month" | "custom";
+type PeriodKey = "today" | "tomorrow" | "last7" | "week" | "last30" | "month" | "custom";
 
 type Props = {
   basePath: string;
@@ -14,6 +14,7 @@ type Props = {
 export function PeriodPresets({ basePath, period, extraParams }: Props) {
   const presets: { key: PeriodKey; label: string }[] = [
     { key: "today", label: "Hoje" },
+    { key: "tomorrow", label: "Amanhã" },
     { key: "last7", label: "7 dias" },
     { key: "week", label: "Esta semana" },
     { key: "last30", label: "30 dias" },

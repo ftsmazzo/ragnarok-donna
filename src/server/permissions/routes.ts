@@ -23,6 +23,7 @@ const RULES: RouteRule[] = [
   { pattern: "/inicio", roles: ["owner", "admin", "manager", "staff", "readonly"] },
   { pattern: "/agenda", roles: ["owner", "admin", "manager", "staff", "readonly"] },
 
+  { pattern: "/clientes/aniversariantes", roles: ["owner", "admin", "manager"] },
   { pattern: "/clientes", roles: ["owner", "admin", "manager", "readonly"] },
   {
     pattern: "/profissionais",

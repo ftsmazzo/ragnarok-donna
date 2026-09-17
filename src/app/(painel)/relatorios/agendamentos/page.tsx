@@ -31,13 +31,23 @@ export default async function RelatorioAgendamentosPage({ searchParams }: Props)
     from: sp.from,
     to: sp.to,
   });
-  const data = await reportAppointments({
-    from: period.from,
-    to: period.to,
-    status: sp.status,
-    q: sp.q,
-    page: Number(sp.page) || 1,
-  });
+  const [data, exportData] = await Promise.all([
+    reportAppointments({
+      from: period.from,
+      to: period.to,
+      status: sp.status,
+      q: sp.q,
+      page: Number(sp.page) || 1,
+    }),
+    reportAppointments({
+      from: period.from,
+      to: period.to,
+      status: sp.status,
+      q: sp.q,
+      page: 1,
+      pageSize: 2000,
+    }),
+  ]);
 
   const statusChart = Object.entries(data.byStatus)
     .filter(([k]) => k !== "blocked")
@@ -66,7 +76,7 @@ export default async function RelatorioAgendamentosPage({ searchParams }: Props)
           <ExportCsvButton
             filename={`agendamentos_${data.from}_${data.to}`}
             headers={["Data", "Cliente", "Profissional", "Serviço", "Valor", "Status"]}
-            rows={data.rows.map((a) => [
+            rows={exportData.rows.map((a) => [
               formatDateTimeSp(a.startsAt),
               a.clientName,
               a.staffName,

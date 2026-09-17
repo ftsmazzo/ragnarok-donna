@@ -17,6 +17,8 @@ function rowToView(row: typeof schema.tenantOutreachSettings.$inferSelect): Outr
     sundayBlastEnabled: row.sundayBlastEnabled,
     emptyAgendaEnabled: row.emptyAgendaEnabled,
     soundOnConfirmEnabled: row.soundOnConfirmEnabled,
+    birthdayEnabled: row.birthdayEnabled ?? defaults.birthdayEnabled,
+    birthdayDiscountPct: row.birthdayDiscountPct ?? defaults.birthdayDiscountPct,
     confirmationSendTime: row.confirmationSendTime || defaults.confirmationSendTime,
     skipSundays: row.skipSundays,
     skipHolidays: row.skipHolidays,
@@ -33,6 +35,7 @@ function rowToView(row: typeof schema.tenantOutreachSettings.$inferSelect): Outr
     templateFollowup60: row.templateFollowup60 || defaults.templateFollowup60,
     templateSundayBlast: row.templateSundayBlast || defaults.templateSundayBlast,
     templateEmptyAgenda: row.templateEmptyAgenda || defaults.templateEmptyAgenda,
+    templateBirthday: row.templateBirthday || defaults.templateBirthday,
   };
 }
 
@@ -134,6 +137,11 @@ export async function saveOutreachSettings(
       sundayBlastEnabled: input.sundayBlastEnabled ?? current.sundayBlastEnabled,
       emptyAgendaEnabled: input.emptyAgendaEnabled ?? current.emptyAgendaEnabled,
       soundOnConfirmEnabled: input.soundOnConfirmEnabled ?? current.soundOnConfirmEnabled,
+      birthdayEnabled: input.birthdayEnabled ?? current.birthdayEnabled,
+      birthdayDiscountPct: Math.min(
+        100,
+        Math.max(0, Number(input.birthdayDiscountPct ?? current.birthdayDiscountPct) || 0)
+      ),
       confirmationSendTime: parseHm(
         input.confirmationSendTime ?? current.confirmationSendTime
       ),
@@ -172,6 +180,9 @@ export async function saveOutreachSettings(
         .trim()
         .slice(0, 2000),
       templateEmptyAgenda: (input.templateEmptyAgenda ?? current.templateEmptyAgenda)
+        .trim()
+        .slice(0, 2000),
+      templateBirthday: (input.templateBirthday ?? current.templateBirthday)
         .trim()
         .slice(0, 2000),
     };

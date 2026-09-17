@@ -122,7 +122,7 @@ export function resolveReportPeriod(input?: {
   from?: string | null;
   to?: string | null;
 }): {
-  period: "today" | "last7" | "week" | "last30" | "month" | "custom";
+  period: "today" | "tomorrow" | "last7" | "week" | "last30" | "month" | "custom";
   from: string;
   to: string;
 } {
@@ -131,6 +131,11 @@ export function resolveReportPeriod(input?: {
 
   if (periodRaw === "today" || periodRaw === "hoje") {
     return { period: "today", from: today, to: today };
+  }
+
+  if (periodRaw === "tomorrow" || periodRaw === "amanha" || periodRaw === "amanhã") {
+    const tomorrow = shiftDateSp(today, 1);
+    return { period: "tomorrow", from: tomorrow, to: tomorrow };
   }
 
   if (periodRaw === "last7" || periodRaw === "7d" || periodRaw === "7dias") {

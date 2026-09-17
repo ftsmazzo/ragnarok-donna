@@ -18,6 +18,7 @@ export const NAV: NavItem[] = [
     icon: "☰",
     children: [
       { label: "Clientes", href: "/clientes", icon: "☺" },
+      { label: "Aniversariantes", href: "/clientes/aniversariantes", icon: "★" },
       { label: "Profissionais", href: "/profissionais", icon: "✂" },
       { label: "Serviços", href: "/servicos", icon: "★" },
       { label: "Produtos", href: "/produtos", icon: "▣" },

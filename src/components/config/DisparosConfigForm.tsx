@@ -28,10 +28,12 @@ export function DisparosConfigForm({ initial }: Props) {
   const [soundOnConfirmEnabled, setSoundOnConfirmEnabled] = useState(
     initial.soundOnConfirmEnabled
   );
+  const [birthdayEnabled, setBirthdayEnabled] = useState(initial.birthdayEnabled);
   const [skipSundays, setSkipSundays] = useState(initial.skipSundays);
   const [skipHolidays, setSkipHolidays] = useState(initial.skipHolidays);
 
   const [tplConfirm, setTplConfirm] = useState(initial.templateConfirmation);
+  const [tplBirthday, setTplBirthday] = useState(initial.templateBirthday);
   const preview = useMemo(
     () =>
       renderOutreachTemplate(tplConfirm, {
@@ -42,6 +44,16 @@ export function DisparosConfigForm({ initial }: Props) {
         barbearia: "Ragnarok",
       }),
     [tplConfirm]
+  );
+  const birthdayPreview = useMemo(
+    () =>
+      renderOutreachTemplate(tplBirthday, {
+        nome: "Carlos",
+        barbearia: "Ragnarok",
+        desconto: initial.birthdayDiscountPct,
+        data: "17/09",
+      }),
+    [tplBirthday, initial.birthdayDiscountPct]
   );
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -57,6 +69,8 @@ export function DisparosConfigForm({ initial }: Props) {
         sundayBlastEnabled: boolFromFd(fd, "sundayBlastEnabled", sundayBlastEnabled),
         emptyAgendaEnabled: boolFromFd(fd, "emptyAgendaEnabled", emptyAgendaEnabled),
         soundOnConfirmEnabled: boolFromFd(fd, "soundOnConfirmEnabled", soundOnConfirmEnabled),
+        birthdayEnabled: boolFromFd(fd, "birthdayEnabled", birthdayEnabled),
+        birthdayDiscountPct: Number(fd.get("birthdayDiscountPct") ?? 10),
         skipSundays: boolFromFd(fd, "skipSundays", skipSundays),
         skipHolidays: boolFromFd(fd, "skipHolidays", skipHolidays),
         confirmationSendTime: String(fd.get("confirmationSendTime") ?? "18:00"),
@@ -70,6 +84,7 @@ export function DisparosConfigForm({ initial }: Props) {
         templateFollowup60: String(fd.get("templateFollowup60") ?? ""),
         templateSundayBlast: String(fd.get("templateSundayBlast") ?? ""),
         templateEmptyAgenda: String(fd.get("templateEmptyAgenda") ?? ""),
+        templateBirthday: String(fd.get("templateBirthday") ?? ""),
       });
       if (result.ok) setMsg("Regras salvas nesta unidade.");
       else setErr(result.error);
@@ -82,7 +97,7 @@ export function DisparosConfigForm({ initial }: Props) {
         <strong>Regras da casa.</strong> Tudo começa desligado. Enquanto os clientes estiverem no
         AppBarber, o envio global fica bloqueado no servidor — mesmo com toggle ligado, nada sai
         no WhatsApp até liberarmos a migração.
-        Placeholders: {"{{nome}}"}, {"{{data}}"}, {"{{hora}}"}, {"{{profissional}}"}, {"{{barbearia}}"}.
+        Placeholders: {"{{nome}}"}, {"{{data}}"}, {"{{hora}}"}, {"{{profissional}}"}, {"{{barbearia}}"}, {"{{desconto}}"}.
       </div>
 
       <ConfigSectionCard
@@ -134,6 +149,14 @@ export function DisparosConfigForm({ initial }: Props) {
             checked={soundOnConfirmEnabled}
             onChange={setSoundOnConfirmEnabled}
             label="Som / vibração quando cliente confirma no Zap"
+          />
+          <Toggle
+            id="birthdayEnabled"
+            name="birthdayEnabled"
+            checked={birthdayEnabled}
+            onChange={setBirthdayEnabled}
+            label="Aniversariantes (parabéns + desconto)"
+            hint="Dispara no dia do aniversário para clientes com data e telefone."
           />
         </div>
       </ConfigSectionCard>
@@ -195,6 +218,17 @@ export function DisparosConfigForm({ initial }: Props) {
               max={730}
               className="search-input"
               defaultValue={initial.blastActiveWithinDays}
+            />
+          </label>
+          <label className="filter-field">
+            <span>Desconto aniversário (%)</span>
+            <input
+              name="birthdayDiscountPct"
+              type="number"
+              min={0}
+              max={100}
+              className="search-input"
+              defaultValue={initial.birthdayDiscountPct}
             />
           </label>
           <label className="filter-field config-span-2">
@@ -281,6 +315,20 @@ export function DisparosConfigForm({ initial }: Props) {
               defaultValue={initial.templateEmptyAgenda}
               maxLength={2000}
             />
+          </label>
+          <label className="filter-field">
+            <span>Aniversário (use {"{{desconto}}"})</span>
+            <textarea
+              name="templateBirthday"
+              className="search-input"
+              rows={3}
+              value={tplBirthday}
+              onChange={(e) => setTplBirthday(e.target.value)}
+              maxLength={2000}
+            />
+            <small style={{ color: "var(--muted)", display: "block", marginTop: 6 }}>
+              Preview: {birthdayPreview}
+            </small>
           </label>
         </div>
       </ConfigSectionCard>
