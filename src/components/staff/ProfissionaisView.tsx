@@ -27,6 +27,7 @@ type Props = {
   drawerMode: "none" | "new" | "edit";
   branches: BranchOption[];
   defaultBranchId?: string | null;
+  canEditClientGoal?: boolean;
 };
 
 function filterHref(filter: StaffFilter, q?: string) {
@@ -44,6 +45,7 @@ export function ProfissionaisView({
   drawerMode,
   branches,
   defaultBranchId,
+  canEditClientGoal = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -181,6 +183,7 @@ export function ProfissionaisView({
         defaultBranchId={defaultBranchId}
         listFilter={data.filter}
         listQ={data.q}
+        canEditClientGoal={canEditClientGoal}
         onClose={closeDrawer}
         onSaved={onSaved}
       />

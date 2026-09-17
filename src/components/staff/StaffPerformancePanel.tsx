@@ -1,15 +1,20 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import type { StaffPerformance } from "@/server/staff/performance";
 import { StaffPerformanceFilters } from "@/components/staff/StaffPerformanceFilters";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelOrderStatus } from "@/lib/format";
+import { saveStaffClientGoalAction } from "@/app/(painel)/profissionais/actions";
 
 type Props = {
   staffId: string;
   performance: StaffPerformance;
   listFilter?: string;
   listQ?: string;
+  /** Dono/admin pode editar meta de clientes */
+  canEditClientGoal?: boolean;
 };
 
 function formatPeriod(from: string, to: string) {
@@ -20,8 +25,45 @@ function formatPeriod(from: string, to: string) {
   return `${fmt(from)} – ${fmt(to)}`;
 }
 
-export function StaffPerformancePanel({ staffId, performance: p, listFilter, listQ }: Props) {
+function deltaLabel(pct: number | null): string {
+  if (pct == null) return "—";
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct.toLocaleString("pt-BR")}%`;
+}
+
+export function StaffPerformancePanel({
+  staffId,
+  performance: p,
+  listFilter,
+  listQ,
+  canEditClientGoal = false,
+}: Props) {
+  const router = useRouter();
   const mgmt = p.management;
+  const goal = p.clientGoal;
+  const [goalInput, setGoalInput] = useState(
+    goal?.target != null ? String(goal.target) : ""
+  );
+  const [goalMsg, setGoalMsg] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function saveGoal(e: React.FormEvent) {
+    e.preventDefault();
+    setGoalMsg(null);
+    const n = goalInput.trim() === "" ? null : Number(goalInput.replace(",", "."));
+    startTransition(async () => {
+      const result = await saveStaffClientGoalAction(
+        staffId,
+        n != null && Number.isFinite(n) ? Math.floor(n) : null
+      );
+      if (!result.ok) {
+        setGoalMsg(result.error);
+        return;
+      }
+      setGoalMsg("Meta salva.");
+      router.refresh();
+    });
+  }
 
   return (
     <div className="client-profile-section">
@@ -35,12 +77,19 @@ export function StaffPerformancePanel({ staffId, performance: p, listFilter, lis
 
       <p className="client-profile-hint">
         Período: <strong>{formatPeriod(p.from, p.to)}</strong>
+        {" · "}
+        vs anterior ({formatPeriod(p.previous.prevFrom, p.previous.prevTo)})
       </p>
 
       <div className="client-stats">
         <div className="client-stat">
           <span className="meta-label">Faturamento fechado</span>
           <strong>{formatMoney(p.revenueClosedCents)}</strong>
+          <span className="staff-delta muted">{deltaLabel(p.previous.revenueDeltaPct)}</span>
+        </div>
+        <div className="client-stat">
+          <span className="meta-label">Ticket médio</span>
+          <strong>{formatMoney(p.ticketAvgCents)}</strong>
         </div>
         <div className="client-stat">
           <span className="meta-label">Comissão fechada</span>
@@ -51,18 +100,105 @@ export function StaffPerformancePanel({ staffId, performance: p, listFilter, lis
           <strong>{formatMoney(p.commissionOpenCents)}</strong>
         </div>
         <div className="client-stat">
-          <span className="meta-label">Descontos (itens)</span>
-          <strong>{formatMoney(p.discountCents)}</strong>
-        </div>
-        <div className="client-stat">
           <span className="meta-label">Comandas fechadas</span>
           <strong>{p.ordersClosed.toLocaleString("pt-BR")}</strong>
+          <span className="staff-delta muted">{deltaLabel(p.previous.ordersDeltaPct)}</span>
+        </div>
+        <div className="client-stat">
+          <span className="meta-label">Atendimentos (itens serviço)</span>
+          <strong>{p.serviceItemsCount.toLocaleString("pt-BR")}</strong>
+        </div>
+        <div className="client-stat">
+          <span className="meta-label">Produtos / extras</span>
+          <strong>
+            {p.productsQty.toLocaleString("pt-BR")} · {formatMoney(p.productsCents)}
+          </strong>
+        </div>
+        <div className="client-stat">
+          <span className="meta-label">Pacotes (R$)</span>
+          <strong>{formatMoney(p.packagesCents)}</strong>
+        </div>
+        <div className="client-stat">
+          <span className="meta-label">Descontos (itens)</span>
+          <strong>{formatMoney(p.discountCents)}</strong>
         </div>
         <div className="client-stat">
           <span className="meta-label">Comandas abertas</span>
           <strong>{p.ordersOpen.toLocaleString("pt-BR")}</strong>
         </div>
       </div>
+
+      <div className="client-profile-block">
+        <h3 className="client-profile-heading">Clientes no período</h3>
+        <div className="client-stats">
+          <div className="client-stat">
+            <span className="meta-label">Atendidos</span>
+            <strong>{p.cohorts.served.toLocaleString("pt-BR")}</strong>
+            <span className="staff-delta muted">{deltaLabel(p.previous.clientsDeltaPct)}</span>
+          </div>
+          <div className="client-stat">
+            <span className="meta-label">Novos</span>
+            <strong>{p.cohorts.newcomers.toLocaleString("pt-BR")}</strong>
+          </div>
+          <div className="client-stat">
+            <span className="meta-label">Que retornaram</span>
+            <strong>{p.cohorts.returning.toLocaleString("pt-BR")}</strong>
+          </div>
+          <div className="client-stat">
+            <span className="meta-label">Sem retorno 30–90d</span>
+            <strong>{p.cohorts.lapsed30.toLocaleString("pt-BR")}</strong>
+          </div>
+        </div>
+        <p className="client-profile-hint muted">
+          Novos = primeira visita na loja no período. Retornaram = já vinham antes.
+          Sem retorno = última visita com este profissional há 30–90 dias.
+        </p>
+      </div>
+
+      {goal || canEditClientGoal ? (
+        <div className="client-profile-block">
+          <h3 className="client-profile-heading">Meta de clientes</h3>
+          {goal ? (
+            <div className="client-stats">
+              <div className="client-stat">
+                <span className="meta-label">Progresso</span>
+                <strong>
+                  {goal.current}/{goal.target} ({goal.progressPct ?? 0}%)
+                </strong>
+              </div>
+              <div className="client-stat">
+                <span className="meta-label">Faltam</span>
+                <strong>
+                  {goal.remaining === 0
+                    ? "Meta batida"
+                    : `${goal.remaining.toLocaleString("pt-BR")} cliente(s)`}
+                </strong>
+              </div>
+            </div>
+          ) : (
+            <p className="client-profile-hint muted">Nenhuma meta definida para este profissional.</p>
+          )}
+          {canEditClientGoal ? (
+            <form className="staff-goal-form" onSubmit={saveGoal}>
+              <label className="form-field">
+                <span>Meta mensal (clientes distintos)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={9999}
+                  value={goalInput}
+                  onChange={(e) => setGoalInput(e.target.value)}
+                  placeholder="Ex.: 80"
+                />
+              </label>
+              <button type="submit" className="btn btn-outline btn-sm" disabled={pending}>
+                {pending ? "Salvando…" : "Salvar meta"}
+              </button>
+              {goalMsg ? <span className="client-profile-hint">{goalMsg}</span> : null}
+            </form>
+          ) : null}
+        </div>
+      ) : null}
 
       {mgmt ? (
         <div className="staff-mgmt-metrics">

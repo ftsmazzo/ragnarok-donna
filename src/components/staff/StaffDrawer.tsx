@@ -29,6 +29,7 @@ type Props = {
   defaultBranchId?: string | null;
   listFilter?: string;
   listQ?: string;
+  canEditClientGoal?: boolean;
   onClose: () => void;
   onSaved: (id: string) => void;
 };
@@ -58,6 +59,7 @@ export function StaffDrawer({
   defaultBranchId,
   listFilter,
   listQ,
+  canEditClientGoal = false,
   onClose,
   onSaved,
 }: Props) {
@@ -467,6 +469,7 @@ export function StaffDrawer({
                 performance={performance}
                 listFilter={listFilter}
                 listQ={listQ}
+                canEditClientGoal={canEditClientGoal}
               />
             ) : null}
           </>

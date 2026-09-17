@@ -35,6 +35,7 @@ export type StaffDetail = StaffListItem & {
   createdAt: Date;
   updatedAt: Date;
   externalSource: string | null;
+  meta: Record<string, unknown>;
   schedules: StaffScheduleSlot[];
 };
 
@@ -129,6 +130,7 @@ export async function getStaffMember(staffId: string): Promise<StaffDetail> {
       createdAt: schema.staff.createdAt,
       updatedAt: schema.staff.updatedAt,
       externalSource: schema.staff.externalSource,
+      meta: schema.staff.meta,
       scheduleSlots: sql<number>`(
         select count(*)::int from ${schema.staffSchedules}
         where ${schema.staffSchedules.staffId} = ${schema.staff.id}
@@ -164,6 +166,7 @@ export async function getStaffMember(staffId: string): Promise<StaffDetail> {
 
   return {
     ...row,
+    meta: (row.meta ?? {}) as Record<string, unknown>,
     scheduleSlots: Number(row.scheduleSlots),
     schedules: schedules.map((s) => ({
       ...s,
