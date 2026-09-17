@@ -330,6 +330,35 @@ export const clientAccountLedger = pgTable(
 );
 
 /**
+ * Movimentações de estoque (entrada/saída).
+ * `delta_qty` > 0 entrada; < 0 saída. Saldo em products.stock_qty.
+ */
+export const stockMovements = pgTable(
+  "stock_movements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    deltaQty: integer("delta_qty").notNull(),
+    qtyAfter: integer("qty_after").notNull(),
+    reason: varchar("reason", { length: 64 }).notNull(),
+    notes: varchar("notes", { length: 240 }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    createdByUserId: uuid("created_by_user_id"),
+    ...timestamps,
+  },
+  (t) => [
+    index("stock_movements_product_idx").on(t.tenantId, t.productId),
+    index("stock_movements_created_idx").on(t.tenantId, t.createdAt),
+    check("stock_movements_delta_nonzero_chk", sql`${t.deltaQty} <> 0`),
+  ]
+);
+
+/**
  * Vales, bônus, descontos e liquidações de comissão do profissional.
  * amount_cents sempre positivo; o efeito no “a pagar” depende de kind.
  */

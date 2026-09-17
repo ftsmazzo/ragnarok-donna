@@ -7,13 +7,21 @@ import { NotFoundError } from "@/server/errors";
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ q?: string; filter?: string; page?: string; id?: string; novo?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    filter?: string;
+    page?: string;
+    id?: string;
+    novo?: string;
+    ledgerPage?: string;
+  }>;
 };
 
 export default async function ClientesPage({ searchParams }: Props) {
   const sp = await searchParams;
   const filter = (sp.filter as ClientFilter) || "ativos";
   const page = Number(sp.page) || 1;
+  const ledgerPage = Number(sp.ledgerPage) || 1;
   const [data, catalog] = await Promise.all([
     listClients({ q: sp.q, filter, page }),
     listCatalogForOrders(),
@@ -28,7 +36,7 @@ export default async function ClientesPage({ searchParams }: Props) {
   } else if (sp.id) {
     try {
       selectedClient = await getClient(sp.id);
-      selectedProfile = await getClientProfile(sp.id);
+      selectedProfile = await getClientProfile(sp.id, { ledgerPage });
       drawerMode = "edit";
     } catch (err) {
       if (!(err instanceof NotFoundError)) throw err;

@@ -354,3 +354,59 @@ export async function planEmptyAgenda(input: {
 
   return { enqueued };
 }
+
+/** Aniversariantes do dia (MM-DD em America/Sao_Paulo). */
+export async function planBirthday(input: {
+  tenantId: string;
+  tenantName: string;
+  settings: OutreachSettingsView;
+}): Promise<{ enqueued: number }> {
+  if (!input.settings.birthdayEnabled) return { enqueued: 0 };
+
+  const today = todaySp();
+  const mmdd = today.slice(5);
+  const discount = Math.max(0, Math.min(100, Number(input.settings.birthdayDiscountPct) || 0));
+  const db = createDb();
+
+  const rows = await db
+    .select({
+      id: schema.clients.id,
+      name: schema.clients.name,
+      phoneE164: schema.clients.phoneE164,
+    })
+    .from(schema.clients)
+    .where(
+      and(
+        eq(schema.clients.tenantId, input.tenantId),
+        eq(schema.clients.isActive, true),
+        isNull(schema.clients.deletedAt),
+        isNotNull(schema.clients.birthDate),
+        isNotNull(schema.clients.phoneE164),
+        sql`to_char(${schema.clients.birthDate}, 'MM-DD') = ${mmdd}`
+      )
+    );
+
+  let enqueued = 0;
+  for (const row of rows) {
+    const phone = row.phoneE164?.trim();
+    if (!phone) continue;
+    const body = renderOutreachTemplate(input.settings.templateBirthday, {
+      nome: row.name,
+      barbearia: input.tenantName,
+      desconto: discount,
+      data: formatDateLabelSp(today),
+    });
+    const res = await enqueueOutreachJob({
+      tenantId: input.tenantId,
+      kind: "birthday",
+      phoneE164: phone,
+      clientId: row.id,
+      body,
+      dayKey: `birthday:${today}`,
+      meta: { discountPct: discount },
+    });
+    if (res.created) enqueued += 1;
+  }
+
+  return { enqueued };
+}

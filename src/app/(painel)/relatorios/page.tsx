@@ -15,6 +15,7 @@ import {
   buildOperationalAlerts,
   getManagementDashboard,
 } from "@/server/insights";
+import type { DashboardNamedValue } from "@/server/insights/dashboard";
 import { requirePageAccess } from "@/server/permissions/page-access";
 import { canAccessRoute } from "@/server/permissions/routes";
 import { requireSession } from "@/server/context/tenant";
@@ -37,6 +38,62 @@ const LINKS = [
   { href: "/relatorios/fluxo", title: "Fluxo de caixa", desc: "Movimentado e disponível" },
   { href: "/contas", title: "Contas", desc: "A pagar, crédito e saídas" },
 ] as const;
+
+const PERIOD_LABELS: Record<string, string> = {
+  today: "Hoje",
+  tomorrow: "Amanhã",
+  last7: "Últimos 7 dias",
+  week: "Esta semana",
+  last30: "Últimos 30 dias",
+  month: "Este mês",
+  custom: "Personalizado",
+};
+
+function RankingDenseTable({
+  rows,
+  showMoney,
+}: {
+  rows: DashboardNamedValue[];
+  showMoney: boolean;
+}) {
+  if (rows.length === 0) {
+    return <div className="empty-decision">Sem dados no período.</div>;
+  }
+  const total = rows.reduce((s, r) => s + r.value, 0);
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th style={{ width: 36 }}>#</th>
+            <th>Nome</th>
+            <th style={{ textAlign: "right" }}>Qtd</th>
+            {showMoney ? <th style={{ textAlign: "right" }}>R$</th> : null}
+            {showMoney ? <th style={{ textAlign: "right" }}>%</th> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const pct = total > 0 ? ((r.value / total) * 100).toFixed(1) : "0";
+            return (
+              <tr key={`${r.name}-${i}`}>
+                <td>{i + 1}</td>
+                <td className="cell-strong">{r.name}</td>
+                <td style={{ textAlign: "right" }}>
+                  {(r.extra ?? 0).toLocaleString("pt-BR")}
+                </td>
+                {showMoney ? (
+                  <td style={{ textAlign: "right" }}>{formatMoney(Math.round(r.value * 100))}</td>
+                ) : null}
+                {showMoney ? <td style={{ textAlign: "right" }}>{pct}%</td> : null}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default async function RelatoriosHubPage({ searchParams }: Props) {
   const sp = await searchParams;
@@ -63,12 +120,7 @@ export default async function RelatoriosHubPage({ searchParams }: Props) {
       ? "vs período anterior"
       : `${dash.revenueDeltaPct > 0 ? "+" : ""}${dash.revenueDeltaPct}% vs período anterior`;
 
-  const periodLabel =
-    resolved.period === "week"
-      ? "Esta semana"
-      : resolved.period === "month"
-        ? "Este mês"
-        : "Personalizado";
+  const periodLabel = PERIOD_LABELS[resolved.period] ?? "Personalizado";
 
   return (
     <>
@@ -215,14 +267,38 @@ export default async function RelatoriosHubPage({ searchParams }: Props) {
       </div>
 
       {dash.canSeeFinance ? (
-        <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-toolbar">
-            <strong>Top profissionais (faturamento em itens)</strong>
-          </div>
-          <div className="panel-body">
-            <RankingBarChart data={dash.topStaff} />
-          </div>
-        </section>
+        <>
+          <section className="panel" style={{ marginTop: 12 }}>
+            <div className="panel-toolbar">
+              <strong>Rankings do período</strong>
+            </div>
+            <div className="panel-body">
+              <div className="dash-grid">
+                <div>
+                  <h3 className="section-title section-title-inset">Serviços</h3>
+                  <RankingDenseTable rows={dash.topServices} showMoney />
+                </div>
+                <div>
+                  <h3 className="section-title section-title-inset">Profissionais</h3>
+                  <RankingDenseTable rows={dash.topStaff} showMoney />
+                </div>
+                <div>
+                  <h3 className="section-title section-title-inset">Produtos</h3>
+                  <RankingDenseTable rows={dash.topProducts} showMoney />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel" style={{ marginTop: 12 }}>
+            <div className="panel-toolbar">
+              <strong>Top profissionais (faturamento em itens)</strong>
+            </div>
+            <div className="panel-body">
+              <RankingBarChart data={dash.topStaff} />
+            </div>
+          </section>
+        </>
       ) : null}
 
       <section className="panel" style={{ marginTop: 12 }}>

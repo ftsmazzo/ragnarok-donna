@@ -104,6 +104,21 @@ export function ClientesView({
                 active: data.filter === "ativos",
               },
               {
+                label: "Fiado",
+                href: filterHref("fiado", data.q),
+                active: data.filter === "fiado",
+              },
+              {
+                label: "Crédito",
+                href: filterHref("credito", data.q),
+                active: data.filter === "credito",
+              },
+              {
+                label: "Conta ≠ 0",
+                href: filterHref("conta", data.q),
+                active: data.filter === "conta",
+              },
+              {
                 label: "Removidos",
                 href: filterHref("removidos", data.q),
                 active: data.filter === "removidos",
@@ -143,9 +158,21 @@ export function ClientesView({
                     <td>{formatPhone(c.phone)}</td>
                     <td>{c.email ?? "—"}</td>
                     <td>
-                      {c.accountBalanceCents === 0
-                        ? "—"
-                        : formatMoney(c.accountBalanceCents)}
+                      {c.accountBalanceCents === 0 ? (
+                        "—"
+                      ) : (
+                        <span
+                          style={{
+                            color:
+                              c.accountBalanceCents < 0
+                                ? "var(--danger, #c62828)"
+                                : "var(--success, #2e7d32)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {formatMoney(c.accountBalanceCents)}
+                        </span>
+                      )}
                     </td>
                     <td>{c.loyaltyPoints.toLocaleString("pt-BR")}</td>
                     <td>

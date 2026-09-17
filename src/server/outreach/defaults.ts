@@ -5,6 +5,8 @@ export type OutreachSettingsView = {
   sundayBlastEnabled: boolean;
   emptyAgendaEnabled: boolean;
   soundOnConfirmEnabled: boolean;
+  birthdayEnabled: boolean;
+  birthdayDiscountPct: number;
   confirmationSendTime: string;
   skipSundays: boolean;
   skipHolidays: boolean;
@@ -18,6 +20,7 @@ export type OutreachSettingsView = {
   templateFollowup60: string;
   templateSundayBlast: string;
   templateEmptyAgenda: string;
+  templateBirthday: string;
 };
 
 export const DEFAULT_OUTREACH_TEMPLATES = {
@@ -31,6 +34,8 @@ export const DEFAULT_OUTREACH_TEMPLATES = {
     "Oi {{nome}}! Bom domingo da {{barbearia}}. Se quiser encaixar na semana, é só responder aqui que a gente vê horário.",
   emptyAgenda:
     "Oi {{nome}}! O {{profissional}} tem horários livres amanhã na {{barbearia}}. Quer que eu te encaixe?",
+  birthday:
+    "Oi {{nome}}! Feliz aniversário da {{barbearia}}! 🎉 Tem {{desconto}}% de desconto pra você usar esta semana. Quer agendar?",
 } as const;
 
 export function defaultOutreachSettings(): OutreachSettingsView {
@@ -41,6 +46,8 @@ export function defaultOutreachSettings(): OutreachSettingsView {
     sundayBlastEnabled: false,
     emptyAgendaEnabled: false,
     soundOnConfirmEnabled: false,
+    birthdayEnabled: false,
+    birthdayDiscountPct: 10,
     confirmationSendTime: "18:00",
     skipSundays: true,
     skipHolidays: true,
@@ -54,6 +61,7 @@ export function defaultOutreachSettings(): OutreachSettingsView {
     templateFollowup60: DEFAULT_OUTREACH_TEMPLATES.followup60,
     templateSundayBlast: DEFAULT_OUTREACH_TEMPLATES.sundayBlast,
     templateEmptyAgenda: DEFAULT_OUTREACH_TEMPLATES.emptyAgenda,
+    templateBirthday: DEFAULT_OUTREACH_TEMPLATES.birthday,
   };
 }
 
@@ -64,5 +72,6 @@ export type OutreachKind =
   | "empty_agenda"
   | "voce_vem"
   | "delay_reschedule"
+  | "birthday"
   | "manual"
   | "campaign";

@@ -29,6 +29,9 @@ export const tenantOutreachSettings = pgTable(
     sundayBlastEnabled: boolean("sunday_blast_enabled").notNull().default(false),
     emptyAgendaEnabled: boolean("empty_agenda_enabled").notNull().default(false),
     soundOnConfirmEnabled: boolean("sound_on_confirm_enabled").notNull().default(false),
+    birthdayEnabled: boolean("birthday_enabled").notNull().default(false),
+    /** Desconto % sugerido no template de aniversário (editável). */
+    birthdayDiscountPct: integer("birthday_discount_pct").notNull().default(10),
 
     /** HH:mm America/Sao_Paulo — horário alvo da confirmação D+1 */
     confirmationSendTime: varchar("confirmation_send_time", { length: 5 })
@@ -55,6 +58,7 @@ export const tenantOutreachSettings = pgTable(
     templateFollowup60: text("template_followup60").notNull().default(""),
     templateSundayBlast: text("template_sunday_blast").notNull().default(""),
     templateEmptyAgenda: text("template_empty_agenda").notNull().default(""),
+    templateBirthday: text("template_birthday").notNull().default(""),
 
     ...timestamps,
   },

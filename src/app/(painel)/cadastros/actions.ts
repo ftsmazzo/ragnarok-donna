@@ -134,6 +134,26 @@ export async function deactivateCatalogAction(
 
 export async function consumeInternalStockAction(productId: string, qty = 1) {
   const result = await consumeInternalStock({ productId, qty });
-  if (result.ok) revalidatePath("/produtos");
+  if (result.ok) {
+    revalidatePath("/produtos");
+    revalidatePath("/produtos/movimentacao");
+  }
+  return result;
+}
+
+export async function postStockMovementAction(formData: FormData) {
+  const { postStockMovement } = await import("@/server/catalog/stock");
+  const result = await postStockMovement({
+    productId: String(formData.get("productId") ?? ""),
+    kind: String(formData.get("kind") ?? "in") === "out" ? "out" : "in",
+    qty: Number(formData.get("qty") ?? 0),
+    reason: String(formData.get("reason") ?? "adjust"),
+    notes: String(formData.get("notes") ?? ""),
+  });
+  if (result.ok) {
+    revalidatePath("/produtos");
+    revalidatePath("/produtos/movimentacao");
+    revalidatePath("/relatorios/estoque");
+  }
   return result;
 }

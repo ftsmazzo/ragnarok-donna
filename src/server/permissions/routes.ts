@@ -23,6 +23,7 @@ const RULES: RouteRule[] = [
   { pattern: "/inicio", roles: ["owner", "admin", "manager", "staff", "readonly"] },
   { pattern: "/agenda", roles: ["owner", "admin", "manager", "staff", "readonly"] },
 
+  { pattern: "/clientes/aniversariantes", roles: ["owner", "admin", "manager"] },
   { pattern: "/clientes", roles: ["owner", "admin", "manager", "readonly"] },
   {
     pattern: "/profissionais",
@@ -33,12 +34,14 @@ const RULES: RouteRule[] = [
     pattern: "/servicos",
     roles: ["owner", "admin"],
   },
+  { pattern: "/produtos/movimentacao", roles: ["owner", "admin", "manager"] },
   { pattern: "/produtos", roles: ["owner", "admin"] },
   { pattern: "/pacotes", roles: ["owner", "admin"] },
 
   { pattern: "/comandas", roles: ["owner", "admin", "manager", "staff"] },
   { pattern: "/comandas/historico", roles: ["owner", "admin", "manager", "staff"] },
 
+  { pattern: "/caixa/historico", roles: ["owner", "admin", "manager"] },
   { pattern: "/caixa", roles: ["owner", "admin", "manager"] },
   {
     pattern: "/comissoes",
@@ -63,7 +66,7 @@ const RULES: RouteRule[] = [
   { pattern: "/relatorios/extras", roles: ["owner", "admin", "manager"] },
   { pattern: "/relatorios/fluxo", roles: ["owner", "admin"] },
   { pattern: "/relatorios/perfil", roles: ["owner", "admin", "manager"] },
-  { pattern: "/relatorios", roles: ["owner", "admin"] },
+  { pattern: "/relatorios", roles: ["owner", "admin", "manager"] },
   { pattern: "/alertas", roles: ["owner", "admin", "manager"] },
 
   /** Recepção + dono — handoff n8n / WhatsApp. */

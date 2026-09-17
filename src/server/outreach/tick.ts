@@ -5,6 +5,7 @@ import { isOutreachDispatchEnabled } from "./kill-switch";
 import { getOutreachSettingsForTenant } from "./settings";
 import { processPendingOutreachJobs } from "./queue";
 import {
+  planBirthday,
   planConfirmationDaily,
   planEmptyAgenda,
   planFollowupInactive,
@@ -20,6 +21,7 @@ export type OutreachTickResult = {
     followup60: number;
     sundayBlast: number;
     emptyAgenda: number;
+    birthday: number;
     voceVem: number;
     delayReschedule: number;
   };
@@ -84,6 +86,11 @@ export async function runOutreachTick(opts?: {
       tenantName: tenant.name,
       settings,
     });
+    const birthday = await planBirthday({
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      settings,
+    });
     const delay = await planDelayAndNoShowMessages({
       tenantId: tenant.id,
       tenantName: tenant.name,
@@ -103,6 +110,7 @@ export async function runOutreachTick(opts?: {
         followup60: followup.enqueued60,
         sundayBlast: blast.enqueued,
         emptyAgenda: empty.enqueued,
+        birthday: birthday.enqueued,
         voceVem: delay.voceVem,
         delayReschedule: delay.reschedule,
       },

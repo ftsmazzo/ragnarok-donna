@@ -18,7 +18,7 @@ export type ExtrasRankingRow = {
 export type ExtrasRankingReport = {
   from: string;
   to: string;
-  period: "week" | "month" | "custom";
+  period: "today" | "tomorrow" | "last7" | "week" | "last30" | "month" | "custom";
   rows: ExtrasRankingRow[];
   totalCents: number;
   totalQty: number;

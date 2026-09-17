@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError, NotFoundError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
@@ -20,15 +20,32 @@ export type ClientAccountSummary = {
   clientId: string;
   balanceCents: number;
   ledger: ClientAccountLedgerEntry[];
+  ledgerTotal: number;
+  ledgerPage: number;
+  ledgerPageSize: number;
 };
 
 const MANUAL_REASONS = new Set(["manual_credit", "manual_debit"]);
+const SETTLE_METHODS = new Set([
+  "cash",
+  "pix",
+  "pix_key",
+  "debit",
+  "credit",
+  "transfer",
+  "rede_link",
+  "infinity",
+  "other",
+]);
+
 export async function getClientAccount(
   clientId: string,
-  limit = 40
+  opts?: { limit?: number; page?: number }
 ): Promise<ClientAccountSummary> {
   const tenant = await requireTenantContext();
   const db = createDb();
+  const page = Math.max(1, opts?.page ?? 1);
+  const pageSize = Math.max(1, Math.min(100, opts?.limit ?? 40));
 
   const [client] = await db
     .select({
@@ -41,6 +58,16 @@ export async function getClientAccount(
 
   if (!client) throw new NotFoundError("Cliente não encontrado");
 
+  const ledgerWhere = and(
+    eq(schema.clientAccountLedger.tenantId, tenant.id),
+    eq(schema.clientAccountLedger.clientId, clientId)
+  );
+
+  const [totalRow] = await db
+    .select({ n: count() })
+    .from(schema.clientAccountLedger)
+    .where(ledgerWhere);
+
   const ledger = await db
     .select({
       id: schema.clientAccountLedger.id,
@@ -52,19 +79,18 @@ export async function getClientAccount(
       createdAt: schema.clientAccountLedger.createdAt,
     })
     .from(schema.clientAccountLedger)
-    .where(
-      and(
-        eq(schema.clientAccountLedger.tenantId, tenant.id),
-        eq(schema.clientAccountLedger.clientId, clientId)
-      )
-    )
+    .where(ledgerWhere)
     .orderBy(desc(schema.clientAccountLedger.createdAt))
-    .limit(Math.max(1, Math.min(100, limit)));
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
 
   return {
     clientId: client.id,
     balanceCents: client.accountBalanceCents,
     ledger,
+    ledgerTotal: Number(totalRow?.n ?? 0),
+    ledgerPage: page,
+    ledgerPageSize: pageSize,
   };
 }
 
@@ -169,5 +195,95 @@ export async function postClientAccountManual(input: {
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     if (err instanceof NotFoundError) return { ok: false, error: err.message };
     return { ok: false, error: "Não foi possível lançar na conta do cliente" };
+  }
+}
+
+/**
+ * Recebe pagamento de fiado: abate saldo negativo e registra entrada no caixa (se aberto).
+ */
+export async function settleClientAccountDebt(input: {
+  clientId: string;
+  amountCents: number;
+  method: string;
+  notes?: string;
+}): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "clients.write");
+    const tenant = await requireTenantContext();
+
+    const amount = Math.round(input.amountCents);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new AppError("VALIDATION", "Informe um valor maior que zero");
+    }
+    if (!SETTLE_METHODS.has(input.method)) {
+      throw new AppError("VALIDATION", "Forma de pagamento inválida");
+    }
+
+    const db = createDb();
+    const ledgerId = await db.transaction(async (tx) => {
+      const [client] = await tx
+        .select({
+          id: schema.clients.id,
+          accountBalanceCents: schema.clients.accountBalanceCents,
+        })
+        .from(schema.clients)
+        .where(
+          and(eq(schema.clients.id, input.clientId), eq(schema.clients.tenantId, tenant.id))
+        )
+        .for("update");
+
+      if (!client) throw new NotFoundError("Cliente não encontrado");
+      if (client.accountBalanceCents >= 0) {
+        throw new AppError("VALIDATION", "Cliente não possui fiado em aberto");
+      }
+
+      const debt = Math.abs(client.accountBalanceCents);
+      if (amount > debt) {
+        const max = (debt / 100).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        });
+        throw new AppError("VALIDATION", `Valor acima do fiado (máx. ${max})`);
+      }
+
+      const applied = await applyClientAccountDeltaTx(tx, {
+        tenantId: tenant.id,
+        clientId: input.clientId,
+        deltaCents: amount,
+        reason: "debt_settlement",
+        notes: input.notes?.trim()
+          ? input.notes.trim().slice(0, 240)
+          : `Recebimento de fiado (${input.method})`,
+        createdByUserId: session.user.id,
+      });
+
+      const { recordPaymentInCashTx } = await import("../finance/mutations");
+      await recordPaymentInCashTx(tx, {
+        tenantId: tenant.id,
+        orderId: null,
+        method: input.method as
+          | "cash"
+          | "pix"
+          | "pix_key"
+          | "debit"
+          | "credit"
+          | "transfer"
+          | "rede_link"
+          | "infinity"
+          | "other",
+        amountCents: amount,
+        description: "Recebimento de fiado — Conta do Cliente",
+      });
+
+      return applied.ledgerId;
+    });
+
+    return { ok: true, id: ledgerId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    if (err instanceof NotFoundError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível receber o fiado" };
   }
 }

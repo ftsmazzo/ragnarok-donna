@@ -63,6 +63,8 @@ const OWNER: Capability[] = [
 const RECEPTION: Capability[] = [
   "clients.read",
   "clients.write",
+  "catalog.read",
+  "catalog.write",
   "orders.read",
   "orders.write",
   "appointments.read",

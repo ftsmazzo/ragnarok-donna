@@ -18,6 +18,7 @@ export const NAV: NavItem[] = [
     icon: "☰",
     children: [
       { label: "Clientes", href: "/clientes", icon: "☺" },
+      { label: "Aniversariantes", href: "/clientes/aniversariantes", icon: "★" },
       { label: "Profissionais", href: "/profissionais", icon: "✂" },
       { label: "Serviços", href: "/servicos", icon: "★" },
       { label: "Produtos", href: "/produtos", icon: "▣" },
@@ -38,6 +39,9 @@ export const NAV: NavItem[] = [
     icon: "$",
     children: [
       { label: "Caixa", href: "/caixa", icon: "$" },
+      { label: "Hist. caixa", href: "/caixa/historico", icon: "▤" },
+      { label: "Entrada/saída estoque", href: "/produtos/movimentacao", icon: "⇅" },
+      { label: "Estoque", href: "/relatorios/estoque", icon: "▣" },
       { label: "Comissões", href: "/comissoes", icon: "%" },
       { label: "Fluxo de caixa", href: "/relatorios/fluxo", icon: "↗" },
       { label: "Contas", href: "/contas", icon: "≡" },

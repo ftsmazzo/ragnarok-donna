@@ -82,9 +82,14 @@ export default async function RelatorioFinanceiroPage({ searchParams }: Props) {
           <SummaryCards
             cards={[
               {
-                label: "Receita (pagamentos)",
+                label: "Receita de caixa",
                 value: formatMoney(data.totalPaymentsCents),
-                hint: `${data.totalPaymentsCount} pagamento(s) · o que entrou de fato`,
+                hint: `${data.totalPaymentsCount} pagamento(s) · sem Conta do Cliente`,
+              },
+              {
+                label: "Conta do Cliente",
+                value: formatMoney(data.accountPaymentsCents),
+                hint: `${data.accountPaymentsCount} uso(s) de crédito/fiado · não entra no caixa`,
               },
               {
                 label: "Ticket médio",
@@ -95,11 +100,6 @@ export default async function RelatorioFinanceiroPage({ searchParams }: Props) {
                 label: "Serviços vs produtos",
                 value: `${formatMoney(data.servicesCents)} / ${formatMoney(data.productsCents)}`,
                 hint: "mix de itens nas comandas",
-              },
-              {
-                label: "Comandas abertas",
-                value: data.openOrdersCount.toLocaleString("pt-BR"),
-                hint: "ainda no balcão",
               },
             ]}
           />
