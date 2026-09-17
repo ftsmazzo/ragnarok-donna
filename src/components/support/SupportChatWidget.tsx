@@ -100,8 +100,55 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [booting, setBooting] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const fabRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
   const requestVersionRef = useRef(0);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReducedMotion(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => handleDialogKeyDown(event);
+    const onFocusIn = (event: FocusEvent) => {
+      if (!panelRef.current?.contains(event.target as Node)) {
+        (inputRef.current?.disabled ? closeRef.current : inputRef.current)?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", onFocusIn);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open && pending && document.activeElement instanceof HTMLButtonElement) {
+      if (document.activeElement.disabled) closeRef.current?.focus();
+    }
+    if (open && pending && document.activeElement === inputRef.current) {
+      closeRef.current?.focus();
+    }
+  }, [open, pending]);
 
   useEffect(() => {
     if (!open || !canUse || pending) return;
@@ -123,8 +170,8 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
   }, [open, canUse, pending]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread?.messages.length, open, pending]);
+    endRef.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
+  }, [thread?.messages.length, open, pending, reducedMotion]);
 
   if (!canUse) return null;
 
@@ -202,6 +249,43 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
     send(draft);
   }
 
+  function closeChat() {
+    setOpen(false);
+    requestAnimationFrame(() => fabRef.current?.focus());
+  }
+
+  function handleDialogKeyDown(
+    e: Pick<KeyboardEvent, "key" | "preventDefault" | "shiftKey">
+  ) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeChat();
+      return;
+    }
+    if (e.key !== "Tab") return;
+
+    const focusable = Array.from(
+      panelRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ) ?? []
+    ).filter((element) => element.getClientRects().length > 0);
+    if (focusable.length === 0) {
+      e.preventDefault();
+      panelRef.current?.focus();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   function escalate() {
     setError(null);
     startTransition(async () => {
@@ -258,6 +342,14 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
 
   const status = thread?.status ?? "ai";
   const empty = !thread?.messages.length;
+  const latestMessage = thread?.messages.at(-1);
+  const liveStatus = booting
+    ? "Abrindo conversa"
+    : pending
+      ? "Suporte está preparando uma resposta"
+      : latestMessage && latestMessage.role !== "user"
+        ? `${roleLabel(latestMessage.role)}: ${latestMessage.body}`
+        : "";
 
   return (
     <div
@@ -271,10 +363,13 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
     >
       {!open ? (
         <button
+          ref={fabRef}
           type="button"
           className="support-chat-fab"
           onClick={() => setOpen(true)}
           aria-label="Abrir suporte"
+          aria-haspopup="dialog"
+          aria-controls="support-chat-dialog"
         >
           <span className="support-chat-fab-icon" aria-hidden>
             ?
@@ -282,28 +377,44 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
           <span className="support-chat-fab-label">Suporte</span>
         </button>
       ) : (
-        <div className="support-chat-panel" role="dialog" aria-label="Suporte do app">
+        <>
+        <div
+          className="support-chat-backdrop"
+          onMouseDown={closeChat}
+          aria-hidden="true"
+        />
+        <div
+          ref={panelRef}
+          id="support-chat-dialog"
+          className="support-chat-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="support-chat-title"
+          aria-describedby="support-chat-description"
+          tabIndex={-1}
+        >
           <header className="support-chat-head">
             <div>
-              <strong>Central de ajuda</strong>
-              <small>
+              <h2 id="support-chat-title">Central de ajuda</h2>
+              <small id="support-chat-description">
                 {status === "human"
                   ? "Atendimento externo notificado"
                   : "Ajuda pra operar o app"}
               </small>
             </div>
             <button
+              ref={closeRef}
               type="button"
               className="support-chat-close"
-              onClick={() => setOpen(false)}
-              aria-label="Fechar"
+              onClick={closeChat}
+              aria-label="Fechar Central de ajuda"
             >
               ×
             </button>
           </header>
 
           {status === "human" ? (
-            <div className="support-chat-banner">
+            <div className="support-chat-banner" role="status">
               A Fábrica foi notificada. O retorno acontece pelo canal externo da equipe.
               <button type="button" onClick={returnAi} disabled={pending}>
                 Voltar pra IA
@@ -311,7 +422,14 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
             </div>
           ) : null}
 
-          <div className="support-chat-thread">
+          <div
+            className="support-chat-thread"
+            role="log"
+            aria-label="Conversa de suporte"
+            aria-live="off"
+            aria-relevant="additions text"
+            aria-busy={booting || pending}
+          >
             {booting && empty ? (
               <p className="support-chat-empty">Abrindo conversa…</p>
             ) : empty ? (
@@ -343,18 +461,28 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
               ))
             )}
             {pending ? (
-              <div className="support-chat-bubble support-chat-bubble--assistant is-typing">
+              <div
+                className="support-chat-bubble support-chat-bubble--assistant is-typing"
+              >
                 <span className="support-chat-bubble-meta">Suporte</span>
-                <p>…</p>
+                <p>Preparando resposta…</p>
               </div>
             ) : null}
-            <div ref={endRef} />
+            <div ref={endRef} aria-hidden />
           </div>
 
-          {error ? <p className="support-chat-error">{error}</p> : null}
+          <p className="support-chat-sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {liveStatus}
+          </p>
+          {error ? <p className="support-chat-error" role="alert">{error}</p> : null}
 
           <form className="support-chat-compose" onSubmit={onSubmit}>
+            <label className="support-chat-sr-only" htmlFor="support-chat-message">
+              Mensagem para o suporte
+            </label>
             <input
+              ref={inputRef}
+              id="support-chat-message"
               className="support-chat-input"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -374,6 +502,7 @@ export function SupportChatWidget({ role, variant = "painel" }: Props) {
             </button>
           </footer>
         </div>
+        </>
       )}
     </div>
   );
