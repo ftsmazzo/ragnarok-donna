@@ -35,6 +35,7 @@ export function EmpresaForm({ initial }: Props) {
         sobre: String(fd.get("sobre") ?? ""),
         servicosSite: String(fd.get("servicosSite") ?? ""),
         horariosText: String(fd.get("horariosText") ?? ""),
+        purchaseBudgetReais: String(fd.get("purchaseBudgetReais") ?? ""),
       });
       if (result.ok) setMsg("Dados salvos. A Donna já usa estas informações.");
       else setErr(result.error);
@@ -156,6 +157,27 @@ export function EmpresaForm({ initial }: Props) {
             <textarea name="servicosSite" className="search-input" rows={4} defaultValue={initial.servicosSite} />
           </label>
         </div>
+      </section>
+
+      <section>
+        <h3 className="section-title">Operação</h3>
+        <div className="empresa-grid">
+          <label className="filter-field">
+            <span>Orçamento mensal de compras (R$)</span>
+            <input
+              name="purchaseBudgetReais"
+              className="search-input"
+              defaultValue={initial.purchaseBudgetReais}
+              placeholder="Ex.: 2000"
+              inputMode="decimal"
+            />
+          </label>
+        </div>
+        <p className="muted-note">
+          Vazio = sem alerta. Com valor, o painel avisa em Alertas quando compras do mês
+          (entradas de estoque) passam de 80% ou estouram o teto. Use custo no cadastro do
+          produto para a estimativa ficar fiel.
+        </p>
       </section>
 
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>

@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
-import { monthStartSp, rangeBoundsSp, todaySp } from "@/lib/datetime";
+import { monthStartSp, rangeBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { PAGE_SIZE } from "@/lib/cadastros";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
@@ -398,6 +398,50 @@ export async function getCashFlowReport(opts?: { from?: string; to?: string }) {
   const db = createDb();
   const from = opts?.from ?? monthStartSp();
   const to = opts?.to ?? todaySp();
+
+  const current = await cashFlowAgg(db, tenant.id, from, to);
+
+  const start = new Date(`${from}T12:00:00-03:00`);
+  const end = new Date(`${to}T12:00:00-03:00`);
+  const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
+  const prevTo = shiftDateSp(from, -1);
+  const prevFrom = shiftDateSp(prevTo, -(days - 1));
+  const previous = await cashFlowAgg(db, tenant.id, prevFrom, prevTo);
+
+  function pctDelta(cur: number, prev: number): number | null {
+    if (prev <= 0) return cur > 0 ? 100 : null;
+    return Math.round(((cur - prev) / prev) * 1000) / 10;
+  }
+
+  const netCents = current.cashInCents - current.cashOutCents;
+  const prevNet = previous.cashInCents - previous.cashOutCents;
+
+  return {
+    from,
+    to,
+    totalMovedCents: current.totalMovedCents,
+    availableCents: current.availableCents,
+    creditCents: current.creditCents,
+    cashInCents: current.cashInCents,
+    cashOutCents: current.cashOutCents,
+    valeCents: current.valeCents,
+    valeCount: current.valeCount,
+    netCents,
+    byMethod: current.byMethod,
+    series: current.series,
+    previous: {
+      prevFrom,
+      prevTo,
+      cashInDeltaPct: pctDelta(current.cashInCents, previous.cashInCents),
+      cashOutDeltaPct: pctDelta(current.cashOutCents, previous.cashOutCents),
+      valeDeltaPct: pctDelta(current.valeCents, previous.valeCents),
+      netDeltaPct: pctDelta(netCents, prevNet),
+      movedDeltaPct: pctDelta(current.totalMovedCents, previous.totalMovedCents),
+    },
+  };
+}
+
+async function cashFlowAgg(db: ReturnType<typeof createDb>, tenantId: string, from: string, to: string) {
   const { start, end } = rangeBoundsSp(from, to);
 
   const methodRows = await db
@@ -409,7 +453,7 @@ export async function getCashFlowReport(opts?: { from?: string; to?: string }) {
     .from(schema.payments)
     .where(
       and(
-        eq(schema.payments.tenantId, tenant.id),
+        eq(schema.payments.tenantId, tenantId),
         gte(schema.payments.paidAt, start),
         lte(schema.payments.paidAt, end)
       )
@@ -425,7 +469,7 @@ export async function getCashFlowReport(opts?: { from?: string; to?: string }) {
     .from(schema.payments)
     .where(
       and(
-        eq(schema.payments.tenantId, tenant.id),
+        eq(schema.payments.tenantId, tenantId),
         gte(schema.payments.paidAt, start),
         lte(schema.payments.paidAt, end)
       )
@@ -441,7 +485,7 @@ export async function getCashFlowReport(opts?: { from?: string; to?: string }) {
     .from(schema.cashMovements)
     .where(
       and(
-        eq(schema.cashMovements.tenantId, tenant.id),
+        eq(schema.cashMovements.tenantId, tenantId),
         gte(schema.cashMovements.createdAt, start),
         lte(schema.cashMovements.createdAt, end)
       )
@@ -455,7 +499,7 @@ export async function getCashFlowReport(opts?: { from?: string; to?: string }) {
     .from(schema.staffAdvances)
     .where(
       and(
-        eq(schema.staffAdvances.tenantId, tenant.id),
+        eq(schema.staffAdvances.tenantId, tenantId),
         eq(schema.staffAdvances.kind, "vale"),
         ne(schema.staffAdvances.status, "cancelled"),
         gte(schema.staffAdvances.occurredAt, start),
@@ -473,8 +517,6 @@ export async function getCashFlowReport(opts?: { from?: string; to?: string }) {
     .reduce((s, r) => s + Number(r.total), 0);
 
   return {
-    from,
-    to,
     totalMovedCents: totalPayments,
     availableCents,
     creditCents,
