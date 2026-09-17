@@ -784,9 +784,47 @@ setImmediate(async () => {
   withTimeout(runBootstrap(), BOOTSTRAP_TIMEOUT_MS).catch((err) => {
     console.error("[bootstrap]", err.message ?? err);
   });
+  withTimeout(runBirthdateBackfill(), 90_000).catch((err) => {
+    console.error("[bootstrap:birthdates]", err.message ?? err);
+  });
+  withTimeout(runContaClienteImport(), 60_000).catch((err) => {
+    console.error("[bootstrap:conta-cliente]", err.message ?? err);
+  });
   await runDonnaEnsureStandalone();
   await runDonnaImportStandalone();
 });
+
+/** Idempotente: preenche clients.birth_date a partir de data/appbarber-birthdates.json */
+async function runBirthdateBackfill() {
+  if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
+  if (!process.env.DATABASE_URL) return;
+  const file = path.join(ROOT, "data/appbarber-birthdates.json");
+  if (!fs.existsSync(file)) {
+    console.log("[bootstrap:birthdates] data/appbarber-birthdates.json ausente — pulado.");
+    return;
+  }
+  try {
+    await spawnScript("backfill-birthdates.mjs");
+  } catch (err) {
+    console.error("[bootstrap:birthdates]", err);
+  }
+}
+
+/** Idempotente: importa saldos Conta Cliente (fiado) do AppBarber. */
+async function runContaClienteImport() {
+  if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
+  if (!process.env.DATABASE_URL) return;
+  const file = path.join(ROOT, "data/appbarber-conta-cliente.json");
+  if (!fs.existsSync(file)) {
+    console.log("[bootstrap:conta-cliente] data/appbarber-conta-cliente.json ausente — pulado.");
+    return;
+  }
+  try {
+    await spawnScript("import-conta-cliente-saldos.mjs", ["--file", file]);
+  } catch (err) {
+    console.error("[bootstrap:conta-cliente]", err);
+  }
+}
 
 async function runDonnaEnsureStandalone() {
   if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;

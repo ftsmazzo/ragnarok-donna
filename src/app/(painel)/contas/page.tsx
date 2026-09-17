@@ -29,11 +29,14 @@ export default async function ContasPage({ searchParams }: Props) {
     <>
       <PageHeader
         title="Contas"
-        subtitle="A pagar (vales abertos) · a receber (crédito no período) · saídas de caixa"
+        subtitle="A pagar (vales) · a receber = Conta Cliente (fiado) · cartão e comandas abertas são só informativos"
         actions={
           <>
             <Link href="/caixa" className="btn btn-outline">
               Caixa
+            </Link>
+            <Link href="/clientes?filter=fiado" className="btn btn-outline">
+              Fiado
             </Link>
             <Link href="/comissoes" className="btn btn-outline">
               Comissões
@@ -85,17 +88,29 @@ export default async function ContasPage({ searchParams }: Props) {
             hint: `${data.openAdvances.length} lançamento(s) em aberto`,
           },
           {
-            label: "A receber (crédito)",
+            label: "A receber (fiado)",
             value: formatMoney(data.receivableCents),
-            hint: `${data.creditCount} pagamento(s) no período`,
+            hint:
+              data.clientDebtCount > 0
+                ? `${data.clientDebtCount} cliente(s) com saldo negativo na Conta`
+                : "Sem fiado importado — use Conta do Cliente no perfil",
           },
           {
-            label: "Saídas de caixa",
-            value: formatMoney(data.outCents),
-            hint: "retiradas / sangrias registradas",
+            label: "Comandas abertas (> R$0)",
+            value: formatMoney(data.openOrdersCents),
+            hint: `${data.openOrdersCount} ticket(s) em andamento/agenda — não é dívida`,
+          },
+          {
+            label: "Cartão crédito (período)",
+            value: formatMoney(data.cardCreditCents),
+            hint: `${data.cardCreditCount} na maquininha — já recebido`,
           },
         ]}
       />
+      <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
+        Saídas de caixa no período: {formatMoney(data.outCents)}. Pacotes/cortesia com valor 0 não entram em
+        a receber nem em comandas abertas.
+      </p>
 
       <div className="dash-grid" style={{ marginTop: 12 }}>
         <section className="panel">

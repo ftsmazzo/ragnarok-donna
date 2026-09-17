@@ -337,6 +337,7 @@ async function main() {
         phone_e164: phoneE164(r.DDI, r.Celular || r.Paf_Celular || r.Telefone || r.Paf_Telefone),
         notes: cleanStr(r.Obs || r.Paf_Observacao, 2000),
         loyalty_points: Number(r.Pontos || r.Total_Pontos) || 0,
+        birth_date: parseDateBr(r.Nascimento),
         avatar_url: avatar,
         is_active: !row.removed,
         deleted_at: row.removed ? new Date() : null,
@@ -351,6 +352,7 @@ async function main() {
         on conflict (tenant_id, external_source, external_id) do update set
           name = excluded.name, phone = excluded.phone, phone_e164 = excluded.phone_e164,
           loyalty_points = excluded.loyalty_points, notes = excluded.notes,
+          birth_date = coalesce(excluded.birth_date, clients.birth_date),
           avatar_url = coalesce(excluded.avatar_url, clients.avatar_url),
           is_active = excluded.is_active, deleted_at = excluded.deleted_at, updated_at = now()
       `;
