@@ -28,6 +28,7 @@ export async function createClientAction(formData: FormData): Promise<ActionResu
     birthDate: String(formData.get("birthDate") ?? ""),
     howHeard: String(formData.get("howHeard") ?? ""),
     referredBy: String(formData.get("referredBy") ?? ""),
+    hairPreference: String(formData.get("hairPreference") ?? ""),
     avatarUrl: String(formData.get("avatarUrl") ?? ""),
   });
 }
@@ -44,6 +45,7 @@ export async function updateClientAction(
     birthDate: String(formData.get("birthDate") ?? ""),
     howHeard: String(formData.get("howHeard") ?? ""),
     referredBy: String(formData.get("referredBy") ?? ""),
+    hairPreference: String(formData.get("hairPreference") ?? ""),
     avatarUrl: String(formData.get("avatarUrl") ?? ""),
   });
 }

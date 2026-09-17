@@ -14,6 +14,7 @@ export type ClientInput = {
   birthDate?: string;
   howHeard?: string;
   referredBy?: string;
+  hairPreference?: string;
   avatarUrl?: string | null;
 };
 
@@ -45,6 +46,7 @@ function parseInput(raw: ClientInput): ClientInput {
     birthDate: raw.birthDate?.trim() || undefined,
     howHeard: raw.howHeard?.trim().slice(0, 80) || undefined,
     referredBy: raw.referredBy?.trim().slice(0, 160) || undefined,
+    hairPreference: raw.hairPreference?.trim().slice(0, 120) || undefined,
     avatarUrl:
       raw.avatarUrl === undefined || raw.avatarUrl === null
         ? undefined
@@ -60,6 +62,8 @@ function crmPreferences(input: ClientInput, existing?: Record<string, unknown>) 
   else delete next.howHeard;
   if (input.referredBy) next.referredBy = input.referredBy;
   else delete next.referredBy;
+  if (input.hairPreference) next.hairPreference = input.hairPreference;
+  else delete next.hairPreference;
   return next;
 }
 

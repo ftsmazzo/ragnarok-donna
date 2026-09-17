@@ -106,6 +106,8 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       clientName: schema.clients.name,
       clientPhone: schema.clients.phone,
       clientPhoneE164: schema.clients.phoneE164,
+      clientAccountBalanceCents: schema.clients.accountBalanceCents,
+      clientPreferences: schema.clients.preferences,
       clientAvatarUrl: schema.clients.avatarUrl,
       serviceName: schema.services.name,
       servicePriceCents: schema.services.priceCents,
@@ -187,6 +189,8 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       clientName: schema.clients.name,
       clientPhone: schema.clients.phone,
       clientPhoneE164: schema.clients.phoneE164,
+      clientAccountBalanceCents: schema.clients.accountBalanceCents,
+      clientPreferences: schema.clients.preferences,
       clientAvatarUrl: schema.clients.avatarUrl,
       serviceName: schema.services.name,
       servicePriceCents: schema.services.priceCents,
@@ -232,6 +236,8 @@ function mapAgendaAppointment(r: {
   clientName: string | null;
   clientPhone?: string | null;
   clientPhoneE164?: string | null;
+  clientAccountBalanceCents?: number | null;
+  clientPreferences?: Record<string, unknown> | null;
   clientAvatarUrl: string | null;
   serviceId: string | null;
   serviceName: string | null;
@@ -260,6 +266,11 @@ function mapAgendaAppointment(r: {
           ? r.servicePriceCents
           : r.priceCents;
   const phoneRaw = r.clientPhone?.trim() || r.clientPhoneE164?.trim() || null;
+  const prefs = (r.clientPreferences ?? {}) as Record<string, unknown>;
+  const hairPref =
+    typeof prefs.hairPreference === "string" && prefs.hairPreference.trim()
+      ? prefs.hairPreference.trim().slice(0, 120)
+      : null;
   return {
     id: r.id,
     staffId: r.staffId,
@@ -267,6 +278,9 @@ function mapAgendaAppointment(r: {
     clientId: r.clientId,
     clientName: r.clientName ?? (r.status === "blocked" ? "Bloqueio" : "Sem cliente"),
     clientPhone: phoneRaw,
+    clientAccountBalanceCents:
+      r.clientId != null ? (r.clientAccountBalanceCents ?? 0) : null,
+    clientHairPreference: hairPref,
     clientAvatarUrl: r.clientAvatarUrl ?? null,
     serviceId: r.serviceId,
     serviceName: r.serviceName,

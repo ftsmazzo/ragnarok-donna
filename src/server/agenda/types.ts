@@ -11,6 +11,10 @@ export type AgendaAppointment = {
   clientId: string | null;
   clientName: string;
   clientPhone: string | null;
+  /** Conta do cliente (centavos). Negativo = fiado. */
+  clientAccountBalanceCents: number | null;
+  /** Preferência de corte (texto curto). */
+  clientHairPreference: string | null;
   clientAvatarUrl: string | null;
   serviceId: string | null;
   serviceName: string | null;

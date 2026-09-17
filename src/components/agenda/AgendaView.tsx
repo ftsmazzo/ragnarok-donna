@@ -41,7 +41,7 @@ import {
   todaySp,
 } from "@/lib/datetime";
 import { useAgendaNow } from "@/components/agenda/useAgendaNow";
-import { formatPhone, labelApptStatus } from "@/lib/format";
+import { formatPhone, formatMoney, labelApptStatus } from "@/lib/format";
 
 type Props = {
   data: AgendaDayData;
@@ -97,9 +97,16 @@ function slotClass(a: AgendaAppointment): string {
   if (slotDurationMin(a) >= 40) parts.push("is-tall");
   if (a.orderId) parts.push("has-order");
   const badgeCount =
-    (slotStatusGlyph(a.status) ? 1 : 0) + (a.orderId && a.status !== "blocked" ? 1 : 0);
+    (slotStatusGlyph(a.status) ? 1 : 0) +
+    (a.orderId && a.status !== "blocked" ? 1 : 0) +
+    (a.status !== "blocked" &&
+    a.clientAccountBalanceCents != null &&
+    a.clientAccountBalanceCents !== 0
+      ? 1
+      : 0);
   if (badgeCount >= 2) parts.push("has-badges-2");
   else if (badgeCount === 1) parts.push("has-badges-1");
+  if (badgeCount >= 3) parts.push("has-badges-3");
   return parts.join(" ");
 }
 
@@ -416,10 +423,18 @@ export function AgendaView({
                           const statusGlyph = slotStatusGlyph(a.status);
                           const tall = slotDurationMin(a) >= 40;
                           const statusHint = statusGlyph?.title;
+                          const accountHint =
+                            a.clientAccountBalanceCents != null && a.clientAccountBalanceCents !== 0
+                              ? a.clientAccountBalanceCents < 0
+                                ? `fiado ${formatMoney(a.clientAccountBalanceCents)}`
+                                : `crédito ${formatMoney(a.clientAccountBalanceCents)}`
+                              : null;
                           const titleParts = [
                             `${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)}`,
                             phone,
                             statusHint,
+                            accountHint,
+                            a.clientHairPreference ? `corte: ${a.clientHairPreference}` : null,
                             a.orderId ? "comanda vinculada" : null,
                             "botão direito: ações",
                           ].filter(Boolean);
@@ -457,6 +472,17 @@ export function AgendaView({
                                 {a.orderId ? (
                                   <span className="slot-badge slot-badge-order">⌗</span>
                                 ) : null}
+                                {a.clientAccountBalanceCents != null &&
+                                a.clientAccountBalanceCents < 0 ? (
+                                  <span className="slot-badge slot-badge-debt" title="Fiado">
+                                    −
+                                  </span>
+                                ) : a.clientAccountBalanceCents != null &&
+                                  a.clientAccountBalanceCents > 0 ? (
+                                  <span className="slot-badge slot-badge-credit" title="Crédito">
+                                    +
+                                  </span>
+                                ) : null}
                               </span>
                             ) : null}
                             <span className="slot-main">
@@ -473,6 +499,9 @@ export function AgendaView({
                                 {a.noPreference ? " · sem pref." : null}
                                 {a.status === "arrived" ? " · no local" : null}
                                 {a.status === "in_progress" ? " · em atend." : null}
+                                {a.clientHairPreference && tall
+                                  ? ` · ${a.clientHairPreference}`
+                                  : null}
                                 {a.tags?.[0] ? ` · #${a.tags[0]}` : null}
                                 {tall && phone ? (
                                   <>

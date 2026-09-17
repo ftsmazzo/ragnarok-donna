@@ -238,6 +238,17 @@ export function ClientDrawer({
         </label>
 
         <label className="form-field">
+          <span>Preferência de corte</span>
+          <input
+            name="hairPreference"
+            maxLength={120}
+            defaultValue={String(client?.preferences?.hairPreference ?? "")}
+            disabled={isRemoved}
+            placeholder="Ex.: degradê médio, sem máquina zero…"
+          />
+        </label>
+
+        <label className="form-field">
           <span>E-mail</span>
           <input
             name="email"

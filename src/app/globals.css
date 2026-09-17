@@ -1172,6 +1172,18 @@ input {
   padding-right: 38px;
 }
 
+.slot.has-badges-3 .slot-main {
+  padding-right: 52px;
+}
+
+.slot-badge-debt {
+  background: rgba(180, 40, 40, 0.75);
+}
+
+.slot-badge-credit {
+  background: rgba(30, 120, 60, 0.75);
+}
+
 .slot-main .avatar {
   flex-shrink: 0;
   margin-top: 1px;
@@ -1214,6 +1226,20 @@ input {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.agenda-account.is-debt {
+  color: var(--danger, #c62828);
+  font-weight: 600;
+}
+
+.agenda-account.is-credit {
+  color: var(--success, #2e7d32);
+  font-weight: 600;
+}
+
+.agenda-hair-pref {
+  font-size: 12px;
 }
 
 .agenda-side-client {
