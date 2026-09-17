@@ -259,7 +259,7 @@ function mapAgendaAppointment(r: {
         : r.servicePriceCents != null && r.servicePriceCents > 0
           ? r.servicePriceCents
           : r.priceCents;
-  const phoneRaw = (r.clientPhone ?? r.clientPhoneE164 ?? "").trim() || null;
+  const phoneRaw = r.clientPhone?.trim() || r.clientPhoneE164?.trim() || null;
   return {
     id: r.id,
     staffId: r.staffId,

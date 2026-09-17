@@ -59,12 +59,12 @@ export const guideAgenda: SupportGuide = {
     {
       title: "No Local e fluxo do atendimento",
       detail:
-        "No detalhe ou menu de contexto: No Local (status chegou — na grade aparece · no local). Depois Em atendimento e Finalizar horário (vira Realizado no status e nos relatórios). Barbeiro vinculado pode marcar status nos próprios horários; cancelar/ausente exige gerente/dono.",
+        "No detalhe ou menu de contexto: No Local (status chegou — na grade aparece · no local e o ícone ●). Depois Em atendimento (· em atend. / ▶) e Finalizar horário (vira Realizado no status e nos relatórios). Barbeiro vinculado pode marcar status nos próprios horários; cancelar/ausente exige gerente/dono.",
     },
     {
       title: "Check-in pelo WhatsApp",
       detail:
-        "Se o cliente manda que está na barbearia e já tem horário hoje, a Donna faz check-in automático (equivalente a chegada). A recepção confere na grade o · no local ou o status no detalhe.",
+        "Se o cliente manda que está na barbearia e já tem horário hoje, a Donna faz check-in automático (equivalente a chegada). A recepção confere na grade o · no local / ícone ● ou o status no detalhe.",
     },
     {
       title: "Ausente e Cancelado",
