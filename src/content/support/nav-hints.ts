@@ -159,6 +159,6 @@ export const FEATURE_HINTS: FeatureHint[] = [
     aliases: ["contas", "contas a pagar", "vales abertos"],
     title: "Contas",
     where: "Financeiro → Contas",
-    tip: "Vales abertos + saídas de caixa. Não é cadastro de boleto de fornecedor.",
+    tip: "A receber = só fiado (Conta Cliente). Comanda aberta e cartão crédito são informativos — pacote valor 0 não é dívida.",
   },
 ];
