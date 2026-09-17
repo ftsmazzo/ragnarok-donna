@@ -65,6 +65,58 @@ export async function reportContas(opts?: { from?: string; to?: string }) {
       )
     );
 
+  /** Clientes com débito (a receber) — lista operacional. */
+  const debtors = await db
+    .select({
+      id: schema.clients.id,
+      name: schema.clients.name,
+      phone: schema.clients.phone,
+      balanceCents: schema.clients.accountBalanceCents,
+    })
+    .from(schema.clients)
+    .where(
+      and(
+        eq(schema.clients.tenantId, tenant.id),
+        isNull(schema.clients.deletedAt),
+        sql`${schema.clients.accountBalanceCents} < 0`
+      )
+    )
+    .orderBy(asc(schema.clients.accountBalanceCents))
+    .limit(200);
+
+  /** Clientes com crédito (saldo positivo) — informativo. */
+  const [clientCreditAgg] = await db
+    .select({
+      n: sql<number>`count(*)::int`,
+      total: sql<number>`coalesce(sum(${schema.clients.accountBalanceCents}), 0)::int`,
+    })
+    .from(schema.clients)
+    .where(
+      and(
+        eq(schema.clients.tenantId, tenant.id),
+        isNull(schema.clients.deletedAt),
+        sql`${schema.clients.accountBalanceCents} > 0`
+      )
+    );
+
+  const creditors = await db
+    .select({
+      id: schema.clients.id,
+      name: schema.clients.name,
+      phone: schema.clients.phone,
+      balanceCents: schema.clients.accountBalanceCents,
+    })
+    .from(schema.clients)
+    .where(
+      and(
+        eq(schema.clients.tenantId, tenant.id),
+        isNull(schema.clients.deletedAt),
+        sql`${schema.clients.accountBalanceCents} > 0`
+      )
+    )
+    .orderBy(desc(schema.clients.accountBalanceCents))
+    .limit(200);
+
   /**
    * Comandas abertas com valor > 0 — operacional (ticket em andamento),
    * NÃO entram em "a receber". Pacote/cortesia (total 0) ficam de fora.
@@ -109,6 +161,7 @@ export async function reportContas(opts?: { from?: string; to?: string }) {
   const payableCents = openAdvances.reduce((s, r) => s + r.amountCents, 0);
   const cardCreditCents = Number(creditAgg?.total ?? 0);
   const clientDebtCents = Number(clientDebtAgg?.total ?? 0);
+  const clientCreditCents = Number(clientCreditAgg?.total ?? 0);
   const openOrdersCents = Number(openOrdersAgg?.total ?? 0);
   /** A receber = só fiado (Conta Cliente). Comanda aberta ≠ a receber. */
   const receivableCents = clientDebtCents;
@@ -120,13 +173,17 @@ export async function reportContas(opts?: { from?: string; to?: string }) {
     payableCents,
     receivableCents,
     clientDebtCents,
+    clientCreditCents,
     openOrdersCents,
     openOrdersCount: Number(openOrdersAgg?.n ?? 0),
     clientDebtCount: Number(clientDebtAgg?.n ?? 0),
+    clientCreditCount: Number(clientCreditAgg?.n ?? 0),
     cardCreditCents,
     cardCreditCount: Number(creditAgg?.n ?? 0),
     outCents,
     openAdvances,
+    debtors,
+    creditors,
     creditCount: Number(creditAgg?.n ?? 0),
     cashOut,
   };
