@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { assertWebhookAuthorized, handleEvolutionWebhook } from "@/server/agent/inbound";
+import { enforceRateLimit } from "@/server/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 /** Tempo extra se o runtime ainda processar no mesmo request (fallback). */
@@ -10,6 +11,9 @@ export const maxDuration = 90;
  * Responde 200 na hora (Evolution não corta a conexão) e processa a IA em background.
  */
 export async function POST(request: Request) {
+  const limited = enforceRateLimit(request, "agent.webhook", 180, 60_000);
+  if (limited) return limited;
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;

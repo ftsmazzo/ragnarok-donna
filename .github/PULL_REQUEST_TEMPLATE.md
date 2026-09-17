@@ -22,3 +22,4 @@
 - [ ] UI: motion / skeleton / feedback conforme `docs/ui/MOTION.md` (se aplicável)
 - [ ] Não reinventei componente que já existe
 - [ ] CI local ou workflow passou
+- [ ] Se toca **auth / pagamentos / webhooks / tokens**: revisei superfície de ataque (rate limit, authz, sem vazar segredo, input validado)
