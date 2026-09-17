@@ -116,14 +116,30 @@ export function weekBoundsSp(anchorDate = todaySp()): { from: string; to: string
   return { from, to };
 }
 
-/** Resolve preset de relatório: week | month | custom (from/to). */
+/** Resolve preset de relatório: today | last7 | week | last30 | month | custom. */
 export function resolveReportPeriod(input?: {
   period?: string | null;
   from?: string | null;
   to?: string | null;
-}): { period: "week" | "month" | "custom"; from: string; to: string } {
+}): {
+  period: "today" | "last7" | "week" | "last30" | "month" | "custom";
+  from: string;
+  to: string;
+} {
   const today = todaySp();
   const periodRaw = (input?.period ?? "").toLowerCase().trim();
+
+  if (periodRaw === "today" || periodRaw === "hoje") {
+    return { period: "today", from: today, to: today };
+  }
+
+  if (periodRaw === "last7" || periodRaw === "7d" || periodRaw === "7dias") {
+    return { period: "last7", from: daysAgoSp(6), to: today };
+  }
+
+  if (periodRaw === "last30" || periodRaw === "30d" || periodRaw === "30dias") {
+    return { period: "last30", from: daysAgoSp(29), to: today };
+  }
 
   if (periodRaw === "week" || periodRaw === "semana") {
     const w = weekBoundsSp(today);

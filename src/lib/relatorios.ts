@@ -4,6 +4,7 @@ import { monthStartSp, rangeBoundsSp, todaySp } from "./datetime";
 import { getDb } from "./db";
 import { getDefaultTenant } from "./tenant";
 import { PAGE_SIZE } from "./cadastros";
+import { resolveBranchScope, withBranchScope } from "@/server/context/branch-scope";
 
 function isBarCategory(category: string | null | undefined): boolean {
   const c = (category ?? "").toLowerCase();
@@ -160,9 +161,12 @@ export async function reportAppointments(opts: {
 export async function reportFinancial(opts: { from?: string; to?: string }) {
   const tenant = await getDefaultTenant();
   const db = getDb();
+  const scope = await resolveBranchScope();
   const from = opts.from ?? monthStartSp();
   const to = opts.to ?? todaySp();
   const { start, end } = rangeBoundsSp(from, to);
+  const orderBranch = (extra?: ReturnType<typeof and>) =>
+    withBranchScope(scope, schema.orders.branchId, extra);
 
   const byMethodAll = await db
     .select({
@@ -171,11 +175,15 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
       totalCents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
     })
     .from(schema.payments)
+    .innerJoin(schema.orders, eq(schema.payments.orderId, schema.orders.id))
     .where(
-      and(
-        eq(schema.payments.tenantId, tenant.id),
-        gte(schema.payments.paidAt, start),
-        lte(schema.payments.paidAt, end)
+      orderBranch(
+        and(
+          eq(schema.payments.tenantId, tenant.id),
+          eq(schema.orders.tenantId, tenant.id),
+          gte(schema.payments.paidAt, start),
+          lte(schema.payments.paidAt, end)
+        )
       )
     )
     .groupBy(schema.payments.method)
@@ -193,12 +201,14 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
     })
     .from(schema.orders)
     .where(
-      and(
-        eq(schema.orders.tenantId, tenant.id),
-        eq(schema.orders.status, "closed"),
-        gte(schema.orders.closedAt, start),
-        lte(schema.orders.closedAt, end),
-        isNull(schema.orders.deletedAt)
+      orderBranch(
+        and(
+          eq(schema.orders.tenantId, tenant.id),
+          eq(schema.orders.status, "closed"),
+          gte(schema.orders.closedAt, start),
+          lte(schema.orders.closedAt, end),
+          isNull(schema.orders.deletedAt)
+        )
       )
     );
 
@@ -206,10 +216,12 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
     .select({ n: count() })
     .from(schema.orders)
     .where(
-      and(
-        eq(schema.orders.tenantId, tenant.id),
-        eq(schema.orders.status, "open"),
-        isNull(schema.orders.deletedAt)
+      orderBranch(
+        and(
+          eq(schema.orders.tenantId, tenant.id),
+          eq(schema.orders.status, "open"),
+          isNull(schema.orders.deletedAt)
+        )
       )
     );
 
@@ -222,12 +234,14 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
     .from(schema.orderItems)
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
     .where(
-      and(
-        eq(schema.orderItems.tenantId, tenant.id),
-        eq(schema.orders.status, "closed"),
-        gte(schema.orders.closedAt, start),
-        lte(schema.orders.closedAt, end),
-        isNull(schema.orders.deletedAt)
+      orderBranch(
+        and(
+          eq(schema.orderItems.tenantId, tenant.id),
+          eq(schema.orders.status, "closed"),
+          gte(schema.orders.closedAt, start),
+          lte(schema.orders.closedAt, end),
+          isNull(schema.orders.deletedAt)
+        )
       )
     )
     .groupBy(schema.orderItems.itemType);
@@ -243,12 +257,16 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
     .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
     .where(
-      and(
-        eq(schema.orderItems.tenantId, tenant.id),
-        eq(schema.orders.status, "closed"),
-        gte(schema.orders.closedAt, start),
-        lte(schema.orders.closedAt, end),
-        isNull(schema.orders.deletedAt)
+      withBranchScope(
+        scope,
+        schema.staff.branchId,
+        and(
+          eq(schema.orderItems.tenantId, tenant.id),
+          eq(schema.orders.status, "closed"),
+          gte(schema.orders.closedAt, start),
+          lte(schema.orders.closedAt, end),
+          isNull(schema.orders.deletedAt)
+        )
       )
     )
     .groupBy(schema.orderItems.staffId, schema.staff.name)

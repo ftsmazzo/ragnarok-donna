@@ -29,6 +29,7 @@ export type ManagementDashboard = {
   appointmentStatus: DashboardNamedValue[];
   topServices: DashboardNamedValue[];
   topStaff: DashboardNamedValue[];
+  topProducts: DashboardNamedValue[];
   weeklyTips: string[];
 };
 
@@ -85,6 +86,7 @@ export async function getManagementDashboard(opts?: {
       appointmentStatus: [],
       topServices: [],
       topStaff: [],
+      topProducts: [],
       weeklyTips: [],
     };
   }
@@ -103,6 +105,7 @@ export async function getManagementDashboard(opts?: {
     methodRows,
     topServiceRows,
     topStaffRows,
+    topProductRows,
     weekly,
   ] = await Promise.all([
     db
@@ -265,6 +268,30 @@ export async function getManagementDashboard(opts?: {
       .groupBy(schema.staff.name)
       .orderBy(desc(sql`sum(${schema.orderItems.totalCents})`))
       .limit(8),
+    db
+      .select({
+        name: schema.orderItems.description,
+        n: count(),
+        total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+      })
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+      .where(
+        orderBranch(
+          and(
+            eq(schema.orderItems.tenantId, tenant.id),
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orderItems.itemType, "product"),
+            eq(schema.orders.status, "closed"),
+            gte(schema.orders.closedAt, start),
+            lte(schema.orders.closedAt, end),
+            isNull(schema.orders.deletedAt)
+          )
+        )
+      )
+      .groupBy(schema.orderItems.description)
+      .orderBy(desc(sql`sum(${schema.orderItems.totalCents})`))
+      .limit(8),
     getWeeklyInsights(),
   ]);
 
@@ -314,6 +341,12 @@ export async function getManagementDashboard(opts?: {
     extra: Number(r.n),
   }));
 
+  const topProducts: DashboardNamedValue[] = topProductRows.map((r) => ({
+    name: r.name.length > 28 ? `${r.name.slice(0, 26)}…` : r.name,
+    value: Number(r.total ?? 0) / 100,
+    extra: Number(r.n),
+  }));
+
   return {
     from,
     to,
@@ -333,6 +366,7 @@ export async function getManagementDashboard(opts?: {
     appointmentStatus,
     topServices: canSeeFinance ? topServices : [],
     topStaff: canSeeFinance ? topStaff : [],
+    topProducts: canSeeFinance ? topProducts : [],
     weeklyTips: weekly.tips,
   };
 }
