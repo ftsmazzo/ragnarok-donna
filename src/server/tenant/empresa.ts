@@ -27,6 +27,8 @@ export type EmpresaFormInput = {
   servicosSite: string;
   /** Uma linha por dia: "Segunda|10:30|19:00" ou "Domingo|||Fechado" */
   horariosText: string;
+  /** Orçamento mensal de compras em reais (vazio = sem alerta) */
+  purchaseBudgetReais: string;
 };
 
 function linesToList(text: string): string[] {
@@ -104,6 +106,16 @@ export async function getEmpresaForm(): Promise<EmpresaFormView> {
     } satisfies BusinessProfile);
 
   const hasProfile = Boolean(readBusinessProfileFromSettings(row?.settings));
+  const settingsObj =
+    row?.settings && typeof row.settings === "object"
+      ? (row.settings as Record<string, unknown>)
+      : {};
+  const budgetCents =
+    typeof settingsObj.purchaseBudgetCents === "number" &&
+    Number.isFinite(settingsObj.purchaseBudgetCents) &&
+    settingsObj.purchaseBudgetCents > 0
+      ? Math.floor(settingsObj.purchaseBudgetCents)
+      : null;
 
   return {
     hasProfile,
@@ -124,6 +136,8 @@ export async function getEmpresaForm(): Promise<EmpresaFormView> {
     sobre: profile.sobre.join("\n"),
     servicosSite: profile.servicosSite.join("\n"),
     horariosText: horariosToText(profile.horarios),
+    purchaseBudgetReais:
+      budgetCents != null ? (budgetCents / 100).toFixed(2).replace(".", ",") : "",
   };
 }
 
@@ -201,15 +215,34 @@ export async function saveEmpresaForm(
       ? (row.settings as Record<string, unknown>)
       : {};
 
+  const budgetRaw = String(input.purchaseBudgetReais ?? "").trim();
+  let purchaseBudgetCents: number | null = null;
+  if (budgetRaw) {
+    const normalized = budgetRaw.includes(",")
+      ? budgetRaw.replace(/\./g, "").replace(",", ".")
+      : budgetRaw.replace(/[^\d.]/g, "");
+    const budgetParsed = Number(normalized);
+    if (Number.isFinite(budgetParsed) && budgetParsed > 0) {
+      purchaseBudgetCents = Math.round(budgetParsed * 100);
+    }
+  }
+
+  const nextSettings: Record<string, unknown> = {
+    ...prev,
+    businessProfile: profile,
+    branding: profile.brand,
+  };
+  if (purchaseBudgetCents != null) {
+    nextSettings.purchaseBudgetCents = purchaseBudgetCents;
+  } else {
+    delete nextSettings.purchaseBudgetCents;
+  }
+
   await db
     .update(schema.tenants)
     .set({
       name: nomeFantasia,
-      settings: {
-        ...prev,
-        businessProfile: profile,
-        branding: profile.brand,
-      },
+      settings: nextSettings,
       updatedAt: new Date(),
     })
     .where(eq(schema.tenants.id, tenant.id));

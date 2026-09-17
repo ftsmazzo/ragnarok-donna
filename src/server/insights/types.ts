@@ -72,6 +72,8 @@ export type AlertSeverity = "critical" | "warning" | "info";
 export type OperationalAlertKind =
   | "stock_low_shop"
   | "stock_low_bar"
+  | "stock_low_insumos"
+  | "purchase_budget"
   | "cancellations_week"
   | "renewals_week"
   | "returned_lost_week"

@@ -1,6 +1,8 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
-import { rangeBoundsSp, todaySp, weekBoundsSp } from "@/lib/datetime";
+import { monthStartSp, rangeBoundsSp, todaySp, weekBoundsSp } from "@/lib/datetime";
+import { formatMoney } from "@/lib/format";
+import { isBarCategory, isInsumoCategory } from "@/lib/product-category";
 import { requireTenantContext } from "../context/tenant";
 import {
   DEFAULT_INACTIVE_DAYS,
@@ -12,10 +14,7 @@ import {
 const CANCEL_COUNT_THRESHOLD = 5;
 const CANCEL_RATE_THRESHOLD_PCT = 15;
 
-export function isBarCategory(category: string | null | undefined): boolean {
-  const c = (category ?? "").toLowerCase();
-  return /\bbar\b|bebida|drink|cerveja|whisky|refrigerante|porção|petisco|destilado/.test(c);
-}
+export { isBarCategory };
 
 export async function buildOperationalAlerts(): Promise<OperationalAlertsReport> {
   const tenant = await requireTenantContext();
@@ -49,8 +48,13 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
     .orderBy(asc(schema.products.stockQty))
     .limit(40);
 
-  const lowShop = lowProducts.filter((p) => !isBarCategory(p.category));
+  const lowShop = lowProducts.filter(
+    (p) => !isBarCategory(p.category) && !isInsumoCategory(p.category)
+  );
   const lowBar = lowProducts.filter((p) => isBarCategory(p.category));
+  const lowInsumos = lowProducts.filter(
+    (p) => isInsumoCategory(p.category) && !isBarCategory(p.category)
+  );
 
   if (lowShop.length) {
     alerts.push({
@@ -81,6 +85,85 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
       href: "/relatorios/estoque?scope=bar&low=1",
       periodLabel: "agora",
     });
+  }
+  if (lowInsumos.length) {
+    alerts.push({
+      id: "stock-insumos",
+      severity: "warning",
+      kind: "stock_low_insumos",
+      title: `${lowInsumos.length} insumo(s) abaixo do mínimo`,
+      detail: lowInsumos
+        .slice(0, 4)
+        .map((p) => `${p.name} (${p.stockQty}/${p.minQty})`)
+        .join(" · "),
+      count: lowInsumos.length,
+      href: "/relatorios/estoque?scope=insumos&low=1",
+      periodLabel: "agora",
+    });
+  }
+
+  // Orçamento de compras (mês civil atual)
+  const [tenantSettingsRow] = await db
+    .select({ settings: schema.tenants.settings })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenant.id))
+    .limit(1);
+  const settings =
+    tenantSettingsRow?.settings && typeof tenantSettingsRow.settings === "object"
+      ? (tenantSettingsRow.settings as Record<string, unknown>)
+      : {};
+  const budgetRaw = settings.purchaseBudgetCents;
+  const purchaseBudgetCents =
+    typeof budgetRaw === "number" && Number.isFinite(budgetRaw) && budgetRaw > 0
+      ? Math.floor(budgetRaw)
+      : null;
+
+  if (purchaseBudgetCents != null) {
+    const monthFrom = monthStartSp();
+    const { start: monthStart, end: monthEnd } = rangeBoundsSp(monthFrom, today);
+    const [purchaseAgg] = await db
+      .select({
+        cents: sql<number>`coalesce(sum(
+          abs(${schema.stockMovements.deltaQty}) * coalesce(${schema.products.costCents}, ${schema.products.priceCents}, 0)
+        ), 0)::int`,
+      })
+      .from(schema.stockMovements)
+      .innerJoin(schema.products, eq(schema.stockMovements.productId, schema.products.id))
+      .where(
+        and(
+          eq(schema.stockMovements.tenantId, tenant.id),
+          eq(schema.stockMovements.reason, "purchase"),
+          sql`${schema.stockMovements.deltaQty} > 0`,
+          sql`${schema.stockMovements.createdAt} >= ${monthStart.toISOString()}::timestamptz`,
+          sql`${schema.stockMovements.createdAt} <= ${monthEnd.toISOString()}::timestamptz`
+        )
+      );
+
+    const spent = Number(purchaseAgg?.cents ?? 0);
+    const pct = purchaseBudgetCents > 0 ? Math.round((spent / purchaseBudgetCents) * 100) : 0;
+    if (spent >= purchaseBudgetCents) {
+      alerts.push({
+        id: "purchase-budget",
+        severity: "critical",
+        kind: "purchase_budget",
+        title: `Orçamento de compras estourado (${pct}%)`,
+        detail: `${formatMoney(spent)} de ${formatMoney(purchaseBudgetCents)} no mês`,
+        count: 1,
+        href: "/relatorios/estoque?low=1",
+        periodLabel: "mês",
+      });
+    } else if (pct >= 80) {
+      alerts.push({
+        id: "purchase-budget",
+        severity: "warning",
+        kind: "purchase_budget",
+        title: `Orçamento de compras em ${pct}%`,
+        detail: `${formatMoney(spent)} de ${formatMoney(purchaseBudgetCents)} no mês`,
+        count: 1,
+        href: "/configuracoes/empresa",
+        periodLabel: "mês",
+      });
+    }
   }
 
   const [apptAgg] = await db

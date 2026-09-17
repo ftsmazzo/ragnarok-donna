@@ -9,6 +9,7 @@ export async function saveEmpresaAction(input: EmpresaFormInput) {
     revalidatePath("/configuracoes/empresa");
     revalidatePath("/inicio");
     revalidatePath("/configuracoes/agente");
+    revalidatePath("/alertas");
   }
   return result;
 }

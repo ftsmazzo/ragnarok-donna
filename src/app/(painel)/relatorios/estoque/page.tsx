@@ -8,6 +8,7 @@ import { RankingBarChart, StatusBarChart } from "@/components/relatorio/charts";
 import { reportStock } from "@/lib/relatorios";
 import { resolveReportPeriod } from "@/lib/datetime";
 import { formatMoney } from "@/lib/format";
+import type { StockScope } from "@/lib/product-category";
 import { requirePageAccess } from "@/server/permissions/page-access";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +24,8 @@ type Props = {
   }>;
 };
 
-function parseScope(raw?: string): "all" | "shop" | "bar" {
-  if (raw === "shop" || raw === "bar") return raw;
+function parseScope(raw?: string): StockScope {
+  if (raw === "shop" || raw === "bar" || raw === "insumos") return raw;
   return "all";
 }
 
@@ -46,24 +47,47 @@ export default async function RelatorioEstoquePage({ searchParams }: Props) {
   });
 
   const scopeQ = `period=${period.period}&from=${data.from}&to=${data.to}${data.onlyLow ? "&low=1" : ""}${data.q ? `&q=${encodeURIComponent(data.q)}` : ""}`;
+  const isPurchaseList = data.onlyLow;
+  const colSpan = isPurchaseList ? 8 : 6;
 
   return (
     <>
       <PageHeader
-        title="Estoque"
-        subtitle="Saldo, mínimo e vendas — barbearia e bar separados"
+        title={isPurchaseList ? "Lista de compra" : "Estoque"}
+        subtitle={
+          isPurchaseList
+            ? "Itens abaixo do mínimo — qty a pedir e custo estimado"
+            : "Saldo, mínimo e vendas — barbearia, bar e insumos"
+        }
         actions={
           <ExportCsvButton
-            filename={`estoque_${scope}_${data.from}`}
-            headers={["Produto", "Categoria", "Marca", "Estoque", "Mínimo", "Preço"]}
-            rows={data.rows.map((p) => [
-              p.name,
-              p.category,
-              p.brand,
-              p.stockQty,
-              p.minQty,
-              (p.priceCents / 100).toFixed(2),
-            ])}
+            filename={`${isPurchaseList ? "lista_compra" : "estoque"}_${scope}_${data.from}`}
+            headers={
+              isPurchaseList
+                ? ["Produto", "Categoria", "Marca", "Estoque", "Mínimo", "A pedir", "Custo est. R$", "Preço"]
+                : ["Produto", "Categoria", "Marca", "Estoque", "Mínimo", "Preço"]
+            }
+            rows={data.rows.map((p) =>
+              isPurchaseList
+                ? [
+                    p.name,
+                    p.category,
+                    p.brand,
+                    p.stockQty,
+                    p.minQty,
+                    p.orderQty,
+                    p.orderCostCents != null ? (p.orderCostCents / 100).toFixed(2) : "",
+                    (p.priceCents / 100).toFixed(2),
+                  ]
+                : [
+                    p.name,
+                    p.category,
+                    p.brand,
+                    p.stockQty,
+                    p.minQty,
+                    (p.priceCents / 100).toFixed(2),
+                  ]
+            )}
           />
         }
       />
@@ -88,6 +112,12 @@ export default async function RelatorioEstoquePage({ searchParams }: Props) {
               className={`btn btn-outline btn-sm${scope === "bar" ? " is-active" : ""}`}
             >
               Bar
+            </Link>
+            <Link
+              href={`/relatorios/estoque?${scopeQ}&scope=insumos`}
+              className={`btn btn-outline btn-sm${scope === "insumos" ? " is-active" : ""}`}
+            >
+              Insumos
             </Link>
           </div>
           <PeriodPresets
@@ -114,7 +144,7 @@ export default async function RelatorioEstoquePage({ searchParams }: Props) {
               <span>Filtro</span>
               <select name="low" defaultValue={data.onlyLow ? "1" : ""} className="search-input">
                 <option value="">Todos ativos</option>
-                <option value="1">Só abaixo do mínimo</option>
+                <option value="1">Lista de compra (abaixo do mínimo)</option>
               </select>
             </label>
           </RelatorioFilters>
@@ -126,7 +156,14 @@ export default async function RelatorioEstoquePage({ searchParams }: Props) {
               {
                 label: "SKUs",
                 value: data.skuCount.toLocaleString("pt-BR"),
-                hint: scope === "bar" ? "itens do bar" : scope === "shop" ? "loja" : "ativos",
+                hint:
+                  scope === "bar"
+                    ? "itens do bar"
+                    : scope === "shop"
+                      ? "loja"
+                      : scope === "insumos"
+                        ? "insumos"
+                        : "ativos",
               },
               {
                 label: "Abaixo do mínimo",
@@ -138,25 +175,39 @@ export default async function RelatorioEstoquePage({ searchParams }: Props) {
                 value: formatMoney(data.inventoryValueCents),
                 hint: "qtde × preço de venda",
               },
+              ...(isPurchaseList
+                ? [
+                    {
+                      label: "A pedir (un.)",
+                      value: data.orderQtyTotal.toLocaleString("pt-BR"),
+                      hint:
+                        data.orderCostTotalCents != null
+                          ? `custo est. ${formatMoney(data.orderCostTotalCents)}`
+                          : "preencha custo no cadastro p/ estimar R$",
+                    },
+                  ]
+                : []),
             ]}
           />
 
-          <div className="dash-grid" style={{ marginTop: 8 }}>
-            <div className="dash-panel-inner">
-              <h3 className="section-title section-title-inset">Saldo por categoria</h3>
-              <StatusBarChart data={data.byCategory} />
+          {!isPurchaseList ? (
+            <div className="dash-grid" style={{ marginTop: 8 }}>
+              <div className="dash-panel-inner">
+                <h3 className="section-title section-title-inset">Saldo por categoria</h3>
+                <StatusBarChart data={data.byCategory} />
+              </div>
+              <div className="dash-panel-inner">
+                <h3 className="section-title section-title-inset">
+                  Top vendidos no período (R$)
+                </h3>
+                {data.topSold.length === 0 ? (
+                  <p className="empty-decision">Sem vendas de produto no período.</p>
+                ) : (
+                  <RankingBarChart data={data.topSold} />
+                )}
+              </div>
             </div>
-            <div className="dash-panel-inner">
-              <h3 className="section-title section-title-inset">
-                Top vendidos no período (R$)
-              </h3>
-              {data.topSold.length === 0 ? (
-                <p className="empty-decision">Sem vendas de produto no período.</p>
-              ) : (
-                <RankingBarChart data={data.topSold} />
-              )}
-            </div>
-          </div>
+          ) : null}
 
           <div className="table-wrap" style={{ marginTop: 12 }}>
             <table className="data-table">
@@ -167,15 +218,17 @@ export default async function RelatorioEstoquePage({ searchParams }: Props) {
                   <th>Marca</th>
                   <th>Estoque</th>
                   <th>Mínimo</th>
+                  {isPurchaseList ? <th>A pedir</th> : null}
+                  {isPurchaseList ? <th>Custo est.</th> : null}
                   <th>Preço</th>
                 </tr>
               </thead>
               <tbody>
                 {data.rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="table-empty">
+                    <td colSpan={colSpan} className="table-empty">
                       Nenhum produto neste filtro. Cadastre em Produtos ou troque a aba
-                      Barbearia/Bar.
+                      Barbearia/Bar/Insumos.
                     </td>
                   </tr>
                 ) : (
@@ -189,6 +242,14 @@ export default async function RelatorioEstoquePage({ searchParams }: Props) {
                       <td>{p.brand ?? "—"}</td>
                       <td>{p.stockQty.toLocaleString("pt-BR")}</td>
                       <td>{p.minQty.toLocaleString("pt-BR")}</td>
+                      {isPurchaseList ? (
+                        <td className="cell-strong">{p.orderQty.toLocaleString("pt-BR")}</td>
+                      ) : null}
+                      {isPurchaseList ? (
+                        <td>
+                          {p.orderCostCents != null ? formatMoney(p.orderCostCents) : "—"}
+                        </td>
+                      ) : null}
                       <td>{formatMoney(p.priceCents)}</td>
                     </tr>
                   ))

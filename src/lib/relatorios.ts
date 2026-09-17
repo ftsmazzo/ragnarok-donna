@@ -5,11 +5,11 @@ import { getDb } from "./db";
 import { getDefaultTenant } from "./tenant";
 import { PAGE_SIZE } from "./cadastros";
 import { resolveBranchScope, withBranchScope } from "@/server/context/branch-scope";
-
-function isBarCategory(category: string | null | undefined): boolean {
-  const c = (category ?? "").toLowerCase();
-  return /\bbar\b|bebida|drink|cerveja|whisky|refrigerante|porção|petisco|destilado/.test(c);
-}
+import {
+  matchesStockScope,
+  qtyToOrder,
+  type StockScope,
+} from "@/lib/product-category";
 
 export type ApptReportRow = {
   id: string;
@@ -436,7 +436,7 @@ export async function reportStock(opts?: {
   onlyLow?: boolean;
   from?: string;
   to?: string;
-  scope?: "all" | "shop" | "bar";
+  scope?: StockScope;
 }) {
   const tenant = await getDefaultTenant();
   const db = getDb();
@@ -477,21 +477,34 @@ export async function reportStock(opts?: {
       stockQty: schema.products.stockQty,
       minQty: schema.products.minQty,
       priceCents: schema.products.priceCents,
+      costCents: schema.products.costCents,
       forSale: schema.products.forSale,
     })
     .from(schema.products)
     .where(where)
     .orderBy(asc(schema.products.name));
 
-  const rows = allRows.filter((r) => {
-    if (scope === "bar") return isBarCategory(r.category);
-    if (scope === "shop") return !isBarCategory(r.category);
-    return true;
-  });
+  const rows = allRows
+    .filter((r) => matchesStockScope(r.category, scope))
+    .map((r) => {
+      const orderQty = qtyToOrder(r.stockQty, r.minQty);
+      const unitCost = r.costCents != null && r.costCents > 0 ? r.costCents : null;
+      return {
+        ...r,
+        orderQty,
+        orderCostCents: unitCost != null ? orderQty * unitCost : null,
+      };
+    });
 
   const lowInScope = rows.filter((r) => r.stockQty <= r.minQty).length;
   const zeroInScope = rows.filter((r) => r.stockQty <= 0).length;
   const valueInScope = rows.reduce((acc, r) => acc + r.stockQty * r.priceCents, 0);
+  const orderQtyTotal = rows.reduce((acc, r) => acc + r.orderQty, 0);
+  const orderCostTotalCents = rows.reduce(
+    (acc, r) => acc + (r.orderCostCents ?? 0),
+    0
+  );
+  const orderCostKnown = rows.some((r) => r.orderCostCents != null && r.orderQty > 0);
 
   const [totals] = await db
     .select({
@@ -560,6 +573,8 @@ export async function reportStock(opts?: {
     lowStockCount: scope === "all" ? Number(totals?.low ?? 0) : lowInScope,
     zeroStockCount: scope === "all" ? Number(totals?.zero ?? 0) : zeroInScope,
     inventoryValueCents: scope === "all" ? Number(totals?.value ?? 0) : valueInScope,
+    orderQtyTotal,
+    orderCostTotalCents: orderCostKnown ? orderCostTotalCents : null,
     byCategory: byCategory.map((r) => ({
       name: r.name.length > 22 ? `${r.name.slice(0, 20)}…` : r.name,
       value: Number(r.stock),
