@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
-import { dayBoundsSp, todaySp } from "@/lib/datetime";
+import { dayBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import type { CashDaySnapshot, CashMovementRow, CashPermissions, CashSessionSummary } from "./types";
@@ -262,4 +262,45 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
     })),
     payments,
   };
+}
+
+export async function listCashSessions(opts?: {
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<CashSessionSummary[]> {
+  const tenant = await requireTenantContext();
+  const db = createDb();
+  const to = opts?.to ?? todaySp();
+  const from = opts?.from ?? shiftDateSp(to, -30);
+  const { start } = dayBoundsSp(from);
+  const { end } = dayBoundsSp(to);
+  const limit = Math.max(1, Math.min(200, opts?.limit ?? 60));
+
+  const rows = await db
+    .select({
+      id: schema.cashSessions.id,
+      openedAt: schema.cashSessions.openedAt,
+      closedAt: schema.cashSessions.closedAt,
+      openingCents: schema.cashSessions.openingCents,
+      closingCents: schema.cashSessions.closingCents,
+      notes: schema.cashSessions.notes,
+      openedByUserId: schema.cashSessions.openedByUserId,
+      closedByUserId: schema.cashSessions.closedByUserId,
+    })
+    .from(schema.cashSessions)
+    .where(
+      and(
+        eq(schema.cashSessions.tenantId, tenant.id),
+        gte(schema.cashSessions.openedAt, start),
+        lte(schema.cashSessions.openedAt, end)
+      )
+    )
+    .orderBy(desc(schema.cashSessions.openedAt))
+    .limit(limit);
+
+  const names = await loadUserNames(
+    rows.flatMap((r) => [r.openedByUserId, r.closedByUserId])
+  );
+  return rows.map((r) => toSession(r, names));
 }

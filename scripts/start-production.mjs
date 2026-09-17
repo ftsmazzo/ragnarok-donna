@@ -307,6 +307,30 @@ DO $$ BEGIN
     ADD CONSTRAINT client_account_ledger_delta_nonzero_chk CHECK (delta_cents <> 0);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  delta_qty integer NOT NULL,
+  qty_after integer NOT NULL,
+  reason varchar(64) NOT NULL,
+  notes varchar(240),
+  order_id uuid REFERENCES orders(id) ON DELETE SET NULL,
+  created_by_user_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS stock_movements_product_idx
+  ON stock_movements (tenant_id, product_id);
+CREATE INDEX IF NOT EXISTS stock_movements_created_idx
+  ON stock_movements (tenant_id, created_at);
+DO $$ BEGIN
+  ALTER TABLE stock_movements
+    ADD CONSTRAINT stock_movements_delta_nonzero_chk CHECK (delta_qty <> 0);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS client_packages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -681,6 +705,29 @@ async function ensureRequiredAccountSchema() {
       CREATE UNIQUE INDEX IF NOT EXISTS client_account_ledger_payment_uidx
         ON client_account_ledger (payment_id)
         WHERE payment_id IS NOT NULL
+    `);
+    await sql.unsafe(`
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        delta_qty integer NOT NULL,
+        qty_after integer NOT NULL,
+        reason varchar(64) NOT NULL,
+        notes varchar(240),
+        order_id uuid REFERENCES orders(id) ON DELETE SET NULL,
+        created_by_user_id uuid,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await sql.unsafe(`
+      CREATE INDEX IF NOT EXISTS stock_movements_product_idx
+        ON stock_movements (tenant_id, product_id)
+    `);
+    await sql.unsafe(`
+      CREATE INDEX IF NOT EXISTS stock_movements_created_idx
+        ON stock_movements (tenant_id, created_at)
     `);
   } finally {
     await sql.end({ timeout: 5 });

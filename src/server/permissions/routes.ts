@@ -33,12 +33,14 @@ const RULES: RouteRule[] = [
     pattern: "/servicos",
     roles: ["owner", "admin"],
   },
+  { pattern: "/produtos/movimentacao", roles: ["owner", "admin", "manager"] },
   { pattern: "/produtos", roles: ["owner", "admin"] },
   { pattern: "/pacotes", roles: ["owner", "admin"] },
 
   { pattern: "/comandas", roles: ["owner", "admin", "manager", "staff"] },
   { pattern: "/comandas/historico", roles: ["owner", "admin", "manager", "staff"] },
 
+  { pattern: "/caixa/historico", roles: ["owner", "admin", "manager"] },
   { pattern: "/caixa", roles: ["owner", "admin", "manager"] },
   {
     pattern: "/comissoes",

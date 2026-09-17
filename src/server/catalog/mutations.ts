@@ -152,19 +152,19 @@ export async function consumeInternalStock(input: {
     if (!prod.forInternalUse) {
       throw new AppError("VALIDATION", "Produto não marcado como uso interno");
     }
-    if (prod.stockQty < qty) {
-      throw new AppError("VALIDATION", `Estoque insuficiente (${prod.stockQty} un.)`);
-    }
 
-    await db
-      .update(schema.products)
-      .set({
-        stockQty: sql`${schema.products.stockQty} - ${qty}`,
-        updatedAt: new Date(),
+    const session = await requireSession();
+    const { applyStockDeltaTx } = await import("./stock");
+    await db.transaction((tx) =>
+      applyStockDeltaTx(tx, {
+        tenantId: tenant.id,
+        productId: prod.id,
+        deltaQty: -qty,
+        reason: "internal",
+        notes: "Uso interno",
+        createdByUserId: session.user.id,
       })
-      .where(
-        and(eq(schema.products.id, prod.id), eq(schema.products.tenantId, tenant.id))
-      );
+    );
 
     return { ok: true, id: prod.id };
   } catch (err) {
