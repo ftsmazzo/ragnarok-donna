@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAppError, login } from "@/server";
+import { enforceRateLimit } from "@/server/security/rate-limit";
 
 export async function POST(request: Request) {
+  const limited = enforceRateLimit(request, "auth.login", 12, 15 * 60_000);
+  if (limited) return limited;
+
   try {
     const body = (await request.json()) as {
       email?: string;

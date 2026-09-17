@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runOrchestrator } from "@/server/agent";
 import { assertAgentServiceToken, readBearerToken } from "@/server/agent/auth";
+import { enforceRateLimit } from "@/server/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,9 @@ type Body = {
  * Fase 6.2: normaliza payload Evolution e persiste messages.
  */
 export async function POST(request: Request) {
+  const limited = enforceRateLimit(request, "agent.orchestrate", 90, 60_000);
+  if (limited) return limited;
+
   try {
     assertAgentServiceToken(readBearerToken(request.headers.get("authorization")));
   } catch {

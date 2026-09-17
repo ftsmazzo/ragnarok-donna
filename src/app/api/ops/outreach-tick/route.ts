@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isOutreachDispatchEnabled } from "@/server/outreach/kill-switch";
 import { runOutreachTick } from "@/server/outreach/tick";
+import { enforceRateLimit } from "@/server/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -23,6 +24,9 @@ function authorize(request: Request): boolean {
  * Kill switch: OUTREACH_DISPATCH_ENABLED=true (padrão off — não dispara enquanto clientes estão no AppBarber)
  */
 async function handle(request: Request) {
+  const limited = enforceRateLimit(request, "ops.outreach-tick", 30, 60_000);
+  if (limited) return limited;
+
   if (!authorize(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

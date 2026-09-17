@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { changeOwnPassword, isAppError } from "@/server";
+import { enforceRateLimit } from "@/server/security/rate-limit";
 
 export async function POST(request: Request) {
+  const limited = enforceRateLimit(request, "auth.change-password", 8, 15 * 60_000);
+  if (limited) return limited;
+
   try {
     const body = (await request.json()) as {
       currentPassword?: string;
