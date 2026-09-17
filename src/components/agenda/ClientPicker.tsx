@@ -35,9 +35,10 @@ export function ClientPicker({ value, onChange, required }: Props) {
           placeholder="Nome ou telefone…"
           autoComplete="off"
           aria-busy={pending}
+          data-testid="client-picker-input"
         />
       </label>
-      <div className="client-picker-list" aria-busy={pending}>
+      <div className="client-picker-list" aria-busy={pending} data-testid="client-picker-list">
         {pending && results.length === 0 ? (
           <div aria-label="Buscando clientes">
             <Skeleton className="ui-skeleton-picker" />
