@@ -153,13 +153,19 @@ export function PackageSaleModal({
             className={`btn btn-primary${pending ? " is-pending" : ""}`}
             disabled={!canSubmit}
             aria-busy={pending}
+            data-testid="package-sale-submit"
           >
             {pending ? "Comprando…" : "Comprar"}
           </button>
         </>
       }
     >
-      <form id="package-sale-form" className="package-sale-form" onSubmit={handleSubmit}>
+      <form
+        id="package-sale-form"
+        className="package-sale-form"
+        onSubmit={handleSubmit}
+        data-testid="package-sale-modal"
+      >
         {formError ? <div className="form-error">{formError}</div> : null}
 
         {initialClientId && clientLabel ? (
@@ -191,6 +197,7 @@ export function PackageSaleModal({
             onChange={(e) => setPackageId(e.target.value)}
             required
             disabled={packages.length === 0}
+            data-testid="package-sale-package"
           >
             <option value="">Selecione o pacote…</option>
             {packages.map((p) => (

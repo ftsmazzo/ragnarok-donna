@@ -73,6 +73,7 @@ export function PacotesClient({ rows, total, q, services, products }: Props) {
               className="btn btn-outline"
               disabled={salePackages.length === 0}
               onClick={() => setSaleOpen(true)}
+              data-testid="pacotes-vender"
             >
               Vender pacote
             </button>
