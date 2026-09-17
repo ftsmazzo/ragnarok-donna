@@ -7,7 +7,7 @@ import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import type { AgendaAppointment, AgendaPermissions } from "@/server/agenda/types";
 import type { ClientUpsellTip } from "@/server/insights/types";
 import { formatDateTimeSp, formatTimeSp } from "@/lib/datetime";
-import { formatMoney, labelApptStatus } from "@/lib/format";
+import { formatMoney, formatPhone, labelApptStatus } from "@/lib/format";
 import {
   patchAppointmentMetaAction,
   payAndCloseFromAgendaAction,
@@ -193,7 +193,15 @@ export function AgendaDetailModal({
               <dt>Cliente</dt>
               <dd className="agenda-client-dd">
                 <PersonAvatar name={a.clientName} src={a.clientAvatarUrl} size={32} />
-                <span>{a.clientName}</span>
+                <span>
+                  {a.clientName}
+                  {a.clientPhone && formatPhone(a.clientPhone) !== "—" ? (
+                    <>
+                      <br />
+                      <span className="muted">{formatPhone(a.clientPhone)}</span>
+                    </>
+                  ) : null}
+                </span>
               </dd>
             </div>
             <div>

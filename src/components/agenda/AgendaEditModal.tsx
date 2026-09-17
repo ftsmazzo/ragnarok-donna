@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import type { AgendaAppointment, AgendaPickerService, AgendaStaff, AppointmentEditScope } from "@/server/agenda/types";
 import { updateAppointmentAction } from "@/app/(painel)/agenda/actions";
 import { formatDateSp, hourInSp, minuteInSp } from "@/lib/datetime";
+import { useToast } from "@/components/ui/Toast";
 
 type Props = {
   open: boolean;
@@ -50,6 +51,7 @@ export function AgendaEditModal({
   const [error, setError] = useState("");
   const [scope, setScope] = useState<AppointmentEditScope>("all");
   const [pending, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   const initialDuration = Math.max(
     5,
@@ -105,8 +107,10 @@ export function AgendaEditModal({
       const result = await updateAppointmentAction(formData);
       if (!result.ok) {
         setError(result.error);
+        showToast(result.error, "error");
         return;
       }
+      showToast("Horário atualizado", "success");
       onSaved();
       onClose();
     });

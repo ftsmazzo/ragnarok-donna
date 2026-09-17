@@ -41,6 +41,7 @@ import {
   todaySp,
 } from "@/lib/datetime";
 import { useAgendaNow } from "@/components/agenda/useAgendaNow";
+import { formatPhone, labelApptStatus } from "@/lib/format";
 
 type Props = {
   data: AgendaDayData;
@@ -58,21 +59,49 @@ type Props = {
   selectedOrder?: OrderDetail | null;
 };
 
+function slotDurationMin(a: AgendaAppointment): number {
+  return Math.max(5, Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000));
+}
+
+function slotPhoneLabel(a: AgendaAppointment): string | null {
+  if (!a.clientPhone) return null;
+  const label = formatPhone(a.clientPhone);
+  return label === "—" ? null : label;
+}
+
+function slotStatusGlyph(status: string): { glyph: string; title: string } | null {
+  switch (status) {
+    case "confirmed":
+      return { glyph: "✓", title: labelApptStatus(status) };
+    case "arrived":
+      return { glyph: "●", title: labelApptStatus(status) };
+    case "in_progress":
+      return { glyph: "▶", title: labelApptStatus(status) };
+    case "completed":
+      return { glyph: "✔", title: labelApptStatus(status) };
+    case "no_show":
+    case "cancelled":
+      return { glyph: "✕", title: labelApptStatus(status) };
+    default:
+      return null;
+  }
+}
+
 function slotClass(a: AgendaAppointment): string {
-  if (a.status === "blocked") return "slot block";
-  if (a.status === "no_show" || a.status === "cancelled") return "slot muted";
-  if (a.status === "confirmed") return "slot confirmed";
-  if (a.status === "arrived" || a.status === "in_progress") return "slot active";
-  if (a.isEncaixe) return "slot encaixe";
-  return "slot";
+  const parts = ["slot"];
+  if (a.status === "blocked") parts.push("block");
+  else if (a.status === "no_show" || a.status === "cancelled") parts.push("muted");
+  else if (a.status === "confirmed") parts.push("confirmed");
+  else if (a.status === "arrived" || a.status === "in_progress") parts.push("active");
+  else if (a.isEncaixe) parts.push("encaixe");
+  if (slotDurationMin(a) >= 40) parts.push("is-tall");
+  if (a.orderId) parts.push("has-order");
+  return parts.join(" ");
 }
 
 /** Altura/topo do card na grade de 30 min (célula ~40px). */
 function slotSpanStyle(a: AgendaAppointment): React.CSSProperties {
-  const durationMin = Math.max(
-    5,
-    Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000)
-  );
+  const durationMin = slotDurationMin(a);
   const offsetMin = minuteInSp(a.startsAt) % 30;
   const span = durationMin / 30;
   return {
@@ -378,7 +407,11 @@ export function AgendaView({
                             aria-hidden
                           />
                         ) : null}
-                        {slots.map((a) => (
+                        {slots.map((a) => {
+                          const phone = slotPhoneLabel(a);
+                          const statusGlyph = slotStatusGlyph(a.status);
+                          const tall = slotDurationMin(a) >= 40;
+                          return (
                           <div
                             key={a.id}
                             className={slotClass(a)}
@@ -402,8 +435,22 @@ export function AgendaView({
                                 y: e.clientY,
                               });
                             }}
-                            title={`${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)} · botão direito: ações`}
+                            title={`${formatTimeSp(a.startsAt)} – ${formatTimeSp(a.endsAt)}${phone ? ` · ${phone}` : ""} · botão direito: ações`}
                           >
+                            {a.status !== "blocked" ? (
+                              <span className="slot-badges" aria-hidden>
+                                {statusGlyph ? (
+                                  <span className="slot-badge" title={statusGlyph.title}>
+                                    {statusGlyph.glyph}
+                                  </span>
+                                ) : null}
+                                {a.orderId ? (
+                                  <span className="slot-badge slot-badge-order" title="Comanda vinculada">
+                                    ⌗
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : null}
                             <span className="slot-main">
                               {a.status !== "blocked" ? (
                                 <PersonAvatar
@@ -412,18 +459,26 @@ export function AgendaView({
                                   size={18}
                                 />
                               ) : null}
-                              <span>
+                              <span className="slot-copy">
                                 <strong>{shortPersonName(a.clientName)}</strong>
                                 {a.isEncaixe ? " · encaixe" : null}
                                 {a.noPreference ? " · sem pref." : null}
-                                {a.status === "arrived" ? " · no local" : null}
                                 {a.tags?.[0] ? ` · #${a.tags[0]}` : null}
+                                {tall && phone ? (
+                                  <>
+                                    <br />
+                                    <span className="slot-phone">{phone}</span>
+                                  </>
+                                ) : null}
                                 <br />
-                                {a.serviceName ?? (a.status === "blocked" ? "Bloqueio" : "—")}
+                                <span className="slot-service">
+                                  {a.serviceName ?? (a.status === "blocked" ? "Bloqueio" : "—")}
+                                </span>
                               </span>
                             </span>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                   })}

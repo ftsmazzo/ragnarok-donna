@@ -9,6 +9,7 @@ import {
   scheduleAppointmentAction,
   scheduleEncaixeAction,
 } from "@/app/(painel)/agenda/actions";
+import { useToast } from "@/components/ui/Toast";
 
 export type AgendaFormMode = "schedule" | "block" | "encaixe";
 
@@ -45,6 +46,7 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
   const [minute, setMinute] = useState(slot.minute ?? 0);
   const [durationMin, setDurationMin] = useState(30);
   const [pending, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   const title = MODE_TITLE[mode];
   const needsClient = mode !== "block";
@@ -91,8 +93,16 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
       const result = await action(formData);
       if (!result.ok) {
         setError(result.error);
+        showToast(result.error, "error");
         return;
       }
+      const okMsg =
+        mode === "block"
+          ? "Bloqueio salvo"
+          : mode === "encaixe"
+            ? "Encaixe agendado"
+            : "Horário agendado";
+      showToast(okMsg, "success");
       onSaved();
       onClose();
     });

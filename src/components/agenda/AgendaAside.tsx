@@ -10,6 +10,7 @@ import type {
   AgendaStaff,
 } from "@/server/agenda/types";
 import { formatTimeSp, shortPersonName } from "@/lib/datetime";
+import { formatPhone } from "@/lib/format";
 import { freeSlotsForDay } from "@/lib/agenda-free-slots";
 import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 
@@ -155,7 +156,11 @@ export function AgendaAside({
                     <span>
                       {shortPersonName(a.clientName)}
                       {a.status === "blocked" ? " · Bloqueio" : null}
+                      {a.clientPhone && formatPhone(a.clientPhone) !== "—"
+                        ? ` · ${formatPhone(a.clientPhone)}`
+                        : null}
                       {a.serviceName ? ` · ${a.serviceName}` : null}
+                      {a.orderId ? " · comanda" : null}
                     </span>
                   </span>
                   <em>{staffName(data.staff, a.staffId)}</em>

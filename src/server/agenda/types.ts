@@ -10,6 +10,7 @@ export type AgendaAppointment = {
   staffName: string | null;
   clientId: string | null;
   clientName: string;
+  clientPhone: string | null;
   clientAvatarUrl: string | null;
   serviceId: string | null;
   serviceName: string | null;
