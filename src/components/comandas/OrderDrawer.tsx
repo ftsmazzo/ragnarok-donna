@@ -389,8 +389,9 @@ export function OrderDrawer({
                 </button>
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className={`btn btn-primary${pending ? " is-pending" : ""}`}
                   disabled={pending || order.items.length === 0}
+                  aria-busy={pending}
                   onClick={() => {
                     if (order.balanceCents > 0) setPayCloseOpen(true);
                     else run(() => closeOrderAction(order.id));
@@ -398,7 +399,7 @@ export function OrderDrawer({
                   title="Paga o saldo (se houver) e fecha a comanda"
                 >
                   {pending
-                    ? "…"
+                    ? "Processando…"
                     : order.balanceCents > 0
                       ? "Pagar e fechar"
                       : "Fechar comanda"}
@@ -942,8 +943,14 @@ export function OrderDrawer({
             >
               Cancelar
             </button>
-            <button type="submit" form="pay-form" className="btn btn-primary" disabled={pending}>
-              {pending ? "…" : "Confirmar"}
+            <button
+              type="submit"
+              form="pay-form"
+              className={`btn btn-primary${pending ? " is-pending" : ""}`}
+              disabled={pending}
+              aria-busy={pending}
+            >
+              {pending ? "Confirmando…" : "Confirmar"}
             </button>
           </>
         }
@@ -1081,10 +1088,11 @@ export function OrderDrawer({
             <button
               type="submit"
               form="pay-close-form"
-              className="btn btn-primary"
+              className={`btn btn-primary${pending ? " is-pending" : ""}`}
               disabled={pending || Math.abs(payLinesDiffCents) > 1}
+              aria-busy={pending}
             >
-              {pending ? "…" : "Confirmar e fechar"}
+              {pending ? "Fechando…" : "Confirmar e fechar"}
             </button>
           </>
         }

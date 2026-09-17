@@ -316,8 +316,9 @@ export function ClientDrawer({
               <button
                 type="submit"
                 form="client-form"
-                className="btn btn-primary"
+                className={`btn btn-primary${pending ? " is-pending" : ""}`}
                 disabled={pending}
+                aria-busy={pending}
               >
                 {pending ? "Salvando…" : tab === "cadastro" || !isEdit ? "Salvar" : "Salvar cadastro"}
               </button>

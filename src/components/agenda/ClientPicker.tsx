@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import type { AgendaPickerClient } from "@/server/agenda/types";
 import { searchClientsAction } from "@/app/(painel)/agenda/actions";
 import { formatPhone } from "@/lib/format";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type Props = {
   value: string;
@@ -33,11 +34,16 @@ export function ClientPicker({ value, onChange, required }: Props) {
           onChange={(e) => setQ(e.target.value)}
           placeholder="Nome ou telefone…"
           autoComplete="off"
+          aria-busy={pending}
         />
       </label>
-      <div className="client-picker-list">
+      <div className="client-picker-list" aria-busy={pending}>
         {pending && results.length === 0 ? (
-          <p className="client-profile-hint">Buscando…</p>
+          <div aria-label="Buscando clientes">
+            <Skeleton className="ui-skeleton-picker" />
+            <Skeleton className="ui-skeleton-picker" style={{ width: "92%" }} />
+            <Skeleton className="ui-skeleton-picker" style={{ width: "78%" }} />
+          </div>
         ) : null}
         {results.map((c) => (
           <button
@@ -51,7 +57,9 @@ export function ClientPicker({ value, onChange, required }: Props) {
           </button>
         ))}
         {!pending && results.length === 0 ? (
-          <p className="client-profile-hint">Digite ao menos 2 caracteres ou deixe vazio para listar.</p>
+          <p className="client-profile-hint">
+            Digite ao menos 2 caracteres ou deixe vazio para listar.
+          </p>
         ) : null}
       </div>
     </div>
