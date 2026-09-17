@@ -417,8 +417,10 @@ export async function debitOneCredit(input: {
   productId?: string;
   /** Se informado, debita só deste client_package (Conta Recorrência). */
   clientPackageId?: string;
+  /** Transação opcional (atomicidade Conta Recorrência). */
+  tx?: DbTransaction;
 }): Promise<{ creditId: string; clientPackageId: string }> {
-  const db = createDb();
+  const db = input.tx ?? createDb();
   const now = new Date();
   if (!input.serviceId && !input.productId) {
     const { AppError } = await import("../errors");
@@ -458,7 +460,8 @@ export async function debitOneCredit(input: {
       sql`${schema.clientPackages.expiresAt} asc nulls last`,
       asc(schema.clientPackageCredits.createdAt)
     )
-    .limit(1);
+    .limit(1)
+    .for("update");
 
   if (!credit) {
     const { AppError } = await import("../errors");
@@ -470,10 +473,10 @@ export async function debitOneCredit(input: {
     );
   }
 
-  await db
+  const updated = await db
     .update(schema.clientPackageCredits)
     .set({
-      remainingQty: credit.remainingQty - 1,
+      remainingQty: sql`${schema.clientPackageCredits.remainingQty} - 1`,
       updatedAt: now,
     })
     .where(
@@ -482,7 +485,16 @@ export async function debitOneCredit(input: {
         eq(schema.clientPackageCredits.tenantId, input.tenantId),
         gt(schema.clientPackageCredits.remainingQty, 0)
       )
+    )
+    .returning({ id: schema.clientPackageCredits.id });
+
+  if (!updated.length) {
+    const { AppError } = await import("../errors");
+    throw new AppError(
+      "VALIDATION",
+      "Crédito acabou de ser usado por outra operação — tente de novo"
     );
+  }
 
   const [left] = await db
     .select({
