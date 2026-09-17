@@ -23,6 +23,7 @@
     "seed:owner": "node scripts/seed-owner.mjs"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.75.0",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.44.7",
     "jose": "^6.2.10",
