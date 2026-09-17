@@ -2,12 +2,14 @@ import type { SupportGuide } from "./types";
 
 export const guideInicio: SupportGuide = {
   id: "inicio",
-  title: "Início",
+  title: "Hoje",
   status: "ready",
   href: "/inicio",
-  menuPath: "Início",
+  menuPath: "Hoje",
   aliases: [
+    "hoje",
     "início",
+    "inicio",
     "home",
     "dashboard",
     "painel inicial",
@@ -22,7 +24,7 @@ export const guideInicio: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Início (/inicio). Na visão consolidada o título vira Gestão da rede / Comparativo Donna.",
+        "Menu → Hoje (/inicio). Antes chamava-se Início. Na visão consolidada o título vira Gestão da rede / Comparativo Donna.",
     },
     {
       title: "Unidade",

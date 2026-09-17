@@ -136,8 +136,8 @@ export const FEATURE_HINTS: FeatureHint[] = [
   {
     id: "alertas",
     aliases: ["alerta", "alertas", "crítico"],
-    title: "Alertas",
-    where: "Relatórios → Alertas",
+    title: "Lembretes",
+    where: "Lembretes",
     tip: "Semana atual (SP). Abrir pode ir a telas só dono/admin (ex. estoque).",
   },
   {

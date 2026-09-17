@@ -69,11 +69,11 @@ export const guideRelatoriosVisao: SupportGuide = {
 
 export const guideAlertas: SupportGuide = {
   id: "alertas",
-  title: "Alertas",
+  title: "Lembretes",
   status: "ready",
   href: "/alertas",
-  menuPath: "Relatórios → Alertas",
-  aliases: ["alerta", "alertas", "aviso", "crítico", "comanda aberta"],
+  menuPath: "Lembretes",
+  aliases: ["alerta", "alertas", "lembretes", "aviso", "crítico", "comanda aberta"],
   roles: ["owner", "admin", "reception"],
   intents: ["onde_fica", "objecao", "permissao"],
   summary:
@@ -82,7 +82,7 @@ export const guideAlertas: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Relatórios → Alertas (/alertas). Título: Alertas operacionais. Dono, admin e manager.",
+        "Menu → Lembretes (/alertas). Antes ficava em Relatórios → Alertas. Título: Alertas operacionais. Dono, admin e manager.",
     },
     {
       title: "Período",

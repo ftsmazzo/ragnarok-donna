@@ -201,6 +201,34 @@ export function AgendaDetailModal({
                       <span className="muted">{formatPhone(a.clientPhone)}</span>
                     </>
                   ) : null}
+                  {a.clientAccountBalanceCents != null && a.clientAccountBalanceCents !== 0 ? (
+                    <>
+                      <br />
+                      <span
+                        className={
+                          a.clientAccountBalanceCents < 0
+                            ? "agenda-account is-debt"
+                            : "agenda-account is-credit"
+                        }
+                      >
+                        Conta: {formatMoney(a.clientAccountBalanceCents)}
+                        {a.clientAccountBalanceCents < 0 ? " (fiado)" : " (crédito)"}
+                      </span>
+                    </>
+                  ) : a.clientAccountBalanceCents === 0 ? (
+                    <>
+                      <br />
+                      <span className="muted">Conta: em dia</span>
+                    </>
+                  ) : null}
+                  {a.clientHairPreference ? (
+                    <>
+                      <br />
+                      <span className="agenda-hair-pref">
+                        Corte: {a.clientHairPreference}
+                      </span>
+                    </>
+                  ) : null}
                 </span>
               </dd>
             </div>

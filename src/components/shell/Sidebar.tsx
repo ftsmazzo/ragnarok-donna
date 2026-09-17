@@ -21,10 +21,15 @@ type SidebarProps = {
   session: ShellSession;
 };
 
+function pathOnly(href: string) {
+  return href.split("?")[0] || href;
+}
+
 function isActive(pathname: string, href?: string) {
   if (!href) return false;
-  if (href === "/inicio") return pathname === "/" || pathname === "/inicio";
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const path = pathOnly(href);
+  if (path === "/inicio") return pathname === "/" || pathname === "/inicio";
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
 function hasActiveChild(pathname: string, item: NavItem) {

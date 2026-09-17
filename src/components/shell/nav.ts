@@ -9,16 +9,24 @@ export type NavItem = {
   children?: { label: string; href: string; icon?: string }[];
 };
 
-/** Navegação espelhada do AppBarber, com Conversas IA e Alertas. */
+/** Path sem query — usado em permissões. */
+export function navPathOnly(href: string): string {
+  return href.split("?")[0] || href;
+}
+
+/**
+ * Navegação Sarah: Hoje / Lembretes / Equipe / Operação / Inteligência
+ * + blocos operacionais (Agenda, Cadastros, Comandas, Financeiro).
+ */
 export const NAV: NavItem[] = [
-  { label: "Início", href: "/inicio", icon: "⌂" },
+  { label: "Hoje", href: "/inicio", icon: "⌂" },
   { label: "Agenda", href: "/agenda", icon: "▤" },
+  { label: "Lembretes", href: "/alertas", icon: "!" },
   {
     label: "Cadastros",
     icon: "☰",
     children: [
       { label: "Clientes", href: "/clientes", icon: "☺" },
-      { label: "Aniversariantes", href: "/clientes/aniversariantes", icon: "★" },
       { label: "Profissionais", href: "/profissionais", icon: "✂" },
       { label: "Serviços", href: "/servicos", icon: "★" },
       { label: "Produtos", href: "/produtos", icon: "▣" },
@@ -35,16 +43,33 @@ export const NAV: NavItem[] = [
     ],
   },
   {
+    label: "Equipe",
+    icon: "✂",
+    children: [
+      { label: "Profissionais", href: "/profissionais", icon: "✂" },
+      { label: "Comissões", href: "/comissoes", icon: "%" },
+      { label: "Extras / metas", href: "/relatorios/extras", icon: "★" },
+      { label: "Aniversariantes", href: "/clientes/aniversariantes", icon: "★" },
+    ],
+  },
+  {
+    label: "Operação",
+    icon: "▣",
+    children: [
+      { label: "Estoque", href: "/relatorios/estoque", icon: "▣" },
+      { label: "Lista de compra", href: "/relatorios/estoque?low=1", icon: "!" },
+      { label: "Entrada/saída estoque", href: "/produtos/movimentacao", icon: "⇅" },
+    ],
+  },
+  {
     label: "Financeiro",
     icon: "$",
     children: [
       { label: "Caixa", href: "/caixa", icon: "$" },
       { label: "Hist. caixa", href: "/caixa/historico", icon: "▤" },
-      { label: "Entrada/saída estoque", href: "/produtos/movimentacao", icon: "⇅" },
-      { label: "Estoque", href: "/relatorios/estoque", icon: "▣" },
-      { label: "Comissões", href: "/comissoes", icon: "%" },
       { label: "Fluxo de caixa", href: "/relatorios/fluxo", icon: "↗" },
       { label: "Contas", href: "/contas", icon: "≡" },
+      { label: "Comissões", href: "/comissoes", icon: "%" },
     ],
   },
   {
@@ -52,18 +77,23 @@ export const NAV: NavItem[] = [
     icon: "▦",
     children: [
       { label: "Visão geral", href: "/relatorios", icon: "▦" },
-      { label: "Alertas", href: "/alertas", icon: "!" },
       { label: "Agendamentos", href: "/relatorios/agendamentos", icon: "▤" },
       { label: "Financeiro", href: "/relatorios/financeiro", icon: "$" },
       { label: "Comandas", href: "/relatorios/comandas", icon: "☰" },
-      { label: "Estoque", href: "/relatorios/estoque", icon: "▣" },
-      { label: "Extras / metas", href: "/relatorios/extras", icon: "★" },
       { label: "Perfil do cliente", href: "/relatorios/perfil", icon: "☺" },
       { label: "Fluxo de caixa", href: "/relatorios/fluxo", icon: "↗" },
-      { label: "Comissões", href: "/comissoes", icon: "%" },
     ],
   },
-  { label: "Conversas IA", href: "/conversas", icon: "✉" },
+  {
+    label: "Inteligência",
+    icon: "✉",
+    children: [
+      { label: "Conversas IA", href: "/conversas", icon: "✉" },
+      { label: "Disparos WhatsApp", href: "/configuracoes/disparos", icon: "✉" },
+      { label: "Agente (Donna)", href: "/configuracoes/agente", icon: "✉" },
+      { label: "Perfil / retorno", href: "/relatorios/perfil", icon: "☺" },
+    ],
+  },
   {
     label: "Configurações",
     icon: "⚙",
@@ -72,8 +102,6 @@ export const NAV: NavItem[] = [
       { label: "Dados da empresa", href: "/configuracoes/empresa", icon: "⌂" },
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
       { label: "Minha conta", href: "/configuracoes/conta" },
-      { label: "Agente (Donna)", href: "/configuracoes/agente", icon: "✉" },
-      { label: "Disparos WhatsApp", href: "/configuracoes/disparos", icon: "✉" },
       { label: "App celular (PWA)", href: "/pwa/conversas", icon: "▣" },
     ],
   },
@@ -84,30 +112,42 @@ export const NAV: NavItem[] = [
  * Sem agenda/comanda/caixa — operação é por unidade.
  */
 export const NAV_CONSOLIDATED: NavItem[] = [
-  { label: "Gestão da rede", href: "/inicio", icon: "⌂" },
+  { label: "Hoje", href: "/inicio", icon: "⌂" },
+  { label: "Lembretes", href: "/alertas", icon: "!" },
+  {
+    label: "Equipe",
+    icon: "✂",
+    children: [
+      { label: "Comissões", href: "/comissoes", icon: "%" },
+      { label: "Extras / metas", href: "/relatorios/extras", icon: "★" },
+    ],
+  },
   {
     label: "Relatórios",
     icon: "▦",
     children: [
       { label: "Visão geral", href: "/relatorios", icon: "▦" },
-      { label: "Alertas", href: "/alertas", icon: "!" },
       { label: "Agendamentos", href: "/relatorios/agendamentos", icon: "▤" },
       { label: "Financeiro", href: "/relatorios/financeiro", icon: "$" },
       { label: "Comandas", href: "/relatorios/comandas", icon: "☰" },
       { label: "Estoque", href: "/relatorios/estoque", icon: "▣" },
-      { label: "Extras / metas", href: "/relatorios/extras", icon: "★" },
       { label: "Perfil do cliente", href: "/relatorios/perfil", icon: "☺" },
       { label: "Fluxo de caixa", href: "/relatorios/fluxo", icon: "↗" },
     ],
   },
-  { label: "Comissões", href: "/comissoes", icon: "%" },
+  {
+    label: "Inteligência",
+    icon: "✉",
+    children: [
+      { label: "Disparos WhatsApp", href: "/configuracoes/disparos", icon: "✉" },
+    ],
+  },
   {
     label: "Configurações",
     icon: "⚙",
     children: [
       { label: "Dados da empresa", href: "/configuracoes/empresa", icon: "⌂" },
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
-      { label: "Disparos WhatsApp", href: "/configuracoes/disparos", icon: "✉" },
       { label: "Minha conta", href: "/configuracoes/conta" },
     ],
   },
@@ -124,10 +164,12 @@ export function filterNavForRole(
   return source
     .map((item) => {
       if (item.href) {
-        return canAccessRoute(item.href, role, ctx) ? item : null;
+        return canAccessRoute(navPathOnly(item.href), role, ctx) ? item : null;
       }
 
-      const children = item.children?.filter((c) => canAccessRoute(c.href, role, ctx));
+      const children = item.children?.filter((c) =>
+        canAccessRoute(navPathOnly(c.href), role, ctx)
+      );
       if (!children?.length) return null;
 
       return { ...item, children };
@@ -144,7 +186,7 @@ export type NavLink = {
 
 /** Lista plana de hrefs do menu (unidade + consolidado). */
 export function listNavHrefs(): string[] {
-  return [...new Set(listNavLinks().map((l) => l.href))].sort();
+  return [...new Set(listNavLinks().map((l) => navPathOnly(l.href)))].sort();
 }
 
 /** Rótulo + frases para deep-link no chat de suporte. */
@@ -152,10 +194,11 @@ export function listNavLinks(): NavLink[] {
   const byHref = new Map<string, NavLink>();
 
   function add(href: string, label: string, extra: string[] = []) {
-    const cur = byHref.get(href);
+    const path = navPathOnly(href);
+    const cur = byHref.get(path);
     const phrases = extra.concat(label);
     if (!cur) {
-      byHref.set(href, { href, label, phrases: [...new Set(phrases)] });
+      byHref.set(path, { href: path, label, phrases: [...new Set(phrases)] });
       return;
     }
     cur.phrases = [...new Set([...cur.phrases, ...phrases])];
@@ -169,7 +212,7 @@ export function listNavLinks(): NavLink[] {
           `${item.label} → ${child.label}`,
           `${item.label} -> ${child.label}`,
         ]);
-        if (item.label === "Comandas" && child.href === "/comandas") {
+        if (item.label === "Comandas" && navPathOnly(child.href) === "/comandas") {
           const cur = byHref.get("/comandas");
           if (cur) cur.label = "Comandas";
         }
