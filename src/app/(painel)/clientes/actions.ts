@@ -132,3 +132,25 @@ export async function postClientAccountAction(
   }
   return result;
 }
+
+export async function settleClientAccountDebtAction(
+  formData: FormData
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const { settleClientAccountDebt } = await import("@/server/clients/account");
+  const clientId = String(formData.get("clientId") ?? "");
+  const method = String(formData.get("method") ?? "pix");
+  const amountReais = Number(String(formData.get("amountReais") ?? "").replace(",", "."));
+  const result = await settleClientAccountDebt({
+    clientId,
+    method,
+    amountCents: Math.round(amountReais * 100),
+    notes: String(formData.get("notes") ?? ""),
+  });
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath(`/clientes?id=${clientId}`);
+    revalidatePath("/caixa");
+    revalidatePath("/comandas");
+  }
+  return result;
+}

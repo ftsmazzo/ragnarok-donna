@@ -164,7 +164,7 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
   const to = opts.to ?? todaySp();
   const { start, end } = rangeBoundsSp(from, to);
 
-  const byMethod = await db
+  const byMethodAll = await db
     .select({
       method: schema.payments.method,
       n: count(),
@@ -180,6 +180,11 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
     )
     .groupBy(schema.payments.method)
     .orderBy(desc(sql`sum(${schema.payments.amountCents})`));
+
+  const byMethod = byMethodAll.filter((r) => r.method !== "client_account");
+  const accountMethod = byMethodAll.find((r) => r.method === "client_account");
+  const accountPaymentsCents = Number(accountMethod?.totalCents ?? 0);
+  const accountPaymentsCount = Number(accountMethod?.n ?? 0);
 
   const [closedOrders] = await db
     .select({
@@ -268,6 +273,9 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
     to,
     totalPaymentsCents: totalPayments,
     totalPaymentsCount,
+    /** Uso de Conta do Cliente (não é receita de caixa). */
+    accountPaymentsCents,
+    accountPaymentsCount,
     closedOrdersCount: closedN,
     closedOrdersCents: closedCents,
     openOrdersCount: Number(openOrders?.n ?? 0),

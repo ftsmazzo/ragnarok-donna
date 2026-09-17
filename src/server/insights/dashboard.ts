@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { monthStartSp, rangeBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
@@ -116,6 +116,7 @@ export async function getManagementDashboard(opts?: {
           and(
             eq(schema.payments.tenantId, tenant.id),
             eq(schema.orders.tenantId, tenant.id),
+            ne(schema.payments.method, "client_account"),
             gte(schema.payments.paidAt, start),
             lte(schema.payments.paidAt, end)
           )
@@ -132,6 +133,7 @@ export async function getManagementDashboard(opts?: {
           and(
             eq(schema.payments.tenantId, tenant.id),
             eq(schema.orders.tenantId, tenant.id),
+            ne(schema.payments.method, "client_account"),
             gte(schema.payments.paidAt, prev.start),
             lte(schema.payments.paidAt, prev.end)
           )
@@ -184,6 +186,7 @@ export async function getManagementDashboard(opts?: {
           and(
             eq(schema.payments.tenantId, tenant.id),
             eq(schema.orders.tenantId, tenant.id),
+            ne(schema.payments.method, "client_account"),
             gte(schema.payments.paidAt, start),
             lte(schema.payments.paidAt, end)
           )
@@ -203,6 +206,7 @@ export async function getManagementDashboard(opts?: {
           and(
             eq(schema.payments.tenantId, tenant.id),
             eq(schema.orders.tenantId, tenant.id),
+            ne(schema.payments.method, "client_account"),
             gte(schema.payments.paidAt, start),
             lte(schema.payments.paidAt, end)
           )

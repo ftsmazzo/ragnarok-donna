@@ -155,9 +155,10 @@ export async function addCashMovement(input: {
 
 type PaymentCashInput = {
   tenantId: string;
-  orderId: string;
+  orderId?: string | null;
   method: PaymentMethod;
   amountCents: number;
+  description?: string;
 };
 
 /** Usa o mesmo commit do pagamento; caixa fechado continua sendo um no-op. */
@@ -185,11 +186,11 @@ export async function recordPaymentInCashTx(
   await tx.insert(schema.cashMovements).values({
     tenantId: input.tenantId,
     cashSessionId: session.id,
-    orderId: input.orderId,
+    orderId: input.orderId ?? null,
     direction: "in",
     method: input.method,
     amountCents: input.amountCents,
-    description: "Pagamento de comanda",
+    description: input.description ?? "Pagamento de comanda",
   });
 }
 

@@ -4,10 +4,13 @@ import {
   count,
   desc,
   eq,
+  gt,
   ilike,
   inArray,
   isNotNull,
   isNull,
+  lt,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
@@ -27,7 +30,13 @@ import {
 
 export const CLIENT_PAGE_SIZE = 50;
 
-export type ClientFilter = "ativos" | "removidos" | "todos";
+export type ClientFilter =
+  | "ativos"
+  | "removidos"
+  | "todos"
+  | "fiado"
+  | "credito"
+  | "conta";
 
 export type ClientListItem = {
   id: string;
@@ -109,14 +118,24 @@ export type ClientProfile = {
 
 function clientFilterWhere(tenantId: string, filter: ClientFilter) {
   const base = eq(schema.clients.tenantId, tenantId);
+  const active = and(eq(schema.clients.isActive, true), isNull(schema.clients.deletedAt));
   if (filter === "ativos") {
-    return and(base, eq(schema.clients.isActive, true), isNull(schema.clients.deletedAt));
+    return and(base, active);
   }
   if (filter === "removidos") {
     return and(
       base,
       or(eq(schema.clients.isActive, false), isNotNull(schema.clients.deletedAt))
     );
+  }
+  if (filter === "fiado") {
+    return and(base, active, lt(schema.clients.accountBalanceCents, 0));
+  }
+  if (filter === "credito") {
+    return and(base, active, gt(schema.clients.accountBalanceCents, 0));
+  }
+  if (filter === "conta") {
+    return and(base, active, ne(schema.clients.accountBalanceCents, 0));
   }
   return base;
 }
@@ -229,7 +248,10 @@ export async function getClient(clientId: string): Promise<ClientDetail> {
   };
 }
 
-export async function getClientProfile(clientId: string): Promise<ClientProfile> {
+export async function getClientProfile(
+  clientId: string,
+  opts?: { ledgerPage?: number }
+): Promise<ClientProfile> {
   const tenant = await requireTenantContext();
   const db = createDb();
 
@@ -406,7 +428,7 @@ export async function getClientProfile(clientId: string): Promise<ClientProfile>
     })(),
     account: await (async () => {
       const { getClientAccount } = await import("./account");
-      return getClientAccount(clientId);
+      return getClientAccount(clientId, { page: opts?.ledgerPage ?? 1 });
     })(),
   };
 }

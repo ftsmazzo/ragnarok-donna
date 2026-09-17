@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
-import { renewOrTopUpClientPackageAction, postClientAccountAction } from "@/app/(painel)/clientes/actions";
+import { renewOrTopUpClientPackageAction, postClientAccountAction, settleClientAccountDebtAction } from "@/app/(painel)/clientes/actions";
 import {
   PackageSaleModal,
   type PackageSaleOption,
@@ -64,6 +64,7 @@ export function ClientProfilePanel({
   const [pending, startTransition] = useTransition();
   const [pkgError, setPkgError] = useState("");
   const [accountError, setAccountError] = useState("");
+  const [settleError, setSettleError] = useState("");
   const [saleOpen, setSaleOpen] = useState(false);
   const [confirmTopUpId, setConfirmTopUpId] = useState<string | null>(null);
   const {
@@ -77,6 +78,9 @@ export function ClientProfilePanel({
       clientId: client.id,
       balanceCents: client.accountBalanceCents ?? 0,
       ledger: [],
+      ledgerTotal: 0,
+      ledgerPage: 1,
+      ledgerPageSize: 40,
     },
   } = profile;
   const prefEntries = Object.entries(client.preferences ?? {}).filter(
@@ -342,6 +346,65 @@ export function ClientProfilePanel({
             Positivo = crédito pré-pago para usar na comanda. Negativo = cliente deve à loja.
           </p>
 
+          {account.balanceCents < 0 ? (
+            <div className="client-profile-block" style={{ marginTop: 12 }}>
+              <h3 className="section-title">Receber fiado</h3>
+              {settleError ? <p className="form-error">{settleError}</p> : null}
+              <form
+                className="form-stack"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const fd = new FormData(form);
+                  fd.set("clientId", client.id);
+                  setSettleError("");
+                  startTransition(async () => {
+                    const result = await settleClientAccountDebtAction(fd);
+                    if (!result.ok) {
+                      setSettleError(result.error);
+                      return;
+                    }
+                    form.reset();
+                    router.refresh();
+                  });
+                }}
+              >
+                <div className="form-row-2">
+                  <label className="form-field">
+                    <span>Valor (R$) *</span>
+                    <input
+                      name="amountReais"
+                      type="number"
+                      min={0.01}
+                      step={0.01}
+                      max={Math.abs(account.balanceCents) / 100}
+                      defaultValue={(Math.abs(account.balanceCents) / 100).toFixed(2)}
+                      required
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span>Forma *</span>
+                    <select name="method" defaultValue="pix" required>
+                      <option value="pix">PIX</option>
+                      <option value="cash">Dinheiro</option>
+                      <option value="debit">Débito</option>
+                      <option value="credit">Crédito</option>
+                      <option value="transfer">Transferência</option>
+                      <option value="other">Outro</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="form-field">
+                  <span>Observação</span>
+                  <input name="notes" type="text" maxLength={240} placeholder="Opcional" />
+                </label>
+                <button type="submit" className="btn btn-primary" disabled={pending}>
+                  {pending ? "…" : "Receber e lançar no caixa"}
+                </button>
+              </form>
+            </div>
+          ) : null}
+
           {accountError ? <p className="form-error">{accountError}</p> : null}
 
           <form
@@ -366,7 +429,7 @@ export function ClientProfilePanel({
           >
             <div className="form-row-2">
               <label className="form-field">
-                <span>Lançamento</span>
+                <span>Lançamento manual</span>
                 <select name="kind" defaultValue="credit" required>
                   <option value="credit">+ Crédito</option>
                   <option value="debit">+ Débito</option>
@@ -388,7 +451,7 @@ export function ClientProfilePanel({
               <span>Observação</span>
               <input name="notes" type="text" maxLength={240} placeholder="Opcional" />
             </label>
-            <button type="submit" className="btn btn-primary" disabled={pending}>
+            <button type="submit" className="btn btn-outline" disabled={pending}>
               {pending ? "…" : "Lançar na conta"}
             </button>
           </form>
@@ -398,26 +461,85 @@ export function ClientProfilePanel({
             {account.ledger.length === 0 ? (
               <p className="client-profile-hint muted">Nenhuma movimentação ainda.</p>
             ) : (
-              <ul className="order-wallet-list">
-                {account.ledger.map((entry) => (
-                  <li key={entry.id} className="order-wallet-group">
-                    <div className="order-wallet-group-head">
-                      <strong>
-                        {entry.deltaCents > 0 ? "+" : ""}
-                        {formatMoney(entry.deltaCents)}
-                      </strong>
-                      <span className="meta-label">
-                        saldo {formatMoney(entry.balanceAfterCents)}
-                      </span>
-                    </div>
-                    <p className="client-profile-hint" style={{ margin: 0 }}>
-                      {labelClientAccountReason(entry.reason)}
-                      {entry.notes ? ` — ${entry.notes}` : ""}
-                    </p>
-                    <span className="meta-label">{formatDateTimeSp(entry.createdAt)}</span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="order-wallet-list">
+                  {account.ledger.map((entry) => (
+                    <li key={entry.id} className="order-wallet-group">
+                      <div className="order-wallet-group-head">
+                        <strong>
+                          {entry.deltaCents > 0 ? "+" : ""}
+                          {formatMoney(entry.deltaCents)}
+                        </strong>
+                        <span className="meta-label">
+                          saldo {formatMoney(entry.balanceAfterCents)}
+                        </span>
+                      </div>
+                      <p className="client-profile-hint" style={{ margin: 0 }}>
+                        {labelClientAccountReason(entry.reason)}
+                        {entry.notes ? ` — ${entry.notes}` : ""}
+                      </p>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span className="meta-label">{formatDateTimeSp(entry.createdAt)}</span>
+                        {entry.orderId ? (
+                          <a
+                            className="btn btn-ghost btn-sm"
+                            href={`/comandas?id=${entry.orderId}`}
+                          >
+                            Ver comanda
+                          </a>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {account.ledgerTotal > account.ledgerPageSize ? (
+                  <div
+                    className="panel-footer"
+                    style={{ marginTop: 12, display: "flex", gap: 8, justifyContent: "flex-end" }}
+                  >
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      disabled={account.ledgerPage <= 1 || pending}
+                      onClick={() => {
+                        const sp = new URLSearchParams(window.location.search);
+                        sp.set("id", client.id);
+                        sp.set("ledgerPage", String(Math.max(1, account.ledgerPage - 1)));
+                        router.push(`/clientes?${sp.toString()}`);
+                      }}
+                    >
+                      Anterior
+                    </button>
+                    <span className="meta-label" style={{ alignSelf: "center" }}>
+                      {account.ledgerPage}/
+                      {Math.max(1, Math.ceil(account.ledgerTotal / account.ledgerPageSize))}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      disabled={
+                        account.ledgerPage * account.ledgerPageSize >= account.ledgerTotal ||
+                        pending
+                      }
+                      onClick={() => {
+                        const sp = new URLSearchParams(window.location.search);
+                        sp.set("id", client.id);
+                        sp.set("ledgerPage", String(account.ledgerPage + 1));
+                        router.push(`/clientes?${sp.toString()}`);
+                      }}
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         </div>
