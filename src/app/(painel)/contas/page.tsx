@@ -29,7 +29,7 @@ export default async function ContasPage({ searchParams }: Props) {
     <>
       <PageHeader
         title="Contas"
-        subtitle="A pagar (vales) · a receber = Conta Cliente (fiado) · cartão e comandas abertas são só informativos"
+        subtitle="Conta Cliente (fiado/crédito) · vales · cartão e comandas abertas são só informativos"
         actions={
           <>
             <Link href="/caixa" className="btn btn-outline">
@@ -43,19 +43,31 @@ export default async function ContasPage({ searchParams }: Props) {
             </Link>
             <ExportCsvButton
               filename={`contas_${data.from}_${data.to}`}
-              headers={["Tipo", "Descrição", "Valor R$", "Quando"]}
+              headers={["Tipo", "Cliente/Descrição", "Telefone", "Valor R$"]}
               rows={[
+                ...data.debtors.map((c) => [
+                  "débito",
+                  c.name,
+                  c.phone ?? "",
+                  (Math.abs(c.balanceCents) / 100).toFixed(2),
+                ]),
+                ...data.creditors.map((c) => [
+                  "crédito",
+                  c.name,
+                  c.phone ?? "",
+                  (c.balanceCents / 100).toFixed(2),
+                ]),
                 ...data.openAdvances.map((a) => [
                   "a pagar",
                   `${a.staffName ?? "—"} · ${a.kind}${a.notes ? ` · ${a.notes}` : ""}`,
+                  "",
                   (a.amountCents / 100).toFixed(2),
-                  formatDateTimeSp(a.occurredAt),
                 ]),
                 ...data.cashOut.map((m) => [
                   "saída",
                   m.description ?? labelPaymentMethod(m.method ?? "other"),
+                  "",
                   (m.amountCents / 100).toFixed(2),
-                  formatDateTimeSp(m.createdAt),
                 ]),
               ]}
             />
@@ -92,13 +104,13 @@ export default async function ContasPage({ searchParams }: Props) {
             value: formatMoney(data.receivableCents),
             hint:
               data.clientDebtCount > 0
-                ? `${data.clientDebtCount} cliente(s) com saldo negativo na Conta`
-                : "Sem fiado importado — use Conta do Cliente no perfil",
+                ? `${data.clientDebtCount} cliente(s) com saldo negativo`
+                : "Nenhum cliente em débito",
           },
           {
-            label: "Comandas abertas (> R$0)",
-            value: formatMoney(data.openOrdersCents),
-            hint: `${data.openOrdersCount} ticket(s) em andamento/agenda — não é dívida`,
+            label: "Crédito em conta",
+            value: formatMoney(data.clientCreditCents),
+            hint: `${data.clientCreditCount} cliente(s) com saldo positivo`,
           },
           {
             label: "Cartão crédito (período)",
@@ -108,9 +120,97 @@ export default async function ContasPage({ searchParams }: Props) {
         ]}
       />
       <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
-        Saídas de caixa no período: {formatMoney(data.outCents)}. Pacotes/cortesia com valor 0 não entram em
-        a receber nem em comandas abertas.
+        Comandas abertas (&gt; R$0): {formatMoney(data.openOrdersCents)} (
+        {data.openOrdersCount}) — ticket/agenda, não é dívida. Saídas de caixa no
+        período: {formatMoney(data.outCents)}.
       </p>
+
+      <section className="panel" style={{ marginTop: 12 }}>
+        <div className="panel-toolbar">
+          <strong>A receber — clientes em débito (Conta Cliente)</strong>
+          <span className="muted" style={{ fontSize: 13 }}>
+            {formatMoney(data.clientDebtCents)} · {data.debtors.length} listado(s)
+          </span>
+        </div>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Telefone</th>
+                <th>Saldo (deve)</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.debtors.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="table-empty">
+                    Nenhum cliente com fiado em aberto.
+                  </td>
+                </tr>
+              ) : (
+                data.debtors.map((c) => (
+                  <tr key={c.id}>
+                    <td className="cell-strong">{c.name}</td>
+                    <td>{c.phone ?? "—"}</td>
+                    <td>{formatMoney(Math.abs(c.balanceCents))}</td>
+                    <td>
+                      <Link href={`/clientes?id=${c.id}`} className="btn btn-ghost btn-sm">
+                        Abrir
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel" style={{ marginTop: 12 }}>
+        <div className="panel-toolbar">
+          <strong>Crédito em conta — clientes com saldo positivo</strong>
+          <span className="muted" style={{ fontSize: 13 }}>
+            {formatMoney(data.clientCreditCents)} · {data.creditors.length}{" "}
+            listado(s)
+          </span>
+        </div>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Telefone</th>
+                <th>Saldo (crédito)</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.creditors.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="table-empty">
+                    Nenhum cliente com crédito em conta.
+                  </td>
+                </tr>
+              ) : (
+                data.creditors.map((c) => (
+                  <tr key={c.id}>
+                    <td className="cell-strong">{c.name}</td>
+                    <td>{c.phone ?? "—"}</td>
+                    <td>{formatMoney(c.balanceCents)}</td>
+                    <td>
+                      <Link href={`/clientes?id=${c.id}`} className="btn btn-ghost btn-sm">
+                        Abrir
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="dash-grid" style={{ marginTop: 12 }}>
         <section className="panel">
