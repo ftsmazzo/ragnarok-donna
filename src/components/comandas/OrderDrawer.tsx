@@ -19,7 +19,6 @@ import {
   cancelOrderAction,
   closeOrderAction,
   closeOrderToClientAccountAction,
-  payAndCloseOrderAction,
   reopenOrderAction,
   removeOrderItemAction,
   setOrderClientAction,
@@ -43,6 +42,30 @@ type Props = {
 };
 
 type ItemType = "service" | "product" | "package";
+
+type CheckoutLine = {
+  key: string;
+  method: string;
+  amountReais: string;
+  installments: string;
+  cashReceived: string;
+};
+
+function makeCheckoutLine(amountCents: number, method = "pix"): CheckoutLine {
+  return {
+    key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    method,
+    amountReais: (Math.max(0, amountCents) / 100).toFixed(2),
+    installments: "1",
+    cashReceived: "",
+  };
+}
+
+function parseReaisToCents(raw: string): number {
+  const n = Number(String(raw ?? "").replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100);
+}
 
 function parsePct(raw: unknown): number {
   const n = Number(String(raw ?? "").replace(",", "."));
@@ -76,6 +99,8 @@ export function OrderDrawer({
   const [error, setError] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [payCloseOpen, setPayCloseOpen] = useState(false);
+  const [payLines, setPayLines] = useState<CheckoutLine[]>(() => [makeCheckoutLine(0)]);
+  const [insertInCash, setInsertInCash] = useState(true);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [itemType, setItemType] = useState<ItemType>("service");
   const [catalogId, setCatalogId] = useState("");
@@ -106,6 +131,18 @@ export function OrderDrawer({
     setCoveredReais("");
     setItemDiscountPct("");
   }, [catalogId, itemType]);
+
+  useEffect(() => {
+    if (!payOpen && !payCloseOpen) return;
+    const defaultMethod =
+      clientCreditAvailable >= order.balanceCents && !hasPackageSale
+        ? "client_account"
+        : clientCreditAvailable > 0 && !hasPackageSale
+          ? "client_account"
+          : "pix";
+    setPayLines([makeCheckoutLine(order.balanceCents, defaultMethod)]);
+    setInsertInCash(true);
+  }, [payOpen, payCloseOpen, order.id, order.balanceCents, clientCreditAvailable, hasPackageSale]);
 
   const creditByService = new Map<string, number>();
   const creditByProduct = new Map<string, number>();
@@ -268,14 +305,51 @@ export function OrderDrawer({
 
   function handlePayment(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    const line = payLines[0];
+    if (!line) return;
+    const amountCents = parseReaisToCents(line.amountReais);
+    if (amountCents <= 0) {
+      setError("Informe o valor do pagamento");
+      return;
+    }
+    const formData = new FormData();
     formData.set("orderId", order.id);
+    formData.set("method", line.method);
+    formData.set("amountReais", (amountCents / 100).toFixed(2));
+    formData.set("insertInCash", insertInCash ? "1" : "0");
+    if (line.method === "credit" && Number(line.installments) > 1) {
+      formData.set("installments", line.installments);
+    }
     run(async () => {
       const result = await addPaymentAction(formData);
       if (result.ok) setPayOpen(false);
       return result;
     });
   }
+
+  function updatePayLine(key: string, patch: Partial<CheckoutLine>) {
+    setPayLines((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+
+  function addPayLine() {
+    const used = payLines.reduce((s, r) => s + parseReaisToCents(r.amountReais), 0);
+    const left = Math.max(0, order.balanceCents - used);
+    setPayLines((rows) => [...rows, makeCheckoutLine(left || 0, "pix")]);
+  }
+
+  function removePayLine(key: string) {
+    setPayLines((rows) => (rows.length <= 1 ? rows : rows.filter((r) => r.key !== key)));
+  }
+
+  const payLinesSumCents = payLines.reduce((s, r) => s + parseReaisToCents(r.amountReais), 0);
+  const payLinesDiffCents = payLinesSumCents - order.balanceCents;
+  const cashChangeCents = payLines.reduce((s, r) => {
+    if (r.method !== "cash") return s;
+    const received = parseReaisToCents(r.cashReceived);
+    const applied = parseReaisToCents(r.amountReais);
+    return s + Math.max(0, received - applied);
+  }, 0);
+  const anyNonAccount = payLines.some((r) => r.method !== "client_account");
 
   const catalog =
     itemType === "service" ? services : itemType === "product" ? products : packages;
@@ -857,6 +931,7 @@ export function OrderDrawer({
         open={payOpen}
         onClose={() => setPayOpen(false)}
         title="Registrar pagamento"
+        size="md"
         footer={
           <>
             <button
@@ -874,41 +949,97 @@ export function OrderDrawer({
         }
       >
         <form id="pay-form" className="form-stack" onSubmit={handlePayment}>
-          <label className="form-field">
-            <span>Forma *</span>
-            <PaymentMethodSelect
-              name="method"
-              required
-              includeClientAccount={!hasPackageSale}
-              defaultValue={
-                clientCreditAvailable > 0 && !hasPackageSale ? "client_account" : "pix"
-              }
-            />
-          </label>
+          <div className="checkout-summary">
+            <div>
+              <span>Total</span>
+              <strong>{formatMoney(due)}</strong>
+            </div>
+            <div>
+              <span>Já pago</span>
+              <strong>{formatMoney(order.paidCents)}</strong>
+            </div>
+            <div>
+              <span>A pagar</span>
+              <strong>{formatMoney(order.balanceCents)}</strong>
+            </div>
+            {cashChangeCents > 0 ? (
+              <div>
+                <span>Troco</span>
+                <strong>{formatMoney(cashChangeCents)}</strong>
+              </div>
+            ) : null}
+          </div>
+
+          {(payLines[0] ? [payLines[0]] : []).map((line) => (
+            <div key={line.key} className="checkout-pay-line">
+              <label className="form-field">
+                <span>Forma *</span>
+                <PaymentMethodSelect
+                  value={line.method}
+                  onChange={(v) => updatePayLine(line.key, { method: v })}
+                  required
+                  includeClientAccount={!hasPackageSale}
+                />
+              </label>
+              <label className="form-field">
+                <span>Valor (R$) *</span>
+                <input
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  required
+                  value={line.amountReais}
+                  onChange={(e) => updatePayLine(line.key, { amountReais: e.target.value })}
+                />
+              </label>
+              {line.method === "credit" ? (
+                <label className="form-field">
+                  <span>Parcelas</span>
+                  <select
+                    value={line.installments}
+                    onChange={(e) => updatePayLine(line.key, { installments: e.target.value })}
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={String(n)}>
+                        {n}x
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {line.method === "cash" ? (
+                <label className="form-field">
+                  <span>Recebido (R$)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={line.cashReceived}
+                    onChange={(e) => updatePayLine(line.key, { cashReceived: e.target.value })}
+                    placeholder="opcional p/ troco"
+                  />
+                </label>
+              ) : null}
+            </div>
+          ))}
+
           {clientCreditAvailable > 0 ? (
             <p className="client-profile-hint muted">
               Crédito disponível: {formatMoney(clientCreditAvailable)}. Pagamento via conta
               não entra no caixa.
             </p>
           ) : null}
-          <label className="form-field">
-            <span>Valor (R$) *</span>
-            <input
-              name="amountReais"
-              type="number"
-              min={0.01}
-              step={0.01}
-              required
-              defaultValue={(
-                Math.min(
-                  order.balanceCents,
-                  clientCreditAvailable > 0 && !hasPackageSale
-                    ? clientCreditAvailable
-                    : order.balanceCents
-                ) / 100
-              ).toFixed(2)}
-            />
-          </label>
+
+          {anyNonAccount ? (
+            <label className="form-field package-sale-checkbox">
+              <input
+                type="checkbox"
+                checked={insertInCash}
+                onChange={(e) => setInsertInCash(e.target.checked)}
+              />
+              <span>Inserir no Caixa?</span>
+            </label>
+          ) : null}
         </form>
       </Modal>
 
@@ -916,6 +1047,7 @@ export function OrderDrawer({
         open={payCloseOpen}
         onClose={() => setPayCloseOpen(false)}
         title="Pagar e fechar comanda"
+        size="md"
         footer={
           <>
             <button
@@ -950,7 +1082,7 @@ export function OrderDrawer({
               type="submit"
               form="pay-close-form"
               className="btn btn-primary"
-              disabled={pending}
+              disabled={pending || Math.abs(payLinesDiffCents) > 1}
             >
               {pending ? "…" : "Confirmar e fechar"}
             </button>
@@ -962,35 +1094,172 @@ export function OrderDrawer({
           className="form-stack"
           onSubmit={(e) => {
             e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            formData.set("orderId", order.id);
+            if (Math.abs(payLinesDiffCents) > 1) {
+              setError(
+                payLinesDiffCents < 0
+                  ? `Falta ${formatMoney(-payLinesDiffCents)} nas formas de pagamento`
+                  : `Formas somam ${formatMoney(payLinesDiffCents)} a mais que o saldo`
+              );
+              return;
+            }
             run(async () => {
-              const result = await payAndCloseOrderAction(formData);
-              if (result.ok) {
+              let remaining = order.balanceCents;
+              for (const line of payLines) {
+                let cents = parseReaisToCents(line.amountReais);
+                if (cents <= 0) continue;
+                cents = Math.min(cents, remaining);
+                if (cents <= 0) continue;
+                const fd = new FormData();
+                fd.set("orderId", order.id);
+                fd.set("method", line.method);
+                fd.set("amountReais", (cents / 100).toFixed(2));
+                fd.set("insertInCash", insertInCash ? "1" : "0");
+                if (line.method === "credit" && Number(line.installments) > 1) {
+                  fd.set("installments", line.installments);
+                }
+                const paid = await addPaymentAction(fd);
+                if (!paid.ok) return paid;
+                remaining -= cents;
+              }
+              if (remaining > 1) {
+                return {
+                  ok: false as const,
+                  error: `Ainda falta pagar ${formatMoney(remaining)}`,
+                };
+              }
+              const closed = await closeOrderAction(order.id);
+              if (closed.ok) {
                 setPayCloseOpen(false);
                 onClose();
               }
-              return result;
+              return closed;
             });
           }}
         >
-          <p className="client-profile-hint">
-            Vai registrar{" "}
-            <strong>{formatMoney(order.balanceCents)}</strong> e fechar a comanda.
-          </p>
-          <label className="form-field">
-            <span>Forma *</span>
-            <PaymentMethodSelect
-              name="method"
-              required
-              includeClientAccount={!hasPackageSale}
-              defaultValue={
-                clientCreditAvailable >= order.balanceCents && !hasPackageSale
-                  ? "client_account"
-                  : "pix"
-              }
-            />
-          </label>
+          <div className="checkout-summary">
+            <div>
+              <span>Total</span>
+              <strong>{formatMoney(due)}</strong>
+            </div>
+            <div>
+              <span>Já pago</span>
+              <strong>{formatMoney(order.paidCents)}</strong>
+            </div>
+            <div>
+              <span>A pagar</span>
+              <strong>{formatMoney(order.balanceCents)}</strong>
+            </div>
+            {cashChangeCents > 0 ? (
+              <div>
+                <span>Troco</span>
+                <strong>{formatMoney(cashChangeCents)}</strong>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="checkout-pay-lines">
+            <div className="checkout-pay-head">
+              <strong>+ Formas de pagamento</strong>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={addPayLine}
+                disabled={pending}
+              >
+                + Forma
+              </button>
+            </div>
+            {payLines.map((line, idx) => (
+              <div key={line.key} className="checkout-pay-line">
+                <label className="form-field">
+                  <span>Forma {idx + 1}</span>
+                  <PaymentMethodSelect
+                    value={line.method}
+                    onChange={(v) => updatePayLine(line.key, { method: v })}
+                    required
+                    includeClientAccount={!hasPackageSale}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Valor (R$)</span>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    required
+                    value={line.amountReais}
+                    onChange={(e) => updatePayLine(line.key, { amountReais: e.target.value })}
+                  />
+                </label>
+                {line.method === "credit" ? (
+                  <label className="form-field">
+                    <span>Parcelas</span>
+                    <select
+                      value={line.installments}
+                      onChange={(e) =>
+                        updatePayLine(line.key, { installments: e.target.value })
+                      }
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={String(n)}>
+                          {n}x
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {line.method === "cash" ? (
+                  <label className="form-field">
+                    <span>Recebido (R$)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={line.cashReceived}
+                      onChange={(e) =>
+                        updatePayLine(line.key, { cashReceived: e.target.value })
+                      }
+                      placeholder="opcional p/ troco"
+                    />
+                  </label>
+                ) : null}
+                {payLines.length > 1 ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm checkout-pay-remove"
+                    onClick={() => removePayLine(line.key)}
+                    disabled={pending}
+                  >
+                    Remover
+                  </button>
+                ) : null}
+              </div>
+            ))}
+            <p
+              className={`client-profile-hint${
+                Math.abs(payLinesDiffCents) > 1 ? " form-error" : " muted"
+              }`}
+            >
+              Soma das formas: {formatMoney(payLinesSumCents)}
+              {Math.abs(payLinesDiffCents) > 1
+                ? payLinesDiffCents < 0
+                  ? ` · falta ${formatMoney(-payLinesDiffCents)}`
+                  : ` · sobra ${formatMoney(payLinesDiffCents)}`
+                : " · ok"}
+            </p>
+          </div>
+
+          {anyNonAccount ? (
+            <label className="form-field package-sale-checkbox">
+              <input
+                type="checkbox"
+                checked={insertInCash}
+                onChange={(e) => setInsertInCash(e.target.checked)}
+              />
+              <span>Inserir no Caixa?</span>
+            </label>
+          ) : null}
+
           {order.clientId ? (
             <p className="client-profile-hint muted">
               Sem receber agora? Use <strong>Lançar na conta e fechar</strong> — consome

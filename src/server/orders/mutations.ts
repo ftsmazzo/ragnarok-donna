@@ -1178,6 +1178,9 @@ export async function addPayment(input: {
   orderId: string;
   method: string;
   amountCents: number;
+  /** Default true. Se false, não lança no caixa mesmo com sessão aberta. */
+  insertInCash?: boolean;
+  meta?: Record<string, unknown>;
 }): Promise<ActionResult> {
   try {
     const session = await assertFullOrderWrite();
@@ -1248,6 +1251,7 @@ export async function addPayment(input: {
             orderId: input.orderId,
             method,
             amountCents,
+            meta: input.meta ?? {},
           })
           .returning({ id: schema.payments.id });
 
@@ -1284,16 +1288,19 @@ export async function addPayment(input: {
           orderId: input.orderId,
           method,
           amountCents,
+          meta: input.meta ?? {},
         })
         .returning({ id: schema.payments.id });
 
-      const { recordPaymentInCashTx } = await import("../finance/mutations");
-      await recordPaymentInCashTx(tx, {
-        tenantId: tenant.id,
-        orderId: input.orderId,
-        method,
-        amountCents,
-      });
+      if (input.insertInCash !== false) {
+        const { recordPaymentInCashTx } = await import("../finance/mutations");
+        await recordPaymentInCashTx(tx, {
+          tenantId: tenant.id,
+          orderId: input.orderId,
+          method,
+          amountCents,
+        });
+      }
       return payment.id;
     });
 
@@ -1615,6 +1622,9 @@ export async function reopenOrder(orderId: string): Promise<ActionResult> {
 export async function payAndCloseOrder(input: {
   orderId: string;
   method: string;
+  /** Default true. Se false, não lança no caixa mesmo com sessão aberta. */
+  insertInCash?: boolean;
+  meta?: Record<string, unknown>;
 }): Promise<ActionResult> {
   try {
     const session = await assertFullOrderWrite();
@@ -1745,14 +1755,17 @@ export async function payAndCloseOrder(input: {
           orderId: input.orderId,
           method,
           amountCents: state.balanceCents,
+          meta: input.meta ?? {},
         });
-        const { recordPaymentInCashTx } = await import("../finance/mutations");
-        await recordPaymentInCashTx(tx, {
-          tenantId: tenant.id,
-          orderId: input.orderId,
-          method,
-          amountCents: state.balanceCents,
-        });
+        if (input.insertInCash !== false) {
+          const { recordPaymentInCashTx } = await import("../finance/mutations");
+          await recordPaymentInCashTx(tx, {
+            tenantId: tenant.id,
+            orderId: input.orderId,
+            method,
+            amountCents: state.balanceCents,
+          });
+        }
       }
 
       if (state.clientId) {

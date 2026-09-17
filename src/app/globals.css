@@ -4650,6 +4650,66 @@ input {
   }
 }
 
+.checkout-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.checkout-summary > div {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fafbfc;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.checkout-summary strong {
+  font-size: 14px;
+}
+
+.checkout-pay-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.checkout-pay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.checkout-pay-line {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.checkout-pay-line .form-field {
+  margin: 0;
+}
+
+.checkout-pay-remove {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+@media (max-width: 560px) {
+  .checkout-pay-line {
+    grid-template-columns: 1fr;
+  }
+}
+
 .package-sale-checkbox {
   flex-direction: row;
   align-items: center;

@@ -111,10 +111,19 @@ export async function removeOrderItemAction(itemId: string, orderId: string) {
 export async function addPaymentAction(formData: FormData) {
   const orderId = String(formData.get("orderId") ?? "");
   const amountReais = Number(String(formData.get("amountReais") ?? "").replace(",", "."));
+  const insertRaw = String(formData.get("insertInCash") ?? "1");
+  const insertInCash = insertRaw === "1" || insertRaw === "on" || insertRaw === "true";
+  const installments = Number(formData.get("installments") || 0);
+  const meta =
+    installments > 1
+      ? { installments: Math.min(24, Math.max(2, Math.round(installments))) }
+      : undefined;
   const result = await addPayment({
     orderId,
     method: String(formData.get("method") ?? ""),
     amountCents: Math.round(amountReais * 100),
+    insertInCash,
+    meta,
   });
   if (result.ok) revalidateOrders(orderId);
   return result;
@@ -140,9 +149,18 @@ export async function reopenOrderAction(orderId: string) {
 
 export async function payAndCloseOrderAction(formData: FormData) {
   const orderId = String(formData.get("orderId") ?? "");
+  const insertRaw = String(formData.get("insertInCash") ?? "1");
+  const insertInCash = insertRaw === "1" || insertRaw === "on" || insertRaw === "true";
+  const installments = Number(formData.get("installments") || 0);
+  const meta =
+    installments > 1
+      ? { installments: Math.min(24, Math.max(2, Math.round(installments))) }
+      : undefined;
   const result = await payAndCloseOrder({
     orderId,
     method: String(formData.get("method") ?? "pix"),
+    insertInCash,
+    meta,
   });
   if (result.ok) revalidateOrders(orderId);
   return result;
