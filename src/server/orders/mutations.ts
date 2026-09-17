@@ -315,6 +315,208 @@ export async function openOrder(input: {
   }
 }
 
+/**
+ * Conta Recorrência (Agenda): abre/usa a comanda do horário e lança o serviço
+ * com 1 crédito do pacote escolhido (comissão no preço de tabela).
+ */
+export async function applyRecurrencePackageFromAppointment(input: {
+  appointmentId: string;
+  clientPackageId: string;
+}): Promise<ActionResult> {
+  try {
+    await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const [appt] = await db
+      .select({
+        id: schema.appointments.id,
+        orderId: schema.appointments.orderId,
+        clientId: schema.appointments.clientId,
+        staffId: schema.appointments.staffId,
+        serviceId: schema.appointments.serviceId,
+        status: schema.appointments.status,
+      })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.id, input.appointmentId),
+          eq(schema.appointments.tenantId, tenant.id),
+          isNull(schema.appointments.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!appt) throw new AppError("VALIDATION", "Agendamento inválido");
+    if (appt.status === "cancelled" || appt.status === "completed" || appt.status === "no_show") {
+      throw new AppError("VALIDATION", "Agendamento já encerrado");
+    }
+    if (!appt.clientId) throw new AppError("VALIDATION", "Agendamento sem cliente");
+    if (!appt.serviceId) throw new AppError("VALIDATION", "Agendamento sem serviço");
+    if (!input.clientPackageId.trim()) {
+      throw new AppError("VALIDATION", "Selecione um pacote");
+    }
+
+    const [pkg] = await db
+      .select({
+        id: schema.clientPackages.id,
+        clientId: schema.clientPackages.clientId,
+        status: schema.clientPackages.status,
+        name: schema.clientPackages.name,
+      })
+      .from(schema.clientPackages)
+      .where(
+        and(
+          eq(schema.clientPackages.id, input.clientPackageId),
+          eq(schema.clientPackages.tenantId, tenant.id)
+        )
+      )
+      .limit(1);
+    if (!pkg || pkg.clientId !== appt.clientId) {
+      throw new AppError("VALIDATION", "Pacote não pertence a este cliente");
+    }
+    if (pkg.status !== "active") {
+      throw new AppError("VALIDATION", "Pacote sem créditos ativos");
+    }
+
+    let orderId = appt.orderId;
+    if (!orderId) {
+      const opened = await openOrder({
+        appointmentId: appt.id,
+        clientId: appt.clientId,
+      });
+      if (!opened.ok) return opened;
+      orderId = opened.id;
+    }
+
+    const items = await db
+      .select({
+        id: schema.orderItems.id,
+        serviceId: schema.orderItems.serviceId,
+        meta: schema.orderItems.meta,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.orderId, orderId),
+          eq(schema.orderItems.tenantId, tenant.id),
+          eq(schema.orderItems.serviceId, appt.serviceId)
+        )
+      );
+
+    for (const it of items) {
+      const meta = (it.meta ?? {}) as Record<string, unknown>;
+      if (meta.redeemed) {
+        throw new AppError(
+          "VALIDATION",
+          "Este serviço já foi lançado com crédito de pacote nesta comanda"
+        );
+      }
+    }
+
+    // Troca o item seed (preço cheio) pelo lançamento com pacote — sem duplicar.
+    for (const it of items) {
+      const removed = await removeOrderItem(it.id);
+      if (!removed.ok) return removed;
+    }
+
+    const added = await addOrderItem({
+      orderId,
+      itemType: "service",
+      catalogId: appt.serviceId,
+      staffId: appt.staffId ?? undefined,
+      qty: 1,
+      usePackageCredit: true,
+      clientPackageId: input.clientPackageId,
+    });
+    if (!added.ok) return added;
+    return { ok: true, id: orderId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível aplicar o pacote" };
+  }
+}
+
+/** Opções de pacote do cliente que cobrem o serviço do agendamento. */
+export async function listRecurrencePackagesForAppointment(appointmentId: string): Promise<
+  | {
+      ok: true;
+      serviceName: string | null;
+      options: Array<{
+        clientPackageId: string;
+        packageName: string;
+        remainingQty: number;
+        expiresAt: string | null;
+      }>;
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const [appt] = await db
+      .select({
+        clientId: schema.appointments.clientId,
+        serviceId: schema.appointments.serviceId,
+        serviceName: schema.services.name,
+      })
+      .from(schema.appointments)
+      .leftJoin(
+        schema.services,
+        and(
+          eq(schema.services.id, schema.appointments.serviceId),
+          eq(schema.services.tenantId, tenant.id)
+        )
+      )
+      .where(
+        and(
+          eq(schema.appointments.id, appointmentId),
+          eq(schema.appointments.tenantId, tenant.id),
+          isNull(schema.appointments.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!appt?.clientId) return { ok: false, error: "Agendamento sem cliente" };
+    if (!appt.serviceId) return { ok: false, error: "Agendamento sem serviço" };
+
+    const { listClientCredits } = await import("../packages/credits");
+    const credits = await listClientCredits(appt.clientId);
+    const matching = credits.filter((c) => c.serviceId === appt.serviceId && c.remainingQty > 0);
+
+    const byPkg = new Map<
+      string,
+      { clientPackageId: string; packageName: string; remainingQty: number; expiresAt: string | null }
+    >();
+    for (const c of matching) {
+      const prev = byPkg.get(c.clientPackageId);
+      if (prev) {
+        prev.remainingQty += c.remainingQty;
+      } else {
+        byPkg.set(c.clientPackageId, {
+          clientPackageId: c.clientPackageId,
+          packageName: c.packageName,
+          remainingQty: c.remainingQty,
+          expiresAt: c.expiresAt ? c.expiresAt.toISOString() : null,
+        });
+      }
+    }
+
+    return {
+      ok: true,
+      serviceName: appt.serviceName,
+      options: [...byPkg.values()],
+    };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível listar pacotes" };
+  }
+}
+
 export async function addOrderItem(input: {
   orderId: string;
   itemType: "service" | "product" | "package";
@@ -331,6 +533,8 @@ export async function addOrderItem(input: {
   saleNotes?: string;
   /** Usar 1 crédito de pacote (abate); comissão no preço de tabela. */
   usePackageCredit?: boolean;
+  /** Pacote do cliente (Conta Recorrência). Sem isso, FIFO. */
+  clientPackageId?: string;
 }): Promise<ActionResult> {
   try {
     const session = await requireSession();
@@ -499,6 +703,7 @@ export async function addOrderItem(input: {
         clientId: orderRow.clientId,
         serviceId: serviceId ?? undefined,
         productId: productId ?? undefined,
+        clientPackageId: input.clientPackageId,
       });
 
       // Abate ≠ desconto: cobertura do pacote + desconto comercial no residual.

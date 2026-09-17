@@ -28,6 +28,7 @@ type Props = {
   onOpenComanda?: (orderId: string) => void;
   onVenda?: (a: AgendaAppointment) => void;
   onEdit?: (a: AgendaAppointment) => void;
+  onContaRecorrencia?: (a: AgendaAppointment) => void;
 };
 
 const PAY_METHODS: { value: string; label: string }[] = [
@@ -50,6 +51,7 @@ export function AgendaDetailModal({
   onOpenComanda,
   onVenda,
   onEdit,
+  onContaRecorrencia,
 }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -271,6 +273,17 @@ export function AgendaDetailModal({
                 onClick={handleOpenOrder}
               >
                 Abrir Comanda
+              </button>
+            ) : null}
+
+            {permissions.canOpenOrder && a.clientId && a.serviceId ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() => onContaRecorrencia?.(a)}
+              >
+                Conta Recorrência
               </button>
             ) : null}
 

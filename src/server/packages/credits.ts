@@ -409,12 +409,14 @@ export async function remainingCreditsForService(
   return Number(row?.qty ?? 0);
 }
 
-/** Debita 1 crédito (FIFO por validade). Retorna ids usados. */
+/** Debita 1 crédito (FIFO por validade). Opcionalmente fixa o pacote do cliente. */
 export async function debitOneCredit(input: {
   tenantId: string;
   clientId: string;
   serviceId?: string;
   productId?: string;
+  /** Se informado, debita só deste client_package (Conta Recorrência). */
+  clientPackageId?: string;
 }): Promise<{ creditId: string; clientPackageId: string }> {
   const db = createDb();
   const now = new Date();
@@ -438,6 +440,9 @@ export async function debitOneCredit(input: {
       and(
         eq(schema.clientPackageCredits.tenantId, input.tenantId),
         eq(schema.clientPackages.clientId, input.clientId),
+        ...(input.clientPackageId
+          ? [eq(schema.clientPackages.id, input.clientPackageId)]
+          : []),
         input.serviceId
           ? eq(schema.clientPackageCredits.serviceId, input.serviceId)
           : eq(schema.clientPackageCredits.productId, input.productId!),

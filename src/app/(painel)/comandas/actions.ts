@@ -44,6 +44,31 @@ export async function openOrderFromAppointmentAction(appointmentId: string, clie
   return result;
 }
 
+export async function listRecurrencePackagesAction(appointmentId: string) {
+  const { listRecurrencePackagesForAppointment } = await import(
+    "@/server/orders/mutations"
+  );
+  return listRecurrencePackagesForAppointment(appointmentId);
+}
+
+export async function applyRecurrencePackageAction(
+  appointmentId: string,
+  clientPackageId: string
+) {
+  const { applyRecurrencePackageFromAppointment } = await import(
+    "@/server/orders/mutations"
+  );
+  const result = await applyRecurrencePackageFromAppointment({
+    appointmentId,
+    clientPackageId,
+  });
+  if (result.ok) {
+    revalidateOrders(result.id);
+    revalidatePath("/agenda");
+  }
+  return result;
+}
+
 export async function addOrderItemAction(formData: FormData) {
   const orderId = String(formData.get("orderId") ?? "");
   const itemTypeRaw = String(formData.get("itemType") ?? "service");
@@ -56,6 +81,7 @@ export async function addOrderItemAction(formData: FormData) {
   const usePackageCredit =
     String(formData.get("usePackageCredit") ?? "") === "1" ||
     String(formData.get("usePackageCredit") ?? "") === "on";
+  const clientPackageId = String(formData.get("clientPackageId") ?? "") || undefined;
   const coveredRaw = formData.get("coveredReais");
   const coveredCents =
     coveredRaw != null && String(coveredRaw).trim() !== ""
@@ -70,6 +96,7 @@ export async function addOrderItemAction(formData: FormData) {
     discountCents: Math.round(Number(formData.get("discountReais") || 0) * 100),
     coveredCents,
     usePackageCredit,
+    clientPackageId,
   });
   if (result.ok) revalidateOrders(orderId);
   return result;
