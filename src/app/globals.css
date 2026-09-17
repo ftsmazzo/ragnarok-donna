@@ -2827,6 +2827,25 @@ input {
   color: var(--muted);
 }
 
+.staff-delta {
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.staff-goal-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.staff-goal-form .form-field {
+  margin: 0;
+  min-width: 180px;
+}
+
 .staff-mgmt-metrics {
   padding-top: 4px;
   border-top: 1px solid var(--line);

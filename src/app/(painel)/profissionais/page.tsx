@@ -12,6 +12,7 @@ import { listTenantBranches } from "@/server/context/branch";
 import { monthStartSp, todaySp } from "@/lib/datetime";
 import {
   assertOwnStaffAccess,
+  canWriteStaff,
   isBarberRole,
   isOwnerOnlyInsights,
   requireOwnStaffId,
@@ -95,6 +96,7 @@ export default async function ProfissionaisPage({ searchParams }: Props) {
         drawerMode={drawerMode}
         branches={branches.map((b) => ({ id: b.id, name: b.name }))}
         defaultBranchId={session.branch?.id ?? branches[0]?.id ?? null}
+        canEditClientGoal={canWriteStaff(session.role)}
       />
     </Suspense>
   );

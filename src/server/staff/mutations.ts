@@ -359,3 +359,44 @@ export async function reactivateStaffMember(staffId: string): Promise<ActionResu
     return { ok: false, error: "Erro ao reativar profissional" };
   }
 }
+
+/** Meta mensal de clientes distintos atendidos (staff.meta.monthlyTargetClients). */
+export async function setStaffClientGoal(
+  staffId: string,
+  monthlyTargetClients: number | null
+): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "staff.write");
+    const tenant = await requireTenantContext();
+    await getStaffMember(staffId);
+    const db = createDb();
+
+    const [row] = await db
+      .select({ meta: schema.staff.meta })
+      .from(schema.staff)
+      .where(and(eq(schema.staff.id, staffId), eq(schema.staff.tenantId, tenant.id)))
+      .limit(1);
+
+    const meta = { ...((row?.meta ?? {}) as Record<string, unknown>) };
+    if (monthlyTargetClients != null && monthlyTargetClients > 0) {
+      meta.monthlyTargetClients = Math.floor(monthlyTargetClients);
+    } else {
+      delete meta.monthlyTargetClients;
+    }
+
+    const [updated] = await db
+      .update(schema.staff)
+      .set({ meta, updatedAt: new Date() })
+      .where(and(eq(schema.staff.id, staffId), eq(schema.staff.tenantId, tenant.id)))
+      .returning({ id: schema.staff.id });
+
+    if (!updated) return { ok: false, error: "Profissional não encontrado" };
+    return { ok: true, id: updated.id };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: "Sem permissão" };
+    console.error("[setStaffClientGoal]", err);
+    return { ok: false, error: "Erro ao salvar meta de clientes" };
+  }
+}

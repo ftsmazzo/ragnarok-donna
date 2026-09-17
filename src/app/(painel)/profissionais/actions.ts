@@ -5,10 +5,12 @@ import {
   deactivateStaffMember,
   reactivateStaffMember,
   saveStaffSchedules,
+  setStaffClientGoal,
   updateStaffMember,
   type ActionResult,
   type ScheduleSlotInput,
 } from "@/server/staff/mutations";
+import { revalidatePath } from "next/cache";
 
 export async function createStaffAction(formData: FormData): Promise<ActionResult> {
   return createStaffMember(parseStaffForm(formData));
@@ -44,6 +46,17 @@ export async function deactivateStaffAction(staffId: string): Promise<ActionResu
 
 export async function reactivateStaffAction(staffId: string): Promise<ActionResult> {
   return reactivateStaffMember(staffId);
+}
+
+export async function saveStaffClientGoalAction(
+  staffId: string,
+  monthlyTargetClients: number | null
+): Promise<ActionResult> {
+  const result = await setStaffClientGoal(staffId, monthlyTargetClients);
+  if (result.ok) {
+    revalidatePath("/profissionais");
+  }
+  return result;
 }
 
 function parseStaffForm(formData: FormData) {
