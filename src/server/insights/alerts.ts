@@ -680,48 +680,75 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
     weekday: "short",
   });
   if (weekdayNow === "Thu" || weekdayNow === "Fri" || weekdayNow === "Sat") {
-    const weekly = await db
+    const fullWeek = rangeBoundsSp(week.from, week.to);
+    const weekFromIso = fullWeek.start.toISOString();
+    const weekUntilIso = fullWeek.end.toISOString();
+    const hasCredit = sql`exists (
+      select 1
+      from ${schema.clientPackageCredits}
+      inner join ${schema.clientPackages}
+        on ${schema.clientPackages.id} = ${schema.clientPackageCredits.clientPackageId}
+      where ${schema.clientPackages.clientId} = ${schema.clients.id}
+        and ${schema.clientPackages.tenantId} = ${tenant.id}
+        and ${schema.clientPackages.status} = 'active'
+        and ${schema.clientPackageCredits.remainingQty} > 0
+        and (
+          ${schema.clientPackages.expiresAt} is null
+          or ${schema.clientPackages.expiresAt} > now()
+        )
+    )`;
+    const missedSlot = sql`exists (
+      select 1
+      from ${schema.appointments}
+      where ${schema.appointments.clientId} = ${schema.clients.id}
+        and ${schema.appointments.tenantId} = ${tenant.id}
+        and ${schema.appointments.deletedAt} is null
+        and ${schema.appointments.startsAt} >= ${weekFromIso}::timestamptz
+        and ${schema.appointments.startsAt} <= ${weekUntilIso}::timestamptz
+        and (
+          ${schema.appointments.status} = 'no_show'
+          or (
+            ${schema.appointments.startsAt} < now()
+            and ${schema.appointments.status} in ('scheduled', 'confirmed')
+          )
+        )
+    )`;
+    const alreadyCame = sql`exists (
+      select 1
+      from ${schema.appointments}
+      where ${schema.appointments.clientId} = ${schema.clients.id}
+        and ${schema.appointments.tenantId} = ${tenant.id}
+        and ${schema.appointments.deletedAt} is null
+        and ${schema.appointments.startsAt} >= ${weekFromIso}::timestamptz
+        and ${schema.appointments.startsAt} <= ${weekUntilIso}::timestamptz
+        and ${schema.appointments.status} in ('completed', 'arrived', 'in_progress')
+    )`;
+    const missed = await db
       .select({
-        clientId: schema.appointments.clientId,
         clientName: schema.clients.name,
       })
-      .from(schema.appointments)
-      .innerJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
+      .from(schema.clients)
       .where(
         and(
-          eq(schema.appointments.tenantId, tenant.id),
-          isNull(schema.appointments.deletedAt),
-          eq(schema.appointments.status, "completed"),
-          sql`${schema.appointments.startsAt} >= now() - interval '56 days'`
+          eq(schema.clients.tenantId, tenant.id),
+          eq(schema.clients.isActive, true),
+          isNull(schema.clients.deletedAt),
+          hasCredit,
+          missedSlot,
+          sql`not ${alreadyCame}`
         )
-      )
-      .groupBy(schema.appointments.clientId, schema.clients.name)
-      .having(
-        sql`count(distinct to_char(${schema.appointments.startsAt} at time zone 'America/Sao_Paulo', 'IYYY-IW')) >= 3 and max(${schema.appointments.startsAt}) <= now() - interval '6 days' and max(${schema.appointments.startsAt}) >= now() - interval '14 days'`
       )
       .limit(20);
 
-    const fullWeek = rangeBoundsSp(week.from, week.to);
-    const booked = await db
-      .select({ clientId: schema.appointments.clientId })
-      .from(schema.appointments)
-      .where(
-        and(
-          eq(schema.appointments.tenantId, tenant.id),
-          isNull(schema.appointments.deletedAt),
-          sql`${schema.appointments.status} not in ('cancelled', 'no_show', 'blocked')`,
-          sql`${schema.appointments.startsAt} >= ${fullWeek.start.toISOString()}::timestamptz`,
-          sql`${schema.appointments.startsAt} <= ${fullWeek.end.toISOString()}::timestamptz`
-        )
-      );
-    const bookedIds = new Set(booked.map((b) => b.clientId).filter((id): id is string => Boolean(id)));
-    const missed = weekly.filter((w) => w.clientId && !bookedIds.has(w.clientId));
     if (missed.length) {
       alerts.push({
         id: "weekly-missed-thursday",
         severity: "warning",
         kind: "weekly_missed_thursday",
-        title: "Cliente semanal ainda não veio nesta semana",
+        title:
+          missed.length === 1
+            ? `${missed[0].clientName ?? "Cliente"} faltou e ainda tem pacote`
+            : `${missed.length} com pacote faltaram nesta semana`,
         detail: missed
           .slice(0, 8)
           .map((m) => m.clientName ?? "Cliente")
