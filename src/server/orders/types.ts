@@ -43,6 +43,7 @@ export type OrderPaymentDetail = {
   method: string;
   amountCents: number;
   paidAt: Date;
+  meta: Record<string, unknown> | null;
 };
 
 export type OrderDetail = {
@@ -65,6 +66,8 @@ export type OrderDetail = {
   /** Saldo da Conta do Cliente (crédito > 0, débito < 0). Null se sem cliente. */
   clientAccountBalanceCents: number | null;
   credits: import("../packages/credits").ClientCreditBalance[];
+  /** Horários da série, quando a comanda nasceu de um agendamento recorrente. */
+  series: { id: string; startsAt: Date; status: string }[];
 };
 
 export type CatalogService = {

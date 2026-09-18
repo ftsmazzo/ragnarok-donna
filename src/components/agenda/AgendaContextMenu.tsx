@@ -10,6 +10,7 @@ import {
   updateAppointmentStatusAction,
 } from "@/app/(painel)/agenda/actions";
 import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
+import { PAYMENT_METHOD_OPTIONS } from "@/lib/paymentMethods";
 
 export type AgendaCtxTarget =
   | {
@@ -45,15 +46,7 @@ type Props = {
   onContaRecorrencia?: (a: AgendaAppointment) => void;
 };
 
-const PAY_METHODS: { value: string; label: string }[] = [
-  { value: "pix", label: "PIX" },
-  { value: "pix_key", label: "PIX chave" },
-  { value: "cash", label: "Dinheiro" },
-  { value: "debit", label: "Débito" },
-  { value: "credit", label: "Crédito" },
-  { value: "rede_link", label: "Link Rede" },
-  { value: "infinity", label: "Infinity" },
-];
+const PAY_METHODS = PAYMENT_METHOD_OPTIONS.filter((o) => o.value !== "client_account");
 
 function clampPos(x: number, y: number, w: number, h: number) {
   const pad = 8;

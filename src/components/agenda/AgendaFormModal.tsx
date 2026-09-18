@@ -8,8 +8,10 @@ import {
   createBlockAction,
   scheduleAppointmentAction,
   scheduleEncaixeAction,
+  scheduleRecurringAction,
 } from "@/app/(painel)/agenda/actions";
 import { useToast } from "@/components/ui/Toast";
+import type { RecurringSlotResult } from "@/server/agenda/recurring";
 
 export type AgendaFormMode = "schedule" | "block" | "encaixe";
 
@@ -46,6 +48,10 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
   const [minute, setMinute] = useState(slot.minute ?? 0);
   const [durationMin, setDurationMin] = useState(30);
   const [pending, startTransition] = useTransition();
+  const [kind, setKind] = useState<"once" | "series">("once");
+  const [periodicity, setPeriodicity] = useState("weekly");
+  const [quantity, setQuantity] = useState(5);
+  const [seriesSlots, setSeriesSlots] = useState<RecurringSlotResult[] | null>(null);
   const { showToast } = useToast();
 
   const title = MODE_TITLE[mode];
@@ -59,6 +65,8 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
     setDurationMin(mode === "block" ? 60 : 30);
     setClientId("");
     setError("");
+    setKind("once");
+    setSeriesSlots(null);
   }, [open, slot.hour, slot.minute, slot.staffId, slot.date, mode]);
 
   function handleServiceChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -84,6 +92,28 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
     }
 
     startTransition(async () => {
+      if (mode === "schedule" && kind === "series") {
+        formData.set("periodicity", periodicity);
+        formData.set("quantity", String(quantity));
+        const result = await scheduleRecurringAction(formData);
+        if (!result.ok) {
+          setError(result.error);
+          showToast(result.error, "error");
+          return;
+        }
+        setSeriesSlots(result.slots);
+        const booked = result.slots.filter((s) => s.ok).length;
+        const failed = result.slots.length - booked;
+        showToast(
+          failed
+            ? `${booked} horário(s) agendado(s), ${failed} em vermelho`
+            : `${booked} horário(s) agendado(s)`,
+          failed ? "error" : "success"
+        );
+        onSaved();
+        return;
+      }
+
       const action =
         mode === "block"
           ? createBlockAction
@@ -119,12 +149,32 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
             Cancelar
           </button>
           <button type="submit" form="agenda-form" className="btn btn-primary" disabled={pending}>
-            {pending ? "Salvando…" : "Confirmar"}
+            {pending ? "Salvando…" : seriesSlots ? "Agendar de novo" : "Confirmar"}
           </button>
         </>
       }
     >
       {error ? <div className="form-error">{error}</div> : null}
+      {mode === "schedule" ? (
+        <div className="agenda-form-tabs" role="tablist">
+          <button
+            type="button"
+            className={kind === "once" ? "btn btn-primary btn-sm" : "btn btn-outline btn-sm"}
+            aria-pressed={kind === "once"}
+            onClick={() => setKind("once")}
+          >
+            Agendar
+          </button>
+          <button
+            type="button"
+            className={kind === "series" ? "btn btn-primary btn-sm" : "btn btn-outline btn-sm"}
+            aria-pressed={kind === "series"}
+            onClick={() => setKind("series")}
+          >
+            Agenda recorrente
+          </button>
+        </div>
+      ) : null}
       <form id="agenda-form" className="form-stack" onSubmit={handleSubmit}>
         {staff.length > 1 ? (
           <label className="form-field">
@@ -232,6 +282,51 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
           <p className="client-profile-hint muted">
             Encaixe imediato: pode sobrepor horários já ocupados. Ajuste o horário se precisar.
           </p>
+        ) : null}
+
+        {mode === "schedule" && kind === "series" ? (
+          <>
+            <label className="form-field">
+              <span>Periodicidade *</span>
+              <select
+                name="periodicity"
+                value={periodicity}
+                onChange={(e) => setPeriodicity(e.target.value)}
+                required
+              >
+                <option value="weekly">Semanal</option>
+                <option value="quinzenal">Quinzenal (15 dias)</option>
+                <option value="every_2_weeks">A cada duas semanas</option>
+                <option value="every_3_weeks">A cada três semanas</option>
+                <option value="monthly">Mensal</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Quantidade *</span>
+              <select
+                name="quantity"
+                value={quantity}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                required
+              >
+                {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        ) : null}
+
+        {seriesSlots ? (
+          <ul className="series-result">
+            {seriesSlots.map((s) => (
+              <li key={s.date} className={s.ok ? "ok" : "bad"}>
+                {s.date.split("-").reverse().join("/")} — {s.ok ? "agendado" : s.reason}
+              </li>
+            ))}
+          </ul>
         ) : null}
       </form>
     </Modal>

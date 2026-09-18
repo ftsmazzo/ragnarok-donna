@@ -11,6 +11,7 @@ import {
   calculateAccountSettlement,
   discountKeepsSettledAmount,
 } from "../clients/account-reliability";
+import { resolvePaymentCode } from "@/lib/payment-codes";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -1183,6 +1184,12 @@ export async function addPayment(input: {
   meta?: Record<string, unknown>;
 }): Promise<ActionResult> {
   try {
+    const resolvedPay = resolvePaymentCode(input.method);
+    input = {
+      ...input,
+      method: resolvedPay.method,
+      meta: { ...resolvedPay.meta, ...(input.meta ?? {}) },
+    };
     const session = await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     await assertOpenOrder(input.orderId, tenant.id);
@@ -1627,6 +1634,12 @@ export async function payAndCloseOrder(input: {
   meta?: Record<string, unknown>;
 }): Promise<ActionResult> {
   try {
+    const resolvedPay = resolvePaymentCode(input.method);
+    input = {
+      ...input,
+      method: resolvedPay.method,
+      meta: { ...resolvedPay.meta, ...(input.meta ?? {}) },
+    };
     const session = await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     if (input.method === "client_account") {

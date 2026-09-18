@@ -25,7 +25,12 @@ export type AgendaAppointment = {
   notes: string | null;
   priceCents: number | null;
   orderId: string | null;
+  /** closed = comanda paga/fechada — pinta o card de verde. */
+  orderStatus: string | null;
   blockedByName: string | null;
+  seriesId: string | null;
+  /** Datas da série, só no detalhe. */
+  seriesUpcoming?: { id: string; startsAt: Date; status: string }[];
   /** Cliente sem preferência de profissional (meta). */
   noPreference: boolean;
   /** Tags livres do horário (meta). */
