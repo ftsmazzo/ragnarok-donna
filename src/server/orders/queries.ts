@@ -379,6 +379,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
       method: schema.payments.method,
       amountCents: schema.payments.amountCents,
       paidAt: schema.payments.paidAt,
+      meta: schema.payments.meta,
     })
     .from(schema.payments)
     .where(
@@ -403,6 +404,16 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
       credits = await listClientCredits(order.clientId);
     } catch {
       credits = [];
+    }
+  }
+
+  let series: { id: string; startsAt: Date; status: string }[] = [];
+  if (order.appointmentId) {
+    try {
+      const { listSeriesForAppointment } = await import("../agenda/recurring");
+      series = await listSeriesForAppointment(tenant.id, order.appointmentId);
+    } catch {
+      series = [];
     }
   }
 
@@ -455,6 +466,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
       ? (order.clientAccountBalanceCents ?? 0)
       : null,
     credits,
+    series,
   };
 }
 

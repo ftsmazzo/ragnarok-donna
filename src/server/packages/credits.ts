@@ -10,6 +10,7 @@ export type ClientCreditBalance = {
   productId: string | null;
   productName: string | null;
   remainingQty: number;
+  totalQty: number;
   expiresAt: Date | null;
 };
 
@@ -336,6 +337,7 @@ export async function listClientCredits(clientId: string): Promise<ClientCreditB
       productId: schema.clientPackageCredits.productId,
       productName: schema.products.name,
       remainingQty: schema.clientPackageCredits.remainingQty,
+      totalQty: schema.clientPackageCredits.totalQty,
       expiresAt: schema.clientPackages.expiresAt,
     })
     .from(schema.clientPackageCredits)
@@ -374,6 +376,7 @@ export async function listClientCredits(clientId: string): Promise<ClientCreditB
     productId: r.productId,
     productName: r.productName,
     remainingQty: r.remainingQty,
+    totalQty: r.totalQty,
     expiresAt: r.expiresAt,
   }));
 }

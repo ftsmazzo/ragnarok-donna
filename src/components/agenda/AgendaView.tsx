@@ -90,9 +90,13 @@ function slotStatusGlyph(status: string): { glyph: string; title: string } | nul
 function slotClass(a: AgendaAppointment): string {
   const parts = ["slot"];
   if (a.status === "blocked") parts.push("block");
-  else if (a.status === "no_show" || a.status === "cancelled") parts.push("muted");
-  else if (a.status === "confirmed") parts.push("confirmed");
-  else if (a.status === "arrived" || a.status === "in_progress") parts.push("active");
+  else if (a.status === "cancelled") parts.push("muted");
+  else if (a.status === "no_show") parts.push("tone-noshow");
+  else if (a.orderStatus === "closed") parts.push("tone-paid");
+  else if (a.status === "confirmed") parts.push("tone-confirmed");
+  else if (a.noPreference) parts.push("tone-nopref");
+  else parts.push("tone-open");
+  if (a.status === "arrived" || a.status === "in_progress") parts.push("active");
   else if (a.isEncaixe) parts.push("encaixe");
   if (slotDurationMin(a) >= 40) parts.push("is-tall");
   if (a.orderId) parts.push("has-order");

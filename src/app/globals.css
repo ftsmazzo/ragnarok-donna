@@ -1739,10 +1739,55 @@ input {
   background: var(--slot-block);
 }
 
-.slot.confirmed {
-  box-shadow: inset 0 0 0 2px #16a34a;
-  outline: 2px solid rgba(22, 163, 74, 0.35);
-  outline-offset: -2px;
+.slot.tone-noshow {
+  background: #b91c1c;
+  color: #fff;
+}
+
+.slot.tone-paid {
+  background: #15803d;
+  color: #fff;
+}
+
+.slot.tone-confirmed {
+  background: #1e3a8a;
+  color: #fff;
+}
+
+.slot.tone-open {
+  background: #7dd3fc;
+  color: #0c4a6e;
+}
+
+.slot.tone-nopref {
+  background: #eab308;
+  color: #422006;
+}
+
+.agenda-form-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.series-result {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 13px;
+}
+
+.series-result .ok {
+  color: #15803d;
+}
+
+.series-result .bad {
+  color: #b91c1c;
 }
 
 .slot.active {

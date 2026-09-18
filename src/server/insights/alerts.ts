@@ -629,6 +629,110 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
     });
   }
 
+  const seriesRows = await db
+    .select({
+      seriesId: sql<string>`${schema.appointments.meta}->>'seriesId'`,
+      clientName: schema.clients.name,
+    })
+    .from(schema.appointments)
+    .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenant.id),
+        isNull(schema.appointments.deletedAt),
+        sql`${schema.appointments.startsAt} > now()`,
+        sql`${schema.appointments.status} not in ('cancelled', 'no_show', 'blocked')`,
+        sql`${schema.appointments.meta}->>'seriesId' is not null`
+      )
+    )
+    .limit(400);
+
+  const seriesCount = new Map<string, { n: number; name: string }>();
+  for (const row of seriesRows) {
+    if (!row.seriesId) continue;
+    const cur = seriesCount.get(row.seriesId) ?? { n: 0, name: row.clientName ?? "Cliente" };
+    cur.n += 1;
+    if (row.clientName) cur.name = row.clientName;
+    seriesCount.set(row.seriesId, cur);
+  }
+  const ending = [...seriesCount.values()].filter((s) => s.n >= 1 && s.n <= 2);
+  if (ending.length) {
+    alerts.push({
+      id: "series-ending",
+      severity: "warning",
+      kind: "series_ending",
+      title:
+        ending.length === 1
+          ? `Série recorrente com ${ending[0].n} horário(s) restante(s)`
+          : `${ending.length} séries recorrentes acabando`,
+      detail: ending
+        .slice(0, 6)
+        .map((e) => `${e.name}: ${e.n} rest.`)
+        .join(" · "),
+      count: ending.length,
+      href: "/agenda",
+      periodLabel: "próximos",
+    });
+  }
+
+  const weekdayNow = new Date().toLocaleDateString("en-US", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "short",
+  });
+  if (weekdayNow === "Thu" || weekdayNow === "Fri" || weekdayNow === "Sat") {
+    const weekly = await db
+      .select({
+        clientId: schema.appointments.clientId,
+        clientName: schema.clients.name,
+      })
+      .from(schema.appointments)
+      .innerJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          isNull(schema.appointments.deletedAt),
+          eq(schema.appointments.status, "completed"),
+          sql`${schema.appointments.startsAt} >= now() - interval '60 days'`
+        )
+      )
+      .groupBy(schema.appointments.clientId, schema.clients.name)
+      .having(
+        sql`count(*) >= 3 and max(${schema.appointments.startsAt}) <= now() - interval '6 days' and max(${schema.appointments.startsAt}) >= now() - interval '10 days'`
+      )
+      .limit(20);
+
+    const fullWeek = rangeBoundsSp(week.from, week.to);
+    const booked = await db
+      .select({ clientId: schema.appointments.clientId })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          isNull(schema.appointments.deletedAt),
+          sql`${schema.appointments.status} not in ('cancelled', 'no_show', 'blocked')`,
+          sql`${schema.appointments.startsAt} >= ${fullWeek.start.toISOString()}::timestamptz`,
+          sql`${schema.appointments.startsAt} <= ${fullWeek.end.toISOString()}::timestamptz`
+        )
+      );
+    const bookedIds = new Set(booked.map((b) => b.clientId).filter((id): id is string => Boolean(id)));
+    const missed = weekly.filter((w) => w.clientId && !bookedIds.has(w.clientId));
+    if (missed.length) {
+      alerts.push({
+        id: "weekly-missed-thursday",
+        severity: "warning",
+        kind: "weekly_missed_thursday",
+        title: "Cliente semanal ainda não veio nesta semana",
+        detail: missed
+          .slice(0, 8)
+          .map((m) => m.clientName ?? "Cliente")
+          .join(" · "),
+        count: missed.length,
+        href: "/agenda",
+        periodLabel: "semana",
+      });
+    }
+  }
+
   const severityRank = { critical: 0, warning: 1, info: 2 } as const;
   alerts.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
 

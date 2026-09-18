@@ -11,6 +11,7 @@ import {
   updateAppointment,
   updateAppointmentStatus,
 } from "@/server/agenda/mutations";
+import { scheduleRecurringSeries } from "@/server/agenda/recurring";
 import type { AppointmentEditScope } from "@/server/agenda/types";
 import { searchClientsForAgenda } from "@/server/agenda/queries";
 import { payAndCloseOrder } from "@/server/orders/mutations";
@@ -40,6 +41,17 @@ export async function searchClientsAction(q: string) {
 export async function scheduleAppointmentAction(formData: FormData) {
   const input = parseForm(formData);
   const result = await scheduleAppointment(input);
+  if (result.ok) revalidateAgenda(input.date);
+  return result;
+}
+
+export async function scheduleRecurringAction(formData: FormData) {
+  const input = parseForm(formData);
+  const result = await scheduleRecurringSeries({
+    ...input,
+    periodicity: String(formData.get("periodicity") ?? "weekly"),
+    quantity: Number(formData.get("quantity") || 1),
+  });
   if (result.ok) revalidateAgenda(input.date);
   return result;
 }

@@ -118,6 +118,7 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
       orderId: schema.appointments.orderId,
+      orderStatus: schema.orders.status,
       orderTotalCents: schema.orders.totalCents,
       staffName: schema.staff.name,
       meta: schema.appointments.meta,
@@ -201,6 +202,7 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
       orderId: schema.appointments.orderId,
+      orderStatus: schema.orders.status,
       orderTotalCents: schema.orders.totalCents,
       staffName: schema.staff.name,
       meta: schema.appointments.meta,
@@ -225,7 +227,12 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
     await assertOwnStaffAccess(session, row.staffId);
   }
 
-  return mapAgendaAppointment(row);
+  const mapped = mapAgendaAppointment(row);
+  if (mapped.seriesId) {
+    const { listSeriesDates } = await import("./recurring");
+    mapped.seriesUpcoming = await listSeriesDates(tenant.id, mapped.seriesId);
+  }
+  return mapped;
 }
 
 function mapAgendaAppointment(r: {
@@ -249,6 +256,7 @@ function mapAgendaAppointment(r: {
   notes: string | null;
   priceCents: number | null;
   orderId: string | null;
+  orderStatus?: string | null;
   orderTotalCents?: number | null;
   meta: Record<string, unknown> | null;
 }): AgendaAppointment {
@@ -291,7 +299,9 @@ function mapAgendaAppointment(r: {
     notes: r.notes,
     priceCents,
     orderId: r.orderId,
+    orderStatus: r.orderStatus ?? null,
     blockedByName: typeof meta.blockedByName === "string" ? meta.blockedByName : null,
+    seriesId: typeof meta.seriesId === "string" ? meta.seriesId : null,
     noPreference: meta.noPreference === true,
     tags,
   };

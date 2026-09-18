@@ -12,7 +12,8 @@ import type {
   OrderPermissions,
 } from "@/server/orders/types";
 import { formatDateTimeSp } from "@/lib/datetime";
-import { formatMoney, labelOrderStatus, labelPaymentMethod } from "@/lib/format";
+import { formatMoney, labelOrderStatus } from "@/lib/format";
+import { labelStoredPayment } from "@/lib/payment-codes";
 import {
   addOrderItemAction,
   addPaymentAction,
@@ -528,13 +529,30 @@ export function OrderDrawer({
           </section>
         ) : null}
 
+        {order.series.length > 0 ? (
+          <section className="order-wallet">
+            <div className="order-wallet-head">
+              <strong>Agenda recorrente</strong>
+              <span>{order.series.length} horário(s)</span>
+            </div>
+            <ul className="series-result">
+              {order.series.map((s) => (
+                <li key={s.id} className={s.status === "no_show" || s.status === "cancelled" ? "bad" : "ok"}>
+                  {formatDateTimeSp(new Date(s.startsAt))} ·{" "}
+                  {s.status === "no_show" ? "não veio" : s.status === "cancelled" ? "cancelado" : "na agenda"}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {order.clientId ? (
           <section className="order-wallet">
             <div className="order-wallet-head">
               <strong>Carteira de pacotes</strong>
               <span>
                 {credits.length > 0
-                  ? `${credits.reduce((s, c) => s + c.remainingQty, 0)} crédito(s) disponível(is)`
+                  ? `${credits.reduce((s, c) => s + c.remainingQty, 0)} rest. de ${credits.reduce((s, c) => s + c.totalQty, 0)}`
                   : "Sem créditos"}
               </span>
             </div>
@@ -544,23 +562,35 @@ export function OrderDrawer({
               </p>
             ) : (
               <ul className="order-wallet-list">
-                {[...creditsByPackage.values()].map((group) => (
+                {[...creditsByPackage.values()].map((group) => {
+                  const rest = group.lines.reduce((s, c) => s + c.remainingQty, 0);
+                  const total = group.lines.reduce((s, c) => s + c.totalQty, 0);
+                  const named = group.packageName.trim().match(/^(\d+)\b/);
+                  const mismatch = named != null && Number(named[1]) !== total;
+                  return (
                   <li key={group.clientPackageId} className="order-wallet-group">
                     <div className="order-wallet-group-head">
                       <strong>{group.packageName}</strong>
                       <em>
-                        {group.lines.reduce((s, c) => s + c.remainingQty, 0)} rest.
+                        {rest} rest. de {total}
                         {group.lines[0]?.expiresAt
                           ? ` · até ${formatDateTimeSp(group.lines[0].expiresAt).slice(0, 10)}`
                           : ""}
                       </em>
                     </div>
+                    {mismatch ? (
+                      <p className="form-error">
+                        O nome diz {named?.[1]}, mas o catálogo creditou {total}. O saldo é {rest} de {total}, não o número do nome.
+                      </p>
+                    ) : null}
                     <ul className="order-wallet-credit-lines">
                       {group.lines.map((c) => (
                         <li key={c.creditId}>
                           <div>
                             <strong>{c.serviceName ?? c.productName ?? "Item"}</strong>
-                            <span>{c.remainingQty} disponível(is)</span>
+                            <span>
+                              {c.remainingQty} rest. de {c.totalQty}
+                            </span>
                           </div>
                           {canEdit && c.remainingQty > 0 ? (
                             <button
@@ -619,7 +649,8 @@ export function OrderDrawer({
                       </div>
                     ) : null}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -914,7 +945,7 @@ export function OrderDrawer({
             {order.payments.map((p) => (
               <li key={p.id} className="order-item-row">
                 <div>
-                  <strong>{labelPaymentMethod(p.method)}</strong>
+                  <strong>{labelStoredPayment(p.method, p.meta)}</strong>
                   <span className="muted">{formatDateTimeSp(p.paidAt)}</span>
                 </div>
                 <strong>{formatMoney(p.amountCents)}</strong>

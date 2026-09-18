@@ -17,6 +17,7 @@ import {
 } from "@/app/(painel)/agenda/actions";
 import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
 import { getClientUpsellTipsAction } from "@/app/(painel)/agenda/insights-actions";
+import { PAYMENT_METHOD_OPTIONS } from "@/lib/paymentMethods";
 
 type Props = {
   open: boolean;
@@ -31,15 +32,7 @@ type Props = {
   onContaRecorrencia?: (a: AgendaAppointment) => void;
 };
 
-const PAY_METHODS: { value: string; label: string }[] = [
-  { value: "pix", label: "PIX" },
-  { value: "pix_key", label: "PIX chave" },
-  { value: "cash", label: "Dinheiro" },
-  { value: "debit", label: "Débito" },
-  { value: "credit", label: "Crédito" },
-  { value: "rede_link", label: "Link Rede" },
-  { value: "infinity", label: "Infinity" },
-];
+const PAY_METHODS = PAYMENT_METHOD_OPTIONS.filter((o) => o.value !== "client_account");
 
 export function AgendaDetailModal({
   open,
@@ -258,6 +251,20 @@ export function AgendaDetailModal({
               <div>
                 <dt>Preferência</dt>
                 <dd>Sem preferência de profissional</dd>
+              </div>
+            ) : null}
+            {a.seriesUpcoming && a.seriesUpcoming.length > 0 ? (
+              <div>
+                <dt>Agenda recorrente</dt>
+                <dd>
+                  <ul className="series-result">
+                    {a.seriesUpcoming.map((s) => (
+                      <li key={s.id} className={s.status === "no_show" || s.status === "cancelled" ? "bad" : "ok"}>
+                        {formatDateTimeSp(new Date(s.startsAt))} · {labelApptStatus(s.status)}
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
               </div>
             ) : null}
             {a.tags?.length ? (
