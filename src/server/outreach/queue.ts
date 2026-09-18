@@ -1,8 +1,15 @@
-import { and, eq, lte, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { deliverWhatsAppText, getConnectionForTenant } from "@/server/agent/outbound";
 import type { OutreachKind } from "./defaults";
 import { isOutreachDispatchEnabled } from "./kill-switch";
+import {
+  OUTREACH_HOURLY_CAP,
+  OUTREACH_TICK_BATCH,
+  pacingDelayMs,
+  pickPriorityKind,
+  sleep,
+} from "./pacing";
 
 export async function ensureConversationForPhone(input: {
   tenantId: string;
@@ -73,12 +80,14 @@ export async function enqueueOutreachJob(input: {
     return { id: "", created: false };
   }
 
-  if (await hasOutreachDedupe({
-    tenantId: input.tenantId,
-    kind: input.kind,
-    phoneE164: input.phoneE164,
-    dayKey: input.dayKey,
-  })) {
+  if (
+    await hasOutreachDedupe({
+      tenantId: input.tenantId,
+      kind: input.kind,
+      phoneE164: input.phoneE164,
+      dayKey: input.dayKey,
+    })
+  ) {
     return { id: "", created: false };
   }
 
@@ -109,22 +118,77 @@ export async function enqueueOutreachJob(input: {
   return { id: row.id, created: true };
 }
 
+async function countSentLastHour(tenantId: string): Promise<number> {
+  const db = createDb();
+  const since = new Date(Date.now() - 60 * 60 * 1000);
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.outreachJobs)
+    .where(
+      and(
+        eq(schema.outreachJobs.tenantId, tenantId),
+        eq(schema.outreachJobs.status, "sent"),
+        gte(schema.outreachJobs.sentAt, since)
+      )
+    );
+  return Number(row?.n ?? 0);
+}
+
 export async function processPendingOutreachJobs(input: {
   tenantId: string;
   limit?: number;
-}): Promise<{ sent: number; failed: number; skipped: number }> {
+}): Promise<{
+  sent: number;
+  failed: number;
+  skipped: number;
+  kindProcessed: string | null;
+  hourlyCapHit: boolean;
+}> {
   if (!isOutreachDispatchEnabled()) {
-    return { sent: 0, failed: 0, skipped: 0 };
+    return { sent: 0, failed: 0, skipped: 0, kindProcessed: null, hourlyCapHit: false };
   }
 
   const db = createDb();
-  const limit = Math.min(40, Math.max(1, input.limit ?? 20));
+  const batchCap = Math.min(
+    OUTREACH_TICK_BATCH,
+    Math.max(1, input.limit ?? OUTREACH_TICK_BATCH)
+  );
   const now = new Date();
 
   const conn = await getConnectionForTenant(input.tenantId);
   if (!conn?.instanceName || conn.status !== "connected") {
-    return { sent: 0, failed: 0, skipped: 0 };
+    return { sent: 0, failed: 0, skipped: 0, kindProcessed: null, hourlyCapHit: false };
   }
+
+  let sentLastHour = await countSentLastHour(input.tenantId);
+  if (sentLastHour >= OUTREACH_HOURLY_CAP) {
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      kindProcessed: null,
+      hourlyCapHit: true,
+    };
+  }
+
+  const pendingKinds = await db
+    .selectDistinct({ kind: schema.outreachJobs.kind })
+    .from(schema.outreachJobs)
+    .where(
+      and(
+        eq(schema.outreachJobs.tenantId, input.tenantId),
+        eq(schema.outreachJobs.status, "pending"),
+        lte(schema.outreachJobs.scheduledAt, now)
+      )
+    );
+
+  const kind = pickPriorityKind(pendingKinds.map((r) => r.kind));
+  if (!kind) {
+    return { sent: 0, failed: 0, skipped: 0, kindProcessed: null, hourlyCapHit: false };
+  }
+
+  const remainingCap = OUTREACH_HOURLY_CAP - sentLastHour;
+  const limit = Math.min(batchCap, remainingCap);
 
   const jobs = await db
     .select()
@@ -133,6 +197,7 @@ export async function processPendingOutreachJobs(input: {
       and(
         eq(schema.outreachJobs.tenantId, input.tenantId),
         eq(schema.outreachJobs.status, "pending"),
+        eq(schema.outreachJobs.kind, kind),
         lte(schema.outreachJobs.scheduledAt, now)
       )
     )
@@ -141,8 +206,15 @@ export async function processPendingOutreachJobs(input: {
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  let hourlyCapHit = false;
 
-  for (const job of jobs) {
+  for (let i = 0; i < jobs.length; i++) {
+    if (sentLastHour + sent >= OUTREACH_HOURLY_CAP) {
+      hourlyCapHit = true;
+      break;
+    }
+
+    const job = jobs[i];
     const claimed = await db
       .update(schema.outreachJobs)
       .set({ status: "sending", updatedAt: new Date() })
@@ -202,7 +274,6 @@ export async function processPendingOutreachJobs(input: {
       })
       .where(eq(schema.outreachJobs.id, job.id));
 
-    // Marca appointment se confirmação
     const appointmentId =
       typeof job.meta?.appointmentId === "string" ? job.meta.appointmentId : null;
     if (job.kind === "confirmation_daily" && appointmentId) {
@@ -232,7 +303,12 @@ export async function processPendingOutreachJobs(input: {
     }
 
     sent += 1;
+
+    // Pacing: espera antes do próximo envio (não após o último)
+    if (i < jobs.length - 1 && sentLastHour + sent < OUTREACH_HOURLY_CAP) {
+      await sleep(pacingDelayMs());
+    }
   }
 
-  return { sent, failed, skipped };
+  return { sent, failed, skipped, kindProcessed: kind, hourlyCapHit };
 }
