@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
@@ -897,6 +897,148 @@ export async function addOrderItem(input: {
   }
 }
 
+const WEEKDAY_LABEL = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+function weekdaySp(date: Date): number {
+  const label = date.toLocaleDateString("en-US", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "short",
+  });
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[label] ?? 0;
+}
+
+async function addComboLines(input: {
+  orderId: string;
+  tenantId: string;
+  staffId?: string;
+  pkg: { id: string; name: string; priceCents: number };
+  items: Array<{
+    serviceId?: string;
+    productId?: string;
+    qty: number;
+    valueCents?: number;
+    weekdays?: number[];
+  }>;
+}): Promise<ActionResult> {
+  if (!input.staffId) throw new AppError("VALIDATION", "Informe o profissional");
+  const db = createDb();
+  const weekdays = input.items.find((item) => item.weekdays && item.weekdays.length > 0)?.weekdays ?? [];
+
+  const [order] = await db
+    .select({
+      status: schema.orders.status,
+      openedAt: schema.orders.openedAt,
+      startsAt: schema.appointments.startsAt,
+    })
+    .from(schema.orders)
+    .leftJoin(schema.appointments, eq(schema.appointments.id, schema.orders.appointmentId))
+    .where(and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, input.tenantId)))
+    .limit(1);
+  if (!order || order.status !== "open") {
+    throw new AppError("VALIDATION", "A comanda não está aberta");
+  }
+
+  const day = weekdaySp(order.startsAt ?? order.openedAt);
+  if (weekdays.length > 0 && !weekdays.includes(day)) {
+    const names = weekdays.map((d) => WEEKDAY_LABEL[d] ?? String(d)).join(", ");
+    throw new AppError(
+      "VALIDATION",
+      `Esse combo nesse valor só vale ${names}. Nos outros dias lance os serviços avulsos, no preço cheio.`
+    );
+  }
+
+  const [staff] = await db
+    .select({
+      id: schema.staff.id,
+      defaultCommissionBps: schema.staff.defaultCommissionBps,
+    })
+    .from(schema.staff)
+    .where(
+      and(
+        eq(schema.staff.id, input.staffId),
+        eq(schema.staff.tenantId, input.tenantId),
+        isNull(schema.staff.deletedAt)
+      )
+    )
+    .limit(1);
+  if (!staff) throw new AppError("VALIDATION", "Profissional inválido");
+
+  const serviceIds = input.items.map((item) => item.serviceId).filter((id): id is string => Boolean(id));
+  const services = serviceIds.length
+    ? await db
+        .select({
+          id: schema.services.id,
+          name: schema.services.name,
+          commissionBps: schema.services.commissionBps,
+        })
+        .from(schema.services)
+        .where(
+          and(
+            eq(schema.services.tenantId, input.tenantId),
+            inArray(schema.services.id, serviceIds),
+            isNull(schema.services.deletedAt)
+          )
+        )
+    : [];
+  const serviceById = new Map(services.map((service) => [service.id, service]));
+
+  const rowId = await db.transaction(async (tx) => {
+    let used = 0;
+    let lastId = "";
+    for (let index = 0; index < input.items.length; index++) {
+      const item = input.items[index];
+      const service = item.serviceId ? serviceById.get(item.serviceId) : undefined;
+      if (item.serviceId && !service) throw new AppError("VALIDATION", "Serviço do combo não encontrado");
+      const qty = Math.max(1, item.qty || 1);
+      const isLast = index === input.items.length - 1;
+      const totalCents = isLast
+        ? Math.max(0, input.pkg.priceCents - used)
+        : (item.valueCents ?? 0) * qty;
+      used += isLast ? 0 : totalCents;
+      const unitPriceCents = Math.round(totalCents / qty);
+      const commission = calcCommission(totalCents, service?.commissionBps ?? staff.defaultCommissionBps);
+      const [row] = await tx
+        .insert(schema.orderItems)
+        .values({
+          tenantId: input.tenantId,
+          orderId: input.orderId,
+          itemType: item.serviceId ? "service" : "product",
+          serviceId: item.serviceId ?? null,
+          productId: item.productId ?? null,
+          staffId: staff.id,
+          description: service?.name ?? input.pkg.name,
+          qty,
+          unitPriceCents,
+          discountCents: 0,
+          totalCents,
+          commissionBps: commission.commissionBps,
+          commissionCents: commission.commissionCents,
+          performedAt: new Date(),
+          meta: { comboPackageId: input.pkg.id, comboName: input.pkg.name },
+        })
+        .returning({ id: schema.orderItems.id });
+      lastId = row.id;
+    }
+
+    const [agg] = await tx
+      .select({
+        total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(eq(schema.orderItems.orderId, input.orderId), eq(schema.orderItems.tenantId, input.tenantId))
+      );
+    await tx
+      .update(schema.orders)
+      .set({ totalCents: Number(agg?.total ?? 0), updatedAt: new Date() })
+      .where(and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, input.tenantId)));
+    return lastId;
+  });
+
+  return { ok: true, id: rowId };
+}
+
 async function addPackageSaleItem(input: {
   orderId: string;
   packageId: string;
@@ -912,9 +1054,6 @@ async function addPackageSaleItem(input: {
       and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, input.tenantId))
     )
     .limit(1);
-  if (!orderRow?.clientId) {
-    throw new AppError("VALIDATION", "Vincule um cliente à comanda para vender pacote");
-  }
 
   const [pkg] = await db
     .select({
@@ -937,7 +1076,22 @@ async function addPackageSaleItem(input: {
     .limit(1);
   if (!pkg) throw new AppError("VALIDATION", "Pacote inválido");
 
-  const { resolvePackageServiceItems } = await import("../packages/credits");
+  const { normalizePackageItems, resolvePackageServiceItems } = await import("../packages/credits");
+  const normalized = normalizePackageItems(pkg.items);
+  if (normalized.length > 0 && normalized.every((item) => item.billLine)) {
+    return addComboLines({
+      orderId: input.orderId,
+      tenantId: input.tenantId,
+      staffId: input.staffId,
+      pkg,
+      items: normalized,
+    });
+  }
+
+  if (!orderRow?.clientId) {
+    throw new AppError("VALIDATION", "Vincule um cliente à comanda para vender pacote");
+  }
+
   const { items } = await resolvePackageServiceItems(input.tenantId, pkg.items, {
     healPackageId: pkg.id,
   });
