@@ -85,6 +85,8 @@ export type PackageRow = {
     productId?: string;
     serviceExternalId?: string;
     qty: number;
+    billLine?: boolean;
+    weekdays?: number[];
   }>;
   itemCount: number;
   unresolvedServiceCount: number;

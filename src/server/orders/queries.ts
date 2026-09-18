@@ -543,6 +543,7 @@ export async function listCatalogForOrders(): Promise<{
       itemLabel: p.items
         .map((i) => `${i.qty}× ${i.serviceName ?? i.productName ?? "Item"}`)
         .join(" · "),
+      billAsLines: p.billAsLines,
     }));
   } catch {
     packages = [];

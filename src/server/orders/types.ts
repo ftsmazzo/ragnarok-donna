@@ -91,6 +91,8 @@ export type CatalogPackage = {
   priceCents: number;
   expiresAfterDays: number | null;
   itemLabel: string;
+  /** Combo: entra na comanda já dividido, sem gerar carteira. */
+  billAsLines?: boolean;
 };
 
 export type CatalogStaff = {

@@ -27,6 +27,8 @@ export type CatalogPackage = {
     productName?: string;
     qty: number;
   }>;
+  /** Combo: na comanda vira uma linha por serviço, já com o valor. */
+  billAsLines: boolean;
 };
 
 type PackageItem = {
@@ -37,6 +39,8 @@ type PackageItem = {
   qty: number;
   description?: string;
   valueCents?: number;
+  billLine?: boolean;
+  weekdays?: number[];
 };
 
 export function normalizePackageItems(raw: unknown): PackageItem[] {
@@ -71,6 +75,10 @@ export function normalizePackageItems(raw: unknown): PackageItem[] {
           row.valueCents != null && Number.isFinite(Number(row.valueCents))
             ? Number(row.valueCents)
             : undefined,
+        billLine: row.billLine === true,
+        weekdays: Array.isArray(row.weekdays)
+          ? row.weekdays.map((d) => Number(d)).filter((d) => d >= 0 && d <= 6)
+          : undefined,
       };
     })
     .filter((i) =>
@@ -96,6 +104,8 @@ export async function resolvePackageServiceItems(
     serviceExternalId?: string;
     productExternalId?: string;
     qty: number;
+    billLine?: boolean;
+    weekdays?: number[];
   }>;
 }> {
   const db = transaction ?? createDb();
@@ -200,6 +210,8 @@ export async function resolvePackageServiceItems(
       ...(i.productExternalId ? { productExternalId: i.productExternalId } : {}),
       ...(i.description ? { description: i.description } : {}),
       ...(i.valueCents != null ? { valueCents: i.valueCents } : {}),
+      ...(i.billLine ? { billLine: true } : {}),
+      ...(i.weekdays && i.weekdays.length ? { weekdays: i.weekdays } : {}),
     }));
     await db
       .update(schema.packages)
@@ -224,6 +236,8 @@ export async function resolvePackageServiceItems(
       serviceExternalId: i.serviceExternalId,
       productExternalId: i.productExternalId,
       qty: i.qty,
+      billLine: i.billLine === true,
+      weekdays: i.weekdays,
     })),
   };
 }
@@ -317,6 +331,9 @@ export async function listCatalogPackages(): Promise<CatalogPackage[]> {
           qty: i.qty,
         })),
       ],
+      billAsLines:
+        normalizePackageItems(row.items).length > 0 &&
+        normalizePackageItems(row.items).every((i) => i.billLine === true),
     }))
     .filter((p) => p.items.length > 0);
 }

@@ -49,6 +49,8 @@ type PackageDefaults = {
     productId?: string;
     serviceExternalId?: string;
     qty: number;
+    billLine?: boolean;
+    weekdays?: number[];
   }>;
   unresolvedServiceCount?: number;
 };
@@ -351,6 +353,40 @@ export function CatalogDrawer({
                 }
               />
             </label>
+
+            <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                name="billAsLines"
+                defaultChecked={(pkg?.items ?? []).some((item) => item.billLine)}
+              />
+              <span>Na comanda, abrir os serviços já com o valor (não gera carteira)</span>
+            </label>
+            <p className="client-profile-hint muted">
+              Pé e mão de segunda a quarta: preço 69,90, dois serviços. A secretária só escolhe o pacote. O avulso continua no preço cheio. Marque os dias em que esse valor vale.
+            </p>
+            <div className="form-row-2">
+              {(
+                [
+                  [1, "Seg"],
+                  [2, "Ter"],
+                  [3, "Qua"],
+                  [4, "Qui"],
+                  [5, "Sex"],
+                  [6, "Sáb"],
+                  [0, "Dom"],
+                ] as const
+              ).map(([day, label]) => {
+                const saved = pkg?.items?.find((item) => item.weekdays && item.weekdays.length > 0)?.weekdays;
+                const checked = saved ? saved.includes(day) : day >= 1 && day <= 3;
+                return (
+                  <label key={day} className="form-field" style={{ flexDirection: "row", gap: 6 }}>
+                    <input type="checkbox" name="weekday" value={day} defaultChecked={checked} />
+                    <span>{label}</span>
+                  </label>
+                );
+              })}
+            </div>
 
             <div className="package-items-editor">
               <div className="package-items-head">

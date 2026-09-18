@@ -68,6 +68,13 @@ export async function updateServiceAction(id: string, formData: FormData) {
   return result;
 }
 
+function parseWeekdays(formData: FormData): number[] {
+  return formData
+    .getAll("weekday")
+    .map((value) => Number(value))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+}
+
 function parsePackageItems(formData: FormData) {
   const raw = String(formData.get("itemsJson") ?? "[]");
   try {
@@ -99,6 +106,8 @@ export async function createPackageAction(formData: FormData) {
     expiresAfterDays: expires > 0 ? expires : null,
     commissionPct: String(formData.get("commissionPct") ?? ""),
     items: parsePackageItems(formData),
+    billAsLines: formData.get("billAsLines") === "on",
+    weekdays: parseWeekdays(formData),
   });
   if (result.ok) revalidatePath("/pacotes");
   return result;
@@ -114,6 +123,8 @@ export async function updatePackageAction(id: string, formData: FormData) {
     expiresAfterDays: expires > 0 ? expires : null,
     commissionPct: String(formData.get("commissionPct") ?? ""),
     items: parsePackageItems(formData),
+    billAsLines: formData.get("billAsLines") === "on",
+    weekdays: parseWeekdays(formData),
   });
   if (result.ok) revalidatePath("/pacotes");
   return result;

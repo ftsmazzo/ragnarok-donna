@@ -262,6 +262,28 @@ export async function updateService(
   }
 }
 
+function stampBillLines<T extends { qty: number }>(
+  items: T[],
+  priceCents: number,
+  billAsLines: boolean,
+  weekdays: number[]
+): Array<T & { billLine?: boolean; valueCents?: number; weekdays?: number[] }> {
+  if (!billAsLines) return items;
+  const units = items.reduce((sum, item) => sum + item.qty, 0) || 1;
+  const base = Math.floor(priceCents / units);
+  let left = priceCents - base * units;
+  return items.map((item, index) => {
+    const extra = index === items.length - 1 ? left : 0;
+    if (index === items.length - 1) left = 0;
+    return {
+      ...item,
+      billLine: true,
+      valueCents: base + extra,
+      ...(weekdays.length ? { weekdays } : {}),
+    };
+  });
+}
+
 export async function createPackage(input: {
   name: string;
   description?: string;
@@ -270,6 +292,8 @@ export async function createPackage(input: {
   expiresAfterDays?: number | null;
   commissionPct?: string;
   items?: Array<{ serviceId?: string; productId?: string; qty: number }>;
+  billAsLines?: boolean;
+  weekdays?: number[];
 }): Promise<ActionResult> {
   try {
     await assertCatalogWrite();
@@ -302,7 +326,12 @@ export async function createPackage(input: {
         commissionBps,
         bookableOnline: input.bookableOnline !== false,
         isActive: true,
-        items,
+        items: stampBillLines(
+          items,
+          moneyToCents(input.price || "0"),
+          input.billAsLines === true,
+          input.weekdays ?? []
+        ),
       })
       .returning({ id: schema.packages.id });
     return { ok: true, id: row.id };
@@ -323,6 +352,8 @@ export async function updatePackage(
     expiresAfterDays?: number | null;
     commissionPct?: string;
     items?: Array<{ serviceId?: string; productId?: string; qty: number }>;
+    billAsLines?: boolean;
+    weekdays?: number[];
   }
 ): Promise<ActionResult> {
   try {
@@ -354,7 +385,12 @@ export async function updatePackage(
             : null,
         commissionBps,
         bookableOnline: input.bookableOnline !== false,
-        items,
+        items: stampBillLines(
+          items,
+          moneyToCents(input.price || "0"),
+          input.billAsLines === true,
+          input.weekdays ?? []
+        ),
         updatedAt: new Date(),
       })
       .where(

@@ -250,6 +250,10 @@ export const packages = pgTable(
           qty: number;
           description?: string;
           valueCents?: number;
+          /** Na comanda vira linha de serviço já com o valor, sem carteira. */
+          billLine?: boolean;
+          /** 0=dom … 6=sáb. Vazio = qualquer dia. */
+          weekdays?: number[];
         }>
       >()
       .notNull()

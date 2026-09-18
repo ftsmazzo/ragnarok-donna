@@ -218,7 +218,8 @@ export function OrderDrawer({
   }
 
   const showClientLinker = canEdit && (!order.clientId || linkClientOpen);
-  const packageBlockedNoClient = itemType === "package" && !order.clientId;
+  const packageBlockedNoClient =
+    itemType === "package" && !order.clientId && !selectedPackage?.billAsLines;
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError("");
@@ -844,7 +845,11 @@ export function OrderDrawer({
               </p>
             ) : null}
 
-            {itemType === "package" ? (
+            {itemType === "package" && selectedPackage?.billAsLines ? (
+              <p className="client-profile-hint">
+                Entra uma linha por serviço, já com o valor dividido. A secretária não altera preço. Fora dos dias do pacote, use os serviços avulsos.
+              </p>
+            ) : itemType === "package" ? (
               <div className="order-package-sale-hint">
                 <p>
                   <strong>Vender pacote / gerar carteira</strong> — o cliente paga nesta
@@ -859,8 +864,12 @@ export function OrderDrawer({
             ) : null}
 
             <label className="form-field">
-              <span>Profissional {itemType === "service" ? "*" : ""}</span>
-              <select name="staffId" defaultValue="" required={itemType === "service"}>
+              <span>Profissional {itemType === "service" || selectedPackage?.billAsLines ? "*" : ""}</span>
+              <select
+                name="staffId"
+                defaultValue=""
+                required={itemType === "service" || Boolean(selectedPackage?.billAsLines)}
+              >
                 <option value="" disabled={itemType === "service"}>
                   {itemType === "service" ? "Selecione…" : "—"}
                 </option>
@@ -901,7 +910,9 @@ export function OrderDrawer({
               disabled={pending || !catalogId || packageBlockedNoClient}
             >
               {itemType === "package"
-                ? "+ Vender pacote / gerar carteira"
+                ? selectedPackage?.billAsLines
+                  ? "+ Adicionar já dividido"
+                  : "+ Vender pacote / gerar carteira"
                 : willUseCredit
                   ? "+ Lançar com crédito"
                   : "+ Adicionar item"}
