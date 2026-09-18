@@ -141,7 +141,7 @@ export function DisparosConfigForm({ initial }: Props) {
             checked={emptyAgendaEnabled}
             onChange={setEmptyAgendaEnabled}
             label="Agenda vazia do profissional"
-            hint="Se um barbeiro não tem horário amanhã, avisa só os clientes dele."
+            hint="Só se o barbeiro estiver sem horário amanhã. Cap baixo (8) + cooldown 14d. Exige pacing e kill switch on."
           />
           <Toggle
             id="soundOnConfirmEnabled"

@@ -161,6 +161,11 @@ export async function InicioContent({ session, searchParams }: Props) {
                   value: o.appointmentsToday.toLocaleString("pt-BR"),
                   hint: showWaitlist ? `${o.waitlist} na espera` : "do dia",
                 },
+                {
+                  label: "Previsto hoje",
+                  value: formatMoney(o.forecastRevenueTodayCents),
+                  hint: "soma dos horários (soft)",
+                },
               ]
             : []),
           ...(canAccessRoute("/comandas", session.role, { staffId: session.staffId })

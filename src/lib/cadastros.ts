@@ -8,6 +8,7 @@ import {
   isNotNull,
   isNull,
   lte,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
@@ -100,6 +101,8 @@ export type TenantOverview = {
   products: number;
   packages: number;
   appointmentsToday: number;
+  /** Soft KPI: soma priceCents dos agendamentos do dia (excl. cancel/blocked). */
+  forecastRevenueTodayCents: number;
   waitlist: number;
   openOrdersToday: number;
 };
@@ -301,6 +304,7 @@ export async function getTenantOverview(): Promise<TenantOverview> {
       products: 0,
       packages: 0,
       appointmentsToday: 0,
+      forecastRevenueTodayCents: 0,
       waitlist: 0,
       openOrdersToday: 0,
     };
@@ -333,7 +337,20 @@ export async function getTenantOverview(): Promise<TenantOverview> {
     )
   );
 
-  const [[clients], [clientsActive], [staff], [services], [products], [packages], [apptToday], [waitlist], [openOrders]] =
+  const forecastWhere = withBranchScope(
+    scope,
+    schema.appointments.branchId,
+    and(
+      eq(schema.appointments.tenantId, tenant.id),
+      gte(schema.appointments.startsAt, start),
+      lte(schema.appointments.startsAt, end),
+      isNull(schema.appointments.deletedAt),
+      ne(schema.appointments.status, "cancelled"),
+      ne(schema.appointments.status, "blocked")
+    )
+  );
+
+  const [[clients], [clientsActive], [staff], [services], [products], [packages], [apptToday], [forecast], [waitlist], [openOrders]] =
     await Promise.all([
       db
         .select({ n: count() })
@@ -363,6 +380,12 @@ export async function getTenantOverview(): Promise<TenantOverview> {
         .from(schema.packages)
         .where(and(eq(schema.packages.tenantId, tenant.id), isNull(schema.packages.deletedAt))),
       db.select({ n: count() }).from(schema.appointments).where(apptWhere),
+      db
+        .select({
+          cents: sql<number>`coalesce(sum(${schema.appointments.priceCents}), 0)::int`,
+        })
+        .from(schema.appointments)
+        .where(forecastWhere),
       scope.multiBranch
         ? db
             .select({ n: count() })
@@ -396,6 +419,7 @@ export async function getTenantOverview(): Promise<TenantOverview> {
     products: Number(products?.n ?? 0),
     packages: Number(packages?.n ?? 0),
     appointmentsToday: Number(apptToday?.n ?? 0),
+    forecastRevenueTodayCents: Number(forecast?.cents ?? 0),
     waitlist: Number(waitlist?.n ?? 0),
     openOrdersToday: Number(openOrders?.n ?? 0),
   };

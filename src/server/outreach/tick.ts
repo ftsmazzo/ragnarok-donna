@@ -11,6 +11,7 @@ import {
   planFollowupInactive,
   planSundayBlast,
 } from "./planners";
+import { OUTREACH_TICK_BATCH } from "./pacing";
 
 export type OutreachTickResult = {
   tenantId: string;
@@ -25,7 +26,13 @@ export type OutreachTickResult = {
     voceVem: number;
     delayReschedule: number;
   };
-  processed: { sent: number; failed: number; skipped: number };
+  processed: {
+    sent: number;
+    failed: number;
+    skipped: number;
+    kindProcessed: string | null;
+    hourlyCapHit: boolean;
+  };
   skippedReason?: string;
 };
 
@@ -98,7 +105,7 @@ export async function runOutreachTick(opts?: {
 
     const processed = await processPendingOutreachJobs({
       tenantId: tenant.id,
-      limit: opts?.limitPerTenant ?? 25,
+      limit: opts?.limitPerTenant ?? OUTREACH_TICK_BATCH,
     });
 
     results.push({

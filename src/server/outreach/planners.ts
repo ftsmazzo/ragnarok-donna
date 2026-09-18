@@ -3,6 +3,10 @@ import { createDb, schema } from "@/db";
 import { dayBoundsSp, formatDateLabelSp, formatTimeSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { isClosedForOutreach, timeReachedSp } from "./calendar";
 import type { OutreachSettingsView } from "./defaults";
+import {
+  EMPTY_AGENDA_CLIENT_CAP,
+  EMPTY_AGENDA_COOLDOWN_DAYS,
+} from "./pacing";
 import { enqueueOutreachJob } from "./queue";
 import { renderOutreachTemplate } from "./templates";
 
@@ -301,6 +305,25 @@ export async function planEmptyAgenda(input: {
 
     if (busy) continue;
 
+    const cooldownSince = dayBoundsSp(
+      shiftDateSp(today, -EMPTY_AGENDA_COOLDOWN_DAYS)
+    ).start;
+
+    const recentlyContacted = await db
+      .select({ phoneE164: schema.outreachJobs.phoneE164 })
+      .from(schema.outreachJobs)
+      .where(
+        and(
+          eq(schema.outreachJobs.tenantId, input.tenantId),
+          eq(schema.outreachJobs.kind, "empty_agenda"),
+          sql`${schema.outreachJobs.status} in ('pending','sending','sent')`,
+          gte(schema.outreachJobs.createdAt, cooldownSince)
+        )
+      );
+    const cooldownPhones = new Set(
+      recentlyContacted.map((r) => r.phoneE164).filter(Boolean)
+    );
+
     const clients = await db
       .select({
         clientId: schema.clients.id,
@@ -328,11 +351,14 @@ export async function planEmptyAgenda(input: {
       )
       .groupBy(schema.clients.id, schema.clients.name, schema.clients.phoneE164)
       .orderBy(sql`max(${schema.appointments.startsAt}) desc`)
-      .limit(40);
+      .limit(EMPTY_AGENDA_CLIENT_CAP * 3);
 
+    let staffEnqueued = 0;
     for (const row of clients) {
+      if (staffEnqueued >= EMPTY_AGENDA_CLIENT_CAP) break;
       const phone = row.phoneE164?.trim();
       if (!phone) continue;
+      if (cooldownPhones.has(phone)) continue;
       const body = renderOutreachTemplate(input.settings.templateEmptyAgenda, {
         nome: row.clientName,
         profissional: st.name,
@@ -348,7 +374,11 @@ export async function planEmptyAgenda(input: {
         dayKey: `empty:${st.id}:${targetDate}`,
         meta: { staffId: st.id, targetDate },
       });
-      if (res.created) enqueued += 1;
+      if (res.created) {
+        enqueued += 1;
+        staffEnqueued += 1;
+        cooldownPhones.add(phone);
+      }
     }
   }
 

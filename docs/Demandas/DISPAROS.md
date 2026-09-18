@@ -19,13 +19,26 @@ Motivo: clientes ainda no AppBarber — disparo agora gera confusão.
 - Tick: `POST/GET /api/ops/outreach-tick` (Bearer `CRON_SECRET` | `AUTH_SECRET` | `AGENT_SERVICE_TOKEN`)
 - Cron HTTP (quando liberar): a cada ~10 min
 
+## Pacing (anti-rajada / risco Meta)
+Constantes em `src/server/outreach/pacing.ts`:
+
+| Regra | Default |
+|-------|---------|
+| 1 kind por tick | Prioridade: confirmation → empty_agenda → followup → birthday → … → sunday_blast por último |
+| Intervalo entre envios | ~4s + jitter até 3s |
+| Lote por tick | máx. 8 |
+| Teto horário | 30 msgs/hora/tenant |
+| empty_agenda cap | 8 clientes/barbeiro + cooldown 14 dias |
+
+Sem pacing ligado, não liberar `OUTREACH_DISPATCH_ENABLED`. **Não** ligar sunday_blast / promo % off neste momento.
+
 ## Kinds
 | kind | Uso |
 |------|-----|
 | `confirmation_daily` | Confirmação amanhã → cliente responde OK → agenda verde |
 | `followup_inactive` | Retorno 30/60 nos dias do mês |
-| `sunday_blast` | Blast domingo |
-| `empty_agenda` | Profissional sem agenda amanhã → clientes dele |
+| `sunday_blast` | Blast domingo — **não liberar** até métricas OK |
+| `empty_agenda` | Profissional sem agenda amanhã → clientes dele (cap baixo) |
 | `birthday` | Aniversário automático (toggle; default off) |
 
 Toggles começam **desligados**.
@@ -39,5 +52,6 @@ Toggles começam **desligados**.
 2. `OUTREACH_DISPATCH_ENABLED=true` no EasyPanel
 3. Start do serviço `outreach-cron`
 4. Ligar só **Confirmação diária** e validar OK→verde
-5. Depois retorno/blast/agenda vazia
-6. Aniversário automático só depois do envio manual estabilizado
+5. Depois empty_agenda (com pacing) → retorno 30d
+6. sunday_blast / promo por último — só com aprovação explícita
+7. Aniversário automático só depois do envio manual estabilizado
