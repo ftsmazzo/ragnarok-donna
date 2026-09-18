@@ -48,7 +48,7 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Profissionais", href: "/profissionais", icon: "✂" },
       { label: "Comissões", href: "/comissoes", icon: "%" },
-      { label: "Extras / metas", href: "/relatorios/extras", icon: "★" },
+      { label: "Ranking equipe", href: "/relatorios/extras", icon: "★" },
       { label: "Aniversariantes", href: "/clientes/aniversariantes", icon: "★" },
     ],
   },
@@ -119,7 +119,7 @@ export const NAV_CONSOLIDATED: NavItem[] = [
     icon: "✂",
     children: [
       { label: "Comissões", href: "/comissoes", icon: "%" },
-      { label: "Extras / metas", href: "/relatorios/extras", icon: "★" },
+      { label: "Ranking equipe", href: "/relatorios/extras", icon: "★" },
     ],
   },
   {

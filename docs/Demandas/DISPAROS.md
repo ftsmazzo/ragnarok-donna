@@ -26,8 +26,13 @@ Motivo: clientes ainda no AppBarber — disparo agora gera confusão.
 | `followup_inactive` | Retorno 30/60 nos dias do mês |
 | `sunday_blast` | Blast domingo |
 | `empty_agenda` | Profissional sem agenda amanhã → clientes dele |
+| `birthday` | Aniversário automático (toggle; default off) |
 
 Toggles começam **desligados**.
+
+### Aniversário — humano vs auto
+- **Manual (preferido):** Clientes → Aniversariantes → Enviar Zap. Sai como `outbound_human` imediato (WhatsApp conectado). **Não** passa pela fila nem pelo kill switch `OUTREACH_DISPATCH_ENABLED`.
+- **Automático:** toggle em Disparos → kind `birthday` na fila. Só envia com `OUTREACH_DISPATCH_ENABLED=true` e cron ativo. Manter off até a loja validar o fluxo manual.
 
 ## Quando liberar produção
 1. Clientes migrados / WhatsApp da unidade no Evolution
@@ -35,3 +40,4 @@ Toggles começam **desligados**.
 3. Start do serviço `outreach-cron`
 4. Ligar só **Confirmação diária** e validar OK→verde
 5. Depois retorno/blast/agenda vazia
+6. Aniversário automático só depois do envio manual estabilizado

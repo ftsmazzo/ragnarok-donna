@@ -155,8 +155,8 @@ export function DisparosConfigForm({ initial }: Props) {
             name="birthdayEnabled"
             checked={birthdayEnabled}
             onChange={setBirthdayEnabled}
-            label="Aniversariantes (parabéns + desconto)"
-            hint="Dispara no dia do aniversário para clientes com data e telefone."
+            label="Aniversariantes automáticos (fila)"
+            hint="Default off. No dia do aniversário enfileira texto+desconto. Preferência: enviar manual em Clientes → Aniversariantes (humano, sem kill switch da fila)."
           />
         </div>
       </ConfigSectionCard>

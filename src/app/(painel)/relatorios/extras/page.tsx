@@ -30,7 +30,7 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
     period: period.period,
   });
 
-  const chart = data.rows
+  const chartExtras = data.rows
     .filter((r) => r.cents > 0)
     .slice(0, 10)
     .map((r) => ({
@@ -39,20 +39,41 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
       extra: r.qty,
     }));
 
+  const chartAttend = [...data.rows]
+    .filter((r) => r.clientsServed > 0)
+    .sort((a, b) => b.clientsServed - a.clientsServed)
+    .slice(0, 10)
+    .map((r) => ({
+      name: r.staffName.length > 16 ? `${r.staffName.slice(0, 14)}…` : r.staffName,
+      value: r.clientsServed,
+      extra: r.serviceItems,
+    }));
+
   return (
     <>
       <PageHeader
-        title="Extras e metas"
-        subtitle="Ranking de produtos vendidos por profissional — separado de comissão"
+        title="Ranking da equipe"
+        subtitle="Extras (R$), produtos (un.) e atendimentos no mesmo período"
         actions={
           <ExportCsvButton
-            filename={`extras_${data.from}_${data.to}`}
-            headers={["#", "Profissional", "Unidades", "Extras R$", "Meta R$", "% meta"]}
+            filename={`ranking_equipe_${data.from}_${data.to}`}
+            headers={[
+              "#",
+              "Profissional",
+              "Produtos un.",
+              "Extras R$",
+              "Atendimentos",
+              "Itens serviço",
+              "Meta R$",
+              "% meta",
+            ]}
             rows={data.rows.map((r, i) => [
               i + 1,
               r.staffName,
               r.qty,
               (r.cents / 100).toFixed(2),
+              r.clientsServed,
+              r.serviceItems,
               (r.goalCents / 100).toFixed(2),
               r.progressPct == null ? "" : r.progressPct.toFixed(1),
             ])}
@@ -80,7 +101,12 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
       <SummaryCards
         cards={[
           { label: "Extras no período", value: formatMoney(data.totalCents) },
-          { label: "Unidades", value: String(data.totalQty) },
+          { label: "Produtos (un.)", value: String(data.totalQty) },
+          {
+            label: "Atendimentos",
+            value: data.totalClientsServed.toLocaleString("pt-BR"),
+            hint: `${data.totalServiceItems.toLocaleString("pt-BR")} itens de serviço`,
+          },
           {
             label: "Com meta",
             value: String(data.rows.filter((r) => r.goalCents > 0).length),
@@ -90,10 +116,10 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
 
       {data.canWriteGoals ? (
         <section className="panel" style={{ marginTop: 12 }}>
-          <h2 className="panel-title">Cadastrar meta mensal</h2>
+          <h2 className="panel-title">Cadastrar meta mensal (extras)</h2>
           <p className="muted-note" style={{ marginBottom: 12 }}>
-            Meta de venda de produtos (extras) por barbeiro. O progresso usa o período
-            filtrado vs a meta do mês.
+            Meta de venda de produtos por barbeiro. O progresso usa o período filtrado vs a
+            meta do mês.
           </p>
           <ExtrasGoalsForm
             rows={data.rows.map((r) => ({
@@ -106,12 +132,28 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
         </section>
       ) : null}
 
-      {chart.length ? (
-        <section className="panel" style={{ marginTop: 12 }}>
-          <h2 className="panel-title">Ranking extras</h2>
-          <RankingBarChart data={chart} valueLabel="R$" />
-        </section>
-      ) : null}
+      <div className="dash-grid" style={{ marginTop: 12 }}>
+        {chartExtras.length ? (
+          <section className="panel dash-panel">
+            <div className="panel-toolbar">
+              <strong>Ranking extras (R$)</strong>
+            </div>
+            <div className="panel-body">
+              <RankingBarChart data={chartExtras} valueLabel="R$" />
+            </div>
+          </section>
+        ) : null}
+        {chartAttend.length ? (
+          <section className="panel dash-panel">
+            <div className="panel-toolbar">
+              <strong>Ranking atendimentos (clientes)</strong>
+            </div>
+            <div className="panel-body">
+              <RankingBarChart data={chartAttend} valueLabel="cli." />
+            </div>
+          </section>
+        ) : null}
+      </div>
 
       <section className="panel" style={{ marginTop: 12 }}>
         <div className="table-wrap">
@@ -120,8 +162,10 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
               <tr>
                 <th>#</th>
                 <th>Profissional</th>
-                <th>Un.</th>
+                <th>Produtos</th>
                 <th>Extras</th>
+                <th>Atendimentos</th>
+                <th>Itens svc</th>
                 <th>Meta mês</th>
                 <th>Progresso</th>
               </tr>
@@ -129,7 +173,7 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
             <tbody>
               {data.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="panel-empty">
+                  <td colSpan={8} className="panel-empty">
                     Nenhum profissional ativo.
                   </td>
                 </tr>
@@ -140,6 +184,8 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
                     <td>{r.staffName}</td>
                     <td>{r.qty}</td>
                     <td>{formatMoney(r.cents)}</td>
+                    <td>{r.clientsServed.toLocaleString("pt-BR")}</td>
+                    <td>{r.serviceItems.toLocaleString("pt-BR")}</td>
                     <td>{r.goalCents > 0 ? formatMoney(r.goalCents) : "—"}</td>
                     <td>
                       {r.progressPct == null ? (
