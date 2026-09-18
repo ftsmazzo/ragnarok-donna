@@ -29,6 +29,8 @@ export type AgendaAppointment = {
   orderStatus: string | null;
   blockedByName: string | null;
   seriesId: string | null;
+  /** Dia da série que não coube na jornada — card vermelho até ela decidir. */
+  seriesConflict: string | null;
   /** Datas da série, só no detalhe. */
   seriesUpcoming?: { id: string; startsAt: Date; status: string }[];
   /** Cliente sem preferência de profissional (meta). */

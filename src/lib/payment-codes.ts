@@ -63,3 +63,17 @@ export function labelStoredPayment(
   if (method === "pix_key") return "Chave PIX";
   return labelPaymentMethod(method);
 }
+
+export function paymentLabelFromParts(input: {
+  method: string;
+  brand?: string | null;
+  installments?: string | number | null;
+  kind?: string | null;
+}): string {
+  const n = Number(input.installments);
+  return labelStoredPayment(input.method, {
+    brand: input.brand || undefined,
+    kind: input.kind || undefined,
+    installments: Number.isFinite(n) && n >= 2 ? n : undefined,
+  });
+}

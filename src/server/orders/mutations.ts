@@ -11,7 +11,7 @@ import {
   calculateAccountSettlement,
   discountKeepsSettledAmount,
 } from "../clients/account-reliability";
-import { resolvePaymentCode } from "@/lib/payment-codes";
+import { resolvePaymentCode, labelStoredPayment } from "@/lib/payment-codes";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -565,6 +565,7 @@ export async function listRecurrencePackagesForAppointment(appointmentId: string
         clientPackageId: string;
         packageName: string;
         remainingQty: number;
+        totalQty: number;
         expiresAt: string | null;
       }>;
     }
@@ -607,17 +608,19 @@ export async function listRecurrencePackagesForAppointment(appointmentId: string
 
     const byPkg = new Map<
       string,
-      { clientPackageId: string; packageName: string; remainingQty: number; expiresAt: string | null }
+      { clientPackageId: string; packageName: string; remainingQty: number; totalQty: number; expiresAt: string | null }
     >();
     for (const c of matching) {
       const prev = byPkg.get(c.clientPackageId);
       if (prev) {
         prev.remainingQty += c.remainingQty;
+        prev.totalQty += c.totalQty;
       } else {
         byPkg.set(c.clientPackageId, {
           clientPackageId: c.clientPackageId,
           packageName: c.packageName,
           remainingQty: c.remainingQty,
+          totalQty: c.totalQty,
           expiresAt: c.expiresAt ? c.expiresAt.toISOString() : null,
         });
       }
@@ -1306,6 +1309,7 @@ export async function addPayment(input: {
           orderId: input.orderId,
           method,
           amountCents,
+          description: labelStoredPayment(method, input.meta),
         });
       }
       return payment.id;
@@ -1777,6 +1781,7 @@ export async function payAndCloseOrder(input: {
             orderId: input.orderId,
             method,
             amountCents: state.balanceCents,
+            description: labelStoredPayment(method, input.meta),
           });
         }
       }
