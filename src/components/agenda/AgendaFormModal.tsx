@@ -30,6 +30,7 @@ type Props = {
   services: AgendaPickerService[];
   onClose: () => void;
   onSaved: () => void;
+  onOpenDate?: (date: string) => void;
 };
 
 const MODE_TITLE: Record<AgendaFormMode, string> = {
@@ -41,7 +42,7 @@ const MODE_TITLE: Record<AgendaFormMode, string> = {
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 const DURATIONS = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 105, 120, 150, 180];
 
-export function AgendaFormModal({ open, mode, slot, staff, services, onClose, onSaved }: Props) {
+export function AgendaFormModal({ open, mode, slot, staff, services, onClose, onSaved, onOpenDate }: Props) {
   const [error, setError] = useState("");
   const [clientId, setClientId] = useState("");
   const [hour, setHour] = useState(slot.hour);
@@ -52,6 +53,7 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
   const [periodicity, setPeriodicity] = useState("weekly");
   const [quantity, setQuantity] = useState(5);
   const [seriesSlots, setSeriesSlots] = useState<RecurringSlotResult[] | null>(null);
+  const [seriesWarning, setSeriesWarning] = useState("");
   const { showToast } = useToast();
 
   const title = MODE_TITLE[mode];
@@ -67,6 +69,7 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
     setError("");
     setKind("once");
     setSeriesSlots(null);
+    setSeriesWarning("");
   }, [open, slot.hour, slot.minute, slot.staffId, slot.date, mode]);
 
   function handleServiceChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -102,6 +105,7 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
           return;
         }
         setSeriesSlots(result.slots);
+        setSeriesWarning(result.warning ?? "");
         const booked = result.slots.filter((s) => s.ok).length;
         const failed = result.slots.length - booked;
         showToast(
@@ -319,11 +323,18 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
           </>
         ) : null}
 
+        {seriesWarning ? <p className="client-profile-hint">{seriesWarning}</p> : null}
         {seriesSlots ? (
           <ul className="series-result">
             {seriesSlots.map((s) => (
               <li key={s.date} className={s.ok ? "ok" : "bad"}>
-                {s.date.split("-").reverse().join("/")} — {s.ok ? "agendado" : s.reason}
+                <button
+                  type="button"
+                  className="series-result-open"
+                  onClick={() => onOpenDate?.(s.date)}
+                >
+                  {s.date.split("-").reverse().join("/")} — {s.ok ? "agendado" : s.reason}
+                </button>
               </li>
             ))}
           </ul>

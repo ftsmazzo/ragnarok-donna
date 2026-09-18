@@ -10,6 +10,7 @@ import {
   qtyToOrder,
   type StockScope,
 } from "@/lib/product-category";
+import { paymentLabelFromParts } from "@/lib/payment-codes";
 
 export type ApptReportRow = {
   id: string;
@@ -168,9 +169,15 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
   const orderBranch = (extra?: ReturnType<typeof and>) =>
     withBranchScope(scope, schema.orders.branchId, extra);
 
+  const payBrand = sql<string | null>`${schema.payments.meta}->>'brand'`;
+  const payInstallments = sql<string | null>`${schema.payments.meta}->>'installments'`;
+  const payKind = sql<string | null>`${schema.payments.meta}->>'kind'`;
   const byMethodAll = await db
     .select({
       method: schema.payments.method,
+      brand: payBrand,
+      installments: payInstallments,
+      kind: payKind,
       n: count(),
       totalCents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
     })
@@ -186,7 +193,7 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
         )
       )
     )
-    .groupBy(schema.payments.method)
+    .groupBy(schema.payments.method, payBrand, payInstallments, payKind)
     .orderBy(desc(sql`sum(${schema.payments.amountCents})`));
 
   const byMethod = byMethodAll.filter((r) => r.method !== "client_account");
@@ -301,7 +308,7 @@ export async function reportFinancial(opts: { from?: string; to?: string }) {
     servicesCents,
     productsCents,
     byMethod: byMethod.map((r) => ({
-      method: r.method,
+      method: paymentLabelFromParts(r),
       count: Number(r.n),
       totalCents: Number(r.totalCents),
     })) as FinancialByMethod[],

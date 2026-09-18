@@ -180,7 +180,15 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                         {m.clientName ? ` · ${m.clientName}` : ""}
                         {m.orderExternalId ? ` · #${m.orderExternalId}` : ""}
                       </td>
-                      <td>{m.method ? labelPaymentMethod(m.method) : "—"}</td>
+                      <td>
+                        {m.direction === "in" &&
+                        m.description &&
+                        m.description !== "Pagamento de comanda"
+                          ? m.description
+                          : m.method
+                            ? labelPaymentMethod(m.method)
+                            : "—"}
+                      </td>
                       <td className={m.direction === "out" ? "cell-danger" : undefined}>
                         {m.direction === "out" ? "−" : "+"}
                         {formatMoney(m.amountCents)}

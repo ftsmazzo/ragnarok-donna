@@ -1,6 +1,7 @@
 import { and, count, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { dayBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
+import { labelStoredPayment, paymentLabelFromParts } from "@/lib/payment-codes";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import type { CashDaySnapshot, CashMovementRow, CashPermissions, CashSessionSummary } from "./types";
@@ -175,9 +176,15 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
     .filter((m) => m.direction === "out")
     .reduce((s, m) => s + m.amountCents, 0);
 
+  const brandSql = sql<string | null>`${schema.payments.meta}->>'brand'`;
+  const installmentsSql = sql<string | null>`${schema.payments.meta}->>'installments'`;
+  const kindSql = sql<string | null>`${schema.payments.meta}->>'kind'`;
   const byMethod = await db
     .select({
       method: schema.payments.method,
+      brand: brandSql,
+      installments: installmentsSql,
+      kind: kindSql,
       n: count(),
       totalCents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
     })
@@ -189,7 +196,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
         lte(schema.payments.paidAt, end)
       )
     )
-    .groupBy(schema.payments.method)
+    .groupBy(schema.payments.method, brandSql, installmentsSql, kindSql)
     .orderBy(desc(sql`sum(${schema.payments.amountCents})`));
 
   const payments = await db
@@ -197,6 +204,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       id: schema.payments.id,
       paidAt: schema.payments.paidAt,
       method: schema.payments.method,
+      meta: schema.payments.meta,
       amountCents: schema.payments.amountCents,
       clientName: schema.clients.name,
       orderExternalId: schema.orders.externalId,
@@ -256,11 +264,18 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
     closedOrdersCents: Number(closedOrders?.total ?? 0),
     openOrdersCount: Number(openOrders?.n ?? 0),
     byMethod: byMethod.map((r) => ({
-      method: r.method,
+      method: paymentLabelFromParts(r),
       count: Number(r.n),
       totalCents: Number(r.totalCents),
     })),
-    payments,
+    payments: payments.map((p) => ({
+      id: p.id,
+      paidAt: p.paidAt,
+      method: labelStoredPayment(p.method, p.meta),
+      amountCents: p.amountCents,
+      clientName: p.clientName,
+      orderExternalId: p.orderExternalId,
+    })),
   };
 }
 

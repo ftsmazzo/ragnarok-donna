@@ -13,6 +13,7 @@ type Option = {
   clientPackageId: string;
   packageName: string;
   remainingQty: number;
+  totalQty: number;
   expiresAt: string | null;
 };
 
@@ -138,7 +139,7 @@ export function ContaRecorrenciaModal({
             <option value="">— escolher —</option>
             {options.map((o) => (
               <option key={o.clientPackageId} value={o.clientPackageId}>
-                {o.packageName} · {o.remainingQty} créd.
+                {o.packageName} · {o.remainingQty} rest. de {o.totalQty}
                 {o.expiresAt
                   ? ` · exp. ${formatDateSp(new Date(o.expiresAt))}`
                   : ""}

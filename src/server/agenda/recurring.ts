@@ -20,7 +20,7 @@ export type RecurringSlotResult = {
 };
 
 export type RecurringSeriesResult =
-  | { ok: true; seriesId: string; slots: RecurringSlotResult[] }
+  | { ok: true; seriesId: string; slots: RecurringSlotResult[]; warning?: string }
   | { ok: false; error: string };
 
 const PERIODS = new Set<RecurringPeriodicity>([
@@ -248,31 +248,8 @@ export async function scheduleRecurringSeries(raw: {
     const slots: RecurringSlotResult[] = [];
     const insertedRanges: Array<{ start: Date; end: Date }> = [];
 
-    for (let index = 0; index < dates.length; index++) {
-      const date = dates[index];
-      const start = new Date(`${date}T${startHm}:00-03:00`);
-      const end = new Date(start.getTime() + durationMin * 60_000);
-
-      if (hasSchedule) {
-        const day = schedules.filter((s) => s.weekday === weekdayOf(date));
-        if (day.length === 0) {
-          slots.push({ date, ok: false, reason: "sem jornada" });
-          continue;
-        }
-        if (!day.some((s) => covers(String(s.startTime), String(s.endTime), startHm, endHm))) {
-          slots.push({ date, ok: false, reason: "fora do horário" });
-          continue;
-        }
-      }
-
-      const busy =
-        existing.some((row) => rangesOverlap(start, end, row.startsAt, row.endsAt)) ||
-        insertedRanges.some((row) => rangesOverlap(start, end, row.start, row.end));
-      if (busy) {
-        slots.push({ date, ok: false, reason: "horário ocupado" });
-        continue;
-      }
-
+    async function insertOccurrence(index: number, date: string, start: Date, end: Date, conflict?: string) {
+      const note = [raw.notes?.trim(), conflict].filter(Boolean).join(" · ") || null;
       const [row] = await db
         .insert(schema.appointments)
         .values({
@@ -285,16 +262,54 @@ export async function scheduleRecurringSeries(raw: {
           status: "scheduled",
           source: "painel",
           priceCents,
-          notes: raw.notes?.trim() || null,
-          meta: { seriesId, seriesIndex: index + 1, seriesTotal: quantity },
+          notes: note,
+          meta: {
+            seriesId,
+            seriesIndex: index + 1,
+            seriesTotal: quantity,
+            ...(conflict ? { seriesConflict: conflict } : {}),
+          },
         })
         .returning({ id: schema.appointments.id });
-
       insertedRanges.push({ start, end });
-      slots.push({ date, ok: true, id: row.id });
+      return row.id;
     }
 
-    return { ok: true, seriesId, slots };
+    for (let index = 0; index < dates.length; index++) {
+      const date = dates[index];
+      const start = new Date(`${date}T${startHm}:00-03:00`);
+      const end = new Date(start.getTime() + durationMin * 60_000);
+
+      let conflict: string | undefined;
+      if (hasSchedule) {
+        const day = schedules.filter((s) => s.weekday === weekdayOf(date));
+        if (day.length === 0) conflict = "sem jornada";
+        else if (!day.some((s) => covers(String(s.startTime), String(s.endTime), startHm, endHm))) {
+          conflict = "fora do horário";
+        }
+      }
+
+      const busy =
+        existing.some((row) => rangesOverlap(start, end, row.startsAt, row.endsAt)) ||
+        insertedRanges.some((row) => rangesOverlap(start, end, row.start, row.end));
+      if (busy) {
+        slots.push({ date, ok: false, reason: "horário ocupado" });
+        continue;
+      }
+
+      const id = await insertOccurrence(index, date, start, end, conflict);
+      if (conflict) slots.push({ date, ok: false, id, reason: conflict });
+      else slots.push({ date, ok: true, id });
+    }
+
+    return {
+      ok: true,
+      seriesId,
+      slots,
+      warning: hasSchedule
+        ? undefined
+        : "Este profissional não tem jornada cadastrada. Os dias entraram verdes. Cadastre o turno para o dia de folga ficar vermelho.",
+    };
   } catch (err) {
     if (err instanceof AppError || err instanceof ForbiddenError) {
       return { ok: false, error: err.message };

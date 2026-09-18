@@ -692,12 +692,12 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
           eq(schema.appointments.tenantId, tenant.id),
           isNull(schema.appointments.deletedAt),
           eq(schema.appointments.status, "completed"),
-          sql`${schema.appointments.startsAt} >= now() - interval '60 days'`
+          sql`${schema.appointments.startsAt} >= now() - interval '56 days'`
         )
       )
       .groupBy(schema.appointments.clientId, schema.clients.name)
       .having(
-        sql`count(*) >= 3 and max(${schema.appointments.startsAt}) <= now() - interval '6 days' and max(${schema.appointments.startsAt}) >= now() - interval '10 days'`
+        sql`count(distinct to_char(${schema.appointments.startsAt} at time zone 'America/Sao_Paulo', 'IYYY-IW')) >= 3 and max(${schema.appointments.startsAt}) <= now() - interval '6 days' and max(${schema.appointments.startsAt}) >= now() - interval '14 days'`
       )
       .limit(20);
 

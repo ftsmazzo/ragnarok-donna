@@ -302,6 +302,7 @@ function mapAgendaAppointment(r: {
     orderStatus: r.orderStatus ?? null,
     blockedByName: typeof meta.blockedByName === "string" ? meta.blockedByName : null,
     seriesId: typeof meta.seriesId === "string" ? meta.seriesId : null,
+    seriesConflict: typeof meta.seriesConflict === "string" ? meta.seriesConflict : null,
     noPreference: meta.noPreference === true,
     tags,
   };

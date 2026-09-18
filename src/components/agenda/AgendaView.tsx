@@ -91,7 +91,7 @@ function slotClass(a: AgendaAppointment): string {
   const parts = ["slot"];
   if (a.status === "blocked") parts.push("block");
   else if (a.status === "cancelled") parts.push("muted");
-  else if (a.status === "no_show") parts.push("tone-noshow");
+  else if (a.status === "no_show" || (a.seriesConflict && a.status === "scheduled")) parts.push("tone-noshow");
   else if (a.orderStatus === "closed") parts.push("tone-paid");
   else if (a.status === "confirmed") parts.push("tone-confirmed");
   else if (a.noPreference) parts.push("tone-nopref");
@@ -501,6 +501,7 @@ export function AgendaView({
                                 <strong>{shortPersonName(a.clientName)}</strong>
                                 {a.isEncaixe ? " · encaixe" : null}
                                 {a.noPreference ? " · sem pref." : null}
+                                {a.seriesConflict ? ` · ${a.seriesConflict}` : null}
                                 {a.status === "arrived" ? " · no local" : null}
                                 {a.status === "in_progress" ? " · em atend." : null}
                                 {a.clientHairPreference && tall
@@ -625,6 +626,11 @@ export function AgendaView({
             setSlot(null);
           }}
           onSaved={refresh}
+          onOpenDate={(date) => {
+            setFormMode(null);
+            setSlot(null);
+            router.push(qs({ date }));
+          }}
         />
       ) : null}
 

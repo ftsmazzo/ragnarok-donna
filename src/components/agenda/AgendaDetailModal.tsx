@@ -247,6 +247,12 @@ export function AgendaDetailModal({
                 <dd>Encaixe</dd>
               </div>
             ) : null}
+            {a.seriesConflict ? (
+              <div>
+                <dt>Série</dt>
+                <dd>Não coube na jornada ({a.seriesConflict}). Ajuste o horário ou o profissional.</dd>
+              </div>
+            ) : null}
             {a.noPreference ? (
               <div>
                 <dt>Preferência</dt>
