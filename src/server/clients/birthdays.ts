@@ -4,8 +4,9 @@ import { formatDateLabelSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
 import { getOutreachSettingsForTenant } from "../outreach/settings";
-import { enqueueOutreachJob } from "../outreach/queue";
 import { renderOutreachTemplate } from "../outreach/templates";
+import { deliverWhatsAppText, getConnectionForTenant } from "../agent/outbound";
+import { revalidatePath } from "next/cache";
 
 export type BirthdayClientRow = {
   id: string;
@@ -69,8 +70,9 @@ export async function listBirthdayClients(opts?: {
   };
 }
 
+/** Envio manual humanizado — imediato via Evolution, sem fila/kill switch de disparos. */
 export async function sendBirthdayMessage(clientId: string): Promise<
-  { ok: true; id: string } | { ok: false; error: string }
+  { ok: true; conversationId: string } | { ok: false; error: string }
 > {
   try {
     const session = await requireSession();
@@ -94,6 +96,11 @@ export async function sendBirthdayMessage(clientId: string): Promise<
     const phone = client.phoneE164?.trim();
     if (!phone) return { ok: false, error: "Cliente sem telefone WhatsApp" };
 
+    const conn = await getConnectionForTenant(tenant.id);
+    if (!conn?.instanceName || conn.status !== "connected") {
+      return { ok: false, error: "WhatsApp da unidade desconectado — pareie em Conversas" };
+    }
+
     const discount = Math.max(0, Math.min(100, settings.birthdayDiscountPct || 0));
     const body = renderOutreachTemplate(settings.templateBirthday, {
       nome: client.name,
@@ -102,25 +109,48 @@ export async function sendBirthdayMessage(clientId: string): Promise<
       data: formatDateLabelSp(today),
     });
 
-    const res = await enqueueOutreachJob({
-      tenantId: tenant.id,
-      kind: "birthday",
-      phoneE164: phone,
-      clientId: client.id,
-      body,
-      dayKey: `birthday-manual:${today}:${client.id}`,
-      meta: { discountPct: discount, manual: true },
-    });
+    let [conv] = await db
+      .select({ id: schema.conversations.id })
+      .from(schema.conversations)
+      .where(
+        and(
+          eq(schema.conversations.tenantId, tenant.id),
+          eq(schema.conversations.phoneE164, phone)
+        )
+      )
+      .limit(1);
 
-    if (!res.created && !res.id) {
-      return { ok: false, error: "Mensagem já enfileirada ou bloqueada" };
+    if (!conv) {
+      const [created] = await db
+        .insert(schema.conversations)
+        .values({
+          tenantId: tenant.id,
+          phoneE164: phone,
+          clientId: client.id,
+          mode: "ai",
+        })
+        .returning({ id: schema.conversations.id });
+      conv = created;
     }
 
-    return { ok: true, id: res.id || "queued" };
+    const sent = await deliverWhatsAppText({
+      tenantId: tenant.id,
+      instanceName: conn.instanceName,
+      phoneE164: phone,
+      text: body,
+      conversationId: conv.id,
+      direction: "outbound_human",
+    });
+
+    if (!sent.ok) return { ok: false, error: sent.error };
+
+    revalidatePath("/conversas");
+    revalidatePath("/clientes/aniversariantes");
+    return { ok: true, conversationId: conv.id };
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Falha ao enfileirar mensagem",
+      error: err instanceof Error ? err.message : "Falha ao enviar mensagem",
     };
   }
 }

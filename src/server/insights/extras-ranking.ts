@@ -10,6 +10,10 @@ export type ExtrasRankingRow = {
   staffName: string;
   qty: number;
   cents: number;
+  /** Itens de serviço fechados no período */
+  serviceItems: number;
+  /** Clientes distintos atendidos (serviço) no período */
+  clientsServed: number;
   goalCents: number;
   goalQty: number | null;
   progressPct: number | null;
@@ -22,6 +26,8 @@ export type ExtrasRankingReport = {
   rows: ExtrasRankingRow[];
   totalCents: number;
   totalQty: number;
+  totalServiceItems: number;
+  totalClientsServed: number;
   canWriteGoals: boolean;
 };
 
@@ -41,7 +47,7 @@ export async function reportExtrasRanking(input?: {
   });
   const { start, end } = rangeBoundsSp(resolved.from, resolved.to);
 
-  const [sales, goals, staffList] = await Promise.all([
+  const [sales, services, goals, staffList] = await Promise.all([
     db
       .select({
         staffId: schema.orderItems.staffId,
@@ -65,6 +71,27 @@ export async function reportExtrasRanking(input?: {
       )
       .groupBy(schema.orderItems.staffId, schema.staff.name)
       .orderBy(sql`sum(${schema.orderItems.totalCents}) desc`),
+    db
+      .select({
+        staffId: schema.orderItems.staffId,
+        serviceItems: sql<number>`count(*)::int`.as("service_items"),
+        clientsServed: sql<number>`count(distinct ${schema.orders.clientId})::int`.as(
+          "clients_served"
+        ),
+      })
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+      .where(
+        and(
+          eq(schema.orderItems.tenantId, tenant.id),
+          eq(schema.orders.status, "closed"),
+          eq(schema.orderItems.itemType, "service"),
+          sql`${schema.orders.clientId} is not null`,
+          sql`${schema.orders.closedAt} >= ${start.toISOString()}::timestamptz`,
+          sql`${schema.orders.closedAt} <= ${end.toISOString()}::timestamptz`
+        )
+      )
+      .groupBy(schema.orderItems.staffId),
     db
       .select({
         staffId: schema.staffExtrasGoals.staffId,
@@ -100,9 +127,21 @@ export async function reportExtrasRanking(input?: {
         { name: s.staffName as string, qty: s.qty ?? 0, cents: s.cents ?? 0 },
       ])
   );
+  const serviceByStaff = new Map(
+    services
+      .filter((s) => s.staffId)
+      .map((s) => [
+        s.staffId as string,
+        {
+          serviceItems: Number(s.serviceItems ?? 0),
+          clientsServed: Number(s.clientsServed ?? 0),
+        },
+      ])
+  );
 
   const rows: ExtrasRankingRow[] = staffList.map((s) => {
     const sold = soldByStaff.get(s.id) ?? { name: s.name, qty: 0, cents: 0 };
+    const svc = serviceByStaff.get(s.id) ?? { serviceItems: 0, clientsServed: 0 };
     const goal = goalByStaff.get(s.id);
     const goalCents = goal?.cents ?? 0;
     const progressPct =
@@ -112,6 +151,8 @@ export async function reportExtrasRanking(input?: {
       staffName: s.name,
       qty: sold.qty,
       cents: sold.cents,
+      serviceItems: svc.serviceItems,
+      clientsServed: svc.clientsServed,
       goalCents,
       goalQty: goal?.qty ?? null,
       progressPct,
@@ -127,6 +168,8 @@ export async function reportExtrasRanking(input?: {
     rows,
     totalCents: rows.reduce((acc, r) => acc + r.cents, 0),
     totalQty: rows.reduce((acc, r) => acc + r.qty, 0),
+    totalServiceItems: rows.reduce((acc, r) => acc + r.serviceItems, 0),
+    totalClientsServed: rows.reduce((acc, r) => acc + r.clientsServed, 0),
     canWriteGoals: hasCapability(session.role, "commissions.write"),
   };
 }
