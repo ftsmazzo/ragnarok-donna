@@ -85,7 +85,8 @@ export type OperationalAlertKind =
   | "weekly_missed_thursday"
   | "saturday_encaixe"
   | "lunch_overlap"
-  | "staff_extras_week";
+  | "staff_extras_week"
+  | "crm_due_return";
 
 export type OperationalAlert = {
   id: string;
