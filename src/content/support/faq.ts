@@ -69,15 +69,15 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "consumo-barbeiro",
     question: "Como o barbeiro lança consumo (coca, trufa)?",
     answer:
-      "No celular: Venda / Consumo em Comandas (ou /pwa/consumo). Em Meu consumo o valor entra com desconto de 30% na comissão. Produto de venda na comanda do cliente é outro fluxo, na mesma tela.",
-    tags: ["consumo", "barbeiro", "produto", "pwa", "30%"],
-    menuPath: "Comandas → Venda / Consumo (celular)",
+      "A recepção lança na comanda do atendimento (produto). O atalho Meu consumo do barbeiro no celular foi desligado — a loja pediu assim. Uso interno da loja: Cadastros → Produtos.",
+    tags: ["consumo", "barbeiro", "produto", "pwa", "comanda"],
+    menuPath: "Comandas → Venda (celular) / Cadastros → Produtos",
   },
   {
     id: "uso-interno",
     question: "Onde lanço uso interno de produto?",
     answer:
-      "Cadastros → Produtos: o produto precisa estar marcado como Uso interno. Na lista, use a ação de baixar estoque (1 un.). Isso não passa por comanda nem comissão de barbeiro. Meu consumo do barbeiro (−30%) é outra coisa: Comandas → Venda / Consumo no celular.",
+      "Cadastros → Produtos: o produto precisa estar marcado como Uso interno. Na lista, use a ação de baixar estoque (1 un.). Isso não passa por comanda nem comissão de barbeiro. Refrigerante/trufa do profissional: a recepção lança na comanda.",
     tags: ["uso interno", "estoque", "dona", "produto"],
     menuPath: "Cadastros → Produtos",
   },

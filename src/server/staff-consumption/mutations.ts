@@ -5,13 +5,12 @@ import { AppError, ForbiddenError, NotFoundError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import { isBarberRole } from "../permissions/roles";
-import { resolveSessionStaffId } from "../permissions/staff-scope";
 
 export type ActionResult = { ok: true; id: string; amountCents?: number } | { ok: false; error: string };
 
 /**
- * Barbeiro lança coca/trufa/cone no celular:
- * baixa estoque + desconto em comissão (venda − 30%).
+ * Consumo do profissional (venda − 30%).
+ * A loja pediu para a recepção lançar na comanda — barbeiro não usa mais o atalho do celular.
  */
 export async function registerStaffProductConsumption(input: {
   productId: string;
@@ -27,12 +26,9 @@ export async function registerStaffProductConsumption(input: {
 
     let staffId: string | null = null;
     if (isBarberRole(session.role)) {
-      staffId = await resolveSessionStaffId(session);
-      if (!staffId) {
-        throw new ForbiddenError(
-          "Conta não vinculada a um profissional. Peça ao dono para vincular em Configurações → Equipe."
-        );
-      }
+      throw new ForbiddenError(
+        "Consumo do profissional: a recepção lança na comanda. O atalho no celular foi desligado."
+      );
     } else if (hasCapability(session.role, "commissions.write")) {
       staffId = input.staffId?.trim() || null;
       if (!staffId) {

@@ -17,6 +17,7 @@ import { AgendaQuickThinkWidget } from "@/components/agenda/AgendaQuickThinkWidg
 import { OrderDrawer } from "@/components/comandas/OrderDrawer";
 import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
+import { previewStyle, useAgendaDrag } from "@/components/agenda/useAgendaDrag";
 import type {
   AgendaAppointment,
   AgendaDayData,
@@ -201,6 +202,11 @@ export function AgendaView({
   const [ctx, setCtx] = useState<AgendaCtxTarget | null>(null);
   const isToday = data.date === todaySp();
   const now = useAgendaNow(isToday);
+  const drag = useAgendaDrag({
+    date: data.date,
+    canWrite: permissions.canWrite,
+    onDone: () => router.refresh(),
+  });
   const nowSlotLabel = now
     ? `${String(now.hour).padStart(2, "0")}:${now.minute >= 30 ? "30" : "00"}`
     : null;
@@ -285,7 +291,7 @@ export function AgendaView({
         actions={
           <>
             <Link href="/pwa/consumo" className="btn btn-primary">
-              Venda / Consumo
+              Venda (celular)
             </Link>
             <Link
               href={tabletMode ? qs({ modo: undefined }) : qs({ modo: "tablet" })}
@@ -387,7 +393,18 @@ export function AgendaView({
                     return (
                       <div
                         key={`${s.id}-${hour}`}
-                        className={`agenda-cell${permissions.canWrite ? " is-clickable" : ""}${showNow ? " is-now" : ""}${busy && slots.length === 0 ? " is-covered" : ""}`}
+                        className={`agenda-cell${permissions.canWrite ? " is-clickable" : ""}${showNow ? " is-now" : ""}${busy && slots.length === 0 ? " is-covered" : ""}${
+                          drag.preview?.mode === "move" &&
+                          drag.preview.staffId === s.id &&
+                          drag.preview.hour === hourNum &&
+                          drag.preview.minute === minute
+                            ? " is-drop-target"
+                            : ""
+                        }`}
+                        data-agenda-cell=""
+                        data-staff-id={s.id}
+                        data-hour={hourNum}
+                        data-minute={minute}
                         onClick={() => {
                           if (!permissions.canWrite) return;
                           if (!busy) openSlot(s.id, hourNum, "schedule", minute);
@@ -409,9 +426,9 @@ export function AgendaView({
                           permissions.canWrite
                             ? busy
                               ? slots.length
-                                ? "Botão direito no horário: ações rápidas"
+                                ? "Arraste o horário · Botão direito: ações"
                                 : "Horário ocupado por atendimento em andamento"
-                              : "Clique: agendar · Botão direito: menu"
+                              : "Clique: agendar · Arraste um horário para cá · Botão direito: menu"
                             : undefined
                         }
                       >
@@ -440,20 +457,27 @@ export function AgendaView({
                             accountHint,
                             a.clientHairPreference ? `corte: ${a.clientHairPreference}` : null,
                             a.orderId ? "comanda vinculada" : null,
+                            "arraste para outro profissional/horário · puxe a borda para duração",
                             "botão direito: ações",
                           ].filter(Boolean);
                           return (
                           <div
                             key={a.id}
-                            className={slotClass(a)}
+                            className={`${slotClass(a)}${drag.preview?.id === a.id ? " is-dragging" : ""}`}
                             style={{
                               ...slotSpanStyle(a),
+                              ...previewStyle(drag.preview, a.id),
                               ...(s.color && a.status !== "blocked"
                                 ? { background: s.color }
                                 : {}),
                             }}
+                            onPointerDown={(e) => {
+                              if (!permissions.canWrite) return;
+                              drag.beginMove(a, e);
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (drag.didDrag()) return;
                               setDetail(a);
                             }}
                             onContextMenu={(e) => {
@@ -520,6 +544,18 @@ export function AgendaView({
                                 </span>
                               </span>
                             </span>
+                            {permissions.canWrite &&
+                            a.status !== "blocked" &&
+                            !["cancelled", "completed", "no_show"].includes(a.status) ? (
+                              <button
+                                type="button"
+                                className="slot-resize"
+                                aria-label="Puxar duração"
+                                title="Puxe para mudar a duração"
+                                onPointerDown={(e) => drag.beginResize(a, e)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : null}
                           </div>
                           );
                         })}
@@ -564,10 +600,19 @@ export function AgendaView({
             </span>
             {permissions.canWrite ? (
               <span className="legend-hint">
-                Clique: detalhes · Direito: menu (comanda, no local, ausente…)
+                Arraste: muda profissional/horário · Puxe a borda: duração · Clique: detalhes · Direito: menu
               </span>
             ) : null}
           </div>
+          {drag.error ? (
+            <p className="agenda-drag-error" role="alert">
+              {drag.error}{" "}
+              <button type="button" className="btn btn-outline btn-sm" onClick={drag.clearError}>
+                Ok
+              </button>
+            </p>
+          ) : null}
+          {drag.pending ? <p className="agenda-drag-pending muted">Salvando horário…</p> : null}
         </section>
 
         {!tabletMode ? (

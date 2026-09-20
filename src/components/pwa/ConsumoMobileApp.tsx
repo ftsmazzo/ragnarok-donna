@@ -4,11 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/format";
-import { staffConsumptionAmountCents } from "@/lib/staff-consumption";
-import {
-  addSaleProductAction,
-  registerMyConsumptionAction,
-} from "@/app/pwa/consumo/actions";
+import { addSaleProductAction } from "@/app/pwa/consumo/actions";
 
 type OrderRow = {
   id: string;
@@ -24,8 +20,6 @@ type ProductRow = {
   stockQty: number;
 };
 
-type Tab = "venda" | "consumo";
-
 type Props = {
   brandName: string;
   orders: OrderRow[];
@@ -34,7 +28,6 @@ type Props = {
 
 export function ConsumoMobileApp({ brandName, orders, products }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("venda");
   const [orderId, setOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
@@ -47,7 +40,7 @@ export function ConsumoMobileApp({ brandName, orders, products }: Props) {
 
   const inStock = products.filter((p) => p.stockQty > 0);
 
-  function run(fn: () => Promise<{ ok: boolean; error?: string; amountCents?: number }>, success: string) {
+  function run(fn: () => Promise<{ ok: boolean; error?: string }>, success: string) {
     setError(null);
     setOkMsg(null);
     startTransition(async () => {
@@ -66,44 +59,21 @@ export function ConsumoMobileApp({ brandName, orders, products }: Props) {
       <header className="minbox-head">
         <div>
           <strong>{brandName}</strong>
-          <p>Venda e consumo</p>
+          <p>Venda na comanda</p>
         </div>
         <Link href="/agenda?modo=tablet" className="minbox-panel-link">
           Agenda
         </Link>
       </header>
 
-      <div className="minbox-filters">
-        <button
-          type="button"
-          className={`minbox-tab${tab === "venda" ? " is-on" : ""}`}
-          onClick={() => {
-            setTab("venda");
-            setError(null);
-            setOkMsg(null);
-          }}
-        >
-          Venda
-        </button>
-        <button
-          type="button"
-          className={`minbox-tab${tab === "consumo" ? " is-on" : ""}`}
-          onClick={() => {
-            setTab("consumo");
-            setOrderId(null);
-            setError(null);
-            setOkMsg(null);
-          }}
-        >
-          Meu consumo
-        </button>
-      </div>
-
       {error ? <div className="consumo-flash is-err">{error}</div> : null}
       {okMsg ? <div className="consumo-flash is-ok">{okMsg}</div> : null}
 
-      {tab === "venda" && !selectedOrder ? (
+      {!selectedOrder ? (
         <div className="minbox-list">
+          <p className="consumo-hint" style={{ padding: "8px 12px 0" }}>
+            Refrigerante e trufa: a recepção lança na comanda. Aqui só vende produto no atendimento.
+          </p>
           {orders.length === 0 ? (
             <p className="minbox-empty">Nenhuma comanda aberta sua. Peça à recepção para abrir.</p>
           ) : (
@@ -123,9 +93,7 @@ export function ConsumoMobileApp({ brandName, orders, products }: Props) {
             ))
           )}
         </div>
-      ) : null}
-
-      {tab === "venda" && selectedOrder ? (
+      ) : (
         <div className="consumo-panel">
           <button type="button" className="consumo-back" onClick={() => setOrderId(null)}>
             ← Comandas
@@ -158,43 +126,7 @@ export function ConsumoMobileApp({ brandName, orders, products }: Props) {
             )}
           </div>
         </div>
-      ) : null}
-
-      {tab === "consumo" ? (
-        <div className="consumo-panel">
-          <p className="consumo-hint">
-            Desconta da sua comissão: <strong>preço de venda − 30%</strong>. Baixa o estoque.
-          </p>
-          <div className="consumo-products">
-            {inStock.length === 0 ? (
-              <p className="minbox-empty">Sem produtos em estoque.</p>
-            ) : (
-              inStock.map((p) => {
-                const debit = staffConsumptionAmountCents(p.priceCents, 1);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="consumo-product is-consumo"
-                    disabled={pending}
-                    onClick={() =>
-                      run(
-                        () => registerMyConsumptionAction(p.id, 1),
-                        `${p.name}: desconto ${formatMoney(debit)}`
-                      )
-                    }
-                  >
-                    <strong>{p.name}</strong>
-                    <span>
-                      Venda {formatMoney(p.priceCents)} → desconto {formatMoney(debit)}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      ) : null}
+      )}
     </div>
   );
 }

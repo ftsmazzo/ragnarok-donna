@@ -61,7 +61,7 @@ export const FEATURE_HINTS: FeatureHint[] = [
     aliases: ["consumo", "meu consumo", "uso interno", "venda celular"],
     title: "Venda / Consumo",
     where: "Comandas → Venda / Consumo (celular) ou /pwa/consumo",
-    tip: "Aba Venda = produto na comanda; Meu consumo = −30% na comissão. Uso interno da loja: Cadastros → Produtos.",
+    tip: "Aba Venda = produto na comanda do cliente. Consumo de refrigerante/trufa: a recepção lança na comanda.",
   },
   {
     id: "caixa",
