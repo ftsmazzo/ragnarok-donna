@@ -27,6 +27,8 @@ type WriteInput = {
   notes?: string;
   isEncaixe?: boolean;
   isBlock?: boolean;
+  /** Meta extra (ex.: visita de pacote com vários serviços). */
+  extraMeta?: Record<string, unknown>;
 };
 
 const ACTIVE_CONFLICT = ["scheduled", "confirmed", "arrived", "in_progress", "blocked"] as const;
@@ -245,9 +247,12 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
         isEncaixe: Boolean(raw.isEncaixe),
         priceCents: svc.priceCents,
         notes: raw.notes?.trim() || null,
-        meta: warnings.length
-          ? { houseRuleWarnings: warnings, saturdayEncaixe: weekday === "Sat" && raw.isEncaixe }
-          : {},
+        meta: {
+          ...(warnings.length
+            ? { houseRuleWarnings: warnings, saturdayEncaixe: weekday === "Sat" && raw.isEncaixe }
+            : {}),
+          ...(raw.extraMeta ?? {}),
+        },
       })
       .returning({ id: schema.appointments.id });
 

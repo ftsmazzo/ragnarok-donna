@@ -227,7 +227,7 @@ export function AgendaDetailModal({
             </div>
             <div>
               <dt>Serviço</dt>
-              <dd>{a.serviceName ?? "—"}</dd>
+              <dd>{a.visitLabel ?? a.serviceName ?? "—"}</dd>
             </div>
             {a.staffName || a.staffId ? (
               <div>

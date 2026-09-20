@@ -540,7 +540,9 @@ export function AgendaView({
                                 ) : null}
                                 <br />
                                 <span className="slot-service">
-                                  {a.serviceName ?? (a.status === "blocked" ? "Bloqueio" : "—")}
+                                  {a.visitLabel ??
+                                    a.serviceName ??
+                                    (a.status === "blocked" ? "Bloqueio" : "—")}
                                 </span>
                               </span>
                             </span>

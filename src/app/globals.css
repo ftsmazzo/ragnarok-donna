@@ -3465,6 +3465,72 @@ input {
   border-top: 1px dashed rgba(0, 0, 0, 0.1);
 }
 
+.pkg-visit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.pkg-visit-table-wrap {
+  overflow-x: auto;
+  max-height: min(50vh, 420px);
+  border: 1px solid var(--line);
+}
+
+.pkg-visit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.pkg-visit-table th,
+.pkg-visit-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  text-align: left;
+}
+
+.pkg-visit-table th {
+  background: #f4f6f8;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.pkg-visit-table input[type="date"],
+.pkg-visit-table select {
+  font-size: 12px;
+  max-width: 100%;
+}
+
+.pkg-visit-time {
+  display: flex;
+  gap: 4px;
+}
+
+.pkg-visit-services {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pkg-visit-svc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pkg-visit-label {
+  display: block;
+  margin-top: 4px;
+}
+
 .order-client-link {
   margin: 0 0 14px;
   padding: 12px;

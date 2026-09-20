@@ -28,8 +28,10 @@ import {
 import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
 import { PackageBookModal } from "@/components/comandas/PackageBookModal";
+import { PackageVisitPlanner } from "@/components/comandas/PackageVisitPlanner";
 import { PaymentMethodSelect } from "@/lib/paymentMethods";
 import type { ClientCreditBalance } from "@/server/packages/credits";
+import type { VisitServiceUnit } from "@/lib/package-visits";
 
 type Props = {
   open: boolean;
@@ -119,6 +121,10 @@ export function OrderDrawer({
     serviceId: string;
     serviceName: string;
     durationMin: number;
+  } | null>(null);
+  const [visitPlanner, setVisitPlanner] = useState<{
+    packageName: string;
+    units: VisitServiceUnit[];
   } | null>(null);
   const [bookFlash, setBookFlash] = useState("");
   const [pending, startTransition] = useTransition();
@@ -249,6 +255,26 @@ export function OrderDrawer({
       serviceName,
       durationMin: svc?.durationMin ?? 30,
     });
+    setBookFlash("");
+  }
+
+  function openVisitPlanner(group: {
+    packageName: string;
+    lines: typeof credits;
+  }) {
+    const units: VisitServiceUnit[] = [];
+    for (const c of group.lines) {
+      if (!c.serviceId || c.remainingQty <= 0) continue;
+      const svc = services.find((s) => s.id === c.serviceId);
+      const unit = {
+        serviceId: c.serviceId,
+        serviceName: c.serviceName ?? svc?.name ?? "Serviço",
+        durationMin: svc?.durationMin ?? 30,
+      };
+      for (let i = 0; i < c.remainingQty; i += 1) units.push(unit);
+    }
+    if (units.length === 0) return;
+    setVisitPlanner({ packageName: group.packageName, units });
     setBookFlash("");
   }
 
@@ -592,6 +618,7 @@ export function OrderDrawer({
                   : "Sem créditos"}
               </span>
             </div>
+            {bookFlash ? <p className="client-profile-hint">{bookFlash}</p> : null}
             {credits.length === 0 ? (
               <p className="order-wallet-empty">
                 Cliente sem créditos. Em Tipo escolha Vender pacote → selecione o pacote.
@@ -614,6 +641,18 @@ export function OrderDrawer({
                           : ""}
                       </em>
                     </div>
+                    {canEdit && rest > 0 && order.clientId ? (
+                      <div className="order-wallet-line-actions">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={pending}
+                          onClick={() => openVisitPlanner(group)}
+                        >
+                          Planejar visitas
+                        </button>
+                      </div>
+                    ) : null}
                     {mismatch ? (
                       <p className="form-error">
                         O nome diz {named?.[1]}, mas o catálogo creditou {total}. O saldo é {rest} de {total}, não o número do nome.
@@ -706,7 +745,8 @@ export function OrderDrawer({
             {pendingPackageServices.length > 0 && order.clientId ? (
               <div className="order-package-book">
                 <p className="client-profile-hint">
-                  Serviços deste pacote — agende aqui (crédito libera ao pagar/fechar).
+                  Serviços deste pacote — use <strong>Planejar visitas</strong> na carteira após
+                  liberar créditos, ou agende um serviço avulso abaixo.
                 </p>
                 {bookFlash ? <p className="client-profile-hint">{bookFlash}</p> : null}
                 <ul className="order-wallet-credit-lines">
@@ -1448,6 +1488,26 @@ export function OrderDrawer({
           onClose={() => setBookTarget(null)}
           onSaved={() => {
             setBookFlash(`Agendado: ${bookTarget.serviceName}`);
+            onChanged();
+          }}
+        />
+      ) : null}
+
+      {visitPlanner && order.clientId ? (
+        <PackageVisitPlanner
+          open
+          orderId={order.id}
+          clientId={order.clientId}
+          packageName={visitPlanner.packageName}
+          units={visitPlanner.units}
+          staff={staff}
+          onClose={() => setVisitPlanner(null)}
+          onSaved={(count) => {
+            setBookFlash(
+              count === 1
+                ? "1 visita agendada na agenda"
+                : `${count} visitas agendadas na agenda`
+            );
             onChanged();
           }}
         />
