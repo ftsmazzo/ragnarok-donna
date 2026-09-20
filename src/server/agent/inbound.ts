@@ -1,4 +1,4 @@
-import { and, eq, gte, ne } from "drizzle-orm";
+import { and, eq, gte, isNull, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { phoneFromMessageKey, buildJidMeta } from "@/server/evolution/phone";
 import { findRecentMessages, mapConnectionStatus } from "@/server/evolution/client";
@@ -10,6 +10,7 @@ import { enrichInboundMessage } from "./media";
 import { tryConfirmAppointmentFromWhatsAppAck } from "@/server/outreach/confirm";
 import { isCheckInPhrase, tryCheckInFromWhatsApp } from "@/server/house-rules/check-in";
 import { applyMessagesUpdate, markLastOutboundReplied } from "./message-receipts";
+import { ensureWhatsAppLead } from "@/server/clients/leads";
 
 /** Serializa respostas por conversa (1 réplica EasyPanel) — não descarta msg enquanto a anterior processa. */
 const replyChains = new Map<string, Promise<void>>();
@@ -91,7 +92,11 @@ async function findClientId(tenantId: string, phoneE164: string) {
     .select({ id: schema.clients.id })
     .from(schema.clients)
     .where(
-      and(eq(schema.clients.tenantId, tenantId), eq(schema.clients.phoneE164, phoneE164))
+      and(
+        eq(schema.clients.tenantId, tenantId),
+        eq(schema.clients.phoneE164, phoneE164),
+        isNull(schema.clients.deletedAt)
+      )
     )
     .limit(1);
   return client?.id ?? null;
@@ -228,7 +233,19 @@ export async function processInboundMessage(
 
   const tenantId = tenantLink.tenantId;
   const profileId = await ensureDefaultAgentProfile({ tenantId, displayName: "Donna" });
-  const clientId = await findClientId(tenantId, phoneE164);
+  let clientId = await findClientId(tenantId, phoneE164);
+  if (!clientId) {
+    try {
+      clientId = await ensureWhatsAppLead({
+        tenantId,
+        phoneE164,
+        pushName: raw.pushName,
+      });
+    } catch (err) {
+      console.error("[webhook] ensureWhatsAppLead", err);
+      clientId = await findClientId(tenantId, phoneE164);
+    }
+  }
   const conv = await ensureConversation({
     tenantId,
     phoneE164,

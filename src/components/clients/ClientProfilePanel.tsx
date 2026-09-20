@@ -12,6 +12,12 @@ import { openOrderAction } from "@/app/(painel)/comandas/actions";
 import { Modal } from "@/components/ui/Modal";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelApptStatus, labelOrderStatus, labelPaymentMethod, labelClientAccountReason } from "@/lib/format";
+import {
+  labelCrmStatus,
+  labelCrmStage,
+  labelHowHeard,
+  readCrmPreferences,
+} from "@/lib/crm";
 
 export type ClientProfileTab =
   | "resumo"
@@ -86,6 +92,7 @@ export function ClientProfilePanel({
   const prefEntries = Object.entries(client.preferences ?? {}).filter(
     ([, v]) => v !== null && v !== undefined && v !== ""
   );
+  const crm = readCrmPreferences(client.preferences);
   const activeCreditTotal = packages.reduce(
     (sum, p) =>
       sum +
@@ -172,6 +179,27 @@ export function ClientProfilePanel({
 
       {tab === "resumo" ? (
         <div className="client-profile-section">
+          <div className="client-crm-banner">
+            <div>
+              <span className="meta-label">CRM</span>
+              <strong>{labelCrmStatus(crm.crmStatus ?? (stats.ordersTotal > 0 || stats.appointmentsTotal > 0 ? "client" : "lead"))}</strong>
+            </div>
+            <div>
+              <span className="meta-label">Origem</span>
+              <strong>{labelHowHeard(crm.howHeard)}</strong>
+              {crm.campaign ? <em className="muted"> · {crm.campaign}</em> : null}
+              {crm.referredBy ? <em className="muted"> · indicação: {crm.referredBy}</em> : null}
+            </div>
+            {crm.crmStage ? (
+              <div>
+                <span className="meta-label">Funil</span>
+                <strong>{labelCrmStage(crm.crmStage)}</strong>
+              </div>
+            ) : null}
+            {crm.leadSource === "whatsapp_inbound" ? (
+              <p className="client-profile-hint">Lead criado no 1º contato WhatsApp.</p>
+            ) : null}
+          </div>
           <div className="client-stats">
             <div className="client-stat">
               <span className="meta-label">Agendamentos</span>

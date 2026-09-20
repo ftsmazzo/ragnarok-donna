@@ -1,43 +1,69 @@
-# Import AppBarber — status
+# Import AppBarber / AppBeleza — status
 
-**Tenant:** `ragnaroks` (RagnaroK's Barbearia)  
-**Export:** `research/export/2026-08-26T14-56-45` (+ extras `2026-08-26T15-15-09-extras`)  
-**Script:** `npm run import:appbarber`
+**Último sync completo:** 2026-09-20 (go-live segunda)
 
-## Importado (2026-08-26)
+## RagnaroK's (`ragnaroks`) ← AppBarber
 
-| Entidade | Qtd export | Qtd banco |
-|----------|------------|-----------|
+| Campo | Valor |
+|-------|--------|
+| Export | `research/export/2026-09-20T18-19-21` |
+| Import run | `2026-09-20T18-19-21` (completed) |
+
+| Entidade | Export | Import |
+|----------|--------|--------|
 | Profissionais | 5 | 5 |
 | Serviços | 37 | 37 |
 | Produtos | 63 | 63 |
-| Pacotes (+ itens JSON) | 32 | 32 |
-| Jornadas | 23 → 46 slots | 46 |
-| Clientes (+ removidos) | 4828 + 221 | **5049** |
-| Agenda | 34.828 | 34.828 |
-| Comandas | 31.272 | 31.272 |
-| Itens de comanda | 57.546 | 57.546 |
-| Pagamentos (comandas fechadas) | — | 22.195 |
-| Lista de espera (extras) | 49 | 49 |
+| Pacotes | 32 | 32 |
+| Clientes (+ removidos) | 4867+222 | 5088 |
+| Agenda (24m+90d) | 35.890 | 35.890 |
+| Comandas | 31.418 | 31.418 |
+| Itens | 58.011 | 58.011 |
+| Pagamentos | — | 22.279 |
+| Lista de espera | (extras 13/09) | 49 |
 
-Re-import idempotente: `external_source = appbarber` + upsert.
+Registros criados só no painel (sem `external_id` AppBarber) **permanecem**.
 
-## Backlog (no menu, ainda sem dados)
+## Donna Elegant (`donna-elegant`) ← AppBeleza
 
-| Módulo AppBarber | Export extras | Prioridade |
-|-----------------|---------------|------------|
-| Clube / assinaturas | clube (1), clube-servicos (2) | média |
-| Tags de cliente | vazio | baixa |
-| Anamnese | vazio | baixa |
-| Notícias | vazio | baixa |
-| Caixa (sessões/movimentos) | caixas falhou API | alta |
-| Extrato fidelidade / pontos | só saldo em clientes | média |
-| Fotos S3 (avatars) | URLs nos cadastros | baixa |
-| Rodízio, mensagens, pesquisa | não exportado | média |
-| NF / documentos | não exportado | baixa |
+| Campo | Valor |
+|-------|--------|
+| Export | `research/export/2026-09-20T18-29-22` |
+| Import run | `2026-09-20T18-29-22` (completed) |
+| Onboard | unidade-01 + unidade-02 |
 
-## Próximo passo
+| Entidade | Export | Import |
+|----------|--------|--------|
+| Profissionais | 12 | 12 |
+| Serviços | 68 | 68 |
+| Produtos | 61 | 61 |
+| Pacotes | 23 | 23 |
+| Clientes | 1944+1 | 1945 |
+| Agenda | 8.601 | 8.601 |
+| Comandas | 16.243 | 16.243 |
+| Itens | 23.660 | 23.660 |
+| Pagamentos | — | 12.726 |
 
-1. Ligar telas (Agenda, Clientes, Relatórios) aos dados reais do Postgres  
-2. Importar **Donna** como segundo tenant quando houver export  
-3. Caixa + comissões com dados derivados de `orders` / `payments`
+## Como repetir
+
+```powershell
+# 1) Export
+cd research
+$env:APPBARBER_EMAIL="..."; $env:APPBARBER_PASS="..."
+node export-appbarber.mjs
+
+# Donna (limpar APPBARBER_* antes)
+Remove-Item Env:APPBARBER_EMAIL, Env:APPBARBER_PASS -ErrorAction SilentlyContinue
+$env:APPBELEZA_EMAIL="..."; $env:APPBELEZA_PASS="..."
+$env:APPBELEZA_BASE_URL="https://sistema.appbeleza.com.br"
+node export-appbarber.mjs
+
+# 2) Import
+cd ..
+# DATABASE_URL no .env
+node scripts/import-appbarber.mjs --dir research/export/<stamp> --tenant ragnaroks
+node scripts/import-appbarber.mjs --dir research/export/<stamp> --tenant donna-elegant --source appbeleza --name "Donna Elegant"
+node scripts/onboard-donna-elegant.mjs --dir research/export/<stamp> --skip-import
+```
+
+Upsert por `(tenant_id, external_source, external_id)`.

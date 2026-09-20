@@ -14,8 +14,11 @@ export type ClientInput = {
   birthDate?: string;
   howHeard?: string;
   referredBy?: string;
+  campaign?: string;
   hairPreference?: string;
   avatarUrl?: string | null;
+  crmStatus?: string;
+  marketingOptIn?: boolean;
 };
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
@@ -46,7 +49,10 @@ function parseInput(raw: ClientInput): ClientInput {
     birthDate: raw.birthDate?.trim() || undefined,
     howHeard: raw.howHeard?.trim().slice(0, 80) || undefined,
     referredBy: raw.referredBy?.trim().slice(0, 160) || undefined,
+    campaign: raw.campaign?.trim().slice(0, 120) || undefined,
     hairPreference: raw.hairPreference?.trim().slice(0, 120) || undefined,
+    crmStatus: raw.crmStatus?.trim().slice(0, 40) || undefined,
+    marketingOptIn: raw.marketingOptIn,
     avatarUrl:
       raw.avatarUrl === undefined || raw.avatarUrl === null
         ? undefined
@@ -62,8 +68,15 @@ function crmPreferences(input: ClientInput, existing?: Record<string, unknown>) 
   else delete next.howHeard;
   if (input.referredBy) next.referredBy = input.referredBy;
   else delete next.referredBy;
+  if (input.campaign) next.campaign = input.campaign;
+  else delete next.campaign;
   if (input.hairPreference) next.hairPreference = input.hairPreference;
   else delete next.hairPreference;
+  if (input.crmStatus) next.crmStatus = input.crmStatus;
+  else if (!next.crmStatus) next.crmStatus = "client";
+  if (input.marketingOptIn === true) next.marketingOptIn = true;
+  else if (input.marketingOptIn === false) delete next.marketingOptIn;
+  if (!next.crmStage && next.crmStatus === "lead") next.crmStage = "interessado";
   return next;
 }
 
