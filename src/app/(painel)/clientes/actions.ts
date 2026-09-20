@@ -188,3 +188,42 @@ export async function sendBirthdayMessageAction(clientId: string) {
   }
   return result;
 }
+
+export async function createClientSubscriptionAction(formData: FormData): Promise<ActionResult> {
+  const priceReais = Number(String(formData.get("priceReais") ?? "0").replace(",", "."));
+  const { createClientSubscription } = await import("@/server/subscriptions/mutations");
+  const clientId = String(formData.get("clientId") ?? "");
+  const result = await createClientSubscription({
+    clientId,
+    name: String(formData.get("name") ?? ""),
+    priceCents: Math.round(priceReais * 100),
+    periodDays: Number(formData.get("periodDays") ?? 30) || 30,
+    notes: String(formData.get("notes") ?? ""),
+  });
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath(`/clientes?id=${clientId}`);
+    revalidatePath("/crm");
+  }
+  return result;
+}
+
+export async function renewClientSubscriptionAction(subscriptionId: string): Promise<ActionResult> {
+  const { renewClientSubscription } = await import("@/server/subscriptions/mutations");
+  const result = await renewClientSubscription(subscriptionId);
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath("/crm");
+  }
+  return result;
+}
+
+export async function cancelClientSubscriptionAction(subscriptionId: string): Promise<ActionResult> {
+  const { cancelClientSubscription } = await import("@/server/subscriptions/mutations");
+  const result = await cancelClientSubscription(subscriptionId);
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath("/crm");
+  }
+  return result;
+}

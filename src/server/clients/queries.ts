@@ -113,6 +113,7 @@ export type ClientProfile = {
   recentItems: ClientOrderItem[];
   topServices: ClientTopService[];
   packages: import("../packages/credits").ClientPackageWalletEntry[];
+  subscriptions: import("../subscriptions/mutations").ClientSubscriptionRow[];
   account: import("./account").ClientAccountSummary;
 };
 
@@ -422,6 +423,14 @@ export async function getClientProfile(
       try {
         const { listClientPackageWallet } = await import("../packages/credits");
         return await listClientPackageWallet(clientId);
+      } catch {
+        return [];
+      }
+    })(),
+    subscriptions: await (async () => {
+      try {
+        const { listClientSubscriptions } = await import("../subscriptions/mutations");
+        return await listClientSubscriptions(clientId);
       } catch {
         return [];
       }

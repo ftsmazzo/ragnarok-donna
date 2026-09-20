@@ -348,6 +348,23 @@ CREATE TABLE IF NOT EXISTS client_packages (
 CREATE INDEX IF NOT EXISTS client_packages_client_idx ON client_packages (tenant_id, client_id);
 CREATE INDEX IF NOT EXISTS client_packages_status_idx ON client_packages (tenant_id, status);
 
+CREATE TABLE IF NOT EXISTS client_subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  name varchar(160) NOT NULL,
+  price_cents integer NOT NULL DEFAULT 0,
+  status varchar(24) NOT NULL DEFAULT 'active',
+  started_at timestamptz NOT NULL DEFAULT now(),
+  current_period_end timestamptz NOT NULL,
+  notes text,
+  cancelled_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS client_subscriptions_client_idx ON client_subscriptions (tenant_id, client_id);
+CREATE INDEX IF NOT EXISTS client_subscriptions_status_idx ON client_subscriptions (tenant_id, status);
+
 CREATE TABLE IF NOT EXISTS client_package_credits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

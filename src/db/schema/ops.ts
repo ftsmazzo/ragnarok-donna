@@ -389,3 +389,34 @@ export const staffAdvances = pgTable(
     index("staff_advances_tenant_occurred_idx").on(t.tenantId, t.occurredAt),
   ]
 );
+
+/**
+ * Assinatura mensal do cliente (além de pacote de créditos).
+ * Sem cobrança Stripe nesta espinha — status operacional no painel.
+ */
+export const clientSubscriptions = pgTable(
+  "client_subscriptions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 160 }).notNull(),
+    priceCents: integer("price_cents").notNull().default(0),
+    /** active | late | cancelled */
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    /** Fim do período pago atual (renovação mensal manual por enquanto). */
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }).notNull(),
+    notes: text("notes"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("client_subscriptions_client_idx").on(t.tenantId, t.clientId),
+    index("client_subscriptions_status_idx").on(t.tenantId, t.status),
+  ]
+);
