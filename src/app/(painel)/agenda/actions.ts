@@ -124,6 +124,28 @@ export async function updateAppointmentAction(formData: FormData) {
   return result;
 }
 
+/** Arrastar na grade: muda profissional, horário e/ou duração sem abrir o modal. */
+export async function dragAppointmentAction(input: {
+  id: string;
+  date: string;
+  staffId: string;
+  hour: number;
+  minute: number;
+  durationMin: number;
+}) {
+  const result = await updateAppointment({
+    id: input.id,
+    scope: "all",
+    date: input.date,
+    staffId: input.staffId,
+    hour: input.hour,
+    minute: input.minute,
+    durationMin: input.durationMin,
+  });
+  if (result.ok) revalidateAgenda(input.date);
+  return result;
+}
+
 export async function payAndCloseFromAgendaAction(orderId: string, method: string, date: string) {
   const result = await payAndCloseOrder({ orderId, method });
   if (result.ok) {

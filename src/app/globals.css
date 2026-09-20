@@ -1066,6 +1066,9 @@ input {
 
 .agenda-cell .slot {
   pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .agenda-now-line {
@@ -2979,6 +2982,59 @@ input {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.agenda-cell.is-drop-target {
+  background: rgba(15, 118, 110, 0.12);
+  outline: 1px dashed #0f766e;
+  outline-offset: -1px;
+}
+
+.slot.is-dragging {
+  opacity: 0.85;
+  cursor: grabbing;
+  z-index: 5;
+}
+
+.slot-resize {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 0;
+  height: 8px;
+  border: 0;
+  padding: 0;
+  cursor: ns-resize;
+  background: transparent;
+  z-index: 3;
+}
+
+.slot-resize::after {
+  content: "";
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.agenda-drag-error {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agenda-drag-pending {
+  margin: 6px 0 0;
+  font-size: 12px;
 }
 
 .agenda-cell.is-clickable {
