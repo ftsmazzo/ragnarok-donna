@@ -27,6 +27,7 @@ import {
 } from "@/app/(painel)/comandas/actions";
 import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
+import { PackageBookModal } from "@/components/comandas/PackageBookModal";
 import { PaymentMethodSelect } from "@/lib/paymentMethods";
 import type { ClientCreditBalance } from "@/server/packages/credits";
 
@@ -114,6 +115,12 @@ export function OrderDrawer({
   const [linkClientOpen, setLinkClientOpen] = useState(false);
   const [pickClientId, setPickClientId] = useState("");
   const [confirmTopUpId, setConfirmTopUpId] = useState<string | null>(null);
+  const [bookTarget, setBookTarget] = useState<{
+    serviceId: string;
+    serviceName: string;
+    durationMin: number;
+  } | null>(null);
+  const [bookFlash, setBookFlash] = useState("");
   const [pending, startTransition] = useTransition();
   const isOpen = order.status === "open";
   const canEdit = permissions.canWrite && isOpen;
@@ -215,6 +222,34 @@ export function OrderDrawer({
     };
     cur.lines.push(c);
     creditsByPackage.set(c.clientPackageId, cur);
+  }
+
+  const pendingPackageServices = order.items
+    .filter((item) => item.packageSale && item.packageId)
+    .flatMap((item) => {
+      const pkg = packages.find((p) => p.id === item.packageId);
+      if (!pkg?.items?.length) return [];
+      return pkg.items
+        .filter((line) => line.serviceId)
+        .flatMap((line) =>
+          Array.from({ length: Math.max(1, line.qty) }, () => ({
+            packageId: item.packageId!,
+            packageName: pkg.name,
+            serviceId: line.serviceId!,
+            serviceName: line.serviceName ?? "Serviço",
+            walletPending: item.walletPending,
+          }))
+        );
+    });
+
+  function openBook(serviceId: string, serviceName: string) {
+    const svc = services.find((s) => s.id === serviceId);
+    setBookTarget({
+      serviceId,
+      serviceName,
+      durationMin: svc?.durationMin ?? 30,
+    });
+    setBookFlash("");
   }
 
   const showClientLinker = canEdit && (!order.clientId || linkClientOpen);
@@ -594,14 +629,28 @@ export function OrderDrawer({
                             </span>
                           </div>
                           {canEdit && c.remainingQty > 0 ? (
-                            <button
-                              type="button"
-                              className="btn btn-outline btn-sm"
-                              disabled={pending}
-                              onClick={() => applyWalletCredit(c)}
-                            >
-                              Usar
-                            </button>
+                            <div className="order-wallet-credit-actions">
+                              {c.serviceId && order.clientId ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline btn-sm"
+                                  disabled={pending}
+                                  onClick={() =>
+                                    openBook(c.serviceId!, c.serviceName ?? "Serviço")
+                                  }
+                                >
+                                  Agendar
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                disabled={pending}
+                                onClick={() => applyWalletCredit(c)}
+                              >
+                                Usar
+                              </button>
+                            </div>
                           ) : null}
                         </li>
                       ))}
@@ -654,6 +703,34 @@ export function OrderDrawer({
                 })}
               </ul>
             )}
+            {pendingPackageServices.length > 0 && order.clientId ? (
+              <div className="order-package-book">
+                <p className="client-profile-hint">
+                  Serviços deste pacote — agende aqui (crédito libera ao pagar/fechar).
+                </p>
+                {bookFlash ? <p className="client-profile-hint">{bookFlash}</p> : null}
+                <ul className="order-wallet-credit-lines">
+                  {pendingPackageServices.map((line, idx) => (
+                    <li key={`${line.packageId}-${line.serviceId}-${idx}`}>
+                      <div>
+                        <strong>{line.serviceName}</strong>
+                        <span>{line.packageName}</span>
+                      </div>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          disabled={pending}
+                          onClick={() => openBook(line.serviceId, line.serviceName)}
+                        >
+                          Agendar
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -1358,6 +1435,23 @@ export function OrderDrawer({
           registrados.
         </p>
       </Modal>
+
+      {bookTarget && order.clientId ? (
+        <PackageBookModal
+          open
+          orderId={order.id}
+          clientId={order.clientId}
+          serviceId={bookTarget.serviceId}
+          serviceName={bookTarget.serviceName}
+          durationMin={bookTarget.durationMin}
+          staff={staff}
+          onClose={() => setBookTarget(null)}
+          onSaved={() => {
+            setBookFlash(`Agendado: ${bookTarget.serviceName}`);
+            onChanged();
+          }}
+        />
+      ) : null}
     </>
   );
 }

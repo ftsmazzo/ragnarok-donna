@@ -486,6 +486,7 @@ export async function listCatalogForOrders(): Promise<{
         name: schema.services.name,
         priceCents: schema.services.priceCents,
         commissionBps: schema.services.commissionBps,
+        durationMin: schema.services.durationMin,
       })
       .from(schema.services)
       .where(
@@ -544,6 +545,11 @@ export async function listCatalogForOrders(): Promise<{
         .map((i) => `${i.qty}× ${i.serviceName ?? i.productName ?? "Item"}`)
         .join(" · "),
       billAsLines: p.billAsLines,
+      items: p.items.map((i) => ({
+        ...(i.serviceId ? { serviceId: i.serviceId, serviceName: i.serviceName } : {}),
+        ...(i.productId ? { productId: i.productId, productName: i.productName } : {}),
+        qty: i.qty,
+      })),
     }));
   } catch {
     packages = [];
