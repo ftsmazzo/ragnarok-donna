@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
-import { renewOrTopUpClientPackageAction, postClientAccountAction, settleClientAccountDebtAction } from "@/app/(painel)/clientes/actions";
+import { renewOrTopUpClientPackageAction, postClientAccountAction, settleClientAccountDebtAction, createClientSubscriptionAction, renewClientSubscriptionAction, cancelClientSubscriptionAction } from "@/app/(painel)/clientes/actions";
 import {
   PackageSaleModal,
   type PackageSaleOption,
@@ -19,12 +19,14 @@ import {
   labelHowHeard,
   readCrmPreferences,
 } from "@/lib/crm";
+import { labelSubscriptionStatus } from "@/lib/subscriptions";
 
 export type ClientProfileTab =
   | "resumo"
   | "cadastro"
   | "conta"
   | "pacotes"
+  | "assinaturas"
   | "agenda"
   | "comandas"
   | "consumo";
@@ -46,6 +48,7 @@ const TABS: { id: ClientProfileTab; label: string }[] = [
   { id: "cadastro", label: "Cadastro" },
   { id: "conta", label: "Conta" },
   { id: "pacotes", label: "Pacotes" },
+  { id: "assinaturas", label: "Assinatura" },
   { id: "agenda", label: "Agenda" },
   { id: "comandas", label: "Comandas" },
   { id: "consumo", label: "Consumo" },
@@ -70,6 +73,7 @@ export function ClientProfilePanel({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [pkgError, setPkgError] = useState("");
+  const [subError, setSubError] = useState("");
   const [accountError, setAccountError] = useState("");
   const [settleError, setSettleError] = useState("");
   const [saleOpen, setSaleOpen] = useState(false);
@@ -81,6 +85,7 @@ export function ClientProfilePanel({
     recentItems,
     topServices,
     packages = [],
+    subscriptions = [],
     account = {
       clientId: client.id,
       balanceCents: client.accountBalanceCents ?? 0,
@@ -707,6 +712,117 @@ export function ClientProfilePanel({
                   </li>
                 );
               })}
+            </ul>
+          )}
+        </div>
+      ) : null}
+
+      {tab === "assinaturas" ? (
+        <div className="client-profile-section">
+          {subError ? <div className="form-error">{subError}</div> : null}
+          <form
+            className="form-stack"
+            style={{ marginBottom: 16 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const fd = new FormData(form);
+              fd.set("clientId", client.id);
+              setSubError("");
+              startTransition(async () => {
+                const result = await createClientSubscriptionAction(fd);
+                if (!result.ok) {
+                  setSubError(result.error);
+                  return;
+                }
+                form.reset();
+                router.refresh();
+              });
+            }}
+          >
+            <h3 className="client-profile-heading">Nova assinatura mensal</h3>
+            <p className="client-profile-hint muted">
+              Espinha operacional — sem cobrança automática Stripe nesta versão.
+            </p>
+            <label className="form-field">
+              <span>Plano</span>
+              <input name="name" required maxLength={160} placeholder="Ex.: Mensalidade corte" />
+            </label>
+            <div className="form-row-2">
+              <label className="form-field">
+                <span>Valor (R$)</span>
+                <input name="priceReais" type="number" min="0" step="0.01" defaultValue="0" />
+              </label>
+              <label className="form-field">
+                <span>Período (dias)</span>
+                <input name="periodDays" type="number" min="7" max="366" defaultValue="30" />
+              </label>
+            </div>
+            <label className="form-field">
+              <span>Obs.</span>
+              <input name="notes" maxLength={500} placeholder="Opcional" />
+            </label>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={pending}>
+              Criar assinatura
+            </button>
+          </form>
+
+          {subscriptions.length === 0 ? (
+            <p className="client-profile-empty">Nenhuma assinatura neste cliente.</p>
+          ) : (
+            <ul className="client-package-list">
+              {subscriptions.map((s) => (
+                <li key={s.id} className="client-package-card">
+                  <div className="client-package-card-head">
+                    <div>
+                      <strong>{s.name}</strong>
+                      <span className="muted">
+                        {" "}
+                        · {labelSubscriptionStatus(s.status)} · {formatMoney(s.priceCents)}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="muted-note">
+                    Início {formatDateTimeSp(s.startedAt).slice(0, 10)} · período até{" "}
+                    {formatDateTimeSp(s.currentPeriodEnd).slice(0, 10)}
+                    {s.notes ? ` · ${s.notes}` : ""}
+                  </p>
+                  {s.status !== "cancelled" ? (
+                    <div className="client-package-card-actions">
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        disabled={pending}
+                        onClick={() => {
+                          setSubError("");
+                          startTransition(async () => {
+                            const result = await renewClientSubscriptionAction(s.id);
+                            if (!result.ok) setSubError(result.error);
+                            else router.refresh();
+                          });
+                        }}
+                      >
+                        Renovar +30d
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={pending}
+                        onClick={() => {
+                          setSubError("");
+                          startTransition(async () => {
+                            const result = await cancelClientSubscriptionAction(s.id);
+                            if (!result.ok) setSubError(result.error);
+                            else router.refresh();
+                          });
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
             </ul>
           )}
         </div>

@@ -4,21 +4,27 @@ import { listCrmFrequency } from "@/server/crm/frequency";
 import { CRM_EXITS, CRM_STAGES, labelCrmStage, labelHowHeard } from "@/lib/crm";
 import { CRM_FREQUENCY, labelCrmFrequency } from "@/lib/crm-frequency";
 import { formatDateTimeSp } from "@/lib/datetime";
+import { listSubscriptions, labelSubscriptionStatus } from "@/server/subscriptions/mutations";
+import { formatMoney } from "@/lib/format";
 import { requirePageAccess } from "@/server/permissions/page-access";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ stage?: string; view?: string; freq?: string }>;
+  searchParams: Promise<{ stage?: string; view?: string; freq?: string; status?: string }>;
 };
 
 export default async function CrmPage({ searchParams }: Props) {
   await requirePageAccess("/crm");
   const sp = await searchParams;
-  const view = sp.view === "retorno" ? "retorno" : "funil";
+  const view =
+    sp.view === "retorno" ? "retorno" : sp.view === "assinaturas" ? "assinaturas" : "funil";
 
   if (view === "retorno") {
     return <CrmRetornoView freq={sp.freq?.trim() || "due"} />;
+  }
+  if (view === "assinaturas") {
+    return <CrmAssinaturasView status={sp.status?.trim() || "all"} />;
   }
 
   const stage = sp.stage?.trim() || "all";
@@ -92,13 +98,13 @@ export default async function CrmPage({ searchParams }: Props) {
   );
 }
 
-function CrmHeader({ active }: { active: "funil" | "retorno" }) {
+function CrmHeader({ active }: { active: "funil" | "retorno" | "assinaturas" }) {
   return (
     <header className="panel-head">
       <div>
         <h1>CRM</h1>
         <p className="muted">
-          Funil e ritmo de retorno dentro do painel Ragnarok — não é app separado.
+          Funil, ritmo de retorno e assinaturas — tudo dentro do painel Ragnarok.
         </p>
         <nav className="filter-tabs" aria-label="Visões do CRM" style={{ marginTop: 10 }}>
           <Link
@@ -112,6 +118,12 @@ function CrmHeader({ active }: { active: "funil" | "retorno" }) {
             className={active === "retorno" ? "filter-tab is-active" : "filter-tab"}
           >
             Hora de voltar
+          </Link>
+          <Link
+            href="/crm?view=assinaturas"
+            className={active === "assinaturas" ? "filter-tab is-active" : "filter-tab"}
+          >
+            Assinaturas
           </Link>
         </nav>
       </div>
@@ -185,6 +197,65 @@ async function CrmRetornoView({ freq }: { freq: string }) {
                   <td>{r.avgIntervalDays != null ? `${r.avgIntervalDays}d` : "—"}</td>
                   <td>{r.lastServiceName ?? "—"}</td>
                   <td>{r.lastAt ? formatDateTimeSp(r.lastAt) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+async function CrmAssinaturasView({ status }: { status: string }) {
+  const rows = await listSubscriptions({ status });
+  const filters = [
+    { id: "all", label: "Todas" },
+    { id: "active", label: "Ativas" },
+    { id: "late", label: "Atrasadas" },
+    { id: "cancelled", label: "Canceladas" },
+  ];
+
+  return (
+    <div className="panel">
+      <CrmHeader active="assinaturas" />
+      <nav className="filter-tabs" aria-label="Status das assinaturas">
+        {filters.map((f) => (
+          <Link
+            key={f.id}
+            href={`/crm?view=assinaturas&status=${f.id}`}
+            className={status === f.id ? "filter-tab is-active" : "filter-tab"}
+          >
+            {f.label}
+          </Link>
+        ))}
+      </nav>
+      {rows.length === 0 ? (
+        <p className="panel-empty">
+          Nenhuma assinatura. Crie na ficha do cliente → aba Assinatura.
+        </p>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Plano</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Período até</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <Link href={`/clientes?id=${r.clientId}`}>{r.clientName}</Link>
+                  </td>
+                  <td>{r.name}</td>
+                  <td>{formatMoney(r.priceCents)}</td>
+                  <td>{labelSubscriptionStatus(r.status)}</td>
+                  <td>{formatDateTimeSp(r.currentPeriodEnd).slice(0, 10)}</td>
                 </tr>
               ))}
             </tbody>
