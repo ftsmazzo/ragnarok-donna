@@ -2738,6 +2738,23 @@ input {
   color: var(--muted);
 }
 
+.crm-freq {
+  font-weight: 600;
+}
+
+.crm-freq--risco,
+.crm-freq--inativo {
+  color: var(--danger, #b91c1c);
+}
+
+.crm-freq--janela {
+  color: var(--warn, #b45309);
+}
+
+.crm-freq--reativado {
+  color: var(--ok, #15803d);
+}
+
 .client-profile-block {
   padding-top: 4px;
 }

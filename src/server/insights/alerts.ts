@@ -4,6 +4,7 @@ import { monthStartSp, rangeBoundsSp, todaySp, weekBoundsSp } from "@/lib/dateti
 import { formatMoney } from "@/lib/format";
 import { isBarCategory, isInsumoCategory } from "@/lib/product-category";
 import { requireTenantContext } from "../context/tenant";
+import { listCrmFrequency } from "../crm/frequency";
 import {
   DEFAULT_INACTIVE_DAYS,
   DEFAULT_RECURRENCE_LAPSE_DAYS,
@@ -298,6 +299,28 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
       href: "/relatorios/perfil?tab=retorno",
       periodLabel: "esta semana",
     });
+  }
+
+  try {
+    const due = await listCrmFrequency({ filter: "due", limit: 40 });
+    const dueN = due.counts.due ?? due.rows.length;
+    if (dueN > 0) {
+      alerts.push({
+        id: "crm-due-return",
+        severity: "warning",
+        kind: "crm_due_return",
+        title: `${dueN} cliente(s) na hora de voltar`,
+        detail: due.rows
+          .slice(0, 4)
+          .map((r) => `${r.name} (${r.daysSince ?? "?"}d · ${r.label})`)
+          .join(" · "),
+        count: dueN,
+        href: "/crm?view=retorno",
+        periodLabel: "agora",
+      });
+    }
+  } catch (err) {
+    console.error("[alerts] crm due return", err);
   }
 
   const [openOld] = await db
