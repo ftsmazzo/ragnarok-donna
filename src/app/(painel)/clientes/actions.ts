@@ -20,7 +20,7 @@ import {
 } from "@/server/packages/mutations";
 
 export async function createClientAction(formData: FormData): Promise<ActionResult> {
-  return createClient({
+  const result = await createClient({
     name: String(formData.get("name") ?? ""),
     phone: String(formData.get("phone") ?? ""),
     email: String(formData.get("email") ?? ""),
@@ -33,14 +33,22 @@ export async function createClientAction(formData: FormData): Promise<ActionResu
     avatarUrl: String(formData.get("avatarUrl") ?? ""),
     crmStatus: String(formData.get("crmStatus") ?? "client") || "client",
     marketingOptIn: formData.get("marketingOptIn") === "on" || formData.get("marketingOptIn") === "1",
+    crmStage: String(formData.get("crmStage") ?? ""),
+    crmExit: String(formData.get("crmExit") ?? ""),
+    crmExitReason: String(formData.get("crmExitReason") ?? ""),
   });
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath("/crm");
+  }
+  return result;
 }
 
 export async function updateClientAction(
   clientId: string,
   formData: FormData
 ): Promise<ActionResult> {
-  return updateClient(clientId, {
+  const result = await updateClient(clientId, {
     name: String(formData.get("name") ?? ""),
     phone: String(formData.get("phone") ?? ""),
     email: String(formData.get("email") ?? ""),
@@ -53,7 +61,16 @@ export async function updateClientAction(
     avatarUrl: String(formData.get("avatarUrl") ?? ""),
     crmStatus: String(formData.get("crmStatus") ?? "") || undefined,
     marketingOptIn: formData.get("marketingOptIn") === "on" || formData.get("marketingOptIn") === "1",
+    crmStage: String(formData.get("crmStage") ?? ""),
+    crmExit: String(formData.get("crmExit") ?? ""),
+    crmExitReason: String(formData.get("crmExitReason") ?? ""),
   });
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath(`/clientes?id=${clientId}`);
+    revalidatePath("/crm");
+  }
+  return result;
 }
 
 export async function deactivateClientAction(clientId: string): Promise<ActionResult> {

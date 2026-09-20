@@ -2731,6 +2731,13 @@ input {
   font-style: italic;
 }
 
+.crm-stage-history {
+  margin: 6px 0 0;
+  padding-left: 1.1rem;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .client-profile-block {
   padding-top: 4px;
 }

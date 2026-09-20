@@ -13,6 +13,7 @@ import { Modal } from "@/components/ui/Modal";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelApptStatus, labelOrderStatus, labelPaymentMethod, labelClientAccountReason } from "@/lib/format";
 import {
+  CRM_EXITS,
   labelCrmStatus,
   labelCrmStage,
   labelHowHeard,
@@ -196,8 +197,36 @@ export function ClientProfilePanel({
                 <strong>{labelCrmStage(crm.crmStage)}</strong>
               </div>
             ) : null}
+            {crm.crmExit ? (
+              <div>
+                <span className="meta-label">Saída</span>
+                <strong>
+                  {CRM_EXITS.find((e) => e.value === crm.crmExit)?.label ?? crm.crmExit}
+                </strong>
+                {crm.crmExitReason ? (
+                  <em className="muted"> · {crm.crmExitReason}</em>
+                ) : null}
+              </div>
+            ) : null}
             {crm.leadSource === "whatsapp_inbound" ? (
               <p className="client-profile-hint">Lead criado no 1º contato WhatsApp.</p>
+            ) : null}
+            {Array.isArray(client.preferences?.crmStageHistory) &&
+            (client.preferences.crmStageHistory as unknown[]).length > 0 ? (
+              <details className="client-profile-hint">
+                <summary>Histórico do funil</summary>
+                <ul className="crm-stage-history">
+                  {[...(client.preferences.crmStageHistory as { stage?: string; at?: string; by?: string }[])]
+                    .slice(-8)
+                    .reverse()
+                    .map((h, i) => (
+                      <li key={`${h.at ?? i}-${h.stage ?? ""}`}>
+                        {labelCrmStage(h.stage)} · {h.at ? formatDateTimeSp(new Date(h.at)) : "—"}
+                        {h.by ? ` · ${h.by}` : ""}
+                      </li>
+                    ))}
+                </ul>
+              </details>
             ) : null}
           </div>
           <div className="client-stats">

@@ -68,6 +68,7 @@ const RULES: RouteRule[] = [
   { pattern: "/relatorios/perfil", roles: ["owner", "admin", "manager"] },
   { pattern: "/relatorios", roles: ["owner", "admin", "manager"] },
   { pattern: "/alertas", roles: ["owner", "admin", "manager"] },
+  { pattern: "/crm", roles: ["owner", "admin", "manager"] },
 
   /** Recepção + dono — handoff n8n / WhatsApp. */
   { pattern: "/conversas", roles: ["owner", "admin", "manager"] },
