@@ -19,6 +19,9 @@ export type ClientInput = {
   avatarUrl?: string | null;
   crmStatus?: string;
   marketingOptIn?: boolean;
+  crmStage?: string;
+  crmExit?: string;
+  crmExitReason?: string;
 };
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
@@ -53,6 +56,9 @@ function parseInput(raw: ClientInput): ClientInput {
     hairPreference: raw.hairPreference?.trim().slice(0, 120) || undefined,
     crmStatus: raw.crmStatus?.trim().slice(0, 40) || undefined,
     marketingOptIn: raw.marketingOptIn,
+    crmStage: raw.crmStage?.trim().slice(0, 40) || undefined,
+    crmExit: raw.crmExit?.trim().slice(0, 40) || undefined,
+    crmExitReason: raw.crmExitReason?.trim().slice(0, 200) || undefined,
     avatarUrl:
       raw.avatarUrl === undefined || raw.avatarUrl === null
         ? undefined
@@ -62,7 +68,11 @@ function parseInput(raw: ClientInput): ClientInput {
   };
 }
 
-function crmPreferences(input: ClientInput, existing?: Record<string, unknown>) {
+function crmPreferences(
+  input: ClientInput,
+  existing?: Record<string, unknown>,
+  actorName?: string
+) {
   const next = { ...(existing ?? {}) };
   if (input.howHeard) next.howHeard = input.howHeard;
   else delete next.howHeard;
@@ -76,7 +86,30 @@ function crmPreferences(input: ClientInput, existing?: Record<string, unknown>) 
   else if (!next.crmStatus) next.crmStatus = "client";
   if (input.marketingOptIn === true) next.marketingOptIn = true;
   else if (input.marketingOptIn === false) delete next.marketingOptIn;
-  if (!next.crmStage && next.crmStatus === "lead") next.crmStage = "interessado";
+
+  const prevStage = typeof next.crmStage === "string" ? next.crmStage : "";
+  if (input.crmStage) {
+    next.crmStage = input.crmStage;
+    if (input.crmStage !== prevStage) {
+      const hist = Array.isArray(next.crmStageHistory)
+        ? [...(next.crmStageHistory as unknown[])]
+        : [];
+      hist.push({
+        stage: input.crmStage,
+        at: new Date().toISOString(),
+        by: actorName ?? "painel",
+      });
+      next.crmStageHistory = hist.slice(-40);
+    }
+  } else if (!next.crmStage && next.crmStatus === "lead") {
+    next.crmStage = "interessado";
+  }
+
+  if (input.crmExit) next.crmExit = input.crmExit;
+  else delete next.crmExit;
+  if (input.crmExitReason) next.crmExitReason = input.crmExitReason;
+  else delete next.crmExitReason;
+
   return next;
 }
 
@@ -89,12 +122,13 @@ function assertCanWriteAsync() {
 
 export async function createClient(raw: ClientInput): Promise<ActionResult> {
   try {
-    await assertCanWriteAsync();
+    const session = await assertCanWriteAsync();
     const tenant = await requireTenantContext();
     const input = parseInput(raw);
     const db = createDb();
     const { phone, phoneE164 } = normalizePhone(input.phone);
     const email = normalizeEmail(input.email);
+    const actor = session.user.name ?? session.user.email ?? "painel";
 
     const [created] = await db
       .insert(schema.clients)
@@ -107,7 +141,7 @@ export async function createClient(raw: ClientInput): Promise<ActionResult> {
         notes: input.notes ?? null,
         birthDate: input.birthDate || null,
         avatarUrl: input.avatarUrl ?? null,
-        preferences: crmPreferences(input),
+        preferences: crmPreferences(input, undefined, actor),
       })
       .returning({ id: schema.clients.id });
 
@@ -124,12 +158,13 @@ export async function createClient(raw: ClientInput): Promise<ActionResult> {
 
 export async function updateClient(clientId: string, raw: ClientInput): Promise<ActionResult> {
   try {
-    await assertCanWriteAsync();
+    const session = await assertCanWriteAsync();
     const tenant = await requireTenantContext();
     const input = parseInput(raw);
     const db = createDb();
     const { phone, phoneE164 } = normalizePhone(input.phone);
     const email = normalizeEmail(input.email);
+    const actor = session.user.name ?? session.user.email ?? "painel";
 
     const [existing] = await db
       .select({ preferences: schema.clients.preferences })
@@ -147,7 +182,7 @@ export async function updateClient(clientId: string, raw: ClientInput): Promise<
         notes: input.notes ?? null,
         birthDate: input.birthDate || null,
         ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
-        preferences: crmPreferences(input, existing?.preferences ?? {}),
+        preferences: crmPreferences(input, existing?.preferences ?? {}, actor),
         updatedAt: new Date(),
       })
       .where(and(eq(schema.clients.id, clientId), eq(schema.clients.tenantId, tenant.id)))

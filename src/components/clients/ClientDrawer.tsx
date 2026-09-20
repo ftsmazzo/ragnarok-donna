@@ -264,6 +264,50 @@ export function ClientDrawer({
           </select>
         </label>
 
+        <label className="form-field">
+          <span>Etapa do funil</span>
+          <select
+            name="crmStage"
+            defaultValue={String(client?.preferences?.crmStage ?? "")}
+            disabled={isRemoved}
+          >
+            <option value="">—</option>
+            <option value="interessado">Interessado</option>
+            <option value="conversamos">Conversamos</option>
+            <option value="qualificamos">Qualificamos</option>
+            <option value="agendou">Agendou</option>
+            <option value="veio">Veio</option>
+            <option value="fez_servico">Fez o serviço</option>
+            <option value="cliente">Cliente</option>
+          </select>
+        </label>
+
+        <label className="form-field">
+          <span>Saída do funil (se houver)</span>
+          <select
+            name="crmExit"
+            defaultValue={String(client?.preferences?.crmExit ?? "")}
+            disabled={isRemoved}
+          >
+            <option value="">Nenhuma</option>
+            <option value="nao_respondeu">Não respondeu</option>
+            <option value="nao_agendou">Não agendou</option>
+            <option value="faltou">Faltou</option>
+            <option value="perdeu">Perdeu</option>
+          </select>
+        </label>
+
+        <label className="form-field">
+          <span>Motivo da saída</span>
+          <input
+            name="crmExitReason"
+            maxLength={200}
+            defaultValue={String(client?.preferences?.crmExitReason ?? "")}
+            disabled={isRemoved}
+            placeholder="Preço, horário, concorrente…"
+          />
+        </label>
+
         <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <input
             type="checkbox"

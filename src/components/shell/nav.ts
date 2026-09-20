@@ -22,6 +22,7 @@ export const NAV: NavItem[] = [
   { label: "Hoje", href: "/inicio", icon: "⌂" },
   { label: "Agenda", href: "/agenda", icon: "▤" },
   { label: "Lembretes", href: "/alertas", icon: "!" },
+  { label: "CRM", href: "/crm", icon: "◎" },
   {
     label: "Cadastros",
     icon: "☰",
@@ -114,6 +115,7 @@ export const NAV: NavItem[] = [
 export const NAV_CONSOLIDATED: NavItem[] = [
   { label: "Hoje", href: "/inicio", icon: "⌂" },
   { label: "Lembretes", href: "/alertas", icon: "!" },
+  { label: "CRM", href: "/crm", icon: "◎" },
   {
     label: "Equipe",
     icon: "✂",
