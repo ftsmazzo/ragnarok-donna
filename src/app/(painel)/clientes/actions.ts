@@ -28,8 +28,11 @@ export async function createClientAction(formData: FormData): Promise<ActionResu
     birthDate: String(formData.get("birthDate") ?? ""),
     howHeard: String(formData.get("howHeard") ?? ""),
     referredBy: String(formData.get("referredBy") ?? ""),
+    campaign: String(formData.get("campaign") ?? ""),
     hairPreference: String(formData.get("hairPreference") ?? ""),
     avatarUrl: String(formData.get("avatarUrl") ?? ""),
+    crmStatus: String(formData.get("crmStatus") ?? "client") || "client",
+    marketingOptIn: formData.get("marketingOptIn") === "on" || formData.get("marketingOptIn") === "1",
   });
 }
 
@@ -45,8 +48,11 @@ export async function updateClientAction(
     birthDate: String(formData.get("birthDate") ?? ""),
     howHeard: String(formData.get("howHeard") ?? ""),
     referredBy: String(formData.get("referredBy") ?? ""),
+    campaign: String(formData.get("campaign") ?? ""),
     hairPreference: String(formData.get("hairPreference") ?? ""),
     avatarUrl: String(formData.get("avatarUrl") ?? ""),
+    crmStatus: String(formData.get("crmStatus") ?? "") || undefined,
+    marketingOptIn: formData.get("marketingOptIn") === "on" || formData.get("marketingOptIn") === "1",
   });
 }
 

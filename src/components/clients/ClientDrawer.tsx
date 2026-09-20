@@ -217,13 +217,27 @@ export function ClientDrawer({
             disabled={isRemoved}
           >
             <option value="">Selecione…</option>
-            <option value="indicacao">Indicação</option>
+            <option value="whatsapp">WhatsApp</option>
             <option value="instagram">Instagram</option>
             <option value="google">Google</option>
-            <option value="passou_na_frente">Passou na frente</option>
-            <option value="whatsapp">WhatsApp</option>
+            <option value="indicacao">Indicação</option>
+            <option value="passou_na_frente">Passou na frente / porta</option>
+            <option value="parceiro">Parceiro</option>
+            <option value="qr">QR code</option>
+            <option value="site">Site</option>
             <option value="outro">Outro</option>
           </select>
+        </label>
+
+        <label className="form-field">
+          <span>Campanha (se houver)</span>
+          <input
+            name="campaign"
+            maxLength={120}
+            defaultValue={String(client?.preferences?.campaign ?? "")}
+            disabled={isRemoved}
+            placeholder="Ex.: Primeiro corte, reel, anúncio…"
+          />
         </label>
 
         <label className="form-field">
@@ -235,6 +249,30 @@ export function ClientDrawer({
             disabled={isRemoved}
             placeholder="Nome de quem indicou"
           />
+        </label>
+
+        <label className="form-field">
+          <span>Status CRM</span>
+          <select
+            name="crmStatus"
+            defaultValue={String(client?.preferences?.crmStatus ?? (isEdit ? "client" : "client"))}
+            disabled={isRemoved}
+          >
+            <option value="lead">Lead</option>
+            <option value="client">Cliente</option>
+            <option value="lapsed">Sumiu</option>
+          </select>
+        </label>
+
+        <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            name="marketingOptIn"
+            value="1"
+            defaultChecked={client?.preferences?.marketingOptIn === true}
+            disabled={isRemoved}
+          />
+          <span>Pode receber mensagem / follow-up</span>
         </label>
 
         <label className="form-field">
