@@ -3453,6 +3453,18 @@ input {
   font-size: 12px;
 }
 
+.order-wallet-credit-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.order-package-book {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
 .order-client-link {
   margin: 0 0 14px;
   padding: 12px;

@@ -75,6 +75,7 @@ export type CatalogService = {
   name: string;
   priceCents: number;
   commissionBps: number | null;
+  durationMin: number;
 };
 
 export type CatalogProduct = {
@@ -93,6 +94,13 @@ export type CatalogPackage = {
   itemLabel: string;
   /** Combo: entra na comanda já dividido, sem gerar carteira. */
   billAsLines?: boolean;
+  items?: Array<{
+    serviceId?: string;
+    serviceName?: string;
+    productId?: string;
+    productName?: string;
+    qty: number;
+  }>;
 };
 
 export type CatalogStaff = {

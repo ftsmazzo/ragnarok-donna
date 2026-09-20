@@ -186,3 +186,33 @@ export async function setOrderClientAction(orderId: string, clientId: string) {
   if (result.ok) revalidateOrders(orderId);
   return result;
 }
+
+/** Agenda um serviço do pacote sem sair da comanda. */
+export async function scheduleFromOrderAction(input: {
+  orderId: string;
+  clientId: string;
+  serviceId: string;
+  staffId: string;
+  date: string;
+  hour: number;
+  minute: number;
+  durationMin?: number;
+}) {
+  const { scheduleAppointment } = await import("@/server/agenda/mutations");
+  const result = await scheduleAppointment({
+    staffId: input.staffId,
+    date: input.date,
+    hour: input.hour,
+    minute: input.minute,
+    durationMin: input.durationMin ?? 30,
+    clientId: input.clientId,
+    serviceId: input.serviceId,
+    notes: `Comanda ${input.orderId.slice(0, 8)}`,
+  });
+  if (result.ok) {
+    revalidateOrders(input.orderId);
+    revalidatePath("/agenda");
+    revalidatePath(`/agenda?date=${input.date}`);
+  }
+  return result;
+}
