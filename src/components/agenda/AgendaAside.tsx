@@ -159,7 +159,9 @@ export function AgendaAside({
                       {a.clientPhone && formatPhone(a.clientPhone) !== "—"
                         ? ` · ${formatPhone(a.clientPhone)}`
                         : null}
-                      {a.serviceName ? ` · ${a.serviceName}` : null}
+                      {a.visitLabel || a.serviceName
+                        ? ` · ${a.visitLabel ?? a.serviceName}`
+                        : null}
                       {a.orderId ? " · comanda" : null}
                     </span>
                   </span>

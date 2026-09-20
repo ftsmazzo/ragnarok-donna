@@ -37,6 +37,8 @@ export type AgendaAppointment = {
   noPreference: boolean;
   /** Tags livres do horário (meta). */
   tags: string[];
+  /** Visita de pacote com mais de um serviço (ex.: Corte + Barba). */
+  visitLabel: string | null;
 };
 
 export type AgendaDayData = {

@@ -305,6 +305,7 @@ function mapAgendaAppointment(r: {
     seriesConflict: typeof meta.seriesConflict === "string" ? meta.seriesConflict : null,
     noPreference: meta.noPreference === true,
     tags,
+    visitLabel: typeof meta.visitLabel === "string" ? meta.visitLabel : null,
   };
 }
 

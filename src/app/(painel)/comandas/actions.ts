@@ -216,3 +216,68 @@ export async function scheduleFromOrderAction(input: {
   }
   return result;
 }
+
+/** Agenda N visitas do pacote (cada visita pode juntar vários serviços). */
+export async function schedulePackageVisitsAction(input: {
+  orderId: string;
+  clientId: string;
+  visits: Array<{
+    staffId: string;
+    date: string;
+    hour: number;
+    minute: number;
+    serviceIds: string[];
+    primaryServiceId: string;
+    durationMin: number;
+    visitLabel: string;
+  }>;
+}): Promise<{ ok: boolean; error?: string; created?: number }> {
+  if (!input.visits.length) {
+    return { ok: false, error: "Nenhuma visita para agendar" };
+  }
+  const { scheduleAppointment } = await import("@/server/agenda/mutations");
+  let created = 0;
+  const dates = new Set<string>();
+
+  for (const visit of input.visits) {
+    if (!visit.staffId || !visit.date || !visit.primaryServiceId) {
+      return {
+        ok: false,
+        error: "Visita incompleta (profissional, data ou serviço)",
+        created,
+      };
+    }
+    if (!visit.serviceIds.length) {
+      return { ok: false, error: "Visita sem serviços", created };
+    }
+    const result = await scheduleAppointment({
+      staffId: visit.staffId,
+      date: visit.date,
+      hour: visit.hour,
+      minute: visit.minute,
+      durationMin: Math.max(5, visit.durationMin || 30),
+      clientId: input.clientId,
+      serviceId: visit.primaryServiceId,
+      notes: `Pacote · ${visit.visitLabel} · comanda ${input.orderId.slice(0, 8)}`,
+      extraMeta: {
+        visitLabel: visit.visitLabel,
+        packageServiceIds: visit.serviceIds,
+        fromOrderId: input.orderId,
+      },
+    });
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error ?? "Falha ao agendar visita",
+        created,
+      };
+    }
+    created += 1;
+    dates.add(visit.date);
+  }
+
+  revalidateOrders(input.orderId);
+  revalidatePath("/agenda");
+  for (const d of dates) revalidatePath(`/agenda?date=${d}`);
+  return { ok: true, created };
+}
