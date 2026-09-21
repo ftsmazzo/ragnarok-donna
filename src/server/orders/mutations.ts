@@ -12,6 +12,10 @@ import {
   discountKeepsSettledAmount,
 } from "../clients/account-reliability";
 import { resolvePaymentCode, labelStoredPayment } from "@/lib/payment-codes";
+import {
+  annotateServiceCommission,
+  syncStaffMonthServiceCommission,
+} from "../commissions/house";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -305,6 +309,7 @@ export async function openOrder(input: {
         performedAt: new Date(),
         meta: {},
       });
+      await syncStaffMonthServiceCommission(tenant.id, seedStaffId);
       await recalculateOrderTotal(row.id, tenant.id);
     }
 
@@ -547,6 +552,7 @@ export async function applyRecurrencePackageFromAppointment(input: {
       }
     });
 
+    await syncStaffMonthServiceCommission(tenant.id, appt.staffId);
     await recalculateOrderTotal(orderId, tenant.id);
     return { ok: true, id: orderId };
   } catch (err) {
@@ -851,8 +857,20 @@ export async function addOrderItem(input: {
     }
 
     const bps = itemCommissionBps ?? staffCommissionBps;
-    // Pacote: comissão no preço de tabela. Demais: sobre o líquido do item.
-    const commission = calcCommission(useCredit ? lineGross : totalCents, bps);
+    let commission = calcCommission(useCredit ? lineGross : totalCents, bps);
+    if (input.itemType === "service") {
+      const house = await annotateServiceCommission({
+        tenantId: tenant.id,
+        serviceName: description.replace(/\s·\sPacote.*$/i, ""),
+        baseCents: useCredit ? lineGross : totalCents,
+        clientPackageId:
+          useCredit && typeof meta.clientPackageId === "string"
+            ? meta.clientPackageId
+            : null,
+      });
+      meta = { ...meta, ...house.metaPatch };
+      commission = calcCommission(house.baseCents, 4000);
+    }
 
     const [row] = await db
       .insert(schema.orderItems)
@@ -889,6 +907,9 @@ export async function addOrderItem(input: {
     }
 
     await recalculateOrderTotal(input.orderId, tenant.id);
+    if (input.itemType === "service") {
+      await syncStaffMonthServiceCommission(tenant.id, staffId);
+    }
     return { ok: true, id: row.id };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
@@ -1036,6 +1057,7 @@ async function addComboLines(input: {
     return lastId;
   });
 
+  await syncStaffMonthServiceCommission(input.tenantId, staff.id);
   return { ok: true, id: rowId };
 }
 
@@ -1103,13 +1125,9 @@ async function addPackageSaleItem(input: {
   }
 
   let staffId: string | null = input.staffId || null;
-  let staffCommissionBps: number | null = null;
   if (staffId) {
     const [st] = await db
-      .select({
-        id: schema.staff.id,
-        defaultCommissionBps: schema.staff.defaultCommissionBps,
-      })
+      .select({ id: schema.staff.id })
       .from(schema.staff)
       .where(
         and(
@@ -1120,13 +1138,9 @@ async function addPackageSaleItem(input: {
       )
       .limit(1);
     if (!st) throw new AppError("VALIDATION", "Profissional inválido");
-    staffCommissionBps = st.defaultCommissionBps;
   }
 
-  const commission = calcCommission(
-    pkg.priceCents,
-    pkg.commissionBps ?? staffCommissionBps
-  );
+  const commission = { commissionBps: 0, commissionCents: 0 };
 
   const rowId = await db.transaction(async (tx) => {
     const [lockedOrder] = await tx
@@ -1234,6 +1248,7 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
         itemType: schema.orderItems.itemType,
         productId: schema.orderItems.productId,
         qty: schema.orderItems.qty,
+        staffId: schema.orderItems.staffId,
         meta: schema.orderItems.meta,
       })
       .from(schema.orderItems)
@@ -1324,6 +1339,9 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
       );
 
     await recalculateOrderTotal(item.orderId, tenant.id);
+    if (item.itemType === "service") {
+      await syncStaffMonthServiceCommission(tenant.id, item.staffId);
+    }
     return { ok: true, id: item.orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };

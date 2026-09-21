@@ -6,6 +6,7 @@ import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability, requireCapability } from "../permissions";
 import { findOpenCashSessionId } from "../finance/queries";
+import { syncTenantMonthServiceCommission } from "./house";
 
 const commissionExpr = sql<number>`coalesce(
   ${schema.orderItems.commissionCents},
@@ -79,6 +80,9 @@ export async function reportCommissions(opts: {
   const db = createDb();
   const from = opts.from ?? monthStartSp();
   const to = opts.to ?? todaySp();
+  if (from.slice(0, 7) === monthStartSp().slice(0, 7)) {
+    await syncTenantMonthServiceCommission(tenant.id);
+  }
   const { start, end } = rangeBoundsSp(from, to);
   const page = Math.max(1, opts.page ?? 1);
   const itemType = opts.itemType?.trim();

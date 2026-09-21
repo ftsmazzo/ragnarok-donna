@@ -45,9 +45,12 @@ Preferência: o sistema **recalcula** a comissão do profissional quando a meta 
 Daniel (21/09, 09:34): **“Tudo 40. Como tá no áudio mesmo.”**  
 A regra antiga (extra em 20% → 40%) não vale. Base **40%**; meta de extras sobe para **45%** e **50%**.
 
-## Pronto para colocar no sistema
+## No sistema
 
-1. Flag/categoria no serviço: `ordinario` vs `extra` (lista acima).
-2. Ranking/meta de extras alinhada a essa lista (hoje `/relatorios/extras` conta produto — ajustar para serviços extra).
-3. Comissão de pacote na hora do crédito usado (já parcialmente na comanda; fechar fórmula ÷ N).
-4. Escada de meta + taxa cartão 50/50 (se confirmado).
+Calculado na comanda (`src/lib/commission-policy.ts` + `src/server/commissions/house.ts`):
+
+- Ordinário (corte, barba, recorrência, luzes) em **40%**.
+- Extra começa em **40%** e, no mês do profissional, sobe para **45%** (R$ 2.000) ou **50%** (R$ 2.500), recalculando as linhas de extra já lançadas.
+- Venda de pacote: comissão **0**. No uso do crédito, a base é o preço do pacote dividido pela quantidade de serviços.
+
+Ainda fora deste cálculo: folga (salário ÷ 26), taxa de cartão 50/50 e o ranking `/relatorios/extras` (hoje ainda soma produto).
