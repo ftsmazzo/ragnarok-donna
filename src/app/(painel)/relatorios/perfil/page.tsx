@@ -8,6 +8,8 @@ import { formatPhone } from "@/lib/format";
 import { buildOperationalAlerts, reportPerfil } from "@/server/insights";
 import { requirePageAccess } from "@/server/permissions/page-access";
 import { requireTenantContext } from "@/server/context/tenant";
+import { and, asc, eq, isNull } from "drizzle-orm";
+import { createDb, schema } from "@/db";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,7 @@ type Props = {
     recurrenceDays?: string;
     inactiveDays?: string;
     windowDays?: string;
+    staff?: string;
   }>;
 };
 
@@ -40,7 +43,20 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
   const sp = await searchParams;
   await requirePageAccess("/relatorios/perfil", sp);
   const tenant = await requireTenantContext();
+  const db = createDb();
+  const staffOptions = await db
+    .select({ id: schema.staff.id, name: schema.staff.name })
+    .from(schema.staff)
+    .where(
+      and(
+        eq(schema.staff.tenantId, tenant.id),
+        eq(schema.staff.isActive, true),
+        isNull(schema.staff.deletedAt)
+      )
+    )
+    .orderBy(asc(schema.staff.name));
 
+  const staffId = sp.staff?.trim() || undefined;
   const [data, alerts] = await Promise.all([
     reportPerfil({
       serviceDays: Number(sp.serviceDays) || undefined,
@@ -48,6 +64,7 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
       recurrenceDays: Number(sp.recurrenceDays) || undefined,
       inactiveDays: Number(sp.inactiveDays) || undefined,
       inactiveWindowDays: Number(sp.windowDays) || undefined,
+      staffId,
     }),
     buildOperationalAlerts(),
   ]);
@@ -58,7 +75,8 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
     `&productDays=${data.productThresholdDays}` +
     `&recurrenceDays=${data.recurrenceLapseDays}` +
     `&inactiveDays=${data.inactiveDays}` +
-    `&windowDays=${data.inactiveWindowDays}`;
+    `&windowDays=${data.inactiveWindowDays}` +
+    (data.staffId ? `&staff=${data.staffId}` : "");
 
   const uniqueService = new Set(data.serviceDue.map((r) => r.clientId)).size;
   const uniqueProduct = new Set(data.productDue.map((r) => r.clientId)).size;
@@ -153,6 +171,17 @@ export default async function RelatorioPerfilPage({ searchParams }: Props) {
                 defaultValue={data.productThresholdDays}
                 className="search-input"
               />
+            </label>
+            <label className="filter-field">
+              <span>Barbeiro (último atendimento)</span>
+              <select name="staff" defaultValue={data.staffId ?? ""} className="search-input">
+                <option value="">Todos</option>
+                {staffOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <button type="submit" className="btn btn-primary">
               Atualizar

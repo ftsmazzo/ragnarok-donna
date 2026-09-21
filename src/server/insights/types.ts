@@ -136,4 +136,6 @@ export type PerfilReport = {
   productDueCount: number;
   recurrenceLapsedCount: number;
   inactiveCount: number;
+  /** Filtro pelo profissional do último serviço (lista de ligação). */
+  staffId: string | null;
 };

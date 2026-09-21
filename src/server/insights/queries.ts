@@ -189,7 +189,8 @@ async function loadServiceDueRows(
   tenantId: string,
   thresholdFallback: number,
   windowDays = DEFAULT_ACTIONABLE_WINDOW_DAYS,
-  limit = 80
+  limit = 80,
+  staffId?: string | null
 ): Promise<PerfilReofferRow[]> {
   const db = createDb();
   const rows = await db
@@ -201,6 +202,9 @@ async function loadServiceDueRows(
       catalogName: schema.services.name,
       returnAfterDays: schema.services.returnAfterDays,
       lastAt: sql<Date>`max(${schema.orderItems.performedAt})`.as("last_at"),
+      lastStaffId: sql<string | null>`(array_agg(${schema.orderItems.staffId} order by ${schema.orderItems.performedAt} desc nulls last))[1]`.as(
+        "last_staff_id"
+      ),
     })
     .from(schema.orderItems)
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
@@ -241,6 +245,7 @@ async function loadServiceDueRows(
 
   return rows
     .filter((r) => r.clientId && r.catalogId && r.lastAt)
+    .filter((r) => !staffId || r.lastStaffId === staffId)
     .map((r) => {
       const threshold = r.returnAfterDays ?? thresholdFallback;
       const lastAt = new Date(r.lastAt!);
@@ -261,7 +266,8 @@ async function loadProductDueRows(
   tenantId: string,
   thresholdDays: number,
   windowDays = DEFAULT_ACTIONABLE_WINDOW_DAYS,
-  limit = 80
+  limit = 80,
+  staffId?: string | null
 ): Promise<PerfilReofferRow[]> {
   const db = createDb();
   const rows = await db
@@ -272,6 +278,9 @@ async function loadProductDueRows(
       catalogId: schema.orderItems.productId,
       catalogName: schema.products.name,
       lastAt: sql<Date>`max(${schema.orderItems.performedAt})`.as("last_at"),
+      lastStaffId: sql<string | null>`(array_agg(${schema.orderItems.staffId} order by ${schema.orderItems.performedAt} desc nulls last))[1]`.as(
+        "last_staff_id"
+      ),
     })
     .from(schema.orderItems)
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
@@ -306,6 +315,7 @@ async function loadProductDueRows(
 
   return rows
     .filter((r) => r.clientId && r.catalogId && r.lastAt)
+    .filter((r) => !staffId || r.lastStaffId === staffId)
     .map((r) => {
       const lastAt = new Date(r.lastAt!);
       return {
@@ -326,7 +336,8 @@ async function loadRecurrenceLapsed(
   tenantId: string,
   lapseDays: number,
   windowDays = DEFAULT_ACTIONABLE_WINDOW_DAYS,
-  limit = 100
+  limit = 100,
+  staffId?: string | null
 ): Promise<FollowUpRow[]> {
   const db = createDb();
   const maxDays = Math.max(lapseDays, windowDays);
@@ -340,6 +351,9 @@ async function loadRecurrenceLapsed(
       ),
       lastAt: sql<Date>`max(${schema.orderItems.performedAt})`.as("last_at"),
       visits: sql<number>`count(*)::int`.as("visits"),
+      lastStaffId: sql<string | null>`(array_agg(${schema.orderItems.staffId} order by ${schema.orderItems.performedAt} desc nulls last))[1]`.as(
+        "last_staff_id"
+      ),
     })
     .from(schema.orderItems)
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
@@ -372,6 +386,7 @@ async function loadRecurrenceLapsed(
 
   return rows
     .filter((r) => r.clientId && r.lastAt)
+    .filter((r) => !staffId || r.lastStaffId === staffId)
     .map((r) => {
       const lastAt = new Date(r.lastAt!);
       return {
@@ -397,7 +412,8 @@ async function loadInactiveClients(
   tenantId: string,
   minDays: number,
   windowDays: number,
-  limit = 250
+  limit = 250,
+  staffId?: string | null
 ): Promise<FollowUpRow[]> {
   const db = createDb();
   const maxDays = Math.max(minDays, windowDays);
@@ -410,7 +426,11 @@ async function loadInactiveClients(
         (
           array_agg(oi.description order by oi.performed_at desc nulls last)
           filter (where oi.performed_at is not null)
-        )[1] as last_service
+        )[1] as last_service,
+        (
+          array_agg(oi.staff_id order by oi.performed_at desc nulls last)
+          filter (where oi.performed_at is not null)
+        )[1] as last_staff_id
       from order_items oi
       inner join orders o on o.id = oi.order_id
       where oi.tenant_id = ${tenantId}
@@ -438,7 +458,8 @@ async function loadInactiveClients(
         c.name as client_name,
         c.phone,
         greatest(services.last_service_at, appts.last_appt_at) as last_at,
-        services.last_service
+        services.last_service,
+        services.last_staff_id
       from clients c
       inner join services on services.client_id = c.id
       left join appts on appts.client_id = c.id
@@ -447,10 +468,11 @@ async function loadInactiveClients(
         and c.is_active = true
         and greatest(services.last_service_at, appts.last_appt_at) is not null
     )
-    select client_id, client_name, phone, last_at, last_service
+    select client_id, client_name, phone, last_at, last_service, last_staff_id
     from merged
     where last_at <= now() - (${minDays} * interval '1 day')
       and last_at >= now() - (${maxDays} * interval '1 day')
+      and (${staffId ?? null}::uuid is null or last_staff_id = ${staffId ?? null}::uuid)
     order by last_at asc
     limit ${limit}
   `);
@@ -500,6 +522,7 @@ export async function reportPerfil(opts?: {
   recurrenceDays?: number;
   inactiveDays?: number;
   inactiveWindowDays?: number;
+  staffId?: string | null;
 }): Promise<PerfilReport> {
   const tenant = await requireTenantContext();
   const serviceThresholdDays = opts?.serviceDays ?? DEFAULT_SERVICE_RETURN_DAYS;
@@ -507,13 +530,14 @@ export async function reportPerfil(opts?: {
   const recurrenceLapseDays = opts?.recurrenceDays ?? DEFAULT_RECURRENCE_LAPSE_DAYS;
   const inactiveDays = opts?.inactiveDays ?? DEFAULT_INACTIVE_DAYS;
   const inactiveWindowDays = opts?.inactiveWindowDays ?? DEFAULT_INACTIVE_WINDOW_DAYS;
+  const staffId = opts?.staffId?.trim() || null;
 
   const [serviceDue, productDue, recurrenceLapsed, inactiveClients, lowStockCount] =
     await Promise.all([
-      loadServiceDueRows(tenant.id, serviceThresholdDays),
-      loadProductDueRows(tenant.id, productThresholdDays),
-      loadRecurrenceLapsed(tenant.id, recurrenceLapseDays),
-      loadInactiveClients(tenant.id, inactiveDays, inactiveWindowDays),
+      loadServiceDueRows(tenant.id, serviceThresholdDays, undefined, undefined, staffId),
+      loadProductDueRows(tenant.id, productThresholdDays, undefined, undefined, staffId),
+      loadRecurrenceLapsed(tenant.id, recurrenceLapseDays, undefined, undefined, staffId),
+      loadInactiveClients(tenant.id, inactiveDays, inactiveWindowDays, undefined, staffId),
       countLowStock(tenant.id),
     ]);
 
@@ -532,6 +556,7 @@ export async function reportPerfil(opts?: {
     productDueCount: productDue.length,
     recurrenceLapsedCount: recurrenceLapsed.length,
     inactiveCount: inactiveClients.length,
+    staffId,
   };
 }
 
