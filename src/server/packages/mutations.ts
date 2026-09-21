@@ -1,10 +1,10 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { topUpClientPackageCredits } from "./credits";
 
 export type RenewResult =
-  | { ok: true; id: string; orderId?: string }
+  | { ok: true; id: string; orderId?: string; refundedCents?: number }
   | { ok: false; error: string };
 
 /**
@@ -224,11 +224,12 @@ export async function completePackageSale(input: {
 
 /**
  * Cancela venda de pacote ainda sem uso.
- * Vale com a comanda já fechada: tira a carteira, o item e o pagamento que sobra.
+ * Vale com a comanda já fechada: tira a carteira, o item e o pagamento do dia (Caixa).
  */
 export async function cancelUnusedPackageSale(input: {
   clientPackageId?: string;
   orderItemId?: string;
+  paymentId?: string;
 }): Promise<RenewResult> {
   try {
     const { requireTenantContext, requireSession } = await import("../context/tenant");
@@ -241,13 +242,72 @@ export async function cancelUnusedPackageSale(input: {
     }
     const tenant = await requireTenantContext();
     const db = createDb();
-    const clientPackageId = input.clientPackageId?.trim() || "";
-    const orderItemId = input.orderItemId?.trim() || "";
-    if (!clientPackageId && !orderItemId) {
+    let clientPackageId = input.clientPackageId?.trim() || "";
+    let orderItemId = input.orderItemId?.trim() || "";
+    const paymentId = input.paymentId?.trim() || "";
+
+    if (!clientPackageId && !orderItemId && !paymentId) {
       return { ok: false, error: "Pacote não informado" };
     }
 
-    const resultId = await db.transaction(async (tx) => {
+    const outcome = await db.transaction(async (tx) => {
+      if (paymentId && !clientPackageId && !orderItemId) {
+        const [pay] = await tx
+          .select({ orderId: schema.payments.orderId })
+          .from(schema.payments)
+          .where(
+            and(eq(schema.payments.id, paymentId), eq(schema.payments.tenantId, tenant.id))
+          )
+          .limit(1);
+        if (!pay) throw new AppError("NOT_FOUND", "Pagamento não encontrado");
+
+        const [linked] = await tx
+          .select({
+            id: schema.clientPackages.id,
+            orderItemId: schema.clientPackages.orderItemId,
+          })
+          .from(schema.clientPackages)
+          .where(
+            and(
+              eq(schema.clientPackages.tenantId, tenant.id),
+              eq(schema.clientPackages.orderId, pay.orderId),
+              ne(schema.clientPackages.status, "cancelled")
+            )
+          )
+          .orderBy(desc(schema.clientPackages.purchasedAt))
+          .limit(1);
+        if (linked) {
+          clientPackageId = linked.id;
+          if (linked.orderItemId) orderItemId = linked.orderItemId;
+        } else {
+          const [pkgItem] = await tx
+            .select({
+              id: schema.orderItems.id,
+              meta: schema.orderItems.meta,
+            })
+            .from(schema.orderItems)
+            .where(
+              and(
+                eq(schema.orderItems.tenantId, tenant.id),
+                eq(schema.orderItems.orderId, pay.orderId),
+                eq(schema.orderItems.itemType, "package")
+              )
+            )
+            .limit(1);
+          if (!pkgItem) {
+            throw new AppError(
+              "VALIDATION",
+              "Esse pagamento não é de uma venda de pacote cancelável"
+            );
+          }
+          orderItemId = pkgItem.id;
+          const meta = (pkgItem.meta ?? {}) as Record<string, unknown>;
+          if (typeof meta.clientPackageId === "string") {
+            clientPackageId = meta.clientPackageId;
+          }
+        }
+      }
+
       let pkgId = clientPackageId;
       if (!pkgId && orderItemId) {
         const [item] = await tx
@@ -319,31 +379,56 @@ export async function cancelUnusedPackageSale(input: {
         }
       }
 
-      const itemId = pkg?.orderItemId || orderItemId;
       const saleSelect = {
         id: schema.orderItems.id,
         orderId: schema.orderItems.orderId,
+        totalCents: schema.orderItems.totalCents,
       };
-      const [saleItem] = itemId
-        ? await tx
-            .select(saleSelect)
-            .from(schema.orderItems)
-            .where(
-              and(eq(schema.orderItems.id, itemId), eq(schema.orderItems.tenantId, tenant.id))
+      let saleItem:
+        | { id: string; orderId: string; totalCents: number }
+        | undefined;
+
+      const preferredItemId = pkg?.orderItemId || orderItemId;
+      if (preferredItemId) {
+        const [row] = await tx
+          .select(saleSelect)
+          .from(schema.orderItems)
+          .where(
+            and(
+              eq(schema.orderItems.id, preferredItemId),
+              eq(schema.orderItems.tenantId, tenant.id)
             )
-            .limit(1)
-        : pkg
-          ? await tx
-              .select(saleSelect)
-              .from(schema.orderItems)
-              .where(
-                and(
-                  eq(schema.orderItems.tenantId, tenant.id),
-                  sql`${schema.orderItems.meta}->>'clientPackageId' = ${pkg.id}`
-                )
-              )
-              .limit(1)
-          : [undefined];
+          )
+          .limit(1);
+        saleItem = row;
+      }
+      if (!saleItem && pkg) {
+        const [byMeta] = await tx
+          .select(saleSelect)
+          .from(schema.orderItems)
+          .where(
+            and(
+              eq(schema.orderItems.tenantId, tenant.id),
+              sql`${schema.orderItems.meta}->>'clientPackageId' = ${pkg.id}`
+            )
+          )
+          .limit(1);
+        saleItem = byMeta;
+      }
+      if (!saleItem && pkg?.orderId) {
+        const [byOrder] = await tx
+          .select(saleSelect)
+          .from(schema.orderItems)
+          .where(
+            and(
+              eq(schema.orderItems.tenantId, tenant.id),
+              eq(schema.orderItems.orderId, pkg.orderId),
+              eq(schema.orderItems.itemType, "package")
+            )
+          )
+          .limit(1);
+        saleItem = byOrder;
+      }
 
       if (pkg) {
         await tx
@@ -367,7 +452,10 @@ export async function cancelUnusedPackageSale(input: {
 
       if (!saleItem) {
         if (!pkg) throw new AppError("NOT_FOUND", "Venda de pacote não encontrada");
-        return pkg.id;
+        throw new AppError(
+          "VALIDATION",
+          "Carteira cancelada, mas a comanda da venda não foi encontrada para estornar o caixa. Abra o suporte com o nome do cliente."
+        );
       }
 
       const [order] = await tx
@@ -424,6 +512,7 @@ export async function cancelUnusedPackageSale(input: {
         );
       }
 
+      let refundedCents = 0;
       if (excess > 0) {
         const pays = await tx
           .select({
@@ -474,6 +563,7 @@ export async function cancelUnusedPackageSale(input: {
               description: "Estorno venda de pacote",
             });
           }
+          // Sempre remove o pagamento do dia (Caixa → Detalhe), mesmo sem sessão aberta.
           if (take === pay.amountCents) {
             await tx
               .delete(schema.payments)
@@ -488,6 +578,7 @@ export async function cancelUnusedPackageSale(input: {
                 and(eq(schema.payments.id, pay.id), eq(schema.payments.tenantId, tenant.id))
               );
           }
+          refundedCents += take;
           excess -= take;
         }
       }
@@ -498,14 +589,24 @@ export async function cancelUnusedPackageSale(input: {
           totalCents: nextTotal,
           discountCents: nextDiscount,
           status: remainingItems === 0 ? "cancelled" : order.status,
+          ...(remainingItems === 0 ? { closedAt: null } : {}),
           updatedAt: new Date(),
         })
         .where(and(eq(schema.orders.id, order.id), eq(schema.orders.tenantId, tenant.id)));
 
-      return pkg?.id ?? saleItem.id;
+      return {
+        id: pkg?.id ?? saleItem.id,
+        orderId: order.id,
+        refundedCents,
+      };
     });
 
-    return { ok: true, id: resultId };
+    return {
+      ok: true,
+      id: outcome.id,
+      orderId: outcome.orderId,
+      refundedCents: outcome.refundedCents,
+    };
   } catch (err) {
     if (err instanceof AppError || err instanceof ForbiddenError) {
       return { ok: false, error: err.message };

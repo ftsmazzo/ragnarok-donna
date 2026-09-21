@@ -43,6 +43,9 @@ export type CashDaySnapshot = {
     amountCents: number;
     clientName: string | null;
     orderExternalId: string | null;
+    orderId: string;
+    /** Venda de pacote sem uso — dá para estornar no balcão. */
+    packageCancelId: string | null;
   }[];
 };
 

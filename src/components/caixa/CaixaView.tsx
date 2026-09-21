@@ -14,7 +14,9 @@ import {
   closeCashSessionAction,
   openCashSessionAction,
 } from "@/app/(painel)/caixa/actions";
+import { cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
 import { CommissionAdvancePanel } from "@/components/comissoes/CommissionAdvancePanel";
+import { useToast } from "@/components/ui/Toast";
 
 type Props = {
   data: CashDaySnapshot;
@@ -24,6 +26,7 @@ type Props = {
 
 export function CaixaView({ data, permissions, staffList }: Props) {
   const router = useRouter();
+  const { showToast } = useToast();
   const prev = shiftDateSp(data.date, -1);
   const next = shiftDateSp(data.date, 1);
   const isToday = data.date === todaySp();
@@ -38,6 +41,28 @@ export function CaixaView({ data, permissions, staffList }: Props) {
 
   function refresh() {
     router.refresh();
+  }
+
+  function cancelPackagePayment(paymentId: string, amountCents: number) {
+    if (
+      !window.confirm(
+        `Excluir esta venda de pacote de ${formatMoney(amountCents)}?\nO valor some do Caixa do dia.`
+      )
+    ) {
+      return;
+    }
+    setError("");
+    startTransition(async () => {
+      const result = await cancelUnusedPackageSaleAction({ paymentId });
+      if (!result.ok) {
+        setError(result.error);
+        showToast(result.error, "error");
+        return;
+      }
+      const refunded = result.refundedCents ?? amountCents;
+      showToast(`Pacote excluído · ${formatMoney(refunded)} saiu do caixa`, "success");
+      refresh();
+    });
   }
 
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, onOk?: () => void) {
@@ -236,6 +261,9 @@ export function CaixaView({ data, permissions, staffList }: Props) {
 
           <div className="panel-toolbar" style={{ marginTop: 12 }}>
             <strong>Detalhe dos pagamentos</strong>
+            <span className="muted-note">
+              Pacote sem uso: 🗑 na linha estorna e tira do caixa
+            </span>
           </div>
           <div className="table-wrap">
             <table className="data-table">
@@ -246,12 +274,13 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                   <th>Comanda</th>
                   <th>Forma</th>
                   <th>Valor</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {data.payments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="table-empty">
+                    <td colSpan={6} className="table-empty">
                       Nenhuma movimentação.
                     </td>
                   </tr>
@@ -263,6 +292,20 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                       <td>{p.orderExternalId ?? "—"}</td>
                       <td>{labelPaymentMethod(p.method)}</td>
                       <td>{formatMoney(p.amountCents)}</td>
+                      <td>
+                        {permissions.canWrite && p.packageCancelId ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            disabled={pending}
+                            title="Excluir venda de pacote e estornar"
+                            aria-label="Excluir venda de pacote"
+                            onClick={() => cancelPackagePayment(p.id, p.amountCents)}
+                          >
+                            🗑
+                          </button>
+                        ) : null}
+                      </td>
                     </tr>
                   ))
                 )}
