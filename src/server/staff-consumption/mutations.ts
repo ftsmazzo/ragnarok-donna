@@ -15,7 +15,7 @@ export type ActionResult = { ok: true; id: string; amountCents?: number } | { ok
 export async function registerStaffProductConsumption(input: {
   productId: string;
   qty?: number;
-  /** Dono/admin pode lançar em nome de um profissional. */
+  /** Titular/admin pode lançar em nome de um profissional. */
   staffId?: string;
 }): Promise<ActionResult> {
   try {

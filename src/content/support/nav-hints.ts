@@ -1,4 +1,4 @@
-export type FeatureHint = {
+﻿export type FeatureHint = {
   id: string;
   aliases: string[];
   title: string;
@@ -54,7 +54,7 @@ export const FEATURE_HINTS: FeatureHint[] = [
     aliases: ["comanda", "comandas", "fechar", "pagar", "reabrir", "fechada"],
     title: "Comandas",
     where: "Comandas → Abertas (histórico em Comandas → Histórico)",
-    tip: "Para fechar: abra a comanda → Pagar e fechar (ou Fechar se saldo zero). Dono/admin reabre em Histórico.",
+    tip: "Para fechar: abra a comanda → Pagar e fechar (ou Fechar se saldo zero). titular/admin reabre em Histórico.",
   },
   {
     id: "consumo",
@@ -75,7 +75,7 @@ export const FEATURE_HINTS: FeatureHint[] = [
     aliases: ["comissão", "comissões", "vale", "repasse"],
     title: "Comissões",
     where: "Financeiro → Comissões",
-    tip: "Barbeiro vê só as próprias. Dono lança vale/bônus/pagamento. Crédito de pacote comissiona no preço de tabela.",
+    tip: "Barbeiro vê só as próprias. Titular/admin lança vale/bônus/pagamento. Crédito de pacote comissiona no preço de tabela.",
   },
   {
     id: "conversas",
@@ -117,7 +117,7 @@ export const FEATURE_HINTS: FeatureHint[] = [
     aliases: ["agente", "configurar donna", "persona", "qr"],
     title: "Agente (Donna)",
     where: "Configurações → Agente (Donna)",
-    tip: "WhatsApp da unidade + persona/tom. Salvar configuração. Só dono/admin.",
+    tip: "WhatsApp da unidade + persona/tom. Salvar configuração. Só titular/admin.",
   },
   {
     id: "disparos",
@@ -138,14 +138,14 @@ export const FEATURE_HINTS: FeatureHint[] = [
     aliases: ["alerta", "alertas", "crítico"],
     title: "Lembretes",
     where: "Lembretes",
-    tip: "Semana atual (SP). Abrir pode ir a telas só dono/admin (ex. estoque).",
+    tip: "Semana atual (SP). Abrir pode ir a telas só titular/admin (ex. estoque).",
   },
   {
     id: "relatorios",
     aliases: ["relatório", "relatorios", "painel gerencial", "visão geral"],
     title: "Visão geral",
     where: "Relatórios → Visão geral",
-    tip: "Receita = pagamentos de comandas fechadas no Caixa. Só dono/admin.",
+    tip: "Receita = pagamentos de comandas fechadas no Caixa. Só titular/admin.",
   },
   {
     id: "fluxo",

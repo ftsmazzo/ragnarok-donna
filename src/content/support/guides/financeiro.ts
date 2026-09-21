@@ -1,4 +1,4 @@
-import type { SupportGuide } from "./types";
+﻿import type { SupportGuide } from "./types";
 
 export const guideCaixa: SupportGuide = {
   id: "caixa",
@@ -102,12 +102,12 @@ export const guideComissoes: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Financeiro → Comissões (/comissoes). Dono/admin vê todos; barbeiro vê “Minhas comissões” (só o próprio profissional vinculado).",
+        "Menu → Financeiro → Comissões (/comissoes). titular/admin vê todos; barbeiro vê “Minhas comissões” (só o próprio profissional vinculado).",
     },
     {
       title: "Filtrar o período",
       detail:
-        "Use de/até, profissional (dono/admin) e tipo de item. A página mostra totais, ranking, mix por tipo e lista detalhada. Dá para exportar CSV.",
+        "Use de/até, profissional (titular/admin) e tipo de item. A página mostra totais, ranking, mix por tipo e lista detalhada. Dá para exportar CSV.",
     },
     {
       title: "De onde vem a comissão",
@@ -122,7 +122,7 @@ export const guideComissoes: SupportGuide = {
     {
       title: "Lançar vale, bônus, desconto ou pagamento",
       detail:
-        "Dono/admin: botão Lançar vale / ajuste → profissional, tipo (vale, bônus, desconto na comissão, pagamento de comissão), valor e data. Também há atalho Vale no Caixa.",
+        "titular/admin: botão Lançar vale / ajuste → profissional, tipo (vale, bônus, desconto na comissão, pagamento de comissão), valor e data. Também há atalho Vale no Caixa.",
     },
     {
       title: "A pagar",
@@ -134,7 +134,7 @@ export const guideComissoes: SupportGuide = {
     {
       concern: "Barbeiro não vê os colegas",
       reply:
-        "Normal: perfil staff só enxerga as próprias comissões. Dono/admin vê a equipe toda e filtra por profissional.",
+        "Normal: perfil staff só enxerga as próprias comissões. titular/admin vê a equipe toda e filtra por profissional.",
     },
     {
       concern: "Comissão do pacote / crédito zerado",
@@ -178,7 +178,7 @@ export const guideFluxoCaixa: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Financeiro → Fluxo de caixa (também em Relatórios). Rota /relatorios/fluxo. Só dono/admin.",
+        "Menu → Financeiro → Fluxo de caixa (também em Relatórios). Rota /relatorios/fluxo. Só titular/admin.",
     },
     {
       title: "Filtrar",
@@ -230,7 +230,7 @@ export const guideContas: SupportGuide = {
   steps: [
     {
       title: "Onde fica",
-      detail: "Menu → Financeiro → Contas (/contas). Só dono/admin.",
+      detail: "Menu → Financeiro → Contas (/contas). Só titular/admin.",
     },
     {
       title: "Filtrar",

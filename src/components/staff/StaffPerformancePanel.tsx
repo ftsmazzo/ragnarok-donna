@@ -13,7 +13,7 @@ type Props = {
   performance: StaffPerformance;
   listFilter?: string;
   listQ?: string;
-  /** Dono/admin pode editar meta de clientes */
+  /** Titular/admin pode editar meta de clientes */
   canEditClientGoal?: boolean;
 };
 

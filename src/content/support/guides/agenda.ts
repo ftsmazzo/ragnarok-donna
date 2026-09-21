@@ -1,4 +1,4 @@
-import type { SupportGuide } from "./types";
+﻿import type { SupportGuide } from "./types";
 
 /** S3 — enriquecido a partir de AgendaView, Detail/Form/ContextMenu, QuickThink, lista-espera. */
 export const guideAgenda: SupportGuide = {
@@ -59,7 +59,7 @@ export const guideAgenda: SupportGuide = {
     {
       title: "No Local e fluxo do atendimento",
       detail:
-        "No detalhe ou menu de contexto: No Local (status chegou — na grade aparece · no local e o ícone ●). Depois Em atendimento (· em atend. / ▶) e Finalizar horário (vira Realizado no status e nos relatórios). Barbeiro vinculado pode marcar status nos próprios horários; cancelar/ausente exige gerente/dono.",
+        "No detalhe ou menu de contexto: No Local (status chegou — na grade aparece · no local e o ícone ●). Depois Em atendimento (· em atend. / ▶) e Finalizar horário (vira Realizado no status e nos relatórios). Barbeiro vinculado pode marcar status nos próprios horários; cancelar/ausente exige gerente/Titular.",
     },
     {
       title: "Check-in pelo WhatsApp",
@@ -69,12 +69,12 @@ export const guideAgenda: SupportGuide = {
     {
       title: "Ausente e Cancelado",
       detail:
-        "No detalhe (botões Ausente e Cancelado) ou menu de contexto — só com permissão de cancelamento (dono, admin, gerente). Ausente = no-show (cliente faltou). Cancelado = desistência antes ou no dia. Horários encerrados somem das ações rápidas.",
+        "No detalhe (botões Ausente e Cancelado) ou menu de contexto — só com permissão de cancelamento (Titular, admin, gerente). Ausente = no-show (cliente faltou). Cancelado = desistência antes ou no dia. Horários encerrados somem das ações rápidas.",
     },
     {
       title: "Quem pode cancelar / marcar status",
       detail:
-        "Gerente e dono/admin: escrevem na agenda, cancelam (Ausente/Cancelado) e mudam qualquer horário. Barbeiro: vê só a própria coluna (profissional vinculado), marca No Local / Em atendimento / Finalizar horário nos seus — não vê Ausente/Cancelado. Somente leitura: consulta a grade, sem botões de alteração.",
+        "Gerente e titular/admin: escrevem na agenda, cancelam (Ausente/Cancelado) e mudam qualquer horário. Barbeiro: vê só a própria coluna (profissional vinculado), marca No Local / Em atendimento / Finalizar horário nos seus — não vê Ausente/Cancelado. Somente leitura: consulta a grade, sem botões de alteração.",
     },
     {
       title: "Confirmar / desconfirmar",
@@ -136,7 +136,7 @@ export const guideAgenda: SupportGuide = {
     {
       concern: "Barbeiro só vê os horários dele?",
       reply:
-        "Sim: com Profissional vinculado em Equipe de acesso, a grade filtra só a coluna desse profissional. Sem vínculo, o Início avisa para o dono configurar.",
+        "Sim: com Profissional vinculado em Equipe de acesso, a grade filtra só a coluna desse profissional. Sem vínculo, o Início avisa para o Titular configurar.",
     },
     {
       concern: "Cliquei Ausente/Cancelado e o status não mudou",

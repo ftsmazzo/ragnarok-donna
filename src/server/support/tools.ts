@@ -1,4 +1,4 @@
-import type { ChatToolDef } from "@/server/agent/llm";
+﻿import type { ChatToolDef } from "@/server/agent/llm";
 import type { MemberRole } from "@/server/types";
 import { getGuideById, getGuidePayload, searchGuides } from "@/content/support/guides";
 import { supportHumanChannelConfigured } from "./channel";
@@ -142,7 +142,7 @@ export function executeSupportTool(
       data: {
         ...guide,
         instruction:
-          "Baseie a resposta nestes passos/objeções. Sempre que citar uma tela, use [rótulo](href) — ex.: [Produtos](/produtos), [Comandas](/comandas). Se inRoleScope=false, avise que o perfil de quem pergunta pode não ver o menu — oriente a pedir ao dono/admin.",
+          "Baseie a resposta nestes passos/objeções. Sempre que citar uma tela, use [rótulo](href) — ex.: [Produtos](/produtos), [Comandas](/comandas). Se inRoleScope=false, avise que o perfil de quem pergunta pode não ver o menu — oriente a pedir ao titular/admin.",
       },
     };
   }

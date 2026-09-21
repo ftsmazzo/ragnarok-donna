@@ -23,7 +23,7 @@ export async function getMembershipBranchId(
   return row?.branchId ?? null;
 }
 
-/** Dono/admin sem branch_id → todas as unidades + consolidado. */
+/** Titular/admin sem branch_id → todas as unidades + consolidado. */
 export function canUseConsolidatedView(session: AppSession): boolean {
   return isOwnerRole(session.role);
 }

@@ -1,4 +1,4 @@
-import type { SupportGuide } from "./types";
+﻿import type { SupportGuide } from "./types";
 
 export const guideInicio: SupportGuide = {
   id: "inicio",
@@ -46,12 +46,12 @@ export const guideInicio: SupportGuide = {
     {
       concern: "Apareceu Você não tem permissão",
       reply:
-        "Banner de acesso negado (?acesso=negado). Peça ao dono liberar o papel em Equipe de acesso ou use uma tela que seu perfil vê.",
+        "Banner de acesso negado (?acesso=negado). Peça ao titular liberar o papel em Equipe de acesso ou use uma tela que seu perfil vê.",
     },
     {
       concern: "Barbeiro: precisa vincular profissional",
       reply:
-        "Conta staff sem profissional vinculado. Dono: Configurações → Equipe de acesso → vincular o usuário ao profissional.",
+        "Conta staff sem profissional vinculado. Titular/admin: Configurações → Equipe de acesso → vincular o usuário ao profissional.",
     },
   ],
   relatedGuideIds: ["agenda", "relatorios-visao", "equipe-acesso", "pwa-app"],
@@ -81,7 +81,7 @@ export const guideConversasIa: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Conversas IA (/conversas). Título na tela: Conversas. Dono, admin e gerente. Barbeiro não entra.",
+        "Menu → Conversas IA (/conversas). Título na tela: Conversas. Titular, admin e gerente. Barbeiro não entra.",
     },
     {
       title: "Não confundir com Suporte",
@@ -138,12 +138,12 @@ export const guideConversasIa: SupportGuide = {
     {
       concern: "Barbeiro não vê Conversas",
       reply:
-        "Só dono, admin e gerente. Barbeiro usa Venda / Consumo no celular e a Agenda.",
+        "Só titular, admin e gerente. Barbeiro usa Venda / Consumo no celular e a Agenda.",
     },
     {
       concern: "QR não conecta / fica Aguardando QR",
       reply:
-        "No celular: WhatsApp → Aparelhos conectados → escaneie de novo. Use Gerar QR / Atualizar QR no Painel WhatsApp · Donna. Se travou, dono em Agente (Donna): Recriar do zero ou Trocar instância (confirme antes).",
+        "No celular: WhatsApp → Aparelhos conectados → escaneie de novo. Use Gerar QR / Atualizar QR no Painel WhatsApp · Donna. Se travou, titular/admin em Agente (Donna): Recriar do zero ou Trocar instância (confirme antes).",
     },
     {
       concern: "Status Desconectado",
@@ -192,7 +192,7 @@ export const guideEmpresa: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Configurações → Dados da empresa (/configuracoes/empresa). Só dono/admin.",
+        "Menu → Configurações → Dados da empresa (/configuracoes/empresa). Só titular/admin.",
     },
     {
       title: "Preencher",
@@ -213,7 +213,7 @@ export const guideEmpresa: SupportGuide = {
     },
     {
       concern: "Gerente não vê Dados da empresa",
-      reply: "Só dono e administrador. Peça a um deles para atualizar o cadastro.",
+      reply: "Só titular e administrador. Peça a um deles para atualizar o cadastro.",
     },
   ],
   relatedGuideIds: ["agente-donna", "conversas-ia", "equipe-acesso"],
@@ -244,7 +244,7 @@ export const guideEquipeAcesso: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Configurações → Equipe de acesso (/configuracoes/equipe). Só dono/admin.",
+        "Menu → Configurações → Equipe de acesso (/configuracoes/equipe). Só titular/admin.",
     },
     {
       title: "Barbeiro sem login",
@@ -254,7 +254,7 @@ export const guideEquipeAcesso: SupportGuide = {
     {
       title: "Gerente / admin / leitura",
       detail:
-        "Outros acessos: Nome, E-mail, Senha opcional, Papel (Dono, Administrador, Gerente, Somente leitura), Unidade se preciso → Criar usuário.",
+        "Outros acessos: Nome, E-mail, Senha opcional, Papel (Titular, Administrador, Gerente, Somente leitura), Unidade se preciso → Criar usuário.",
     },
     {
       title: "Ajustar na tabela",
@@ -264,7 +264,7 @@ export const guideEquipeAcesso: SupportGuide = {
     {
       title: "Quem vê o quê",
       detail:
-        "Dono/Administrador: acesso total — Equipe de acesso, Dados da empresa, Agente (Donna), relatórios financeiros (Financeiro, Comandas, Estoque, Fluxo…), módulos e Configurações. Gerente: Agenda, Clientes, Comandas, Caixa, Alertas, Conversas IA, Disparos WhatsApp, Lista de espera, relatórios operacionais (Agendamentos, Extras, Perfil) — sem Equipe, Empresa, Agente, financeiro/estoque nem cadastro de Serviços/Produtos/Pacotes. Barbeiro: Agenda (só a própria coluna), Comandas, Comissões (próprias), Profissionais (ficha dele), Venda / Consumo (celular) — sem Conversas IA. Somente leitura: Início, Agenda e Clientes em consulta + Relatórios → Agendamentos; sem comandas, caixa nem conversas.",
+        "Titular/Administrador: acesso total — Equipe de acesso, Dados da empresa, Agente (Donna), relatórios financeiros (Financeiro, Comandas, Estoque, Fluxo…), módulos e Configurações. Gerente: Agenda, Clientes, Comandas, Caixa, Alertas, Conversas IA, Disparos WhatsApp, Lista de espera, relatórios operacionais (Agendamentos, Extras, Perfil) — sem Equipe, Empresa, Agente, financeiro/estoque nem cadastro de Serviços/Produtos/Pacotes. Barbeiro: Agenda (só a própria coluna), Comandas, Comissões (próprias), Profissionais (ficha dele), Venda / Consumo (celular) — sem Conversas IA. Somente leitura: Início, Agenda e Clientes em consulta + Relatórios → Agendamentos; sem comandas, caixa nem conversas. Diferença titular × administrador: o titular é o único que pode criar outro titular; no resto do painel o acesso é o mesmo.",
     },
   ],
   objections: [
@@ -281,12 +281,12 @@ export const guideEquipeAcesso: SupportGuide = {
     {
       concern: "Apareceu acesso negado ao abrir uma tela",
       reply:
-        "Redirecionamento para /inicio?acesso=negado: seu papel não entra naquela rota. Dono ajusta o Papel em Equipe de acesso ou use um menu permitido (ex.: barbeiro → Agenda/Consumo).",
+        "Redirecionamento para /inicio?acesso=negado: seu papel não entra naquela rota. Titular ou administrador ajusta o Papel em Equipe de acesso ou use um menu permitido (ex.: barbeiro → Agenda/Consumo).",
     },
     {
       concern: "Esqueci a senha",
       reply:
-        "Quem lembra a senha atual: Configurações → Minha conta → Atualizar senha. Esqueceu tudo: dono/admin recria ou redefine em Equipe de acesso (nova senha ou convite).",
+        "Quem lembra a senha atual: Configurações → Minha conta → Atualizar senha. Esqueceu tudo: titular/admin recria ou redefine em Equipe de acesso (nova senha ou convite).",
     },
     {
       concern: "Quero liberar login de todos os barbeiros de uma vez",
@@ -334,12 +334,12 @@ export const guideMinhaConta: SupportGuide = {
     {
       concern: "Não consigo mudar o e-mail",
       reply:
-        "Nesta tela o e-mail é só exibição. Peça ao dono outro usuário em Equipe de acesso se precisar de login novo.",
+        "Nesta tela o e-mail é só exibição. Peça ao titular outro usuário em Equipe de acesso se precisar de login novo.",
     },
     {
       concern: "Esqueci a senha atual",
       reply:
-        "Sem a senha atual não dá para trocar aqui. Peça ao dono/admin recriar o acesso em Equipe de acesso (ou suporte humano da Fábrica).",
+        "Sem a senha atual não dá para trocar aqui. Peça ao titular/admin recriar o acesso em Equipe de acesso (ou suporte humano da Fábrica).",
     },
   ],
   relatedGuideIds: ["equipe-acesso"],
@@ -369,7 +369,7 @@ export const guideAgenteDonna: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Configurações → Agente (Donna) (/configuracoes/agente). Só dono/admin.",
+        "Menu → Configurações → Agente (Donna) (/configuracoes/agente). Só titular/admin.",
     },
     {
       title: "WhatsApp da unidade",
@@ -441,7 +441,7 @@ export const guideDisparos: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Configurações → Disparos WhatsApp (/configuracoes/disparos). Dono, admin e gerente.",
+        "Menu → Configurações → Disparos WhatsApp (/configuracoes/disparos). Titular, admin e gerente.",
     },
     {
       title: "Regras da casa",
@@ -495,7 +495,7 @@ export const guidePwaApp: SupportGuide = {
     {
       title: "Conversas no celular",
       detail:
-        "Menu → Configurações → App celular (PWA) (/pwa/conversas) ou atalho App celular em Conversas. Dono/admin/gerente.",
+        "Menu → Configurações → App celular (PWA) (/pwa/conversas) ou atalho App celular em Conversas. Titular/admin/gerente.",
     },
     {
       title: "Instalar",

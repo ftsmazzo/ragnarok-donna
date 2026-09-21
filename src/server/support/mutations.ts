@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+﻿import { and, eq, ne } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import type { ChatMessage } from "@/server/agent/llm";
 import { chatCompletionWithFallback } from "@/server/agent/llm";
@@ -237,7 +237,7 @@ function offlineReply(userText: string, memberRole?: MemberRole | null): string 
         .join(" ");
       const scope =
         full.inRoleScope === false
-          ? " (pode exigir dono/admin no menu)."
+          ? " (pode exigir titular/admin no menu)."
           : "";
       return linkifySupportReply(
         `${full.summary} ${steps} Menu: ${full.menuPath}. Abra [${full.title}](${full.href})${scope}`

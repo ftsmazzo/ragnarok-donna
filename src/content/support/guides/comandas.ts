@@ -1,4 +1,4 @@
-import type { SupportGuide } from "./types";
+﻿import type { SupportGuide } from "./types";
 
 /** S1 — enriquecido a partir da UI real (OrderDrawer, ComandasView, permissões). */
 export const guideComandas: SupportGuide = {
@@ -102,7 +102,7 @@ export const guideComandas: SupportGuide = {
     {
       concern: "Barbeiro não consegue lançar corte na comanda",
       reply:
-        "No painel, barbeiro só lança produto na comanda. Serviço e pacote são recepção/dono. Consumo do barbeiro (coca etc.) é em Comandas → Venda / Consumo no celular.",
+        "No painel, barbeiro só lança produto na comanda. Serviço e pacote são recepção/Titular. Consumo do barbeiro (coca etc.) é em Comandas → Venda / Consumo no celular.",
     },
     {
       concern: "Vendi pacote e o crédito não aparece",
@@ -142,7 +142,7 @@ export const guideComandasHistorico: SupportGuide = {
   roles: ["owner", "admin", "reception", "staff"],
   intents: ["onde_fica", "como_fazer", "objecao", "permissao"],
   summary:
-    "Consultar comandas fechadas/canceladas; dono/admin pode reabrir para corrigir itens.",
+    "Consultar comandas fechadas/canceladas; titular/admin pode reabrir para corrigir itens.",
   steps: [
     {
       title: "Onde fica",
@@ -155,7 +155,7 @@ export const guideComandasHistorico: SupportGuide = {
         "Clique na linha para abrir o drawer (mesma visão: itens, pagamentos, totais). Dá para conferir o que foi cobrado e como foi pago.",
     },
     {
-      title: "Reabrir (só dono/admin)",
+      title: "Reabrir (só titular/admin)",
       detail:
         "Com a comanda fechada aberta no drawer, use Reabrir comanda — ou o botão Reabrir na tabela do histórico. A comanda volta para Abertas. Pagamentos já lançados permanecem.",
     },
@@ -167,29 +167,29 @@ export const guideComandasHistorico: SupportGuide = {
     {
       title: "Quem não reabre",
       detail:
-        "Recepção e barbeiro sem perfil dono/admin não veem Reabrir. Nesse caso peçam ao dono ou abram outra comanda para o mesmo cliente (sem desfazer a anterior).",
+        "Recepção e barbeiro sem perfil titular/admin não veem Reabrir. Nesse caso peçam ao titular ou abram outra comanda para o mesmo cliente (sem desfazer a anterior).",
     },
   ],
   objections: [
     {
       concern: "Comanda fechada não reabre mais?",
       reply:
-        "Reabre sim — dono/admin em Comandas → Histórico → abrir a comanda → Reabrir. O tip antigo “não reabre” está desatualizado.",
+        "Reabre sim — titular/admin em Comandas → Histórico → abrir a comanda → Reabrir. O tip antigo “não reabre” está desatualizado.",
     },
     {
       concern: "Não aparece o botão Reabrir",
       reply:
-        "Só dono/admin. Confira se a comanda está fechada (não cancelada) e se o login tem esse perfil.",
+        "Só titular/admin. Confira se a comanda está fechada (não cancelada) e se o login tem esse perfil.",
     },
     {
       concern: "Reabri e o valor ficou estranho",
       reply:
-        "O que já foi pago continua. O Saldo é o que falta. Se tirou itens demais, o total não pode ficar menor que o pago — corrija itens ou peça ajuste de pagamento ao dono.",
+        "O que já foi pago continua. O Saldo é o que falta. Se tirou itens demais, o total não pode ficar menor que o pago — corrija itens ou peça ajuste de pagamento ao Titular.",
     },
     {
       concern: "Preciso só acrescentar um serviço esquecido",
       reply:
-        "Dono reabre a comanda do histórico, lança o serviço, e usa Pagar e fechar só no saldo novo. Alternativa: nova comanda só com o item esquecido (dois recibos).",
+        "Titular/admin reabre a comanda do histórico, lança o serviço, e usa Pagar e fechar só no saldo novo. Alternativa: nova comanda só com o item esquecido (dois recibos).",
     },
   ],
   relatedGuideIds: ["comandas", "comissoes", "caixa"],
