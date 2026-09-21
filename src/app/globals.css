@@ -2393,7 +2393,7 @@ input {
 .ui-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 2000;
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   justify-content: flex-end;
@@ -2401,7 +2401,7 @@ input {
 }
 
 .ui-overlay + .ui-overlay {
-  z-index: 110;
+  z-index: 2010;
   background: rgba(15, 18, 22, 0.35);
 }
 
