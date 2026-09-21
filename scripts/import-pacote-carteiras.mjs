@@ -75,14 +75,8 @@ function parseBrDateTime(raw) {
   );
   if (!m) return null;
   const [, dd, mm, yyyy, hh = "0", mi = "0", ss = "0"] = m;
-  const d = new Date(
-    Number(yyyy),
-    Number(mm) - 1,
-    Number(dd),
-    Number(hh),
-    Number(mi),
-    Number(ss)
-  );
+  const iso = `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}T${String(hh).padStart(2, "0")}:${String(mi).padStart(2, "0")}:${String(ss).padStart(2, "0")}-03:00`;
+  const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -227,58 +221,61 @@ try {
     let status = "active";
     if (expiresAt && expiresAt.getTime() < now.getTime()) status = "expired";
 
-    if (DRY) {
-      inserted += 1;
-      continue;
-    }
-
     const existingId = existingByExt.get(ppa);
     let clientPackageId;
 
-    if (existingId) {
-      await sql`
-        update client_packages set
-          client_id = ${clientId},
-          package_id = ${packageId},
-          name = ${name},
-          status = ${status},
-          purchased_at = ${purchasedAt},
-          expires_at = ${expiresAt},
-          updated_at = now()
-        where id = ${existingId}
-      `;
-      await sql`
-        delete from client_package_credits where client_package_id = ${existingId}
-      `;
-      clientPackageId = existingId;
-      updated += 1;
-    } else {
-      const [created] = await sql`
-        insert into client_packages (
-          tenant_id, client_id, package_id, name, status,
-          purchased_at, expires_at, external_source, external_id
-        ) values (
-          ${tenantId}, ${clientId}, ${packageId}, ${name}, ${status},
-          ${purchasedAt}, ${expiresAt}, ${EXTERNAL_SOURCE}, ${ppa}
-        )
-        returning id
-      `;
-      clientPackageId = created.id;
-      existingByExt.set(ppa, clientPackageId);
-      inserted += 1;
+    if (DRY) {
+      if (existingId) updated += 1;
+      else inserted += 1;
+      continue;
     }
 
-    if (creditItems.length) {
-      const creditRows = creditItems.map((c) => ({
-        tenant_id: tenantId,
-        client_package_id: clientPackageId,
-        service_id: c.serviceId,
-        product_id: c.productId,
-        total_qty: c.totalQty,
-        remaining_qty: c.remainingQty,
-      }));
-      await sql`insert into client_package_credits ${sql(creditRows)}`;
-    }
+    await sql.begin(async (tx) => {
+      if (existingId) {
+        await tx`
+          update client_packages set
+            client_id = ${clientId},
+            package_id = ${packageId},
+            name = ${name},
+            status = ${status},
+            purchased_at = ${purchasedAt},
+            expires_at = ${expiresAt},
+            updated_at = now()
+          where id = ${existingId}
+        `;
+        await tx`
+          delete from client_package_credits where client_package_id = ${existingId}
+        `;
+        clientPackageId = existingId;
+        updated += 1;
+      } else {
+        const [created] = await tx`
+          insert into client_packages (
+            tenant_id, client_id, package_id, name, status,
+            purchased_at, expires_at, external_source, external_id
+          ) values (
+            ${tenantId}, ${clientId}, ${packageId}, ${name}, ${status},
+            ${purchasedAt}, ${expiresAt}, ${EXTERNAL_SOURCE}, ${ppa}
+          )
+          returning id
+        `;
+        clientPackageId = created.id;
+        existingByExt.set(ppa, clientPackageId);
+        inserted += 1;
+      }
+
+      if (creditItems.length) {
+        const creditRows = creditItems.map((c) => ({
+          tenant_id: tenantId,
+          client_package_id: clientPackageId,
+          service_id: c.serviceId,
+          product_id: c.productId,
+          total_qty: c.totalQty,
+          remaining_qty: c.remainingQty,
+        }));
+        await tx`insert into client_package_credits ${tx(creditRows)}`;
+      }
+    });
 
     if ((i + 1) % 25 === 0 || i + 1 === rows.length) {
       console.log(
