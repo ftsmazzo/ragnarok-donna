@@ -343,6 +343,11 @@ export const guidePacotes: SupportGuide = {
         "Ficha (aba Pacotes) ou carteira da comanda: Repor. Soma de novo a quantidade do pacote e pode estender validade — sem lançar venda nova.",
     },
     {
+      title: "Cancelar venda sem uso",
+      detail:
+        "Ficha → aba Pacotes → Cancelar venda no card, ou o mesmo botão na carteira da comanda. Some se algum crédito já foi usado.",
+    },
+    {
       title: "Renovar (nova venda)",
       detail:
         "Ficha → Renovar (nova venda). Usa comanda aberta ou abre outra, lança o pacote de novo (valor + comissão). Créditos novos liberam ao fechar/pagar essa comanda.",

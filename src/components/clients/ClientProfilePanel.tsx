@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ClientDetail, ClientProfile } from "@/server/clients/queries";
-import { renewOrTopUpClientPackageAction, postClientAccountAction, settleClientAccountDebtAction, createClientSubscriptionAction, renewClientSubscriptionAction, cancelClientSubscriptionAction } from "@/app/(painel)/clientes/actions";
+import { renewOrTopUpClientPackageAction, postClientAccountAction, settleClientAccountDebtAction, createClientSubscriptionAction, renewClientSubscriptionAction, cancelClientSubscriptionAction, cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
 import {
   PackageSaleModal,
   type PackageSaleOption,
@@ -706,6 +706,37 @@ export function ClientProfilePanel({
                           onClick={() => runPackageAction(p.clientPackageId, "renew")}
                         >
                           Renovar (nova venda)
+                        </button>
+                      ) : null}
+                      {remaining === total && p.status === "active" ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={pending}
+                          onClick={() => {
+                            if (
+                              !window.confirm(
+                                "Cancelar a venda deste pacote? Os créditos saem da carteira e o valor sai da comanda."
+                              )
+                            ) {
+                              return;
+                            }
+                            setPkgError("");
+                            startTransition(async () => {
+                              const result = await cancelUnusedPackageSaleAction({
+                                clientPackageId: p.clientPackageId,
+                                clientId: client.id,
+                              });
+                              if (!result.ok) {
+                                setPkgError(result.error);
+                                return;
+                              }
+                              onPackagesChanged?.();
+                              router.refresh();
+                            });
+                          }}
+                        >
+                          Cancelar venda
                         </button>
                       ) : null}
                     </div>

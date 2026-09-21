@@ -3556,6 +3556,11 @@ input {
   border-bottom: 1px solid var(--line);
 }
 
+.order-item-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 .order-item-row > div {
   display: flex;
   flex-direction: column;
@@ -3572,6 +3577,7 @@ input {
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .order-item-actions .is-zero {

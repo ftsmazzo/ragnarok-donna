@@ -25,7 +25,7 @@ import {
   setOrderClientAction,
   setOrderDiscountAction,
 } from "@/app/(painel)/comandas/actions";
-import { renewOrTopUpClientPackageAction } from "@/app/(painel)/clientes/actions";
+import { renewOrTopUpClientPackageAction, cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
 import { PackageBookModal } from "@/components/comandas/PackageBookModal";
 import { PackageVisitPlanner } from "@/components/comandas/PackageVisitPlanner";
@@ -694,6 +694,31 @@ export function OrderDrawer({
                         </li>
                       ))}
                     </ul>
+                    {permissions.canWrite && rest === total && rest > 0 ? (
+                      <div className="order-wallet-line-actions">
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={pending}
+                          onClick={() => {
+                            if (
+                              !window.confirm(
+                                "Cancelar a venda deste pacote? Os créditos saem da carteira e o valor sai da comanda."
+                              )
+                            ) {
+                              return;
+                            }
+                            run(() =>
+                              cancelUnusedPackageSaleAction({
+                                clientPackageId: group.clientPackageId,
+                              })
+                            );
+                          }}
+                        >
+                          Cancelar venda
+                        </button>
+                      </div>
+                    ) : null}
                     {canEdit ? (
                       <div className="order-wallet-line-actions">
                         {confirmTopUpId === group.clientPackageId ? (
@@ -827,6 +852,26 @@ export function OrderDrawer({
                       onClick={() => run(() => removeOrderItemAction(item.id, order.id))}
                     >
                       Remover
+                    </button>
+                  ) : item.packageSale && permissions.canWrite ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={pending}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            "Cancelar a venda deste pacote? Os créditos saem da carteira e o valor sai da comanda."
+                          )
+                        ) {
+                          return;
+                        }
+                        run(() =>
+                          cancelUnusedPackageSaleAction({ orderItemId: item.id })
+                        );
+                      }}
+                    >
+                      Cancelar venda
                     </button>
                   ) : null}
                 </div>

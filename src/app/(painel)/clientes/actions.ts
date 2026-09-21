@@ -17,6 +17,7 @@ import {
 import {
   renewOrTopUpClientPackage,
   sellCatalogPackageToClient,
+  cancelUnusedPackageSale,
 } from "@/server/packages/mutations";
 
 export async function createClientAction(formData: FormData): Promise<ActionResult> {
@@ -112,6 +113,21 @@ export async function renewOrTopUpClientPackageAction(input: {
     if ("orderId" in result && result.orderId) {
       revalidatePath(`/comandas?id=${result.orderId}`);
     }
+  }
+  return result;
+}
+
+export async function cancelUnusedPackageSaleAction(input: {
+  clientPackageId?: string;
+  orderItemId?: string;
+  clientId?: string;
+}) {
+  const result = await cancelUnusedPackageSale(input);
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath("/comandas");
+    revalidatePath("/caixa");
+    if (input.clientId) revalidatePath(`/clientes?id=${input.clientId}`);
   }
   return result;
 }

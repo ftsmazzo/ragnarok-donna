@@ -115,9 +115,9 @@ export const guideComandas: SupportGuide = {
         "Na própria comanda use Vincular cliente (busca por nome/telefone). Ou abra a comanda já com cliente, ou venda pela ficha: aba Pacotes → Vender pacote.",
     },
     {
-      concern: "Removi o item e deu erro de pacote",
+      concern: "Não acho como cancelar a venda do pacote",
       reply:
-        "Se a carteira já tinha sido usada (crédito abatido), não dá para remover a venda do pacote. Se ainda não usou, a remoção cancela a carteira.",
+        "Clientes → ficha → aba Pacotes, no card da carteira: Cancelar venda. Também aparece na comanda, na carteira e no item, mesmo com a comanda já fechada. Só entra se nenhum crédito foi usado. Se já abateu crédito, a venda não cancela.",
     },
   ],
   relatedGuideIds: ["comandas-historico", "pacotes", "consumo-pwa", "caixa", "comissoes"],
