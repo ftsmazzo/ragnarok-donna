@@ -36,76 +36,86 @@ function effectiveStatus(
 export { labelSubscriptionStatus } from "@/lib/subscriptions";
 
 export async function listClientSubscriptions(clientId: string): Promise<ClientSubscriptionRow[]> {
-  const tenant = await requireTenantContext();
-  const db = createDb();
-  const rows = await db
-    .select({
-      id: schema.clientSubscriptions.id,
-      clientId: schema.clientSubscriptions.clientId,
-      clientName: schema.clients.name,
-      phone: schema.clients.phone,
-      name: schema.clientSubscriptions.name,
-      priceCents: schema.clientSubscriptions.priceCents,
-      status: schema.clientSubscriptions.status,
-      startedAt: schema.clientSubscriptions.startedAt,
-      currentPeriodEnd: schema.clientSubscriptions.currentPeriodEnd,
-      notes: schema.clientSubscriptions.notes,
-      cancelledAt: schema.clientSubscriptions.cancelledAt,
-    })
-    .from(schema.clientSubscriptions)
-    .innerJoin(schema.clients, eq(schema.clientSubscriptions.clientId, schema.clients.id))
-    .where(
-      and(
-        eq(schema.clientSubscriptions.tenantId, tenant.id),
-        eq(schema.clientSubscriptions.clientId, clientId)
+  try {
+    const tenant = await requireTenantContext();
+    const db = createDb();
+    const rows = await db
+      .select({
+        id: schema.clientSubscriptions.id,
+        clientId: schema.clientSubscriptions.clientId,
+        clientName: schema.clients.name,
+        phone: schema.clients.phone,
+        name: schema.clientSubscriptions.name,
+        priceCents: schema.clientSubscriptions.priceCents,
+        status: schema.clientSubscriptions.status,
+        startedAt: schema.clientSubscriptions.startedAt,
+        currentPeriodEnd: schema.clientSubscriptions.currentPeriodEnd,
+        notes: schema.clientSubscriptions.notes,
+        cancelledAt: schema.clientSubscriptions.cancelledAt,
+      })
+      .from(schema.clientSubscriptions)
+      .innerJoin(schema.clients, eq(schema.clientSubscriptions.clientId, schema.clients.id))
+      .where(
+        and(
+          eq(schema.clientSubscriptions.tenantId, tenant.id),
+          eq(schema.clientSubscriptions.clientId, clientId)
+        )
       )
-    )
-    .orderBy(desc(schema.clientSubscriptions.startedAt));
+      .orderBy(desc(schema.clientSubscriptions.startedAt));
 
-  return rows.map((r) => ({
-    ...r,
-    status: effectiveStatus(r.status, r.currentPeriodEnd, r.cancelledAt),
-  }));
+    return rows.map((r) => ({
+      ...r,
+      status: effectiveStatus(r.status, r.currentPeriodEnd, r.cancelledAt),
+    }));
+  } catch (err) {
+    console.error("[listClientSubscriptions]", err);
+    return [];
+  }
 }
 
 export async function listSubscriptions(opts?: {
   status?: string;
   limit?: number;
 }): Promise<ClientSubscriptionRow[]> {
-  const tenant = await requireTenantContext();
-  const db = createDb();
-  const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 300);
+  try {
+    const tenant = await requireTenantContext();
+    const db = createDb();
+    const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 300);
 
-  const rows = await db
-    .select({
-      id: schema.clientSubscriptions.id,
-      clientId: schema.clientSubscriptions.clientId,
-      clientName: schema.clients.name,
-      phone: schema.clients.phone,
-      name: schema.clientSubscriptions.name,
-      priceCents: schema.clientSubscriptions.priceCents,
-      status: schema.clientSubscriptions.status,
-      startedAt: schema.clientSubscriptions.startedAt,
-      currentPeriodEnd: schema.clientSubscriptions.currentPeriodEnd,
-      notes: schema.clientSubscriptions.notes,
-      cancelledAt: schema.clientSubscriptions.cancelledAt,
-    })
-    .from(schema.clientSubscriptions)
-    .innerJoin(schema.clients, eq(schema.clientSubscriptions.clientId, schema.clients.id))
-    .where(eq(schema.clientSubscriptions.tenantId, tenant.id))
-    .orderBy(desc(schema.clientSubscriptions.updatedAt))
-    .limit(limit);
+    const rows = await db
+      .select({
+        id: schema.clientSubscriptions.id,
+        clientId: schema.clientSubscriptions.clientId,
+        clientName: schema.clients.name,
+        phone: schema.clients.phone,
+        name: schema.clientSubscriptions.name,
+        priceCents: schema.clientSubscriptions.priceCents,
+        status: schema.clientSubscriptions.status,
+        startedAt: schema.clientSubscriptions.startedAt,
+        currentPeriodEnd: schema.clientSubscriptions.currentPeriodEnd,
+        notes: schema.clientSubscriptions.notes,
+        cancelledAt: schema.clientSubscriptions.cancelledAt,
+      })
+      .from(schema.clientSubscriptions)
+      .innerJoin(schema.clients, eq(schema.clientSubscriptions.clientId, schema.clients.id))
+      .where(eq(schema.clientSubscriptions.tenantId, tenant.id))
+      .orderBy(desc(schema.clientSubscriptions.updatedAt))
+      .limit(limit);
 
-  const mapped = rows.map((r) => ({
-    ...r,
-    status: effectiveStatus(r.status, r.currentPeriodEnd, r.cancelledAt),
-  }));
+    const mapped = rows.map((r) => ({
+      ...r,
+      status: effectiveStatus(r.status, r.currentPeriodEnd, r.cancelledAt),
+    }));
 
-  const filter = opts?.status?.trim();
-  if (filter && filter !== "all") {
-    return mapped.filter((r) => r.status === filter);
+    const filter = opts?.status?.trim();
+    if (filter && filter !== "all") {
+      return mapped.filter((r) => r.status === filter);
+    }
+    return mapped;
+  } catch (err) {
+    console.error("[listSubscriptions]", err);
+    return [];
   }
-  return mapped;
 }
 
 export async function createClientSubscription(input: {

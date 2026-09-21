@@ -30,12 +30,14 @@ export type CrmDashboard = {
   }[];
 };
 
+const EMPTY_DUE = { filter: "due" as const, rows: [], counts: { all: 0, due: 0 } };
+
 export async function getCrmDashboard(): Promise<CrmDashboard> {
   const tenant = await requireTenantContext();
   const db = createDb();
   const weekAgo = new Date(Date.now() - 7 * 86_400_000);
 
-  const [recentClients, allActive, due, subs] = await Promise.all([
+  const settled = await Promise.allSettled([
     db
       .select({
         id: schema.clients.id,
@@ -72,6 +74,18 @@ export async function getCrmDashboard(): Promise<CrmDashboard> {
     listCrmFrequency({ filter: "due", limit: 8 }),
     listSubscriptions({ status: "all", limit: 200 }),
   ]);
+
+  const recentClients = settled[0].status === "fulfilled" ? settled[0].value : [];
+  const allActive = settled[1].status === "fulfilled" ? settled[1].value : [];
+  const due = settled[2].status === "fulfilled" ? settled[2].value : EMPTY_DUE;
+  const subs = settled[3].status === "fulfilled" ? settled[3].value : [];
+
+  if (settled.some((s) => s.status === "rejected")) {
+    console.error(
+      "[getCrmDashboard] partial failure",
+      settled.map((s) => (s.status === "rejected" ? String(s.reason) : "ok"))
+    );
+  }
 
   const stageCountsMap: Record<string, number> = {};
   for (const s of CRM_STAGES) stageCountsMap[s.value] = 0;

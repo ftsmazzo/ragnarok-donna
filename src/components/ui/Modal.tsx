@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 
 type ModalProps = {
   open: boolean;
@@ -13,7 +14,7 @@ type ModalProps = {
 
 const SIZE_CLASS = { sm: "ui-modal-sm", md: "ui-modal-md", lg: "ui-modal-lg" };
 
-/** Diálogo central — confirmar, pagamento, encaixe (Sprint 3+) */
+/** Diálogo central — portal no body para ficar acima da grade (agenda, etc.). */
 export function Modal({
   open,
   onClose,
@@ -23,6 +24,11 @@ export function Modal({
   size = "md",
 }: ModalProps) {
   const titleId = useId();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -37,9 +43,9 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="ui-overlay" onClick={onClose} role="presentation">
       <div
         className={`ui-modal ${SIZE_CLASS[size]}`}
@@ -57,6 +63,7 @@ export function Modal({
         <div className="ui-modal-body">{children}</div>
         {footer ? <footer className="ui-modal-foot">{footer}</footer> : null}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

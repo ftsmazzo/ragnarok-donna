@@ -31,6 +31,18 @@ export async function listCrmFrequency(opts?: {
   filter?: string;
   limit?: number;
 }): Promise<CrmFrequencyList> {
+  try {
+    return await listCrmFrequencyUnsafe(opts);
+  } catch (err) {
+    console.error("[listCrmFrequency]", err);
+    return { filter: "due", rows: [], counts: { all: 0, due: 0 } };
+  }
+}
+
+async function listCrmFrequencyUnsafe(opts?: {
+  filter?: string;
+  limit?: number;
+}): Promise<CrmFrequencyList> {
   const tenant = await requireTenantContext();
   const db = createDb();
   const limit = Math.min(Math.max(opts?.limit ?? 200, 1), 400);

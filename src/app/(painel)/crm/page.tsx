@@ -5,7 +5,8 @@ import { CrmKanban } from "@/components/crm/CrmKanban";
 import { getCrmDashboard } from "@/server/crm/dashboard";
 import { listCrmPipeline } from "@/server/crm/queries";
 import { listCrmFrequency } from "@/server/crm/frequency";
-import { listSubscriptions, labelSubscriptionStatus } from "@/server/subscriptions/mutations";
+import { listSubscriptions } from "@/server/subscriptions/mutations";
+import { labelSubscriptionStatus } from "@/lib/subscriptions";
 import { CRM_EXITS, CRM_STAGES, labelCrmStage, labelCrmStatus, labelHowHeard } from "@/lib/crm";
 import { CRM_FREQUENCY, labelCrmFrequency } from "@/lib/crm-frequency";
 import { formatDateTimeSp } from "@/lib/datetime";
@@ -81,7 +82,17 @@ export default async function CrmPage({ searchParams }: Props) {
 }
 
 async function CrmInicio() {
-  const dash = await getCrmDashboard();
+  let dash;
+  try {
+    dash = await getCrmDashboard();
+  } catch (err) {
+    console.error("[CrmInicio]", err);
+    return (
+      <p className="panel-empty">
+        Não foi possível carregar o painel do CRM agora. Tente de novo em instantes.
+      </p>
+    );
+  }
   const maxStage = Math.max(1, ...dash.stageCounts.map((s) => s.count));
 
   return (

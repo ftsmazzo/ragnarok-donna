@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 
 type DrawerProps = {
   open: boolean;
@@ -12,7 +13,7 @@ type DrawerProps = {
   width?: number;
 };
 
-/** Painel lateral — ficha de cliente, comanda, etc. (Sprint 1+) */
+/** Painel lateral — portal no body para não ficar atrás da grade/sticky. */
 export function Drawer({
   open,
   onClose,
@@ -23,6 +24,11 @@ export function Drawer({
   width = 420,
 }: DrawerProps) {
   const titleId = useId();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -37,9 +43,9 @@ export function Drawer({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="ui-overlay" onClick={onClose} role="presentation">
       <aside
         className="ui-drawer"
@@ -61,6 +67,7 @@ export function Drawer({
         <div className="ui-drawer-body">{children}</div>
         {footer ? <footer className="ui-drawer-foot">{footer}</footer> : null}
       </aside>
-    </div>
+    </div>,
+    document.body
   );
 }
