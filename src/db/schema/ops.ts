@@ -183,11 +183,17 @@ export const clientPackages = pgTable(
     status: varchar("status", { length: 24 }).notNull().default("active"),
     purchasedAt: timestamp("purchased_at", { withTimezone: true }).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    ...externalRef(),
     ...timestamps,
   },
   (t) => [
     index("client_packages_client_idx").on(t.tenantId, t.clientId),
     index("client_packages_status_idx").on(t.tenantId, t.status),
+    uniqueIndex("client_packages_tenant_ext_uidx").on(
+      t.tenantId,
+      t.externalSource,
+      t.externalId
+    ),
   ]
 );
 

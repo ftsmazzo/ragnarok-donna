@@ -97,19 +97,32 @@ function stripHtmlFields(row) {
   return out;
 }
 
-async function fetchJson(request, url, options = {}) {
-  const res = await request.fetch(url, {
-    ...options,
-    timeout: 120000,
-  });
-  const text = (await res.text()).replace(/^\uFEFF/, "").trim();
-  if (!res.ok()) {
-    throw new Error(`${res.status()} ${url} → ${text.slice(0, 200)}`);
-  }
+async function fetchJson(request, url, options = {}, attempt = 1) {
+  const maxAttempts = 5;
   try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`JSON inválido em ${url}: ${text.slice(0, 200)}`);
+    const res = await request.fetch(url, {
+      ...options,
+      timeout: 180000,
+    });
+    const text = (await res.text()).replace(/^\uFEFF/, "").trim();
+    if (!res.ok()) {
+      throw new Error(`${res.status()} ${url} → ${text.slice(0, 200)}`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`JSON inválido em ${url}: ${text.slice(0, 200)}`);
+    }
+  } catch (err) {
+    const msg = String(err?.message || err);
+    const retryable = /ECONNRESET|ETIMEDOUT|ECONNREFUSED|socket hang up|Timeout/i.test(msg);
+    if (retryable && attempt < maxAttempts) {
+      const wait = attempt * 1500;
+      console.warn(`  retry ${attempt}/${maxAttempts} ${url.split("/").pop()} (${wait}ms)…`);
+      await new Promise((r) => setTimeout(r, wait));
+      return fetchJson(request, url, options, attempt + 1);
+    }
+    throw err;
   }
 }
 

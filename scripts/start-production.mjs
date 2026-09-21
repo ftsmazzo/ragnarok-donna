@@ -342,11 +342,17 @@ CREATE TABLE IF NOT EXISTS client_packages (
   status varchar(24) NOT NULL DEFAULT 'active',
   purchased_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz,
+  external_source varchar(40),
+  external_id varchar(80),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS client_packages_client_idx ON client_packages (tenant_id, client_id);
 CREATE INDEX IF NOT EXISTS client_packages_status_idx ON client_packages (tenant_id, status);
+ALTER TABLE client_packages ADD COLUMN IF NOT EXISTS external_source varchar(40);
+ALTER TABLE client_packages ADD COLUMN IF NOT EXISTS external_id varchar(80);
+CREATE UNIQUE INDEX IF NOT EXISTS client_packages_tenant_ext_uidx
+  ON client_packages (tenant_id, external_source, external_id);
 
 CREATE TABLE IF NOT EXISTS client_subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

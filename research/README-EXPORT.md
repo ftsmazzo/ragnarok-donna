@@ -33,6 +33,27 @@ Saída em `export/<timestamp>/` (JSON + CSV).
 | `comanda-itens` | **Linhas de consumo** (serviço/produto, qtd, valor, profissional) |
 | `manifest.json` | Contagens e metadados |
 
+## Carteiras de pacotes vendidos
+
+Catálogo (`pacotes`) ≠ carteira do cliente. Para sincronizar créditos:
+
+```powershell
+cd research
+$env:APPBARBER_EMAIL="..."
+$env:APPBARBER_PASS="..."
+$env:APPBARBER_BASE_URL="https://sistema.appbarber.com.br"
+node export-pacote-carteiras.mjs
+```
+
+Saída: `export/<stamp>-pacote-carteiras/` (`pacotes-venda-ativos.json`).
+
+Import:
+
+```powershell
+cd ..
+node scripts/import-pacote-carteiras.mjs --dir research/export/<stamp>-pacote-carteiras --tenant ragnaroks
+```
+
 ## Relação de consumo
 
 `cliente ← comanda ← comanda-itens`  

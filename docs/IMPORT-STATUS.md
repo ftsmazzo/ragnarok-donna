@@ -15,6 +15,7 @@
 | Serviços | 37 | 37 |
 | Produtos | 63 | 63 |
 | Pacotes | 32 | 32 |
+| **Carteiras pacote (créditos)** | 410 ativos no AppBarber | **409** importadas (#123) — 132 ativas / 283 expiradas; 656 usos restantes |
 | Clientes (+ removidos) | 4867+222 | 5088 |
 | Agenda (24m+90d) | 35.890 | 35.890 |
 | Comandas | 31.418 | 31.418 |
