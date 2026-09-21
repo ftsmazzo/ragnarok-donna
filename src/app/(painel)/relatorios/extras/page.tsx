@@ -53,14 +53,14 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
     <>
       <PageHeader
         title="Ranking da equipe"
-        subtitle="Extras (R$), produtos (un.) e atendimentos no mesmo período"
+        subtitle="Serviços extra (R$ e quantidade) e atendimentos no mesmo período"
         actions={
           <ExportCsvButton
             filename={`ranking_equipe_${data.from}_${data.to}`}
             headers={[
               "#",
               "Profissional",
-              "Produtos un.",
+              "Extras qtd",
               "Extras R$",
               "Atendimentos",
               "Itens serviço",
@@ -101,7 +101,7 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
       <SummaryCards
         cards={[
           { label: "Extras no período", value: formatMoney(data.totalCents) },
-          { label: "Produtos (un.)", value: String(data.totalQty) },
+          { label: "Extras (qtd)", value: String(data.totalQty) },
           {
             label: "Atendimentos",
             value: data.totalClientsServed.toLocaleString("pt-BR"),
@@ -118,8 +118,9 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
         <section className="panel" style={{ marginTop: 12 }}>
           <h2 className="panel-title">Cadastrar meta mensal (extras)</h2>
           <p className="muted-note" style={{ marginBottom: 12 }}>
-            Meta de venda de produtos por barbeiro. O progresso usa o período filtrado vs a
-            meta do mês.
+            Meta de serviços extra por barbeiro: pigmentação, hidratação e o que não for
+            corte, barba, recorrência ou luzes. O progresso usa o período filtrado contra a
+            meta do mês. Metas antigas eram de produto — revise o valor.
           </p>
           <ExtrasGoalsForm
             rows={data.rows.map((r) => ({
@@ -162,7 +163,7 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
               <tr>
                 <th>#</th>
                 <th>Profissional</th>
-                <th>Produtos</th>
+                <th>Qtd</th>
                 <th>Extras</th>
                 <th>Atendimentos</th>
                 <th>Itens svc</th>
@@ -200,7 +201,7 @@ export default async function RelatorioExtrasPage({ searchParams }: Props) {
                           />
                           <span className="extras-progress-label">
                             {r.progressPct.toFixed(0)}%
-                            {r.goalQty != null ? ` · meta ${r.goalQty} un` : ""}
+                            {r.goalQty != null ? ` · meta ${r.goalQty}` : ""}
                           </span>
                         </span>
                       )}

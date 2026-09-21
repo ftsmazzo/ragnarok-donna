@@ -77,12 +77,12 @@ export function ExtrasGoalsForm({ rows }: Props) {
           inputMode="decimal"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          placeholder="ex.: 1500"
+          placeholder="ex.: 2000"
           disabled={pending}
         />
       </label>
       <label className="filter-field">
-        <span>Meta un. (opcional)</span>
+        <span>Meta qtd (opcional)</span>
         <input
           className="search-input"
           inputMode="numeric"

@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/format";
 import { isBarCategory, isInsumoCategory } from "@/lib/product-category";
 import { requireTenantContext } from "../context/tenant";
 import { listCrmFrequency } from "../crm/frequency";
+import { sumClosedExtraServicesByStaff } from "./extras-ranking";
 import {
   DEFAULT_INACTIVE_DAYS,
   DEFAULT_RECURRENCE_LAPSE_DAYS,
@@ -609,41 +610,21 @@ export async function buildOperationalAlerts(): Promise<OperationalAlertsReport>
     }
   }
 
-  // Ranking extras (produtos) na semana
-  const extras = await db
-    .select({
-      staffId: schema.orderItems.staffId,
-      staffName: schema.staff.name,
-      qty: sql<number>`coalesce(sum(${schema.orderItems.qty}), 0)::int`.as("qty"),
-      cents: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`.as("cents"),
-    })
-    .from(schema.orderItems)
-    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-    .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
-    .where(
-      and(
-        eq(schema.orderItems.tenantId, tenant.id),
-        eq(schema.orders.status, "closed"),
-        eq(schema.orderItems.itemType, "product"),
-        sql`${schema.orders.closedAt} >= ${weekStartIso}::timestamptz`,
-        sql`${schema.orders.closedAt} <= ${weekEndIso}::timestamptz`
-      )
-    )
-    .groupBy(schema.orderItems.staffId, schema.staff.name)
-    .orderBy(sql`sum(${schema.orderItems.totalCents}) desc`)
-    .limit(5);
-
-  const extrasWithStaff = extras.filter((e) => e.staffId && e.staffName);
+  const extrasWithStaff = (
+    await sumClosedExtraServicesByStaff(db, tenant.id, weekStartIso, weekEndIso)
+  )
+    .filter((row) => row.staffName)
+    .slice(0, 5);
   if (extrasWithStaff.length) {
     alerts.push({
       id: "staff-extras-week",
       severity: "info",
       kind: "staff_extras_week",
-      title: "Extras (produtos) da semana por profissional",
+      title: "Extras da semana por profissional",
       detail: extrasWithStaff
         .map((e) => {
-          const reais = ((e.cents ?? 0) / 100).toFixed(0);
-          return `${e.staffName}: ${e.qty} un · R$ ${reais}`;
+          const reais = (e.cents / 100).toFixed(0);
+          return `${e.staffName}: ${e.qty} · R$ ${reais}`;
         })
         .join(" · "),
       count: extrasWithStaff.length,
