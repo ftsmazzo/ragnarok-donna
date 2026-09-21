@@ -329,7 +329,7 @@ export const guideRelatorioExtras: SupportGuide = {
   roles: ["owner", "admin", "staff"],
   intents: ["onde_fica", "como_gerar", "como_fazer", "permissao", "objecao"],
   summary:
-    "Ranking de produtos vendidos por profissional (separado de comissão) e metas mensais.",
+    "Ranking de serviços extra por profissional (pigmentação, hidratação e o que não for corte, barba, recorrência ou luzes) e metas mensais.",
   steps: [
     {
       title: "Onde fica",
@@ -344,12 +344,12 @@ export const guideRelatorioExtras: SupportGuide = {
     {
       title: "O que aparece",
       detail:
-        "Extras no período, Unidades, Com meta; Ranking extras (profissional, un., extras, meta do mês, progresso %).",
+        "Extras no período (R$), quantidade de serviços extra, atendimentos e progresso da meta do mês.",
     },
     {
       title: "Cadastrar meta",
       detail:
-        "Bloco Cadastrar meta mensal (só quem pode escrever comissão: dono/admin): Profissional, Meta R$/mês, Meta un. opcional → Salvar meta. Manager vê ranking, não edita meta.",
+        "Bloco Cadastrar meta mensal (só quem pode escrever comissão: dono/admin): Profissional, Meta R$/mês, Meta qtd opcional → Salvar meta. Manager vê ranking, não edita meta.",
     },
     {
       title: "Exportar",
@@ -364,7 +364,7 @@ export const guideRelatorioExtras: SupportGuide = {
     },
   ],
   relatedGuideIds: ["comissoes", "profissionais", "produtos"],
-  lastVerified: "2026-09-15",
+  lastVerified: "2026-09-21",
 };
 
 export const guideRelatorioPerfil: SupportGuide = {

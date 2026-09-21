@@ -47,6 +47,37 @@ export function commissionCentsFrom(baseCents: number, bps: number): number {
   return Math.round((Math.max(0, baseCents) * bps) / 10000);
 }
 
+/** Base em centavos de uma linha de serviço extra. Ordinário devolve null. */
+export function extraServiceBaseCents(input: {
+  name: string;
+  category?: string | null;
+  totalCents: number;
+  unitPriceCents: number;
+  qty: number;
+  commissionBps?: number | null;
+  commissionCents?: number | null;
+  meta?: unknown;
+}): number | null {
+  if (classifyServiceCommission(input.name, input.category) !== "extra") return null;
+  const meta =
+    input.meta && typeof input.meta === "object"
+      ? (input.meta as Record<string, unknown>)
+      : {};
+  if (typeof meta.commissionBaseCents === "number" && meta.commissionBaseCents >= 0) {
+    return meta.commissionBaseCents;
+  }
+  if (
+    input.commissionBps != null &&
+    input.commissionBps > 0 &&
+    input.commissionCents != null &&
+    input.commissionCents >= 0
+  ) {
+    return Math.round((input.commissionCents * 10000) / input.commissionBps);
+  }
+  if (input.totalCents > 0) return input.totalCents;
+  return input.unitPriceCents * Math.max(1, input.qty);
+}
+
 /** Valor de 1 crédito = preço do pacote ÷ quantidade de serviços. */
 export function packageCreditBaseCents(priceCents: number, serviceCount: number): number {
   const n = Math.max(1, serviceCount);

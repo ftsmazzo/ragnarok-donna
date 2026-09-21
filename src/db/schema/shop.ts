@@ -268,8 +268,8 @@ export const packages = pgTable(
 );
 
 /**
- * Meta mensal de extras (produtos) por barbeiro.
- * Ranking em /relatorios/extras — distinto de comissão.
+ * Meta mensal de serviços extra por barbeiro.
+ * Ranking em /relatorios/extras. Extra = serviço que não é corte, barba, recorrência ou luzes.
  */
 export const staffExtrasGoals = pgTable(
   "staff_extras_goals",
@@ -281,7 +281,7 @@ export const staffExtrasGoals = pgTable(
     staffId: uuid("staff_id")
       .notNull()
       .references(() => staff.id, { onDelete: "cascade" }),
-    /** Meta em R$ (centavos) de produtos no mês. */
+    /** Meta em R$ (centavos) de serviços extra no mês. */
     monthlyTargetCents: integer("monthly_target_cents").notNull().default(0),
     /** Meta opcional em unidades. */
     monthlyTargetQty: integer("monthly_target_qty"),

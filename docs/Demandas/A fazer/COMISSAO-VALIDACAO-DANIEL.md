@@ -53,4 +53,4 @@ Calculado na comanda (`src/lib/commission-policy.ts` + `src/server/commissions/h
 - Extra começa em **40%** e, no mês do profissional, sobe para **45%** (R$ 2.000) ou **50%** (R$ 2.500), recalculando as linhas de extra já lançadas.
 - Venda de pacote: comissão **0**. No uso do crédito, a base é o preço do pacote dividido pela quantidade de serviços.
 
-Ainda fora deste cálculo: folga (salário ÷ 26), taxa de cartão 50/50 e o ranking `/relatorios/extras` (hoje ainda soma produto).
+Ainda fora deste cálculo: folga (salário ÷ 26) e taxa de cartão 50/50. O ranking `/relatorios/extras` soma serviço extra (a mesma classificação da comissão).

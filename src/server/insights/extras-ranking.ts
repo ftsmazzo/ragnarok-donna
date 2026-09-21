@@ -1,5 +1,6 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import { extraServiceBaseCents } from "@/lib/commission-policy";
 import { rangeBoundsSp, resolveReportPeriod } from "@/lib/datetime";
 import { requireTenantContext, requireSession } from "@/server/context/tenant";
 import { hasCapability } from "@/server/permissions/capabilities";
@@ -31,6 +32,82 @@ export type ExtrasRankingReport = {
   canWriteGoals: boolean;
 };
 
+type Db = ReturnType<typeof createDb>;
+
+export type ExtraServiceStaffTotal = {
+  staffId: string;
+  staffName: string | null;
+  qty: number;
+  cents: number;
+};
+
+/** Serviços extra fechados no intervalo (mesma classificação da comissão). */
+export async function sumClosedExtraServicesByStaff(
+  db: Db,
+  tenantId: string,
+  startIso: string,
+  endIso: string
+): Promise<ExtraServiceStaffTotal[]> {
+  const lines = await db
+    .select({
+      staffId: schema.orderItems.staffId,
+      staffName: schema.staff.name,
+      qty: schema.orderItems.qty,
+      totalCents: schema.orderItems.totalCents,
+      unitPriceCents: schema.orderItems.unitPriceCents,
+      commissionBps: schema.orderItems.commissionBps,
+      commissionCents: schema.orderItems.commissionCents,
+      meta: schema.orderItems.meta,
+      description: schema.orderItems.description,
+      serviceName: schema.services.name,
+      categoryName: schema.serviceCategories.name,
+    })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+    .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
+    .leftJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
+    .leftJoin(
+      schema.serviceCategories,
+      eq(schema.services.categoryId, schema.serviceCategories.id)
+    )
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, tenantId),
+        eq(schema.orders.status, "closed"),
+        eq(schema.orderItems.itemType, "service"),
+        sql`${schema.orders.closedAt} >= ${startIso}::timestamptz`,
+        sql`${schema.orders.closedAt} <= ${endIso}::timestamptz`
+      )
+    );
+
+  const byStaff = new Map<string, ExtraServiceStaffTotal>();
+  for (const line of lines) {
+    if (!line.staffId) continue;
+    const name = (line.serviceName || line.description || "").replace(/\s·\sPacote.*$/i, "");
+    const cents = extraServiceBaseCents({
+      name,
+      category: line.categoryName,
+      totalCents: line.totalCents,
+      unitPriceCents: line.unitPriceCents,
+      qty: line.qty,
+      commissionBps: line.commissionBps,
+      commissionCents: line.commissionCents,
+      meta: line.meta,
+    });
+    if (cents == null) continue;
+    const current = byStaff.get(line.staffId) ?? {
+      staffId: line.staffId,
+      staffName: line.staffName,
+      qty: 0,
+      cents: 0,
+    };
+    current.qty += Math.max(1, line.qty);
+    current.cents += cents;
+    byStaff.set(line.staffId, current);
+  }
+  return [...byStaff.values()].sort((a, b) => b.cents - a.cents);
+}
+
 export async function reportExtrasRanking(input?: {
   from?: string;
   to?: string;
@@ -46,31 +123,11 @@ export async function reportExtrasRanking(input?: {
     to: input?.to,
   });
   const { start, end } = rangeBoundsSp(resolved.from, resolved.to);
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
 
   const [sales, services, goals, staffList] = await Promise.all([
-    db
-      .select({
-        staffId: schema.orderItems.staffId,
-        staffName: schema.staff.name,
-        qty: sql<number>`coalesce(sum(${schema.orderItems.qty}), 0)::int`.as("qty"),
-        cents: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`.as(
-          "cents"
-        ),
-      })
-      .from(schema.orderItems)
-      .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-      .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
-      .where(
-        and(
-          eq(schema.orderItems.tenantId, tenant.id),
-          eq(schema.orders.status, "closed"),
-          eq(schema.orderItems.itemType, "product"),
-          sql`${schema.orders.closedAt} >= ${start.toISOString()}::timestamptz`,
-          sql`${schema.orders.closedAt} <= ${end.toISOString()}::timestamptz`
-        )
-      )
-      .groupBy(schema.orderItems.staffId, schema.staff.name)
-      .orderBy(sql`sum(${schema.orderItems.totalCents}) desc`),
+    sumClosedExtraServicesByStaff(db, tenant.id, startIso, endIso),
     db
       .select({
         staffId: schema.orderItems.staffId,
@@ -87,8 +144,8 @@ export async function reportExtrasRanking(input?: {
           eq(schema.orders.status, "closed"),
           eq(schema.orderItems.itemType, "service"),
           sql`${schema.orders.clientId} is not null`,
-          sql`${schema.orders.closedAt} >= ${start.toISOString()}::timestamptz`,
-          sql`${schema.orders.closedAt} <= ${end.toISOString()}::timestamptz`
+          sql`${schema.orders.closedAt} >= ${startIso}::timestamptz`,
+          sql`${schema.orders.closedAt} <= ${endIso}::timestamptz`
         )
       )
       .groupBy(schema.orderItems.staffId),
@@ -120,12 +177,7 @@ export async function reportExtrasRanking(input?: {
     ])
   );
   const soldByStaff = new Map(
-    sales
-      .filter((s) => s.staffId && s.staffName)
-      .map((s) => [
-        s.staffId as string,
-        { name: s.staffName as string, qty: s.qty ?? 0, cents: s.cents ?? 0 },
-      ])
+    sales.map((s) => [s.staffId, { name: s.staffName, qty: s.qty, cents: s.cents }])
   );
   const serviceByStaff = new Map(
     services
