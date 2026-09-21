@@ -1,10 +1,11 @@
 ﻿# Lembretes abertos (sem escopo para implementar agora)
 
 ## Comissão — ordinário × extra + meta
-- Ordinário: só corte e barba (confirmar lista).
+- **Validado 2026-09-21** (textos + áudios): ver `COMISSAO-VALIDACAO-DANIEL.md`.
+- Ordinário (não é extra): **corte, barba normal, recorrência, luzes**.
 - Extra: demais serviços.
-- Extra começa em 20%; se bater a meta, sobe para 40%.
-- Falta o Daniel fechar: o que é a meta, período, se é por profissional, se recalcula o mês ou só daí pra frente, e como fica pacote/crédito.
+- Pacote: comissão no uso (valor÷N serviços), não na venda.
+- % fechado (21/09): **tudo 40%**; meta de extras R$ 2.000 → 45%, R$ 2.500 → 50%. Falta implementar no código.
 
 ## Financeiro parrudo
 - Modo financeiro mais completo (conta bancária, conciliação, fluxo integrado com estoque/vendas).
