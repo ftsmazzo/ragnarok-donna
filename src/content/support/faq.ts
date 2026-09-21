@@ -1,4 +1,4 @@
-export type SupportFaqEntry = {
+﻿export type SupportFaqEntry = {
   id: string;
   question: string;
   answer: string;
@@ -61,7 +61,7 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "comanda-reabrir",
     question: "Como reabro uma comanda fechada?",
     answer:
-      "Dono/admin: Comandas → Histórico → clique na comanda (ou use Reabrir). A comanda volta a aberta para corrigir/adicionar itens; os pagamentos já lançados permanecem. Ao fechar de novo, cobre só o saldo restante. Se remover itens e o total ficar abaixo do já pago, o sistema bloqueia — ajuste o pagamento manualmente antes. Barbeiro/recepção sem perfil dono não reabre.",
+      "titular/admin: Comandas → Histórico → clique na comanda (ou use Reabrir). A comanda volta a aberta para corrigir/adicionar itens; os pagamentos já lançados permanecem. Ao fechar de novo, cobre só o saldo restante. Se remover itens e o total ficar abaixo do já pago, o sistema bloqueia — ajuste o pagamento manualmente antes. Barbeiro/recepção sem perfil titular não reabre.",
     tags: ["comanda", "reabrir", "fechada", "adicionar", "serviço", "depois", "histórico"],
     menuPath: "Comandas → Histórico",
   },
@@ -117,7 +117,7 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "comissoes",
     question: "Onde vejo comissões?",
     answer:
-      "Financeiro → Comissões. Barbeiro vê só as próprias; dono/admin vê todos, filtra período e exporta CSV. Lá (ou no Caixa) lança vale, bônus, desconto ou pagamento. Consumo com −30% e crédito de pacote (comissão na tabela) entram nesse cálculo.",
+      "Financeiro → Comissões. Barbeiro vê só as próprias; titular/admin vê todos, filtra período e exporta CSV. Lá (ou no Caixa) lança vale, bônus, desconto ou pagamento. Consumo com −30% e crédito de pacote (comissão na tabela) entram nesse cálculo.",
     tags: ["comissão", "comissões", "financeiro", "vale"],
     menuPath: "Financeiro → Comissões",
   },

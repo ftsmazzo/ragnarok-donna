@@ -1707,7 +1707,7 @@ export async function reopenOrder(orderId: string): Promise<ActionResult> {
   try {
     const session = await assertFullOrderWrite();
     if (!isOwnerRole(session.role)) {
-      throw new ForbiddenError("Só dono/admin pode reabrir comanda");
+      throw new ForbiddenError("Só titular/admin pode reabrir comanda");
     }
     const tenant = await requireTenantContext();
     const db = createDb();

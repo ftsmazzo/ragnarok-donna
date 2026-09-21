@@ -71,7 +71,7 @@ export const memberships = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     role: memberRoleEnum("role").notNull().default("staff"),
-    /** Unidade fixa (gerente/barbeiro). Null = todas (dono/admin). */
+    /** Unidade fixa (gerente/barbeiro). Null = todas (titular/admin). */
     branchId: uuid("branch_id"),
     /** Permissões finas opcionais */
     permissions: jsonb("permissions").$type<string[]>().notNull().default([]),

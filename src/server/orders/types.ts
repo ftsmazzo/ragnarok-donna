@@ -112,6 +112,6 @@ export type CatalogStaff = {
 export type OrderPermissions = {
   canWrite: boolean;
   canCancel: boolean;
-  /** Dono/admin: reabrir comanda fechada pelo histórico. */
+  /** Titular/admin: reabrir comanda fechada pelo histórico. */
   canReopen: boolean;
 };

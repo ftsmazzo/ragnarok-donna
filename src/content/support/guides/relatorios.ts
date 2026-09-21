@@ -1,4 +1,4 @@
-import type { SupportGuide } from "./types";
+﻿import type { SupportGuide } from "./types";
 
 /** S6 — enriquecido a partir das páginas de Relatórios. */
 export const guideRelatoriosVisao: SupportGuide = {
@@ -22,7 +22,7 @@ export const guideRelatoriosVisao: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Relatórios → Visão geral (/relatorios). Título na tela: Painel gerencial. Só dono/admin.",
+        "Menu → Relatórios → Visão geral (/relatorios). Título na tela: Painel gerencial. Só titular/admin.",
     },
     {
       title: "Filtrar o período",
@@ -54,7 +54,7 @@ export const guideRelatoriosVisao: SupportGuide = {
     {
       concern: "Recepção / barbeiro não vê o painel",
       reply:
-        "Visão geral e financeiro são só dono/admin. Manager pode ver Alertas, Agendamentos, Extras e Perfil — não o Painel gerencial.",
+        "Visão geral e financeiro são só titular/admin. Manager pode ver Alertas, Agendamentos, Extras e Perfil — não o Painel gerencial.",
     },
   ],
   relatedGuideIds: [
@@ -82,7 +82,7 @@ export const guideAlertas: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Lembretes (/alertas). Antes ficava em Relatórios → Alertas. Título: Alertas operacionais. Dono, admin e manager.",
+        "Menu → Lembretes (/alertas). Antes ficava em Relatórios → Alertas. Título: Alertas operacionais. Titular, admin e manager.",
     },
     {
       title: "Período",
@@ -104,7 +104,7 @@ export const guideAlertas: SupportGuide = {
     {
       concern: "Cliquei Abrir e deu acesso negado",
       reply:
-        "Alguns destinos (ex. Estoque) são só dono/admin. Manager vê o alerta, mas não entra em relatórios financeiros/estoque.",
+        "Alguns destinos (ex. Estoque) são só titular/admin. Manager vê o alerta, mas não entra em relatórios financeiros/estoque.",
     },
     {
       concern: "Por que alerta de comanda aberta?",
@@ -136,7 +136,7 @@ export const guideRelatorioAgendamentos: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Relatórios → Agendamentos (/relatorios/agendamentos). Dono, admin, manager e leitura.",
+        "Menu → Relatórios → Agendamentos (/relatorios/agendamentos). Titular, admin, manager e leitura.",
     },
     {
       title: "Filtrar",
@@ -184,7 +184,7 @@ export const guideRelatorioFinanceiro: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Relatórios → Financeiro (/relatorios/financeiro). Só dono/admin.",
+        "Menu → Relatórios → Financeiro (/relatorios/financeiro). Só titular/admin.",
     },
     {
       title: "Filtrar",
@@ -226,7 +226,7 @@ export const guideRelatorioComandas: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Relatórios → Comandas (/relatorios/comandas). Só dono/admin.",
+        "Menu → Relatórios → Comandas (/relatorios/comandas). Só titular/admin.",
     },
     {
       title: "Filtrar",
@@ -276,7 +276,7 @@ export const guideRelatorioEstoque: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Relatórios → Estoque (/relatorios/estoque). Só dono/admin.",
+        "Menu → Relatórios → Estoque (/relatorios/estoque). Só titular/admin.",
     },
     {
       title: "Filtrar",
@@ -334,7 +334,7 @@ export const guideRelatorioExtras: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Relatórios → Extras / metas (/relatorios/extras). Dono, admin e manager.",
+        "Menu → Relatórios → Extras / metas (/relatorios/extras). Titular, admin e manager.",
     },
     {
       title: "Filtrar",
@@ -349,7 +349,7 @@ export const guideRelatorioExtras: SupportGuide = {
     {
       title: "Cadastrar meta",
       detail:
-        "Bloco Cadastrar meta mensal (só quem pode escrever comissão: dono/admin): Profissional, Meta R$/mês, Meta qtd opcional → Salvar meta. Manager vê ranking, não edita meta.",
+        "Bloco Cadastrar meta mensal (só quem pode escrever comissão: titular/admin): Profissional, Meta R$/mês, Meta qtd opcional → Salvar meta. Manager vê ranking, não edita meta.",
     },
     {
       title: "Exportar",
@@ -390,7 +390,7 @@ export const guideRelatorioPerfil: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Relatórios → Perfil do cliente (/relatorios/perfil). Dono, admin e manager.",
+        "Menu → Relatórios → Perfil do cliente (/relatorios/perfil). Titular, admin e manager.",
     },
     {
       title: "Abas",

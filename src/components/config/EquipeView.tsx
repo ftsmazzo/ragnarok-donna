@@ -58,7 +58,8 @@ export function EquipeView({ members, unlinkedStaff, branches, hasEmailConfig, w
       <InviteMemberForm branches={branches} hasEmailConfig={hasEmailConfig} />
 
       <p className="client-profile-hint">
-        <strong>Dono</strong> navega entre unidades e vê o comparativo da rede.{" "}
+        <strong>Titular</strong> e <strong>Administrador</strong> navegam entre unidades e vêem o
+        comparativo da rede. Só o titular cria outro titular.{" "}
         <strong>Gerente</strong> opera uma loja (sem relatórios financeiros).{" "}
         <strong>Barbeiro</strong> vê agenda, comandas e comissões próprias.
       </p>

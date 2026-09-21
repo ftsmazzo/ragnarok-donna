@@ -1,4 +1,4 @@
-import type { GuideStatus, SupportGuide, SupportRole } from "./types";
+﻿import type { GuideStatus, SupportGuide, SupportRole } from "./types";
 import type { MemberRole } from "@/server/types";
 import { guideAgenda, guideListaEspera } from "./agenda";
 import {
@@ -228,7 +228,7 @@ export function getGuidePayload(
     inRoleScope,
     roleNote: inRoleScope
       ? null
-      : "Quem pergunta provavelmente NÃO abre esta tela. Explique o caminho e diga que precisa de dono/admin (ou o papel certo) — não invente que o botão aparece no menu dele.",
+      : "Quem pergunta provavelmente NÃO abre esta tela. Explique o caminho e diga que precisa de titular/admin (ou o papel certo) — não invente que o botão aparece no menu dele.",
   };
 }
 

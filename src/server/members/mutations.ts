@@ -164,7 +164,7 @@ export async function inviteMember(input: InviteMemberInput): Promise<InviteMemb
       throw new AppError("VALIDATION", "Papel inválido");
     }
     if (input.role === "owner" && session.role !== "owner") {
-      throw new ForbiddenError("Somente donos podem criar outro dono");
+      throw new ForbiddenError("Somente titulares podem criar outro titular");
     }
     if (input.role === "staff" && !input.staffId) {
       throw new AppError("VALIDATION", "Selecione o profissional importado");
@@ -463,7 +463,7 @@ export async function updateMemberRole(
           )
         );
       if (owners.length <= 1) {
-        throw new AppError("VALIDATION", "Não é possível rebaixar o único dono da unidade");
+        throw new AppError("VALIDATION", "Não é possível rebaixar o único titular da unidade");
       }
     }
 

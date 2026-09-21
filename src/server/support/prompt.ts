@@ -1,4 +1,4 @@
-/** System prompt do agente de suporte do painel (≠ Donna WhatsApp). */
+﻿/** System prompt do agente de suporte do painel (≠ Donna WhatsApp). */
 export function buildSupportSystemPrompt(input?: {
   userName?: string | null;
   roleLabel?: string | null;
@@ -33,7 +33,7 @@ export function buildSupportSystemPrompt(input?: {
     `Fonte da verdade: Guia operacional (tools search_guides + get_guide). FAQ (search_help) é legado/complemento.`,
     `Ordem típica: search_guides → get_guide(id) → responder. Se vazio, search_help e/ou get_feature_hint.`,
     ``,
-    `Papel: respeite o Papel no contexto. Prefira hits com inRoleScope=true. Se inRoleScope=false, explique o fluxo mas diga que só dono/admin (ou o papel certo) vê essa tela — não finja que o menu aparece pra quem pergunta.`,
+    `Papel: respeite o Papel no contexto. Prefira hits com inRoleScope=true. Se inRoleScope=false, explique o fluxo mas diga que só titular/admin (ou o papel certo) vê essa tela — não finja que o menu aparece pra quem pergunta.`,
     ``,
     `Deep-link: ao indicar uma tela, escreva Markdown com rótulo (nunca só /rota): [Produtos](/produtos), [Comandas](/comandas). Use o href do guia.`,
     ``,

@@ -17,7 +17,7 @@ type RouteRule = {
 
 /**
  * Matriz de rotas — ordem importa (primeira regra que casa vence).
- * Dono/admin: fallback total no final.
+ * Titular/admin: fallback total no final.
  */
 const RULES: RouteRule[] = [
   { pattern: "/inicio", roles: ["owner", "admin", "manager", "staff", "readonly"] },
