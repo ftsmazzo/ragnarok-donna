@@ -793,6 +793,8 @@ export type ClientPackageWalletEntry = {
     performedAt: Date | null;
     orderId: string;
   }>;
+  /** Pode cancelar (créditos intactos). */
+  canCancelSale: boolean;
 };
 
 /** Carteira completa do cliente (ativos, esgotados e últimos usos). */
@@ -912,16 +914,22 @@ export async function listClientPackageWallet(
     redemptionsByPkg.set(clientPackageId, list);
   }
 
-  return pkgs.map((p) => ({
-    clientPackageId: p.id,
-    packageId: p.packageId,
-    packageName: p.name,
-    status: p.status,
-    purchasedAt: p.purchasedAt,
-    expiresAt: p.expiresAt,
-    credits: creditsByPkg.get(p.id) ?? [],
-    recentRedemptions: redemptionsByPkg.get(p.id) ?? [],
-  }));
+  return pkgs.map((p) => {
+    const credits = creditsByPkg.get(p.id) ?? [];
+    const remaining = credits.reduce((s, c) => s + c.remainingQty, 0);
+    const total = credits.reduce((s, c) => s + c.totalQty, 0);
+    return {
+      clientPackageId: p.id,
+      packageId: p.packageId,
+      packageName: p.name,
+      status: p.status,
+      purchasedAt: p.purchasedAt,
+      expiresAt: p.expiresAt,
+      credits,
+      recentRedemptions: redemptionsByPkg.get(p.id) ?? [],
+      canCancelSale: p.status !== "cancelled" && total > 0 && remaining === total,
+    };
+  });
 }
 
 /** Repõe créditos somando a quantidade original em remaining/total e estende validade. */

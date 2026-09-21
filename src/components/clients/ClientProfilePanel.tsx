@@ -633,6 +633,11 @@ export function ClientProfilePanel({
               Abrir comanda
             </button>
           </div>
+          <p className="client-profile-hint muted" style={{ marginBottom: 12 }}>
+            Vendeu o mesmo pacote duas vezes? Use <strong>🗑 Excluir venda</strong> no card (só
+            se nenhum crédito foi usado). Também dá para excluir no <strong>Caixa</strong>, na
+            linha do pagamento do dia.
+          </p>
           {packages.length === 0 ? (
             <p className="client-profile-empty">
               Nenhum pacote vendido. Venda um pacote na comanda para gerar a carteira.
@@ -708,15 +713,17 @@ export function ClientProfilePanel({
                           Renovar (nova venda)
                         </button>
                       ) : null}
-                      {remaining === total && p.status === "active" ? (
+                      {p.canCancelSale ? (
                         <button
                           type="button"
-                          className="btn btn-ghost btn-sm"
+                          className="btn btn-danger btn-sm"
                           disabled={pending}
+                          title="Excluir venda e estornar do caixa"
+                          aria-label="Excluir venda do pacote"
                           onClick={() => {
                             if (
                               !window.confirm(
-                                "Cancelar a venda deste pacote? Os créditos saem da carteira e o valor sai da comanda."
+                                "Excluir esta venda de pacote?\nOs créditos saem da carteira e o valor some do Caixa do dia."
                               )
                             ) {
                               return;
@@ -736,7 +743,7 @@ export function ClientProfilePanel({
                             });
                           }}
                         >
-                          Cancelar venda
+                          🗑 Excluir venda
                         </button>
                       ) : null}
                     </div>

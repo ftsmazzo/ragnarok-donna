@@ -120,6 +120,7 @@ export async function renewOrTopUpClientPackageAction(input: {
 export async function cancelUnusedPackageSaleAction(input: {
   clientPackageId?: string;
   orderItemId?: string;
+  paymentId?: string;
   clientId?: string;
 }) {
   const result = await cancelUnusedPackageSale(input);

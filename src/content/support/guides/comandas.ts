@@ -117,7 +117,7 @@ export const guideComandas: SupportGuide = {
     {
       concern: "Não acho como cancelar a venda do pacote",
       reply:
-        "Clientes → ficha → aba Pacotes, no card da carteira: Cancelar venda. Também aparece na comanda, na carteira e no item, mesmo com a comanda já fechada. Só entra se nenhum crédito foi usado. Se já abateu crédito, a venda não cancela.",
+        "Dois caminhos: (1) Caixa → Detalhe dos pagamentos → 🗑 na linha do PIX/cartão do pacote; (2) Clientes → ficha → Pacotes → 🗑 Excluir venda. Só funciona se nenhum crédito foi usado. O valor some do caixa do dia.",
     },
   ],
   relatedGuideIds: ["comandas-historico", "pacotes", "consumo-pwa", "caixa", "comissoes"],

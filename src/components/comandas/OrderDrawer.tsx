@@ -698,12 +698,13 @@ export function OrderDrawer({
                       <div className="order-wallet-line-actions">
                         <button
                           type="button"
-                          className="btn btn-ghost btn-sm"
+                          className="btn btn-danger btn-sm"
                           disabled={pending}
+                          title="Excluir venda e estornar do caixa"
                           onClick={() => {
                             if (
                               !window.confirm(
-                                "Cancelar a venda deste pacote? Os créditos saem da carteira e o valor sai da comanda."
+                                "Excluir esta venda de pacote?\nOs créditos saem da carteira e o valor some do Caixa do dia."
                               )
                             ) {
                               return;
@@ -715,7 +716,7 @@ export function OrderDrawer({
                             );
                           }}
                         >
-                          Cancelar venda
+                          🗑 Excluir venda
                         </button>
                       </div>
                     ) : null}
@@ -856,12 +857,13 @@ export function OrderDrawer({
                   ) : item.packageSale && permissions.canWrite ? (
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-danger btn-sm"
                       disabled={pending}
+                      title="Excluir venda e estornar do caixa"
                       onClick={() => {
                         if (
                           !window.confirm(
-                            "Cancelar a venda deste pacote? Os créditos saem da carteira e o valor sai da comanda."
+                            "Excluir esta venda de pacote?\nOs créditos saem da carteira e o valor some do Caixa do dia."
                           )
                         ) {
                           return;
@@ -871,7 +873,7 @@ export function OrderDrawer({
                         );
                       }}
                     >
-                      Cancelar venda
+                      🗑
                     </button>
                   ) : null}
                 </div>

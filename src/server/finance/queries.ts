@@ -206,6 +206,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       method: schema.payments.method,
       meta: schema.payments.meta,
       amountCents: schema.payments.amountCents,
+      orderId: schema.payments.orderId,
       clientName: schema.clients.name,
       orderExternalId: schema.orders.externalId,
     })
@@ -220,6 +221,56 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       )
     )
     .orderBy(desc(schema.payments.paidAt));
+
+  const orderIds = [...new Set(payments.map((p) => p.orderId))];
+  const cancelByOrder = new Map<string, string>();
+  if (orderIds.length) {
+    const pkgs = await db
+      .select({
+        id: schema.clientPackages.id,
+        orderId: schema.clientPackages.orderId,
+      })
+      .from(schema.clientPackages)
+      .where(
+        and(
+          eq(schema.clientPackages.tenantId, tenant.id),
+          inArray(schema.clientPackages.orderId, orderIds),
+          sql`${schema.clientPackages.status} <> 'cancelled'`
+        )
+      );
+    const pkgIds = pkgs.map((p) => p.id);
+    if (pkgIds.length) {
+      const creditRows = await db
+        .select({
+          clientPackageId: schema.clientPackageCredits.clientPackageId,
+          remainingQty: schema.clientPackageCredits.remainingQty,
+          totalQty: schema.clientPackageCredits.totalQty,
+        })
+        .from(schema.clientPackageCredits)
+        .where(
+          and(
+            eq(schema.clientPackageCredits.tenantId, tenant.id),
+            inArray(schema.clientPackageCredits.clientPackageId, pkgIds)
+          )
+        );
+      const unused = new Set<string>();
+      const byPkg = new Map<string, { rem: number; tot: number }>();
+      for (const c of creditRows) {
+        const cur = byPkg.get(c.clientPackageId) ?? { rem: 0, tot: 0 };
+        cur.rem += c.remainingQty;
+        cur.tot += c.totalQty;
+        byPkg.set(c.clientPackageId, cur);
+      }
+      for (const [id, v] of byPkg) {
+        if (v.tot > 0 && v.rem === v.tot) unused.add(id);
+      }
+      for (const p of pkgs) {
+        if (p.orderId && unused.has(p.id) && !cancelByOrder.has(p.orderId)) {
+          cancelByOrder.set(p.orderId, p.id);
+        }
+      }
+    }
+  }
 
   const [closedOrders] = await db
     .select({
@@ -275,6 +326,8 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       amountCents: p.amountCents,
       clientName: p.clientName,
       orderExternalId: p.orderExternalId,
+      orderId: p.orderId,
+      packageCancelId: cancelByOrder.get(p.orderId) ?? null,
     })),
   };
 }
