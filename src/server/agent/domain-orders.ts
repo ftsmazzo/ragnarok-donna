@@ -1,6 +1,10 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { formatMoney } from "@/lib/format";
+import {
+  annotateServiceCommission,
+  syncStaffMonthServiceCommission,
+} from "../commissions/house";
 
 function calcCommission(
   totalCents: number,
@@ -204,7 +208,17 @@ export async function addOrderItemForAgent(input: {
   }
 
   const totalCents = unitPriceCents * qty;
-  const commission = calcCommission(totalCents, itemCommissionBps ?? staffCommissionBps);
+  let meta: Record<string, unknown> = {};
+  let commission = calcCommission(totalCents, itemCommissionBps ?? staffCommissionBps);
+  if (input.itemType === "service") {
+    const house = await annotateServiceCommission({
+      tenantId: input.tenantId,
+      serviceName: description,
+      baseCents: totalCents,
+    });
+    meta = house.metaPatch;
+    commission = calcCommission(house.baseCents, 4000);
+  }
 
   const [row] = await db
     .insert(schema.orderItems)
@@ -223,6 +237,7 @@ export async function addOrderItemForAgent(input: {
       commissionBps: commission.commissionBps,
       commissionCents: commission.commissionCents,
       performedAt: new Date(),
+      meta,
     })
     .returning({ id: schema.orderItems.id });
 
@@ -250,6 +265,10 @@ export async function addOrderItemForAgent(input: {
     .update(schema.orders)
     .set({ totalCents: orderTotal, updatedAt: new Date() })
     .where(and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, input.tenantId)));
+
+  if (input.itemType === "service") {
+    await syncStaffMonthServiceCommission(input.tenantId, staffId);
+  }
 
   return { ok: true, id: row.id, totalCents: orderTotal };
 }

@@ -5,7 +5,7 @@
 - Ordinário (não é extra): **corte, barba normal, recorrência, luzes**.
 - Extra: demais serviços.
 - Pacote: comissão no uso (valor÷N serviços), não na venda.
-- % fechado (21/09): **tudo 40%**; meta de extras R$ 2.000 → 45%, R$ 2.500 → 50%. Falta implementar no código.
+- % fechado (21/09): **tudo 40%**; meta de extras R$ 2.000 → 45%, R$ 2.500 → 50%. Cálculo na comanda já implantado. Folga, taxa de cartão e ranking de extras ainda pendentes.
 
 ## Financeiro parrudo
 - Modo financeiro mais completo (conta bancária, conciliação, fluxo integrado com estoque/vendas).
