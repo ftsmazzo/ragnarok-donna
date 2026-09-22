@@ -32,6 +32,7 @@ import { PackageVisitPlanner } from "@/components/comandas/PackageVisitPlanner";
 import { PaymentMethodSelect } from "@/lib/paymentMethods";
 import type { ClientCreditBalance } from "@/server/packages/credits";
 import type { VisitServiceUnit } from "@/lib/package-visits";
+import { useToast } from "@/components/ui/Toast";
 
 type Props = {
   open: boolean;
@@ -100,6 +101,7 @@ export function OrderDrawer({
   onClose,
   onChanged,
 }: Props) {
+  const { showToast } = useToast();
   const [error, setError] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [payCloseOpen, setPayCloseOpen] = useState(false);
@@ -149,12 +151,14 @@ export function OrderDrawer({
 
   useEffect(() => {
     if (!payOpen && !payCloseOpen) return;
+    // Só pré-seleciona Conta do Cliente quando o crédito cobre o saldo inteiro.
+    // Crédito parcial + valor cheio fazia o Confirmar falhar “em silêncio” (erro atrás do modal).
     const defaultMethod =
-      clientCreditAvailable >= order.balanceCents && !hasPackageSale
+      clientCreditAvailable >= order.balanceCents &&
+      order.balanceCents > 0 &&
+      !hasPackageSale
         ? "client_account"
-        : clientCreditAvailable > 0 && !hasPackageSale
-          ? "client_account"
-          : "pix";
+        : "pix";
     setPayLines([makeCheckoutLine(order.balanceCents, defaultMethod)]);
     setInsertInCash(true);
   }, [payOpen, payCloseOpen, order.id, order.balanceCents, clientCreditAvailable, hasPackageSale]);
@@ -286,12 +290,23 @@ export function OrderDrawer({
   function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError("");
     startTransition(async () => {
-      const result = await fn();
-      if (!result.ok) {
-        setError(result.error ?? "Erro");
-        return;
+      try {
+        const result = await fn();
+        if (!result.ok) {
+          const msg = result.error ?? "Erro";
+          setError(msg);
+          showToast(msg, "error");
+          return;
+        }
+        onChanged();
+      } catch (err) {
+        const msg =
+          err instanceof Error && err.message
+            ? err.message
+            : "Falha ao processar. Tente de novo.";
+        setError(msg);
+        showToast(msg, "error");
       }
-      onChanged();
     });
   }
 
@@ -382,7 +397,9 @@ export function OrderDrawer({
     if (!line) return;
     const amountCents = parseReaisToCents(line.amountReais);
     if (amountCents <= 0) {
-      setError("Informe o valor do pagamento");
+      const msg = "Informe o valor do pagamento";
+      setError(msg);
+      showToast(msg, "error");
       return;
     }
     const formData = new FormData();
@@ -1182,6 +1199,7 @@ export function OrderDrawer({
         }
       >
         <form id="pay-form" className="form-stack" onSubmit={handlePayment}>
+          {error ? <div className="form-error">{error}</div> : null}
           <div className="checkout-summary">
             <div>
               <span>Total</span>
@@ -1317,6 +1335,13 @@ export function OrderDrawer({
               className={`btn btn-primary${pending ? " is-pending" : ""}`}
               disabled={pending || Math.abs(payLinesDiffCents) > 1}
               aria-busy={pending}
+              title={
+                Math.abs(payLinesDiffCents) > 1
+                  ? payLinesDiffCents < 0
+                    ? `Falta ${formatMoney(-payLinesDiffCents)} nas formas`
+                    : `Formas somam ${formatMoney(payLinesDiffCents)} a mais`
+                  : undefined
+              }
             >
               {pending ? "Fechando…" : "Confirmar e fechar"}
             </button>
@@ -1329,11 +1354,12 @@ export function OrderDrawer({
           onSubmit={(e) => {
             e.preventDefault();
             if (Math.abs(payLinesDiffCents) > 1) {
-              setError(
+              const msg =
                 payLinesDiffCents < 0
                   ? `Falta ${formatMoney(-payLinesDiffCents)} nas formas de pagamento`
-                  : `Formas somam ${formatMoney(payLinesDiffCents)} a mais que o saldo`
-              );
+                  : `Formas somam ${formatMoney(payLinesDiffCents)} a mais que o saldo`;
+              setError(msg);
+              showToast(msg, "error");
               return;
             }
             run(async () => {
@@ -1370,6 +1396,7 @@ export function OrderDrawer({
             });
           }}
         >
+          {error ? <div className="form-error">{error}</div> : null}
           <div className="checkout-summary">
             <div>
               <span>Total</span>

@@ -1580,12 +1580,21 @@ export async function closeOrder(orderId: string): Promise<ActionResult> {
 
     const db = createDb();
     if (detail.clientId) {
-      const { activateClientPackagesForOrder } = await import("../packages/credits");
-      await activateClientPackagesForOrder({
-        tenantId: tenant.id,
-        orderId,
-        clientId: detail.clientId,
-      });
+      try {
+        const { activateClientPackagesForOrder } = await import("../packages/credits");
+        await activateClientPackagesForOrder({
+          tenantId: tenant.id,
+          orderId,
+          clientId: detail.clientId,
+        });
+      } catch (activateErr) {
+        if (activateErr instanceof AppError) throw activateErr;
+        console.error("[closeOrder] activateClientPackagesForOrder", activateErr);
+        throw new AppError(
+          "VALIDATION",
+          "Pagamento ok, mas não deu para liberar a carteira do pacote. Confira o cadastro do pacote e tente Fechar de novo."
+        );
+      }
     }
 
     await db
@@ -1614,6 +1623,7 @@ export async function closeOrder(orderId: string): Promise<ActionResult> {
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[closeOrder]", err);
     return { ok: false, error: "Não foi possível fechar a comanda" };
   }
 }
