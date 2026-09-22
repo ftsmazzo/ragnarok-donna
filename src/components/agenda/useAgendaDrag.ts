@@ -76,10 +76,14 @@ export function useAgendaDrag(opts: {
     function onMove(e: PointerEvent) {
       const s = sessionRef.current;
       if (!s || e.pointerId !== s.pointerId) return;
+      e.preventDefault();
       const dx = e.clientX - s.startX;
       const dy = e.clientY - s.startY;
       if (!s.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
-      s.moved = true;
+      if (!s.moved) {
+        s.moved = true;
+        document.body.classList.add("is-agenda-dragging");
+      }
       justDraggedRef.current = true;
 
       if (s.mode === "resize") {
@@ -112,6 +116,12 @@ export function useAgendaDrag(opts: {
       const s = sessionRef.current;
       if (!s || e.pointerId !== s.pointerId) return;
       sessionRef.current = null;
+      document.body.classList.remove("is-agenda-dragging");
+      try {
+        (e.target as Element | null)?.releasePointerCapture?.(e.pointerId);
+      } catch {
+        // ignore
+      }
       const final = previewRef.current;
       setPreview(null);
 
@@ -155,10 +165,11 @@ export function useAgendaDrag(opts: {
       });
     }
 
-    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointermove", onMove, { passive: false });
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     return () => {
+      document.body.classList.remove("is-agenda-dragging");
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
@@ -177,6 +188,11 @@ export function useAgendaDrag(opts: {
       Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000)
     );
     justDraggedRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
     sessionRef.current = {
       id: a.id,
       mode: "move",

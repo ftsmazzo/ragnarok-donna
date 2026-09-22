@@ -47,7 +47,7 @@ export default async function PainelLayout({
   const showConsolidated = isOwnerRole(session.role) && branches.length > 1;
 
   return (
-    <Suspense fallback={<div className="app-shell" />}>
+    <>
       {brand.themeClass === "theme-donna-elegant" ? (
         // eslint-disable-next-line @next/next/no-page-custom-font
         <link
@@ -79,9 +79,17 @@ export default async function PainelLayout({
           branches: branches.map((b) => ({ slug: b.slug, name: b.name })),
         }}
       >
-        {children}
-        <ConfirmationSoundHost />
+        <Suspense
+          fallback={
+            <div className="panel" style={{ margin: 16 }}>
+              <p className="panel-empty">Carregando…</p>
+            </div>
+          }
+        >
+          {children}
+          <ConfirmationSoundHost />
+        </Suspense>
       </AppShell>
-    </Suspense>
+    </>
   );
 }
