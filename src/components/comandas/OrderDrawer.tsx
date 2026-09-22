@@ -127,6 +127,7 @@ export function OrderDrawer({
     units: VisitServiceUnit[];
   } | null>(null);
   const [bookFlash, setBookFlash] = useState("");
+  const [selectedClientPackageId, setSelectedClientPackageId] = useState("");
   const [pending, startTransition] = useTransition();
   const isOpen = order.status === "open";
   const canEdit = permissions.canWrite && isOpen;
@@ -315,6 +316,10 @@ export function OrderDrawer({
       setCatalogId(c.productId);
     }
     setUseCredit(true);
+    setSelectedClientPackageId(c.clientPackageId);
+    setBookFlash(
+      `Pacote selecionado: ${c.packageName} · ${c.serviceName ?? c.productName ?? "item"} — ${c.remainingQty} rest. de ${c.totalQty}. Escolha o profissional e lance o item para abater.`
+    );
   }
 
   function handleAddItem(e: React.FormEvent<HTMLFormElement>) {
@@ -325,6 +330,9 @@ export function OrderDrawer({
     formData.set("itemType", itemType);
     formData.set("catalogId", catalogId);
     if (willUseCredit) formData.set("usePackageCredit", "1");
+    if (willUseCredit && selectedClientPackageId) {
+      formData.set("clientPackageId", selectedClientPackageId);
+    }
 
     const pct = parsePct(formData.get("discountPercent"));
     if (pct > 0 && (itemType === "service" || itemType === "product")) {
@@ -353,6 +361,8 @@ export function OrderDrawer({
         setUseCredit(true);
         setItemDiscountPct("");
         setCoveredReais("");
+        setSelectedClientPackageId("");
+        setBookFlash("Crédito abatido. Saldo atualizado na carteira.");
       }
       return result;
     });
@@ -631,13 +641,23 @@ export function OrderDrawer({
                   const named = group.packageName.trim().match(/^(\d+)\b/);
                   const mismatch = named != null && Number(named[1]) !== total;
                   return (
-                  <li key={group.clientPackageId} className="order-wallet-group">
+                  <li
+                    key={group.clientPackageId}
+                    className={
+                      selectedClientPackageId === group.clientPackageId
+                        ? "order-wallet-group is-selected"
+                        : "order-wallet-group"
+                    }
+                  >
                     <div className="order-wallet-group-head">
                       <strong>{group.packageName}</strong>
                       <em>
                         {rest} rest. de {total}
                         {group.lines[0]?.expiresAt
                           ? ` · até ${formatDateTimeSp(group.lines[0].expiresAt).slice(0, 10)}`
+                          : ""}
+                        {selectedClientPackageId === group.clientPackageId
+                          ? " · em uso"
                           : ""}
                       </em>
                     </div>
@@ -687,7 +707,7 @@ export function OrderDrawer({
                                 disabled={pending}
                                 onClick={() => applyWalletCredit(c)}
                               >
-                                Usar
+                                Usar ({c.remainingQty})
                               </button>
                             </div>
                           ) : null}

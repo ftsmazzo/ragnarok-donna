@@ -872,27 +872,50 @@ export async function addOrderItem(input: {
       commission = calcCommission(house.baseCents, 4000);
     }
 
-    const [row] = await db
-      .insert(schema.orderItems)
-      .values({
-        tenantId: tenant.id,
-        orderId: input.orderId,
-        itemType: input.itemType,
-        serviceId,
-        productId,
-        packageId: null,
-        staffId,
-        description,
-        qty,
-        unitPriceCents,
-        discountCents: appliedDiscount,
-        totalCents,
-        commissionBps: commission.commissionBps,
-        commissionCents: commission.commissionCents,
-        performedAt: new Date(),
-        meta,
-      })
-      .returning({ id: schema.orderItems.id });
+    // Com crédito: insert na mesma conexão após debit (restore se insert falhar)
+    let row: { id: string };
+    try {
+      const [inserted] = await db
+        .insert(schema.orderItems)
+        .values({
+          tenantId: tenant.id,
+          orderId: input.orderId,
+          itemType: input.itemType,
+          serviceId,
+          productId,
+          packageId: null,
+          staffId,
+          description,
+          qty,
+          unitPriceCents,
+          discountCents: appliedDiscount,
+          totalCents,
+          commissionBps: commission.commissionBps,
+          commissionCents: commission.commissionCents,
+          performedAt: new Date(),
+          meta,
+        })
+        .returning({ id: schema.orderItems.id });
+      row = inserted!;
+    } catch (insertErr) {
+      if (
+        useCredit &&
+        typeof meta.creditId === "string" &&
+        typeof meta.clientPackageId === "string"
+      ) {
+        const { restoreOneCredit } = await import("../packages/credits");
+        try {
+          await restoreOneCredit({
+            tenantId: tenant.id,
+            creditId: meta.creditId,
+            clientPackageId: meta.clientPackageId,
+          });
+        } catch {
+          // best-effort
+        }
+      }
+      throw insertErr;
+    }
 
     if (productId) {
       await db
@@ -2159,9 +2182,21 @@ export async function cancelOrder(orderId: string): Promise<ActionResult> {
         )
       );
 
-    const { cancelClientPackageSale } = await import("../packages/credits");
+    const { cancelClientPackageSale, restoreOneCredit } = await import("../packages/credits");
     for (const item of orderItems) {
       const meta = (item.meta ?? {}) as Record<string, unknown>;
+      // Devolve créditos abatidos nesta comanda antes de cancelar
+      if (
+        meta.redeemed &&
+        typeof meta.creditId === "string" &&
+        typeof meta.clientPackageId === "string"
+      ) {
+        await restoreOneCredit({
+          tenantId: tenant.id,
+          creditId: meta.creditId,
+          clientPackageId: meta.clientPackageId,
+        });
+      }
       if (meta.packageSale && typeof meta.clientPackageId === "string") {
         try {
           await cancelClientPackageSale({
