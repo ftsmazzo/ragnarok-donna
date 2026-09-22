@@ -2405,12 +2405,20 @@ input {
   background: rgba(15, 18, 22, 0.35);
 }
 
+/* Classe explícita — não depende de :has() (tablets antigos). */
+.ui-overlay-modal {
+  z-index: 10000;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: rgba(15, 18, 22, 0.55);
+}
+
 .ui-overlay:has(.ui-modal) {
   justify-content: center;
   align-items: center;
   padding: 16px;
-  /* Modal de pagamento/fechar sempre acima do drawer da comanda */
-  z-index: 3000;
+  z-index: 10000;
 }
 
 .ui-drawer {
@@ -3619,6 +3627,16 @@ body.is-agenda-dragging .slot {
 .order-badge.is-courtesy {
   background: #fff3e0;
   color: #e65100;
+}
+
+.order-checkout-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.order-checkout-sheet .client-profile-heading {
+  margin-top: 0;
 }
 
 .order-item-courtesy {

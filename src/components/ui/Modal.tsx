@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type ModalProps = {
@@ -14,7 +14,7 @@ type ModalProps = {
 
 const SIZE_CLASS = { sm: "ui-modal-sm", md: "ui-modal-md", lg: "ui-modal-lg" };
 
-/** Diálogo central — portal no body para ficar acima da grade (agenda, etc.). */
+/** Diálogo central — portal no body, z-index alto (acima de drawer). */
 export function Modal({
   open,
   onClose,
@@ -25,6 +25,8 @@ export function Modal({
 }: ModalProps) {
   const titleId = useId();
   const [mounted, setMounted] = useState(false);
+  /** Evita fechar no mesmo gesto que abriu (mouseup no overlay). */
+  const allowBackdropClose = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -32,21 +34,39 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return;
+    allowBackdropClose.current = false;
+    const t = window.setTimeout(() => {
+      allowBackdropClose.current = true;
+    }, 280);
+    document.body.dataset.uiModal = "1";
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
     }
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
+      window.clearTimeout(t);
+      document.removeEventListener("keydown", onKey, true);
+      delete document.body.dataset.uiModal;
+      if (!document.body.dataset.uiModal) {
+        document.body.style.overflow = "";
+      }
     };
   }, [open, onClose]);
 
   if (!open || !mounted) return null;
 
   return createPortal(
-    <div className="ui-overlay" onClick={onClose} role="presentation">
+    <div
+      className="ui-overlay ui-overlay-modal"
+      onClick={() => {
+        if (allowBackdropClose.current) onClose();
+      }}
+      role="presentation"
+    >
       <div
         className={`ui-modal ${SIZE_CLASS[size]}`}
         role="dialog"

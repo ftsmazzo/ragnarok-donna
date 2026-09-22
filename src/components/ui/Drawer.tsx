@@ -33,13 +33,18 @@ export function Drawer({
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // Modal por cima do drawer — não fecha a comanda no Esc do modal
+      if (document.body.dataset.uiModal === "1") return;
+      onClose();
     }
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
+      if (document.body.dataset.uiModal !== "1") {
+        document.body.style.overflow = "";
+      }
     };
   }, [open, onClose]);
 
