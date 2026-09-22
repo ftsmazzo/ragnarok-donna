@@ -163,7 +163,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   }
 
   const profile = await getDefaultAgentProfile(input.tenantId);
-  const displayName = profile?.displayName || profile?.name || "Donna";
+  const displayName = profile?.displayName || profile?.name || "Agente";
   const persona = readPersona(profile?.persona);
   const toolsEnabled = (profile?.toolsEnabled as string[] | null) ?? null;
 

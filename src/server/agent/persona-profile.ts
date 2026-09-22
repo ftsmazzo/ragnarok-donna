@@ -16,6 +16,7 @@ const DEFAULT_TOOLS = [
   "list_client_appointments",
   "resolve_date",
   "book_appointment",
+  "reschedule_appointment",
   "cancel_appointment",
   "open_order",
   "add_order_item",
@@ -79,7 +80,7 @@ export async function ensureDefaultAgentProfile(input: {
   businessName?: string;
 }) {
   const db = createDb();
-  const displayName = input.displayName?.trim() || "Donna";
+  const displayName = input.displayName?.trim() || "Agente";
 
   const [tenant] = await db
     .select({ name: schema.tenants.name })

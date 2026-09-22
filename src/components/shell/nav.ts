@@ -91,7 +91,7 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Conversas IA", href: "/conversas", icon: "✉" },
       { label: "Disparos WhatsApp", href: "/configuracoes/disparos", icon: "✉" },
-      { label: "Agente (Donna)", href: "/configuracoes/agente", icon: "✉" },
+      { label: "Agente barbearia", href: "/configuracoes/agente", icon: "✉" },
       { label: "Perfil / retorno", href: "/relatorios/perfil", icon: "☺" },
     ],
   },

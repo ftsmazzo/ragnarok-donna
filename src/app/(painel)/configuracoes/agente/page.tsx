@@ -14,8 +14,8 @@ export default async function AgenteConfigPage() {
   return (
     <>
       <PageHeader
-        title="Agente (Donna)"
-        subtitle="WhatsApp da unidade, tom de voz e alerta de atendimento humano"
+        title="Agente da barbearia"
+        subtitle="WhatsApp da unidade, personalidade e alerta de atendimento humano"
       />
 
       <section className="panel" style={{ background: "transparent", border: "none", boxShadow: "none" }}>

@@ -232,7 +232,7 @@ export async function processInboundMessage(
   if (!waMessageId) return "skip";
 
   const tenantId = tenantLink.tenantId;
-  const profileId = await ensureDefaultAgentProfile({ tenantId, displayName: "Donna" });
+  const profileId = await ensureDefaultAgentProfile({ tenantId, displayName: "Agente" });
   let clientId = await findClientId(tenantId, phoneE164);
   if (!clientId) {
     try {

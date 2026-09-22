@@ -42,6 +42,7 @@ export {
   updateWhatsAppProfileName,
   syncWhatsAppConnectionByInstance,
   resolveTenantByInstance,
+  requestWhatsAppQr,
   FRESH_RAGNAROK_INSTANCE,
 } from "./connection";
 export type { WhatsAppConnectionView } from "./connection";

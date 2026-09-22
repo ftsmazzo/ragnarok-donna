@@ -37,6 +37,8 @@ export type WhatsAppConnectionView = {
   profileName: string | null;
   /** Instâncias Evolution ainda sem tenant no app (p/ vincular Ragnarok). */
   availableInstances: string[];
+  /** Subconjunto de availableInstances que já estão open na Evolution. */
+  openAvailableInstances: string[];
   /** Nome sugerido ao criar (slug do tenant). */
   suggestedInstanceName: string;
   /** Nome de perfil WA sugerido (o que o cliente vê). */
@@ -52,7 +54,7 @@ function suggestedNameForSlug(slug: string) {
 
 function suggestedProfileNameForSlug(slug: string) {
   if (/ragnarok/i.test(slug)) return "Sara | Ragnarok";
-  return "Donna";
+  return "Agente da barbearia";
 }
 
 function normalizeInstanceName(raw: string) {
@@ -87,10 +89,95 @@ function pickInstanceMeta(inst: EvolutionInstance | undefined) {
   return { phoneE164, profilePicUrl, profileName };
 }
 
+function evolutionInstanceName(inst: EvolutionInstance): string {
+  return (inst.instance?.instanceName ?? inst.instanceName ?? inst.name ?? "").trim();
+}
+
+function findEvolutionInstance(
+  list: EvolutionInstance[],
+  instanceName: string
+): EvolutionInstance | undefined {
+  const want = instanceName.trim().toLowerCase();
+  return list.find((i) => evolutionInstanceName(i).toLowerCase() === want);
+}
+
+/** Status vivo a partir do payload de fetchInstances (fonte mais estável que connectionState). */
+function liveStatusFromInstance(inst: EvolutionInstance | undefined): string | null {
+  if (!inst) return null;
+  const any = inst as EvolutionInstance & {
+    status?: string;
+    instance?: { connectionStatus?: string; state?: string; status?: string };
+  };
+  const raw =
+    any.connectionStatus ??
+    any.instance?.connectionStatus ??
+    any.instance?.state ??
+    any.instance?.status ??
+    any.status;
+  if (raw == null || raw === "") return null;
+  return mapConnectionStatus(String(raw));
+}
+
+/** Lê estado real na Evolution — NUNCA chama /connect (isso regenera QR). */
+async function probeInstanceStatus(
+  instanceName: string,
+  remote?: EvolutionInstance[]
+): Promise<{
+  status: string;
+  phoneE164: string | null;
+  profilePicUrl: string | null;
+  profileName: string | null;
+}> {
+  let status = "disconnected";
+  let phoneE164: string | null = null;
+  let profilePicUrl: string | null = null;
+  let profileName: string | null = null;
+
+  const list = remote ?? (await fetchInstances());
+  const inst = findEvolutionInstance(list, instanceName);
+  const fromList = liveStatusFromInstance(inst);
+  if (fromList) status = fromList;
+  const meta = pickInstanceMeta(inst);
+  phoneE164 = meta.phoneE164;
+  profilePicUrl = meta.profilePicUrl;
+  profileName = meta.profileName;
+
+  try {
+    const state = await getConnectionState(instanceName);
+    const rawState =
+      state.instance?.state ?? state.state ?? state.status ?? state.instance?.status;
+    const mapped = mapConnectionStatus(rawState);
+    // Se a lista diz open, confia nela mesmo se connectionState vier estranho/vazio
+    if (mapped === "connected" || status !== "connected") {
+      if (mapped === "connected") status = "connected";
+      else if (status !== "connected") status = mapped;
+    }
+  } catch {
+    // mantém status do fetchInstances
+  }
+
+  return { status, phoneE164, profilePicUrl, profileName };
+}
+
 function instanceNamesFromEvolution(list: EvolutionInstance[]): string[] {
-  return list
-    .map((i) => i.instance?.instanceName ?? i.instanceName ?? i.name ?? "")
-    .filter(Boolean);
+  return list.map(evolutionInstanceName).filter(Boolean);
+}
+
+/** Instâncias open na Evolution ainda sem vínculo (ou a deste tenant). */
+async function listOpenUnlinkedInstanceNames(
+  excludeTenantId?: string
+): Promise<string[]> {
+  const available = await listUnlinkedInstanceNames(excludeTenantId);
+  if (!available.length) return [];
+  try {
+    const remote = await fetchInstances();
+    return available.filter((n) => {
+      const st = liveStatusFromInstance(findEvolutionInstance(remote, n));
+      return st === "connected";
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function assertCanManage() {
@@ -197,6 +284,7 @@ function viewFromParts(input: {
   profilePicUrl?: string | null;
   profileName?: string | null;
   availableInstances: string[];
+  openAvailableInstances?: string[];
   suggestedInstanceName: string;
   suggestedProfileName: string;
 }): WhatsAppConnectionView {
@@ -209,6 +297,7 @@ function viewFromParts(input: {
     profilePicUrl: input.profilePicUrl ?? null,
     profileName: input.profileName ?? null,
     availableInstances: input.availableInstances,
+    openAvailableInstances: input.openAvailableInstances ?? [],
     suggestedInstanceName: input.suggestedInstanceName,
     suggestedProfileName: input.suggestedProfileName,
     proxyConfigured: Boolean(getEvolutionProxyConfig()),
@@ -240,11 +329,90 @@ async function provisionInstance(instanceName: string) {
   return { webhookUrl, proxy };
 }
 
+/**
+ * Se a Evolution já tem a instância open (sugerida ou qualquer open livre),
+ * grava o vínculo no Postgres + webhook — sem pedir QR de novo.
+ */
+async function healLinkFromEvolution(input: {
+  tenantId: string;
+  suggestedInstanceName: string;
+  currentInstanceName?: string | null;
+}): Promise<{
+  instanceName: string;
+  status: string;
+  phoneE164: string | null;
+  profilePicUrl: string | null;
+  profileName: string | null;
+  webhookUrl: string;
+} | null> {
+  let remote: EvolutionInstance[] = [];
+  try {
+    remote = await fetchInstances();
+  } catch {
+    return null;
+  }
+
+  const candidates: string[] = [];
+  if (input.currentInstanceName) candidates.push(input.currentInstanceName);
+  if (
+    input.suggestedInstanceName &&
+    !candidates.includes(input.suggestedInstanceName)
+  ) {
+    candidates.push(input.suggestedInstanceName);
+  }
+  // Só cura current/sugerida — não pega instância aleatória de outro negócio.
+
+  const db = createDb();
+  const linkedOthers = await db
+    .select({
+      instanceName: schema.whatsappConnections.instanceName,
+      tenantId: schema.whatsappConnections.tenantId,
+    })
+    .from(schema.whatsappConnections);
+
+  for (const name of candidates) {
+    const taken = linkedOthers.find(
+      (r) => r.instanceName === name && r.tenantId !== input.tenantId
+    );
+    if (taken) continue;
+
+    const live = await probeInstanceStatus(name, remote);
+    if (live.status !== "connected") continue;
+
+    const webhookUrl = getAgentWebhookUrl();
+    try {
+      await setInstanceWebhook(name, webhookUrl);
+    } catch {
+      // best-effort
+    }
+
+    await upsertConnection({
+      tenantId: input.tenantId,
+      instanceName: name,
+      status: "connected",
+      phoneE164: live.phoneE164,
+      webhookUrl,
+      profilePicUrl: live.profilePicUrl,
+      profileName: live.profileName,
+    });
+
+    return {
+      instanceName: name,
+      status: "connected",
+      phoneE164: live.phoneE164,
+      profilePicUrl: live.profilePicUrl,
+      profileName: live.profileName,
+      webhookUrl,
+    };
+  }
+
+  return null;
+}
+
 export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | null> {
   const tenant = await requireTenantContext();
   const suggestedInstanceName = suggestedNameForSlug(tenant.slug);
   const suggestedProfileName = suggestedProfileNameForSlug(tenant.slug);
-  const availableInstances = await listUnlinkedInstanceNames(tenant.id);
 
   const db = createDb();
   const [row] = await db
@@ -253,6 +421,36 @@ export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | 
     .where(eq(schema.whatsappConnections.tenantId, tenant.id))
     .limit(1);
 
+  // Sem linha OU status ≠ connected → tenta curar com instância já open na Evolution
+  const needsHeal = !row || row.status !== "connected";
+  if (needsHeal) {
+    const healed = await healLinkFromEvolution({
+      tenantId: tenant.id,
+      suggestedInstanceName,
+      currentInstanceName: row?.instanceName ?? null,
+    });
+    if (healed) {
+      const availableInstances = await listUnlinkedInstanceNames(tenant.id);
+      const openAvailableInstances = await listOpenUnlinkedInstanceNames(tenant.id);
+      return viewFromParts({
+        instanceName: healed.instanceName,
+        status: "connected",
+        phoneE164: healed.phoneE164,
+        qrcodeBase64: null,
+        webhookConfigured: true,
+        profilePicUrl: healed.profilePicUrl,
+        profileName: healed.profileName,
+        availableInstances,
+        openAvailableInstances,
+        suggestedInstanceName,
+        suggestedProfileName,
+      });
+    }
+  }
+
+  const availableInstances = await listUnlinkedInstanceNames(tenant.id);
+  const openAvailableInstances = await listOpenUnlinkedInstanceNames(tenant.id);
+
   if (!row) {
     return viewFromParts({
       instanceName: suggestedInstanceName,
@@ -260,20 +458,73 @@ export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | 
       phoneE164: null,
       webhookConfigured: false,
       availableInstances,
+      openAvailableInstances,
       suggestedInstanceName,
       suggestedProfileName,
     });
   }
 
+  // Sync vivo (sem /connect) — TTL curto quando desconectado
   const meta = (row.meta ?? {}) as Record<string, unknown>;
+  const lastSyncAt =
+    typeof meta.lastEvolutionSyncAt === "string" ? Date.parse(meta.lastEvolutionSyncAt) : 0;
+  const ttlMs = row.status === "connected" ? 45_000 : 8_000;
+  const stale = !Number.isFinite(lastSyncAt) || Date.now() - lastSyncAt > ttlMs;
+
+  let status = row.status;
+  let phoneE164 = row.phoneE164;
+  let profilePicUrl: string | null =
+    typeof meta.profilePicUrl === "string" ? meta.profilePicUrl : null;
+  let profileName: string | null =
+    typeof meta.profileName === "string" ? meta.profileName : null;
+  let instanceName = row.instanceName;
+
+  if (stale) {
+    const synced = await syncWhatsAppConnectionByInstance(row.instanceName);
+    status = synced?.status ?? row.status;
+    phoneE164 = synced?.phoneE164 ?? row.phoneE164;
+    profilePicUrl = synced?.profilePicUrl ?? profilePicUrl;
+    profileName = synced?.profileName ?? profileName;
+
+    if (status !== "connected") {
+      const healed = await healLinkFromEvolution({
+        tenantId: tenant.id,
+        suggestedInstanceName,
+        currentInstanceName: row.instanceName,
+      });
+      if (healed) {
+        instanceName = healed.instanceName;
+        status = "connected";
+        phoneE164 = healed.phoneE164;
+        profilePicUrl = healed.profilePicUrl;
+        profileName = healed.profileName;
+      }
+    }
+
+    await db
+      .update(schema.whatsappConnections)
+      .set({
+        meta: {
+          ...meta,
+          lastEvolutionSyncAt: new Date().toISOString(),
+          ...(profilePicUrl ? { profilePicUrl } : {}),
+          ...(profileName ? { profileName } : {}),
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.whatsappConnections.id, row.id));
+  }
+
   return viewFromParts({
-    instanceName: row.instanceName,
-    status: row.status,
-    phoneE164: row.phoneE164,
+    instanceName,
+    status,
+    phoneE164,
+    qrcodeBase64: null,
     webhookConfigured: Boolean(meta.webhookUrl),
-    profilePicUrl: typeof meta.profilePicUrl === "string" ? meta.profilePicUrl : null,
-    profileName: typeof meta.profileName === "string" ? meta.profileName : null,
+    profilePicUrl,
+    profileName,
     availableInstances,
+    openAvailableInstances,
     suggestedInstanceName,
     suggestedProfileName,
   });
@@ -296,23 +547,11 @@ export async function syncWhatsAppConnectionByInstance(instanceName: string) {
     typeof row.meta?.profileName === "string" ? row.meta.profileName : null;
 
   try {
-    const state = await getConnectionState(instanceName);
-    const rawState = state.instance?.state ?? state.state ?? state.status ?? state.instance?.status;
-    status = mapConnectionStatus(rawState);
-
-    const instances = await fetchInstances();
-    const inst = instances.find(
-      (i) =>
-        i.instance?.instanceName === instanceName ||
-        i.instanceName === instanceName ||
-        i.name === instanceName
-    );
-    const meta = pickInstanceMeta(inst);
-    if (meta.phoneE164) phoneE164 = meta.phoneE164;
-    if (meta.profilePicUrl) profilePicUrl = meta.profilePicUrl;
-    // Nome de perfil: o app manda; Evolution só preenche se ainda estiver vazio
-    // (evita o sync a cada 5s sobrescrever o nome que a unidade acabou de salvar).
-    if (!profileName && meta.profileName) profileName = meta.profileName;
+    const live = await probeInstanceStatus(instanceName);
+    status = live.status;
+    if (live.phoneE164) phoneE164 = live.phoneE164;
+    if (live.profilePicUrl) profilePicUrl = live.profilePicUrl;
+    if (!profileName && live.profileName) profileName = live.profileName;
   } catch {
     // Evolution indisponível — mantém último status conhecido
   }
@@ -326,6 +565,7 @@ export async function syncWhatsAppConnectionByInstance(instanceName: string) {
         ...(row.meta ?? {}),
         ...(profilePicUrl ? { profilePicUrl } : {}),
         ...(profileName ? { profileName } : {}),
+        lastEvolutionSyncAt: new Date().toISOString(),
       },
       updatedAt: new Date(),
     })
@@ -368,16 +608,13 @@ export async function linkWhatsAppInstance(instanceNameRaw: string): Promise<
     const webhookUrl = getAgentWebhookUrl();
     await setInstanceWebhook(instanceName, webhookUrl);
 
-    const state = await getConnectionState(instanceName);
-    const rawState = state.instance?.state ?? state.state ?? state.status ?? "close";
-    const status = mapConnectionStatus(rawState);
-    const inst = remote.find(
-      (i) =>
-        i.instance?.instanceName === instanceName ||
-        i.instanceName === instanceName ||
-        i.name === instanceName
-    );
-    const meta = pickInstanceMeta(inst);
+    const live = await probeInstanceStatus(instanceName, remote);
+    const status = live.status;
+    const meta = {
+      phoneE164: live.phoneE164,
+      profilePicUrl: live.profilePicUrl,
+      profileName: live.profileName,
+    };
 
     await upsertConnection({
       tenantId: tenant.id,
@@ -390,6 +627,7 @@ export async function linkWhatsAppInstance(instanceNameRaw: string): Promise<
     });
 
     const availableInstances = await listUnlinkedInstanceNames(tenant.id);
+    const openAvailableInstances = await listOpenUnlinkedInstanceNames(tenant.id);
     return {
       ok: true,
       data: viewFromParts({
@@ -400,6 +638,7 @@ export async function linkWhatsAppInstance(instanceNameRaw: string): Promise<
         profilePicUrl: meta.profilePicUrl,
         profileName: meta.profileName,
         availableInstances,
+        openAvailableInstances,
         suggestedInstanceName: suggestedNameForSlug(tenant.slug),
         suggestedProfileName: suggestedProfileNameForSlug(tenant.slug),
       }),
@@ -610,8 +849,31 @@ export async function replaceWhatsAppInstance(newNameRaw: string): Promise<
   }
 }
 
-/** Atualiza status (e QR se ainda conectando). */
+/**
+ * Só sincroniza status + cura vínculo. NUNCA chama /instance/connect (isso regenera QR).
+ */
 export async function refreshWhatsAppPairing(): Promise<
+  { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
+> {
+  try {
+    await assertCanManage();
+    const data = await getWhatsAppConnection();
+    if (!data) {
+      return { ok: false, error: "Sem contexto de unidade" };
+    }
+    return { ok: true, data };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Falha ao atualizar conexão",
+    };
+  }
+}
+
+/**
+ * Gera/renova QR sob demanda (botão explícito). Não usar em poll automático.
+ */
+export async function requestWhatsAppQr(): Promise<
   { ok: true; data: WhatsAppConnectionView } | { ok: false; error: string }
 > {
   try {
@@ -625,9 +887,45 @@ export async function refreshWhatsAppPairing(): Promise<
       .limit(1);
 
     const instanceName = row?.instanceName ?? suggestedNameForSlug(tenant.slug);
-    let qrcodeBase64: string | null = null;
 
-    // Garante linha no banco antes do sync por instanceName
+    // Se já está open, não gera QR — devolve conectado
+    const live = await probeInstanceStatus(instanceName);
+    if (live.status === "connected") {
+      const webhookUrl = getAgentWebhookUrl();
+      try {
+        await setInstanceWebhook(instanceName, webhookUrl);
+      } catch {
+        // ignore
+      }
+      await upsertConnection({
+        tenantId: tenant.id,
+        instanceName,
+        status: "connected",
+        phoneE164: live.phoneE164,
+        webhookUrl,
+        profilePicUrl: live.profilePicUrl,
+        profileName: live.profileName,
+      });
+      const availableInstances = await listUnlinkedInstanceNames(tenant.id);
+      const openAvailableInstances = await listOpenUnlinkedInstanceNames(tenant.id);
+      return {
+        ok: true,
+        data: viewFromParts({
+          instanceName,
+          status: "connected",
+          phoneE164: live.phoneE164,
+          qrcodeBase64: null,
+          webhookConfigured: true,
+          profilePicUrl: live.profilePicUrl,
+          profileName: live.profileName,
+          availableInstances,
+          openAvailableInstances,
+          suggestedInstanceName: suggestedNameForSlug(tenant.slug),
+          suggestedProfileName: suggestedProfileNameForSlug(tenant.slug),
+        }),
+      };
+    }
+
     if (!row) {
       await upsertConnection({
         tenantId: tenant.id,
@@ -636,49 +934,31 @@ export async function refreshWhatsAppPairing(): Promise<
       });
     }
 
-    const synced = await syncWhatsAppConnectionByInstance(instanceName);
-    const status = synced?.status ?? row?.status ?? "disconnected";
-    const phoneE164 = synced?.phoneE164 ?? row?.phoneE164 ?? null;
-    const profilePicUrl = synced?.profilePicUrl ?? null;
-    const profileName = synced?.profileName ?? null;
-
+    let qrcodeBase64: string | null = null;
     try {
-      const webhookUrl = getAgentWebhookUrl();
-      await setInstanceWebhook(instanceName, webhookUrl);
-      await upsertConnection({
-        tenantId: tenant.id,
-        instanceName,
-        status,
-        phoneE164,
-        webhookUrl,
-        profilePicUrl,
-        profileName,
-      });
-    } catch {
-      // webhook re-set best-effort
-    }
-
-    if (status !== "connected") {
-      try {
-        const connect = await connectInstance(instanceName);
-        qrcodeBase64 = extractQrBase64(connect);
-      } catch {
-        // QR expirado ou instância já aberta
-      }
+      const connect = await connectInstance(instanceName);
+      qrcodeBase64 = extractQrBase64(connect);
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "Falha ao gerar QR",
+      };
     }
 
     const availableInstances = await listUnlinkedInstanceNames(tenant.id);
+    const openAvailableInstances = await listOpenUnlinkedInstanceNames(tenant.id);
     return {
       ok: true,
       data: viewFromParts({
         instanceName,
-        status,
-        phoneE164,
+        status: qrcodeBase64 ? "connecting" : live.status,
+        phoneE164: live.phoneE164,
         qrcodeBase64,
         webhookConfigured: true,
-        profilePicUrl,
-        profileName,
+        profilePicUrl: live.profilePicUrl,
+        profileName: live.profileName,
         availableInstances,
+        openAvailableInstances,
         suggestedInstanceName: suggestedNameForSlug(tenant.slug),
         suggestedProfileName: suggestedProfileNameForSlug(tenant.slug),
       }),
@@ -686,7 +966,7 @@ export async function refreshWhatsAppPairing(): Promise<
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Falha ao atualizar conexão",
+      error: err instanceof Error ? err.message : "Falha ao gerar QR",
     };
   }
 }

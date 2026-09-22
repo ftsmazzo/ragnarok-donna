@@ -27,7 +27,7 @@ export default async function PwaConversasPage({ searchParams }: Props) {
 
   await ensureDefaultAgentProfile({
     tenantId: tenant.id,
-    displayName: "Donna",
+    displayName: "Agente",
     businessName: brand.displayName,
   });
 

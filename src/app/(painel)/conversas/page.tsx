@@ -24,7 +24,7 @@ export default async function ConversasPage({ searchParams }: Props) {
   const tenant = await requireTenantContext();
   await ensureDefaultAgentProfile({
     tenantId: tenant.id,
-    displayName: "Donna",
+    displayName: "Agente",
     businessName: tenant.name,
   });
 

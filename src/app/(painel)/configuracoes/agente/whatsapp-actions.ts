@@ -6,6 +6,7 @@ import {
   recreateWhatsAppInstanceFromScratch,
   refreshWhatsAppPairing,
   replaceWhatsAppInstance,
+  requestWhatsAppQr,
   startWhatsAppPairing,
   updateWhatsAppProfileName,
   updateWhatsAppProfilePicture,
@@ -34,8 +35,16 @@ export async function recreateWhatsAppInstanceFromScratchAction() {
   return result;
 }
 
+/** Só status — nunca regenera QR. */
 export async function refreshWhatsAppPairingAction() {
   const result = await refreshWhatsAppPairing();
+  if (result.ok) revalidateWa();
+  return result;
+}
+
+/** QR sob demanda (botão Gerar/Atualizar QR). */
+export async function requestWhatsAppQrAction() {
+  const result = await requestWhatsAppQr();
   if (result.ok) revalidateWa();
   return result;
 }

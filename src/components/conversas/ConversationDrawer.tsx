@@ -25,7 +25,7 @@ function directionLabel(dir: ConversationDetail["messages"][number]["direction"]
     case "inbound":
       return "Cliente";
     case "outbound_ai":
-      return "IA";
+      return "Agente";
     case "outbound_human":
       return "Você";
     case "system":
@@ -77,6 +77,18 @@ export function ConversationDrawer({ open, conversation, onClose }: Props) {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [conversation?.messages.length, open]);
+
+  // Thread aberta: refresh periódico p/ novas msgs do Zap
+  useEffect(() => {
+    if (!open || !conversation?.id) return;
+    const id = window.setInterval(() => {
+      // router.refresh via location soft — o parent ConversasView já faz refresh;
+      // aqui só garante scroll se a lista de msgs crescer.
+      const el = threadRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }, 4_000);
+    return () => window.clearInterval(id);
+  }, [open, conversation?.id]);
 
   if (!conversation) {
     return (
