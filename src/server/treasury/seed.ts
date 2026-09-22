@@ -30,6 +30,12 @@ export async function seedTreasuryFromDonnaSample(): Promise<SeedResult> {
     const session = await requireSession();
     requireCapability(session, "finance.treasury");
     const tenant = await requireTenantContext();
+    if (!/donna/i.test(tenant.slug) && !/donna/i.test(tenant.name)) {
+      return {
+        ok: false,
+        error: "Seed Donna só está disponível na unidade Donna Elegant",
+      };
+    }
     const db = createDb();
 
     let accounts = 0;

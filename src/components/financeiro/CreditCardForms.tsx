@@ -19,10 +19,30 @@ export function NewCreditCardButton({ canWrite }: { canWrite: boolean }) {
       <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
         + Cartão
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Novo cartão de crédito">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Novo cartão de crédito"
+        size="sm"
+        footer={
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="treasury-card-form"
+              className="btn btn-primary"
+              disabled={pending}
+            >
+              {pending ? "Salvando…" : "Salvar"}
+            </button>
+          </>
+        }
+      >
         <form
-          className="form-grid"
-          style={{ gap: 10 }}
+          id="treasury-card-form"
+          className="form-stack"
           onSubmit={(e) => {
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
@@ -37,42 +57,34 @@ export function NewCreditCardButton({ canWrite }: { canWrite: boolean }) {
                 dueDay: Number(fd.get("dueDay") || 10),
               });
               if (res.ok) {
-                showToast("Cartão cadastrado");
+                showToast("Cartão cadastrado", "success");
                 setOpen(false);
                 router.refresh();
               } else showToast(res.error, "error");
             });
           }}
         >
-          <label>
-            Nome
-            <input name="name" required className="search-input" />
+          <label className="form-field">
+            <span>Nome</span>
+            <input name="name" required autoFocus />
           </label>
-          <label>
-            Bandeira / banco
-            <input name="institution" className="search-input" />
+          <label className="form-field">
+            <span>Bandeira / banco</span>
+            <input name="institution" />
           </label>
-          <label>
-            Limite (R$)
-            <input name="limit" type="number" step="0.01" required className="search-input" />
+          <label className="form-field">
+            <span>Limite (R$)</span>
+            <input name="limit" type="number" step="0.01" required />
           </label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label>
-              Dia fechamento
-              <input name="closingDay" type="number" min={1} max={28} defaultValue={1} className="search-input" />
+          <div className="form-row-2">
+            <label className="form-field">
+              <span>Dia fechamento</span>
+              <input name="closingDay" type="number" min={1} max={28} defaultValue={1} />
             </label>
-            <label>
-              Dia vencimento
-              <input name="dueDay" type="number" min={1} max={28} defaultValue={10} className="search-input" />
+            <label className="form-field">
+              <span>Dia vencimento</span>
+              <input name="dueDay" type="number" min={1} max={28} defaultValue={10} />
             </label>
-          </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={pending}>
-              Salvar
-            </button>
           </div>
         </form>
       </Modal>
@@ -112,7 +124,7 @@ export function OpenInvoiceButton({
             dueDate: due,
           });
           if (res.ok) {
-            showToast("Fatura aberta");
+            showToast("Fatura aberta", "success");
             router.refresh();
           } else showToast(res.error, "error");
         })

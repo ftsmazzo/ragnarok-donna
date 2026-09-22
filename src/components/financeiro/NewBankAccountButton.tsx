@@ -18,10 +18,30 @@ export function NewBankAccountButton({ canWrite }: { canWrite: boolean }) {
       <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
         + Conta bancária
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Nova conta bancária">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Nova conta bancária"
+        size="sm"
+        footer={
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="treasury-bank-form"
+              className="btn btn-primary"
+              disabled={pending}
+            >
+              {pending ? "Salvando…" : "Salvar"}
+            </button>
+          </>
+        }
+      >
         <form
-          className="form-grid"
-          style={{ gap: 10 }}
+          id="treasury-bank-form"
+          className="form-stack"
           onSubmit={(e) => {
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
@@ -41,51 +61,43 @@ export function NewBankAccountButton({ canWrite }: { canWrite: boolean }) {
                 openingBalanceDate: String(fd.get("openingDate") || "") || undefined,
               });
               if (res.ok) {
-                showToast("Conta criada");
+                showToast("Conta criada", "success");
                 setOpen(false);
                 router.refresh();
               } else showToast(res.error, "error");
             });
           }}
         >
-          <label>
-            Nome
-            <input name="name" required className="search-input" />
+          <label className="form-field">
+            <span>Nome</span>
+            <input name="name" required autoFocus />
           </label>
-          <label>
-            Instituição
-            <input name="institution" className="search-input" />
+          <label className="form-field">
+            <span>Instituição</span>
+            <input name="institution" placeholder="Ex.: Itaú, Bradesco, Caixa" />
           </label>
-          <label>
-            Tipo
-            <select name="accountType" className="search-input" defaultValue="checking">
+          <label className="form-field">
+            <span>Tipo</span>
+            <select name="accountType" defaultValue="checking">
               <option value="checking">Corrente</option>
               <option value="savings">Poupança</option>
               <option value="internal">Caixa interno</option>
               <option value="other">Outro</option>
             </select>
           </label>
-          <label>
-            Código
-            <input name="bankCode" className="search-input" />
+          <label className="form-field">
+            <span>Código (opcional)</span>
+            <input name="bankCode" />
           </label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label>
-              Saldo inicial (R$)
-              <input name="opening" type="number" step="0.01" defaultValue={0} className="search-input" />
+          <div className="form-row-2">
+            <label className="form-field">
+              <span>Saldo inicial (R$)</span>
+              <input name="opening" type="number" step="0.01" defaultValue={0} />
             </label>
-            <label>
-              Data saldo
-              <input name="openingDate" type="date" className="search-input" />
+            <label className="form-field">
+              <span>Data do saldo</span>
+              <input name="openingDate" type="date" />
             </label>
-          </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={pending}>
-              {pending ? "Salvando…" : "Salvar"}
-            </button>
           </div>
         </form>
       </Modal>

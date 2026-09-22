@@ -46,36 +46,36 @@ export function CalculatorsClient() {
   );
 
   return (
-    <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+    <div className="treasury-admin-grid">
       <section className="panel" style={{ padding: 16 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 12 }}>Capital de giro</h2>
-        <div className="form-grid" style={{ gap: 8 }}>
-          <label>
-            Estoque (R$)
-            <input className="search-input" value={inv} onChange={(e) => setInv(e.target.value)} />
+        <h2 style={{ fontSize: 16, margin: "0 0 12px" }}>Capital de giro</h2>
+        <div className="form-stack">
+          <label className="form-field">
+            <span>Estoque (R$)</span>
+            <input value={inv} onChange={(e) => setInv(e.target.value)} />
           </label>
-          <label>
-            Prazo recebimento (dias)
-            <input className="search-input" value={recvDays} onChange={(e) => setRecvDays(e.target.value)} />
+          <label className="form-field">
+            <span>Prazo recebimento (dias)</span>
+            <input value={recvDays} onChange={(e) => setRecvDays(e.target.value)} />
           </label>
-          <label>
-            Prazo pagamento (dias)
-            <input className="search-input" value={payDays} onChange={(e) => setPayDays(e.target.value)} />
+          <label className="form-field">
+            <span>Prazo pagamento (dias)</span>
+            <input value={payDays} onChange={(e) => setPayDays(e.target.value)} />
           </label>
-          <label>
-            Vendas mensais (R$)
-            <input className="search-input" value={sales} onChange={(e) => setSales(e.target.value)} />
+          <label className="form-field">
+            <span>Vendas mensais (R$)</span>
+            <input value={sales} onChange={(e) => setSales(e.target.value)} />
           </label>
-          <label>
-            CMV mensal (R$)
-            <input className="search-input" value={cogs} onChange={(e) => setCogs(e.target.value)} />
+          <label className="form-field">
+            <span>CMV mensal (R$)</span>
+            <input value={cogs} onChange={(e) => setCogs(e.target.value)} />
           </label>
-          <label>
-            Despesas fixas (R$)
-            <input className="search-input" value={fixed} onChange={(e) => setFixed(e.target.value)} />
+          <label className="form-field">
+            <span>Despesas fixas (R$)</span>
+            <input value={fixed} onChange={(e) => setFixed(e.target.value)} />
           </label>
         </div>
-        <ul style={{ marginTop: 12, fontSize: 14, lineHeight: 1.6 }}>
+        <ul className="muted-note" style={{ marginTop: 14, paddingLeft: 18 }}>
           <li>A receber projetado: {formatMoney(wc.receivablesCents)}</li>
           <li>A pagar projetado: {formatMoney(wc.payablesCents)}</li>
           <li>
@@ -86,28 +86,30 @@ export function CalculatorsClient() {
       </section>
 
       <section className="panel" style={{ padding: 16 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 12 }}>Ponto de equilíbrio</h2>
-        <div className="form-grid" style={{ gap: 8 }}>
-          <label>
-            Ticket médio (R$)
-            <input className="search-input" value={price} onChange={(e) => setPrice(e.target.value)} />
+        <h2 style={{ fontSize: 16, margin: "0 0 12px" }}>Ponto de equilíbrio</h2>
+        <div className="form-stack">
+          <label className="form-field">
+            <span>Ticket médio (R$)</span>
+            <input value={price} onChange={(e) => setPrice(e.target.value)} />
           </label>
-          <label>
-            Custo variável / ticket (R$)
-            <input className="search-input" value={varCost} onChange={(e) => setVarCost(e.target.value)} />
+          <label className="form-field">
+            <span>Custo variável / ticket (R$)</span>
+            <input value={varCost} onChange={(e) => setVarCost(e.target.value)} />
           </label>
-          <label>
-            Custos fixos mensais (R$)
-            <input className="search-input" value={fixedBe} onChange={(e) => setFixedBe(e.target.value)} />
+          <label className="form-field">
+            <span>Custos fixos mensais (R$)</span>
+            <input value={fixedBe} onChange={(e) => setFixedBe(e.target.value)} />
           </label>
-          <label>
-            Impostos %
-            <input className="search-input" value={tax} onChange={(e) => setTax(e.target.value)} />
+          <label className="form-field">
+            <span>Impostos %</span>
+            <input value={tax} onChange={(e) => setTax(e.target.value)} />
           </label>
         </div>
-        <ul style={{ marginTop: 12, fontSize: 14, lineHeight: 1.6 }}>
+        <ul className="muted-note" style={{ marginTop: 14, paddingLeft: 18 }}>
           <li>Margem contribuição: {formatMoney(be.contributionMarginCents)}</li>
-          <li>PE contábil: {be.breakEvenUnits} tickets · {formatMoney(be.breakEvenRevenueCents)}</li>
+          <li>
+            PE contábil: {be.breakEvenUnits} tickets · {formatMoney(be.breakEvenRevenueCents)}
+          </li>
           <li>PE econômico (+20%): {formatMoney(be.economicBreakEvenRevenueCents)}</li>
           <li>PE fiscal: {formatMoney(be.fiscalBreakEvenRevenueCents)}</li>
         </ul>

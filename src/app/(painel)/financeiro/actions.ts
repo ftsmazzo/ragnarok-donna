@@ -12,6 +12,8 @@ import {
   seedTreasuryFromDonnaSample,
   saveTreasuryBridgeSettings,
   backfillTreasuryBridge,
+  importTreasuryEntriesFromFile,
+  importChartAccountsFromFile,
   type FinanceEntryInput,
 } from "@/server/treasury";
 
@@ -94,4 +96,18 @@ export async function saveBridgeSettingsAction(input: {
 
 export async function backfillBridgeAction() {
   return backfillTreasuryBridge(100);
+}
+
+export async function importEntriesFileAction(input: {
+  base64: string;
+  fileName: string;
+}) {
+  return importTreasuryEntriesFromFile(input);
+}
+
+export async function importChartFileAction(input: {
+  base64: string;
+  fileName: string;
+}) {
+  return importChartAccountsFromFile(input);
 }

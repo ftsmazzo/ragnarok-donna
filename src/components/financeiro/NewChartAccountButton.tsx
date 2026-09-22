@@ -18,10 +18,30 @@ export function NewChartAccountButton({ canWrite }: { canWrite: boolean }) {
       <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
         + Conta
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Conta do plano">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Conta do plano"
+        size="md"
+        footer={
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="treasury-chart-form"
+              className="btn btn-primary"
+              disabled={pending}
+            >
+              {pending ? "Salvando…" : "Salvar"}
+            </button>
+          </>
+        }
+      >
         <form
-          className="form-grid"
-          style={{ gap: 10 }}
+          id="treasury-chart-form"
+          className="form-stack"
           onSubmit={(e) => {
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
@@ -36,50 +56,44 @@ export function NewChartAccountButton({ canWrite }: { canWrite: boolean }) {
                 dreGroup2: String(fd.get("dreGroup2") || "") || undefined,
               });
               if (res.ok) {
-                showToast("Conta salva");
+                showToast("Conta salva", "success");
                 setOpen(false);
                 router.refresh();
               } else showToast(res.error, "error");
             });
           }}
         >
-          <label>
-            Código APR
-            <input name="code" required className="search-input" />
-          </label>
-          <label>
-            Nome analítico
-            <input name="name" required className="search-input" />
-          </label>
-          <label>
-            Sintética
-            <input name="syntheticName" className="search-input" />
-          </label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label>
-              DFC grupo I
-              <input name="dfcGroup1" className="search-input" />
+          <div className="form-row-2">
+            <label className="form-field">
+              <span>Código APR</span>
+              <input name="code" required autoFocus />
             </label>
-            <label>
-              DFC grupo II
-              <input name="dfcGroup2" className="search-input" />
-            </label>
-            <label>
-              DRE grupo I
-              <input name="dreGroup1" className="search-input" />
-            </label>
-            <label>
-              DRE grupo II
-              <input name="dreGroup2" className="search-input" />
+            <label className="form-field">
+              <span>Sintética</span>
+              <input name="syntheticName" />
             </label>
           </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={pending}>
-              Salvar
-            </button>
+          <label className="form-field">
+            <span>Nome analítico</span>
+            <input name="name" required />
+          </label>
+          <div className="form-row-2">
+            <label className="form-field">
+              <span>DFC grupo I</span>
+              <input name="dfcGroup1" />
+            </label>
+            <label className="form-field">
+              <span>DFC grupo II</span>
+              <input name="dfcGroup2" />
+            </label>
+            <label className="form-field">
+              <span>DRE grupo I</span>
+              <input name="dreGroup1" />
+            </label>
+            <label className="form-field">
+              <span>DRE grupo II</span>
+              <input name="dreGroup2" />
+            </label>
           </div>
         </form>
       </Modal>
