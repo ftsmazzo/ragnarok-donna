@@ -419,10 +419,10 @@ export const guideAgenteDonna: SupportGuide = {
 
 export const guideDisparos: SupportGuide = {
   id: "disparos",
-  title: "Disparos WhatsApp",
+  title: "Mensagens WhatsApp",
   status: "ready",
   href: "/configuracoes/disparos",
-  menuPath: "Configurações → Disparos WhatsApp",
+  menuPath: "Configurações → Mensagens WhatsApp",
   aliases: [
     "disparo",
     "disparos",
@@ -441,7 +441,7 @@ export const guideDisparos: SupportGuide = {
     {
       title: "Onde fica",
       detail:
-        "Menu → Configurações → Disparos WhatsApp (/configuracoes/disparos). Titular, admin e gerente.",
+        "Menu → Configurações → Mensagens WhatsApp (/configuracoes/disparos). Titular, admin e gerente.",
     },
     {
       title: "Regras da casa",

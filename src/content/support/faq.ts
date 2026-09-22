@@ -167,7 +167,7 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     answer:
       "Disparos são regras automáticas (confirmação, retorno, blast). O envio global pode estar bloqueado no servidor até liberar a migração — o toggle da unidade sozinho não basta. Follow-up pontual: Relatórios → Perfil do cliente.",
     tags: ["disparos", "confirmação", "blast", "whatsapp"],
-    menuPath: "Configurações → Disparos WhatsApp",
+    menuPath: "Configurações → Mensagens WhatsApp",
   },
 
   {
