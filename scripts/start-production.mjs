@@ -805,9 +805,178 @@ async function ensureRequiredAccountSchema() {
       ALTER TABLE tenant_outreach_settings
       ADD COLUMN IF NOT EXISTS dry_run_enabled boolean NOT NULL DEFAULT true
     `;
+
+    await ensureTreasurySchema(sql);
   } finally {
     await sql.end({ timeout: 5 });
   }
+}
+
+/** Schema do módulo Tesouraria — criado no start do EasyPanel (sem db:push manual). */
+async function ensureTreasurySchema(sql) {
+  await sql.unsafe(`
+DO $$ BEGIN
+  CREATE TYPE bank_account_type AS ENUM ('checking', 'savings', 'internal', 'other');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE TYPE finance_direction AS ENUM ('credit', 'debit');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE TYPE finance_recurrence AS ENUM ('none', 'weekly', 'biweekly', 'monthly', 'bimonthly');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS chart_accounts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  code varchar(32) NOT NULL,
+  name varchar(200) NOT NULL,
+  synthetic_name varchar(200),
+  dfc_group_1 varchar(120),
+  dfc_group_2 varchar(120),
+  dre_group_1 varchar(120),
+  dre_group_2 varchar(120),
+  include_in_fcd boolean NOT NULL DEFAULT true,
+  include_in_fcm boolean NOT NULL DEFAULT true,
+  active boolean NOT NULL DEFAULT true,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+CREATE UNIQUE INDEX IF NOT EXISTS chart_accounts_tenant_code_uidx ON chart_accounts (tenant_id, code);
+CREATE INDEX IF NOT EXISTS chart_accounts_tenant_idx ON chart_accounts (tenant_id);
+
+CREATE TABLE IF NOT EXISTS bank_accounts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  branch_id uuid REFERENCES branches(id) ON DELETE SET NULL,
+  name varchar(120) NOT NULL,
+  institution varchar(120),
+  account_type bank_account_type NOT NULL DEFAULT 'checking',
+  bank_code varchar(32),
+  opening_balance_cents integer NOT NULL DEFAULT 0,
+  opening_balance_date date,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS bank_accounts_tenant_idx ON bank_accounts (tenant_id);
+
+CREATE TABLE IF NOT EXISTS treasury_payment_methods (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name varchar(80) NOT NULL,
+  code varchar(40),
+  active boolean NOT NULL DEFAULT true,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS treasury_pm_tenant_name_uidx ON treasury_payment_methods (tenant_id, name);
+CREATE INDEX IF NOT EXISTS treasury_pm_tenant_idx ON treasury_payment_methods (tenant_id);
+
+CREATE TABLE IF NOT EXISTS credit_cards (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  branch_id uuid REFERENCES branches(id) ON DELETE SET NULL,
+  name varchar(120) NOT NULL,
+  institution varchar(120),
+  limit_cents integer NOT NULL DEFAULT 0,
+  closing_day integer NOT NULL DEFAULT 1,
+  due_day integer NOT NULL DEFAULT 10,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS credit_cards_tenant_idx ON credit_cards (tenant_id);
+
+CREATE TABLE IF NOT EXISTS card_invoices (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  credit_card_id uuid NOT NULL REFERENCES credit_cards(id) ON DELETE CASCADE,
+  period_start date NOT NULL,
+  period_end date NOT NULL,
+  due_date date NOT NULL,
+  status varchar(20) NOT NULL DEFAULT 'open',
+  paid_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS card_invoices_card_idx ON card_invoices (credit_card_id);
+CREATE INDEX IF NOT EXISTS card_invoices_tenant_idx ON card_invoices (tenant_id);
+
+CREATE TABLE IF NOT EXISTS finance_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  branch_id uuid REFERENCES branches(id) ON DELETE SET NULL,
+  direction finance_direction NOT NULL,
+  description varchar(300) NOT NULL,
+  party_name varchar(200),
+  client_id uuid REFERENCES clients(id) ON DELETE SET NULL,
+  chart_account_id uuid REFERENCES chart_accounts(id) ON DELETE SET NULL,
+  bank_account_id uuid REFERENCES bank_accounts(id) ON DELETE SET NULL,
+  treasury_payment_method_id uuid REFERENCES treasury_payment_methods(id) ON DELETE SET NULL,
+  credit_card_id uuid REFERENCES credit_cards(id) ON DELETE SET NULL,
+  card_invoice_id uuid REFERENCES card_invoices(id) ON DELETE SET NULL,
+  cost_center varchar(120),
+  doc_type varchar(60),
+  doc_number varchar(80),
+  issue_date date,
+  due_date date,
+  settled_at timestamptz,
+  forecast_cents integer,
+  budget_cents integer,
+  actual_cents integer,
+  installment_index integer,
+  installment_total integer,
+  recurrence finance_recurrence NOT NULL DEFAULT 'none',
+  parent_entry_id uuid,
+  is_forecast_only boolean NOT NULL DEFAULT false,
+  reconciled_at timestamptz,
+  notes text,
+  external_source varchar(40),
+  external_id varchar(120),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS finance_entries_tenant_due_idx ON finance_entries (tenant_id, due_date);
+CREATE INDEX IF NOT EXISTS finance_entries_tenant_issue_idx ON finance_entries (tenant_id, issue_date);
+CREATE INDEX IF NOT EXISTS finance_entries_tenant_settle_idx ON finance_entries (tenant_id, settled_at);
+CREATE INDEX IF NOT EXISTS finance_entries_bank_idx ON finance_entries (bank_account_id);
+CREATE INDEX IF NOT EXISTS finance_entries_chart_idx ON finance_entries (chart_account_id);
+CREATE UNIQUE INDEX IF NOT EXISTS finance_entries_external_uidx
+  ON finance_entries (tenant_id, external_source, external_id);
+
+CREATE TABLE IF NOT EXISTS finance_entry_links (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  finance_entry_id uuid NOT NULL REFERENCES finance_entries(id) ON DELETE CASCADE,
+  order_id uuid REFERENCES orders(id) ON DELETE SET NULL,
+  payment_id uuid REFERENCES payments(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS finance_entry_links_payment_uidx ON finance_entry_links (payment_id);
+CREATE INDEX IF NOT EXISTS finance_entry_links_entry_idx ON finance_entry_links (finance_entry_id);
+
+CREATE TABLE IF NOT EXISTS treasury_bridge_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  enabled boolean NOT NULL DEFAULT false,
+  method_codes text NOT NULL DEFAULT '["pix","cash","debit","credit","transfer"]',
+  default_chart_account_code varchar(32) DEFAULT '121',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS treasury_bridge_settings_tenant_uidx ON treasury_bridge_settings (tenant_id);
+`);
+  console.log("[bootstrap] schema tesouraria (chart/bank/entries/cards/bridge) ok");
 }
 
 await withTimeout(ensureRequiredAccountSchema(), BOOTSTRAP_TIMEOUT_MS);

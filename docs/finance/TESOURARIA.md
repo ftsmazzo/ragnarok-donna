@@ -101,12 +101,8 @@ Server action `seedTreasuryFromDonnaSample`:
 
 ## Deploy / schema
 
-Após merge, rodar no ambiente com `DATABASE_URL` acessível:
+No EasyPanel o schema sobe **sozinho** no `npm start` via `scripts/start-production.mjs` (`ensureTreasurySchema`) — sem terminal e sem `db:push` manual.
 
-```bash
-npm run db:push
-```
-
-SQL de referência (só tesouraria): `drizzle/treasury_module.sql`.
+SQL de referência: `drizzle/treasury_module.sql`.
 
 Na home `/financeiro`, owner/admin pode **Importar plano Donna + amostra** (idempotente) e ligar a **Ponte POS** (default off).
