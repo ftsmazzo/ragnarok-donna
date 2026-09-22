@@ -55,6 +55,7 @@ export async function listConversations(input?: {
   agentReady: boolean;
   connectionStatus: string | null;
   filter: ConversationFilter;
+  agentDisplayName: string | null;
 }> {
   const tenant = await requireTenantContext();
   const db = createDb();
@@ -70,7 +71,7 @@ export async function listConversations(input?: {
     .limit(1);
 
   const [profile] = await db
-    .select({ id: schema.agentProfiles.id })
+    .select({ id: schema.agentProfiles.id, displayName: schema.agentProfiles.displayName })
     .from(schema.agentProfiles)
     .where(
       and(
@@ -133,6 +134,7 @@ export async function listConversations(input?: {
     agentReady: Boolean(profile),
     connectionStatus: connection?.status ?? null,
     filter,
+    agentDisplayName: profile?.displayName?.trim() || null,
   };
 }
 

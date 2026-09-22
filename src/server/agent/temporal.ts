@@ -1,5 +1,5 @@
 /**
- * Inteligência temporal America/Sao_Paulo — fonte da verdade para a Donna.
+ * Inteligência temporal America/Sao_Paulo — fonte da verdade para o agente.
  * Nunca inventar weekday: sempre calcular a partir do calendário.
  */
 import { formatDateSp, parseDateSp, shiftDateSp, todaySp } from "@/lib/datetime";
@@ -201,13 +201,13 @@ export function resolveTemporalPhrase(phrase: string, now = new Date()): Resolve
     return desc;
   }
 
-  if (/\bhoje\b/.test(norm)) {
+  if (/\bhoje\b/.test(norm) || /\bhj\b/.test(norm)) {
     return { ...describeDate(formatDateSp(now)), source: "hoje" };
   }
   if (/\bdepois\s+de\s+amanha\b/.test(norm)) {
     return { ...describeDate(shiftDateSp(formatDateSp(now), 2)), source: "depois de amanhã" };
   }
-  if (/\bamanha\b/.test(norm)) {
+  if (/\bamanha\b/.test(norm) || /\bamnha\b/.test(norm)) {
     return { ...describeDate(shiftDateSp(formatDateSp(now), 1)), source: "amanhã" };
   }
 
@@ -226,8 +226,11 @@ export function resolveTemporalPhrase(phrase: string, now = new Date()): Resolve
     date = shiftDateSp(monday, claimedWd === 0 ? 6 : claimedWd - 1);
     source = "semana que vem";
   } else if (queVem || !essa) {
-    // "próxima segunda" / "segunda" / "segunda que vem"
-    const skipToday = /\bque\s+vem\b/.test(norm) && weekdayIndexOfDate(formatDateSp(now)) === claimedWd;
+    // "próxima segunda" / "segunda" / "segunda que vem" / "sábado"
+    // "esse sábado" sem marcador explícito de "essa" ainda cai aqui se não tiver \b(essa|esta...)
+    // Preferência: ocorrência mais próxima (hoje se <18h e for o dia).
+    const skipToday =
+      /\bque\s+vem\b/.test(norm) && weekdayIndexOfDate(formatDateSp(now)) === claimedWd;
     date = nextWeekdayDate(claimedWd, { from: now, skipToday });
     source = queVem ? "próxima/que vem" : "dia da semana";
   } else {

@@ -52,7 +52,7 @@ function suggestedNameForSlug(slug: string) {
 
 function suggestedProfileNameForSlug(slug: string) {
   if (/ragnarok/i.test(slug)) return "Sara | Ragnarok";
-  return "Donna";
+  return "Agente da barbearia";
 }
 
 function normalizeInstanceName(raw: string) {
@@ -265,14 +265,47 @@ export async function getWhatsAppConnection(): Promise<WhatsAppConnectionView | 
     });
   }
 
+  // Revalida na Evolution no máx. a cada 45s — evita tempestade em router.refresh da inbox.
   const meta = (row.meta ?? {}) as Record<string, unknown>;
+  const lastSyncAt =
+    typeof meta.lastEvolutionSyncAt === "string" ? Date.parse(meta.lastEvolutionSyncAt) : 0;
+  const stale = !Number.isFinite(lastSyncAt) || Date.now() - lastSyncAt > 45_000;
+
+  let status = row.status;
+  let phoneE164 = row.phoneE164;
+  let profilePicUrl: string | null =
+    typeof meta.profilePicUrl === "string" ? meta.profilePicUrl : null;
+  let profileName: string | null =
+    typeof meta.profileName === "string" ? meta.profileName : null;
+
+  if (stale) {
+    const synced = await syncWhatsAppConnectionByInstance(row.instanceName);
+    status = synced?.status ?? row.status;
+    phoneE164 = synced?.phoneE164 ?? row.phoneE164;
+    profilePicUrl = synced?.profilePicUrl ?? profilePicUrl;
+    profileName = synced?.profileName ?? profileName;
+    await db
+      .update(schema.whatsappConnections)
+      .set({
+        meta: {
+          ...meta,
+          lastEvolutionSyncAt: new Date().toISOString(),
+          ...(profilePicUrl ? { profilePicUrl } : {}),
+          ...(profileName ? { profileName } : {}),
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.whatsappConnections.id, row.id));
+  }
+
   return viewFromParts({
     instanceName: row.instanceName,
-    status: row.status,
-    phoneE164: row.phoneE164,
+    status,
+    phoneE164,
+    qrcodeBase64: null,
     webhookConfigured: Boolean(meta.webhookUrl),
-    profilePicUrl: typeof meta.profilePicUrl === "string" ? meta.profilePicUrl : null,
-    profileName: typeof meta.profileName === "string" ? meta.profileName : null,
+    profilePicUrl,
+    profileName,
     availableInstances,
     suggestedInstanceName,
     suggestedProfileName,
@@ -307,6 +340,19 @@ export async function syncWhatsAppConnectionByInstance(instanceName: string) {
         i.instanceName === instanceName ||
         i.name === instanceName
     );
+    // Fallback: connectionStatus no fetchInstances (algumas builds Evolution)
+    if (status !== "connected" && inst) {
+      const anyInst = inst as EvolutionInstance & {
+        connectionStatus?: string;
+        instance?: { connectionStatus?: string; state?: string };
+      };
+      const alt =
+        anyInst.connectionStatus ??
+        anyInst.instance?.connectionStatus ??
+        anyInst.instance?.state;
+      const mappedAlt = mapConnectionStatus(alt);
+      if (mappedAlt === "connected") status = "connected";
+    }
     const meta = pickInstanceMeta(inst);
     if (meta.phoneE164) phoneE164 = meta.phoneE164;
     if (meta.profilePicUrl) profilePicUrl = meta.profilePicUrl;
@@ -665,6 +711,8 @@ export async function refreshWhatsAppPairing(): Promise<
       } catch {
         // QR expirado ou instância já aberta
       }
+    } else {
+      qrcodeBase64 = null;
     }
 
     const availableInstances = await listUnlinkedInstanceNames(tenant.id);

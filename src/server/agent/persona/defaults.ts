@@ -55,7 +55,7 @@ export function createDefaultPersona(input: {
   regraDeOuro?: string;
 }): AgentPersona {
   const businessName = input.businessName.trim() || "nossa barbearia";
-  const agentName = input.agentDisplayName?.trim() || "Donna";
+  const agentName = input.agentDisplayName?.trim() || "Agente";
 
   return {
     cliente: {

@@ -116,7 +116,7 @@ export async function getAgentConfig(): Promise<AgentConfigView> {
 
   return {
     profileId: profile.id,
-    displayName: profile.displayName || "Donna",
+    displayName: profile.displayName || "Agente",
     businessName: persona?.cliente?.nome_negocio?.trim() || tenant.name,
     greeting: persona?.persona?.oralidade?.saudacao_padrao?.trim() || "",
     essencia: p?.essencia?.trim() || "",
@@ -166,7 +166,7 @@ export async function saveAgentConfig(
   const tenant = await requireTenantContext();
   const db = createDb();
 
-  const displayName = input.displayName.trim().slice(0, 80) || "Donna";
+  const displayName = input.displayName.trim().slice(0, 80) || "Agente";
   const businessName = input.businessName.trim().slice(0, 120) || tenant.name;
   const greeting =
     input.greeting.trim().slice(0, 240) ||

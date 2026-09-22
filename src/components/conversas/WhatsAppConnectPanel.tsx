@@ -55,6 +55,28 @@ export function WhatsAppConnectPanel({
     }
   }
 
+  // Revalida status ao montar / periodicamente se ainda não conectado — evita QR fantasma.
+  useEffect(() => {
+    let cancelled = false;
+    async function syncOnce() {
+      if (document.visibilityState !== "visible") return;
+      const result = await refreshWhatsAppPairingAction();
+      if (cancelled || !result.ok) return;
+      apply(result.data);
+    }
+    if (!connected) {
+      void syncOnce();
+    }
+    const id = window.setInterval(() => {
+      if (!cancelled && !connected) void syncOnce();
+    }, 20_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
+
   function startPairing() {
     setError(null);
     setOkNote(null);
@@ -292,8 +314,8 @@ export function WhatsAppConnectPanel({
           </>
         ) : (
           <>
-            Ragnarok: vincule a instância que já existe na Evolution. Novas unidades (Donna):
-            gere a instância e escaneie o QR. Status atualiza sozinho.
+            Ragnarok: vincule a instância que já existe na Evolution. Novas unidades: gere a
+            instância e escaneie o QR. Status atualiza sozinho.
             {state?.instanceName ? (
               <>
                 {" "}
@@ -488,7 +510,7 @@ export function WhatsAppConnectPanel({
   return (
     <section className="panel dash-panel wa-connect-panel">
       <div className="panel-toolbar">
-        <strong>WhatsApp · Donna</strong>
+        <strong>WhatsApp · Agente</strong>
         <span className={`badge${connected ? " is-success" : " is-warn"}`}>
           {connected ? "Conectado" : state?.status === "connecting" ? "Aguardando QR" : "Desconectado"}
         </span>

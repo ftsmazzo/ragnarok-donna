@@ -56,27 +56,29 @@ export function AgenteConfigForm({ initial }: Props) {
   return (
     <form className="agent-config-form" onSubmit={onSubmit}>
       <div className="agent-config-intro">
-        <strong>Orientação, não roteiro.</strong> Estes campos definem <em>como</em> a Donna fala
-        — tom, vocabulário e limites. A IA varia as frases a cada conversa; nada aqui vira texto
-        fixo repetido. Skills e tools do sistema são globais; o resto é só desta unidade.
+        <strong>Orientação, não roteiro.</strong> Estes campos definem <em>como</em> o agente da
+        barbearia fala no WhatsApp — tom, vocabulário e limites. A IA varia as frases a cada
+        conversa; nada aqui vira texto fixo repetido. O <em>nome</em> abaixo é o que ela usa ao se
+        apresentar (não precisa ser “Donna”). Skills e tools do sistema são globais; o resto é só
+        desta unidade.
       </div>
 
       <ConfigSectionCard
         title="Identidade"
-        description="Nome da agente, do negócio e primeira impressão no WhatsApp."
+        description="Nome do agente, do negócio e primeira impressão no WhatsApp."
         icon="👤"
         accent="orange"
       >
         <div className="config-grid">
           <label className="filter-field">
-            <span>Nome da agente</span>
+            <span>Nome do agente (como se apresenta)</span>
             <input
               name="displayName"
               className="search-input"
               defaultValue={initial.displayName}
               required
               maxLength={80}
-              placeholder="Donna"
+              placeholder="ex.: Sara, Recepção, Agente"
             />
           </label>
           <label className="filter-field">
@@ -90,13 +92,13 @@ export function AgenteConfigForm({ initial }: Props) {
             />
           </label>
           <label className="filter-field config-span-2">
-            <span>Saudação padrão</span>
+            <span>Saudação padrão (orientação — não texto fixo)</span>
             <input
               name="greeting"
               className="search-input"
               defaultValue={initial.greeting}
               maxLength={240}
-              placeholder="Olá! Aqui é a Donna, recepção da Barbearia…"
+              placeholder="Olá! Aqui é a recepção da Barbearia…"
             />
           </label>
         </div>
@@ -224,7 +226,7 @@ export function AgenteConfigForm({ initial }: Props) {
           checked={historiaMarcaUsar}
           onChange={setHistoriaMarcaUsar}
           label="Usar histórias da marca"
-          hint="Ligado: a Donna pode citar episódios quando fizer sentido. Desligado: foco só no atendimento."
+          hint="Ligado: o agente pode citar episódios quando fizer sentido. Desligado: foco só no atendimento."
         />
         <label className={`filter-field${historiaMarcaUsar ? "" : " is-collapsed"}`}>
           <span>Episódios (uma linha por história)</span>

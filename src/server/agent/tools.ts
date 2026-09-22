@@ -15,7 +15,7 @@ import {
 } from "./business-profile";
 import type { AgentToolName, ToolResult } from "./types";
 import { normalizePhone } from "@/server/clients/normalize";
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import {
   formatDateSp,
@@ -37,6 +37,7 @@ import {
   listOpenOrdersForAgent,
   openOrderForAgent,
 } from "./domain-orders";
+import { resolveStaffLoyalty, tierFromVisitCount, policyForTier } from "./staff-loyalty";
 
 const ACTIVE_APPOINTMENT_STATUSES = ["scheduled", "confirmed", "arrived", "in_progress"] as const;
 
@@ -695,6 +696,85 @@ export async function executeTool(
 
         const firstName = client.name.trim().split(/\s+/)[0] || client.name;
 
+        // Frequência real por barbeiro (agenda + comanda) — não só o preview recente
+        const staffFromAppts = await db
+          .select({
+            staffId: schema.appointments.staffId,
+            staffName: schema.staff.name,
+            visitCount: count(),
+          })
+          .from(schema.appointments)
+          .innerJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
+          .where(
+            and(
+              eq(schema.appointments.tenantId, ctx.tenantId),
+              eq(schema.appointments.clientId, client.id),
+              isNull(schema.appointments.deletedAt),
+              sql`${schema.appointments.staffId} is not null`,
+              inArray(schema.appointments.status, [
+                "completed",
+                "arrived",
+                "in_progress",
+              ])
+            )
+          )
+          .groupBy(schema.appointments.staffId, schema.staff.name)
+          .orderBy(desc(count()))
+          .limit(8);
+
+        const staffFromOrders = await db
+          .select({
+            staffId: schema.orderItems.staffId,
+            staffName: schema.staff.name,
+            visitCount: count(),
+          })
+          .from(schema.orderItems)
+          .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+          .innerJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
+          .where(
+            and(
+              eq(schema.orders.tenantId, ctx.tenantId),
+              eq(schema.orders.clientId, client.id),
+              isNull(schema.orders.deletedAt),
+              eq(schema.orderItems.itemType, "service"),
+              sql`${schema.orderItems.staffId} is not null`
+            )
+          )
+          .groupBy(schema.orderItems.staffId, schema.staff.name)
+          .orderBy(desc(count()))
+          .limit(8);
+
+        const staffVisitMap = new Map<
+          string,
+          { staffId: string; staffName: string; visitCount: number }
+        >();
+        for (const row of [...staffFromAppts, ...staffFromOrders]) {
+          if (!row.staffId) continue;
+          const prev = staffVisitMap.get(row.staffId);
+          const n = Number(row.visitCount ?? 0);
+          if (!prev || n > prev.visitCount) {
+            staffVisitMap.set(row.staffId, {
+              staffId: row.staffId,
+              staffName: row.staffName,
+              visitCount: n,
+            });
+          }
+        }
+        const preferredStaff = [...staffVisitMap.values()]
+          .map((s) => {
+            const tier = tierFromVisitCount(s.visitCount);
+            return {
+              staffId: s.staffId,
+              staffName: s.staffName,
+              visitCount: s.visitCount,
+              tier,
+              policy: policyForTier(tier, s.staffName),
+            };
+          })
+          .sort((a, b) => b.visitCount - a.visitCount)
+          .slice(0, 5);
+        const topStaff = preferredStaff[0] ?? null;
+
         result = {
           ok: true,
           data: {
@@ -727,8 +807,11 @@ export async function executeTool(
             /** Se serviceQuery foi passado, o match mais recente desse serviço. */
             lastServiceMatch,
             serviceQuery: serviceQuery || null,
+            /** Fidelidade por barbeiro — use ao oferecer horários/alternativas. */
+            preferredStaff,
+            topStaff,
             note:
-              "Para data de um serviço feito, use recentServices[].label ou lastServiceMatch. Para agendas futuras use list_client_appointments.",
+              "Para data de um serviço feito, use recentServices[].label ou lastServiceMatch. Se o cliente pedir um barbeiro, respeite preferredStaff[].policy (fiel ≥5 = só ele). Para agendas futuras use list_client_appointments.",
           },
         };
         break;
@@ -824,11 +907,12 @@ export async function executeTool(
             ? Number(args.preferredHour)
             : null;
         let staffIdFilter = String(args.staffId ?? args.staffName ?? "").trim() || null;
+        let staffResolvedName: string | null = null;
         // Resolve nome → id (ex.: "Diego")
         if (staffIdFilter && !/^[0-9a-f-]{36}$/i.test(staffIdFilter)) {
           const dbStaff = createDb();
           const [st] = await dbStaff
-            .select({ id: schema.staff.id })
+            .select({ id: schema.staff.id, name: schema.staff.name })
             .from(schema.staff)
             .where(
               and(
@@ -842,19 +926,76 @@ export async function executeTool(
               )
             )
             .limit(1);
+          staffResolvedName = st?.name ?? staffIdFilter;
           staffIdFilter = st?.id ?? null;
         }
+
+        // Cliente da conversa (fidelidade)
+        let clientIdForLoyalty: string | null =
+          typeof args.clientId === "string" && /^[0-9a-f-]{36}$/i.test(args.clientId)
+            ? args.clientId
+            : null;
+        if (!clientIdForLoyalty && ctx.conversationId) {
+          const dbConv = createDb();
+          const [conv] = await dbConv
+            .select({ clientId: schema.conversations.clientId })
+            .from(schema.conversations)
+            .where(
+              and(
+                eq(schema.conversations.id, ctx.conversationId),
+                eq(schema.conversations.tenantId, ctx.tenantId)
+              )
+            )
+            .limit(1);
+          clientIdForLoyalty = conv?.clientId ?? null;
+        }
+
+        const staffLoyalty =
+          staffIdFilter && clientIdForLoyalty
+            ? await resolveStaffLoyalty({
+                tenantId: ctx.tenantId,
+                clientId: clientIdForLoyalty,
+                staffId: staffIdFilter,
+                staffName: staffResolvedName,
+              })
+            : null;
+
+        const slotLimit = staffLoyalty?.tier === "loyal" ? 5 : Number(args.limit ?? 8);
         let slots = await listFreeSlotsForTenant({
           tenantId: ctx.tenantId,
           date,
           durationMin: Number.isFinite(durationMin) ? durationMin : 30,
           period,
-          limit: Number(args.limit ?? 8),
+          limit: slotLimit,
           staffId: staffIdFilter,
         });
-        // Slots de outros barbeiros no mesmo horário (só se pediu hora e tem staff fixo)
+        // Fiel: só melhores horários do barbeiro (prioriza hora pedida / meio do dia)
+        if (staffLoyalty?.tier === "loyal" && slots.length > 3) {
+          const preferred = preferredHour;
+          slots = [...slots]
+            .sort((a, b) => {
+              if (preferred != null) {
+                const da = Math.abs(a.hour - preferred);
+                const dbh = Math.abs(b.hour - preferred);
+                if (da !== dbh) return da - dbh;
+              }
+              // Prefere 9–11 e 14–17
+              const score = (h: number) =>
+                (h >= 9 && h <= 11) || (h >= 14 && h <= 17) ? 0 : 1;
+              const sa = score(a.hour);
+              const sb = score(b.hour);
+              if (sa !== sb) return sa - sb;
+              return a.hour - b.hour || a.minute - b.minute;
+            })
+            .slice(0, 3);
+        }
+
+        const allowOtherStaff =
+          !staffLoyalty || staffLoyalty.tier === "new" || staffLoyalty.tier === "familiar";
+
+        // Slots de outros barbeiros no mesmo horário (só se NÃO for cliente fiel)
         const allDaySlots =
-          preferredHour != null && staffIdFilter
+          preferredHour != null && staffIdFilter && allowOtherStaff
             ? await listFreeSlotsForTenant({
                 tenantId: ctx.tenantId,
                 date,
@@ -869,11 +1010,15 @@ export async function executeTool(
         const staffDayFull = Boolean(staffIdFilter) && slots.length === 0;
 
         // Cliente fixou barbeiro e ele TEM horários: nunca diga "cheio" nem abra menu 1/2/3.
-        // Alternativas só se o dia dele realmente está vazio OU pediu hora específica ocupada
-        // sem ter outros slots dele (aí sugere outros horários DELE, não menu genérico).
         const staffHasOtherSlots =
           Boolean(staffIdFilter) && slots.length > 0 && preferredHourOccupied;
-        const needsAlternatives = staffDayFull || (preferredHourOccupied && !staffHasOtherSlots);
+        const needsAlternatives =
+          (staffDayFull || (preferredHourOccupied && !staffHasOtherSlots)) &&
+          staffLoyalty?.tier !== "loyal";
+        const needsWaitlistPreferred =
+          staffLoyalty?.tier === "loyal" &&
+          (staffDayFull || (preferredHourOccupied && !staffHasOtherSlots));
+
         const alts = needsAlternatives
           ? await suggestBookingAlternatives({
               tenantId: ctx.tenantId,
@@ -883,6 +1028,12 @@ export async function executeTool(
               durationMin: Number.isFinite(durationMin) ? durationMin : 30,
             })
           : null;
+
+        // Familiar (1–4): no máx. 3 opções combinadas
+        const alternatives =
+          staffLoyalty?.tier === "familiar"
+            ? (alts?.alternatives ?? []).slice(0, 3)
+            : (alts?.alternatives ?? []);
 
         const dateInfo = describeDate(date);
         result = {
@@ -898,9 +1049,10 @@ export async function executeTool(
             preferredHour,
             preferredHourOccupied,
             staffDayFull,
+            staffLoyalty,
             slots,
             otherStaffSameDay:
-              preferredHour != null
+              preferredHour != null && allowOtherStaff
                 ? allDaySlots
                     .filter(
                       (s) =>
@@ -909,9 +1061,14 @@ export async function executeTool(
                     )
                     .slice(0, 3)
                 : [],
-            alternatives: alts?.alternatives ?? [],
+            alternatives,
             instruction:
-              "Fale ao cliente exatamente dateLabel/dateBr desta tool — NÃO invente outro dia (ex.: não diga 19/09 se dateBr é 26/09). Se slots.length>0, liste 2–3 horários e ofereça agendar — NÃO diga que está cheio.",
+              "Fale ao cliente exatamente dateLabel/dateBr desta tool — NÃO invente outro dia. Só ofereça horários que estão em `slots` (respeitam bloqueios e jornada). Nunca invente buraco no almoço. Se slots.length>0, liste 2–3 e ofereça agendar — NÃO diga que está cheio.",
+            ...(staffLoyalty
+              ? {
+                  loyaltyInstruction: staffLoyalty.policy,
+                }
+              : {}),
             ...(staffHasOtherSlots
               ? {
                   flowInstruction:
@@ -924,18 +1081,34 @@ export async function executeTool(
                   note: resolvedMeta.note,
                 }
               : {}),
+            ...(needsWaitlistPreferred
+              ? {
+                  waitlistPreferred: true,
+                  offerWaitlistImmediately: true,
+                  flowInstruction:
+                    "Cliente FIEL deste barbeiro e o dia/hora não tem vaga. NÃO ofereça outro profissional. Ofereça imediatamente espera preferencial com ele (add_to_waitlist, notes com nome do barbeiro).",
+                }
+              : {}),
             ...(needsAlternatives
               ? {
                   waitlistOffer: false,
                   offerWaitlistOnlyAfterAlternatives: true,
-                  flowInstruction: staffDayFull
-                    ? "Esse profissional realmente não tem horário livre nesse período/data (`staffDayFull`). Ofereça 2–3 itens de `alternatives` de forma curta (outro horário dele noutro dia, ou outro barbeiro no mesmo período). Sem insistir em menu longo. Lista de espera só se o cliente recusar."
-                    : "OBRIGATÓRIO nesta ordem: (1) diga que o horário pedido não está livre; (2) ofereça 2–3 itens curtos de `alternatives`; (3) NÃO ofereça lista de espera ainda — só se o cliente recusar. Quando aceitar espera, chame add_to_waitlist (sem handoff_human).",
+                  flowInstruction:
+                    staffLoyalty?.tier === "familiar"
+                      ? "Cliente já veio 1–4 vezes com este barbeiro. Ofereça até 3 opções combinadas de `alternatives` (horários dele noutro dia e/ou outro barbeiro no período). Lista de espera preferencial só se recusar."
+                      : staffDayFull
+                        ? "Esse profissional realmente não tem horário livre nesse período/data (`staffDayFull`). Ofereça 2–3 itens de `alternatives` de forma curta. Lista de espera só se o cliente recusar."
+                        : "OBRIGATÓRIO nesta ordem: (1) diga que o horário pedido não está livre; (2) ofereça 2–3 itens curtos de `alternatives`; (3) NÃO ofereça lista de espera ainda — só se o cliente recusar. Quando aceitar espera, chame add_to_waitlist (sem handoff_human).",
                 }
-              : !needsAlternatives && !staffHasOtherSlots && slots.length > 0
+              : !needsAlternatives &&
+                  !needsWaitlistPreferred &&
+                  !staffHasOtherSlots &&
+                  slots.length > 0
                 ? {
                     flowInstruction:
-                      "Há horários livres em `slots`. Seja direto: liste 2–3 próximos (com o nome do barbeiro se houver) e pergunte qual fecha para agendar. NÃO pergunte de novo o serviço se já souber. NÃO invente menu de alternativas.",
+                      staffLoyalty?.tier === "loyal"
+                        ? "Cliente fiel: liste só os 2–3 melhores horários DESTE barbeiro em `slots` e pergunte qual fecha. NÃO sugira outro profissional."
+                        : "Há horários livres em `slots`. Seja direto: liste 2–3 (com o nome do barbeiro se houver) e pergunte qual fecha. NÃO invente menu de alternativas.",
                   }
                 : {}),
           },

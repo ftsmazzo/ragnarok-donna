@@ -305,9 +305,22 @@ export function extractQrBase64(payload: {
 }
 
 export function mapConnectionStatus(state: string | null | undefined): string {
-  const s = (state ?? "").toLowerCase();
-  if (s === "open" || s === "connected") return "connected";
-  if (s === "connecting" || s === "qrcode") return "connecting";
-  if (s === "close" || s === "closed" || s === "disconnected") return "disconnected";
+  const s = (state ?? "").toLowerCase().trim();
+  if (
+    s === "open" ||
+    s === "connected" ||
+    s === "online" ||
+    s === "authenticated" ||
+    s === "islogged" ||
+    s === "is_logged"
+  ) {
+    return "connected";
+  }
+  if (s === "connecting" || s === "qrcode" || s === "pair" || s === "pairing") {
+    return "connecting";
+  }
+  if (s === "close" || s === "closed" || s === "disconnected" || s === "logout" || s === "refused") {
+    return "disconnected";
+  }
   return s || "disconnected";
 }
