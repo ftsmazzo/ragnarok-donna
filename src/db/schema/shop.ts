@@ -127,6 +127,8 @@ export const services = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
+    /** null = todas as unidades; preenchido = só naquela unidade (ex.: SPA na U02). */
+    branchId: uuid("branch_id").references(() => branches.id, { onDelete: "set null" }),
     categoryId: uuid("category_id").references(() => serviceCategories.id, {
       onDelete: "set null",
     }),
@@ -146,6 +148,7 @@ export const services = pgTable(
   },
   (t) => [
     index("services_tenant_idx").on(t.tenantId),
+    index("services_tenant_branch_idx").on(t.tenantId, t.branchId),
     uniqueIndex("services_tenant_ext_uidx").on(t.tenantId, t.externalSource, t.externalId),
   ]
 );

@@ -1,6 +1,6 @@
 import { and, asc, count, eq, gte, ilike, isNull, lte, or } from "drizzle-orm";
 import { createDb, schema } from "@/db";
-import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
+import { resolveBranchScope, withBranchScope, withCatalogBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import { isBarberRole } from "../permissions/roles";
@@ -342,7 +342,18 @@ export async function searchClientsForAgenda(q?: string): Promise<AgendaPickerCl
 
 export async function listServicesForAgenda(): Promise<AgendaPickerService[]> {
   const tenant = await requireTenantContext();
+  const scope = await resolveBranchScope();
   const db = createDb();
+
+  const where = withCatalogBranchScope(
+    scope,
+    schema.services.branchId,
+    and(
+      eq(schema.services.tenantId, tenant.id),
+      eq(schema.services.isActive, true),
+      isNull(schema.services.deletedAt)
+    )
+  );
 
   return db
     .select({
@@ -352,12 +363,6 @@ export async function listServicesForAgenda(): Promise<AgendaPickerService[]> {
       priceCents: schema.services.priceCents,
     })
     .from(schema.services)
-    .where(
-      and(
-        eq(schema.services.tenantId, tenant.id),
-        eq(schema.services.isActive, true),
-        isNull(schema.services.deletedAt)
-      )
-    )
+    .where(where)
     .orderBy(asc(schema.services.name));
 }

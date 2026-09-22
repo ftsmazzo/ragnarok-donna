@@ -1,28 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { CadastroSearch } from "@/components/cadastro/CadastroSearch";
 import { StatusBadge } from "@/components/cadastro/StatusBadge";
 import { CatalogDrawer } from "@/components/cadastro/CatalogDrawer";
+import { deactivateCatalogAction } from "@/app/(painel)/cadastros/actions";
 import { formatMoney } from "@/lib/format";
 import type { ServiceRow } from "@/lib/cadastros";
+
+type BranchOption = { id: string; name: string };
 
 type Props = {
   rows: ServiceRow[];
   total: number;
   q: string;
+  branches: BranchOption[];
+  defaultBranchId?: string | null;
+  multiBranch?: boolean;
 };
 
-export function ServicosClient({ rows, total, q }: Props) {
+export function ServicosClient({
+  rows,
+  total,
+  q,
+  branches,
+  defaultBranchId = null,
+  multiBranch = false,
+}: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceRow | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleDeleteRow(e: React.MouseEvent, service: ServiceRow) {
+    e.stopPropagation();
+    if (
+      !window.confirm(
+        `Excluir o serviço "${service.name}"?\nEle some do cadastro e deixa de aparecer na agenda/comanda.`
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const result = await deactivateCatalogAction("service", service.id);
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
 
   return (
     <>
       <PageHeader
         title="Serviços"
-        subtitle={`${total} serviço(s)`}
+        subtitle={
+          multiBranch
+            ? `${total} serviço(s) nesta unidade · SPA e outros exclusivos ficam só na unidade escolhida`
+            : `${total} serviço(s)`
+        }
         actions={
           <button
             type="button"
@@ -47,17 +86,19 @@ export function ServicosClient({ rows, total, q }: Props) {
               <tr>
                 <th>Serviço</th>
                 <th>Categoria</th>
+                {multiBranch ? <th>Unidade</th> : null}
                 <th>Duração</th>
                 <th>Preço</th>
                 <th>Comissão</th>
                 <th>Online</th>
                 <th>Status</th>
+                <th aria-label="Ações" />
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="table-empty">
+                  <td colSpan={multiBranch ? 9 : 8} className="table-empty">
                     Nenhum serviço encontrado.
                   </td>
                 </tr>
@@ -72,6 +113,9 @@ export function ServicosClient({ rows, total, q }: Props) {
                   >
                     <td className="cell-strong">{s.name}</td>
                     <td>{s.categoryName ?? "—"}</td>
+                    {multiBranch ? (
+                      <td>{s.branchName ?? "Todas"}</td>
+                    ) : null}
                     <td>{s.durationMin} min</td>
                     <td>{formatMoney(s.priceCents)}</td>
                     <td>
@@ -87,6 +131,18 @@ export function ServicosClient({ rows, total, q }: Props) {
                     <td>
                       <StatusBadge active={s.isActive} />
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        title="Excluir serviço"
+                        aria-label={`Excluir ${s.name}`}
+                        disabled={pending}
+                        onClick={(e) => handleDeleteRow(e, s)}
+                      >
+                        🗑
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -100,6 +156,8 @@ export function ServicosClient({ rows, total, q }: Props) {
         open={open}
         onClose={() => setOpen(false)}
         service={editing}
+        branches={branches}
+        defaultBranchId={defaultBranchId}
       />
     </>
   );

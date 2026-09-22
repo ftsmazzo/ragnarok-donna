@@ -51,6 +51,7 @@ export async function createServiceAction(formData: FormData) {
     price: String(formData.get("price") ?? ""),
     commissionPct: String(formData.get("commissionPct") ?? ""),
     bookableOnline: formData.get("bookableOnline") === "on",
+    branchId: String(formData.get("branchId") ?? ""),
   });
   if (result.ok) revalidatePath("/servicos");
   return result;
@@ -63,6 +64,7 @@ export async function updateServiceAction(id: string, formData: FormData) {
     price: String(formData.get("price") ?? ""),
     commissionPct: String(formData.get("commissionPct") ?? ""),
     bookableOnline: formData.get("bookableOnline") === "on",
+    branchId: String(formData.get("branchId") ?? ""),
   });
   if (result.ok) revalidatePath("/servicos");
   return result;

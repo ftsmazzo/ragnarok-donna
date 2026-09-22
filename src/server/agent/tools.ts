@@ -215,8 +215,11 @@ export async function executeTool(
             name: schema.services.name,
             durationMin: schema.services.durationMin,
             priceCents: schema.services.priceCents,
+            branchId: schema.services.branchId,
+            branchName: schema.branches.name,
           })
           .from(schema.services)
+          .leftJoin(schema.branches, eq(schema.services.branchId, schema.branches.id))
           .where(
             and(
               eq(schema.services.tenantId, ctx.tenantId),
@@ -233,8 +236,19 @@ export async function executeTool(
           data: {
             count: rows.length,
             services: rows.map((r) => ({
-              ...r,
+              id: r.id,
+              name: r.name,
+              durationMin: r.durationMin,
+              priceCents: r.priceCents,
               priceLabel: formatMoney(r.priceCents),
+              unit:
+                r.branchName != null
+                  ? { id: r.branchId, name: r.branchName, exclusive: true }
+                  : { id: null, name: "Todas as unidades", exclusive: false },
+              note:
+                r.branchName != null
+                  ? `Disponível somente na unidade ${r.branchName}`
+                  : null,
             })),
           },
         };
