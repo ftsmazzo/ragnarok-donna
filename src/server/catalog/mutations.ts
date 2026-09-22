@@ -176,27 +176,51 @@ export async function consumeInternalStock(input: {
   }
 }
 
+async function resolveServiceBranchId(raw?: string | null): Promise<string | null> {
+  const { listTenantBranches } = await import("../context/branch");
+  const session = await requireSession();
+  const branches = await listTenantBranches(session.tenant.id);
+  if (branches.length <= 1) {
+    return branches[0]?.id ?? null;
+  }
+
+  const value = String(raw ?? "").trim();
+  if (!value || value === "__all__") return null;
+  if (!branches.some((b) => b.id === value)) {
+    throw new AppError("VALIDATION", "Unidade inválida");
+  }
+  return value;
+}
+
 export async function createService(input: {
   name: string;
   durationMin?: string;
   price: string;
   commissionPct?: string;
   bookableOnline?: boolean;
+  /** UUID da unidade, "__all__"/vazio = todas, omitido = unidade da sessão */
+  branchId?: string | null;
 }): Promise<ActionResult> {
   try {
     await assertCatalogWrite();
     const tenant = await requireTenantContext();
+    const session = await requireSession();
     const name = input.name.trim();
     if (name.length < 2) throw new AppError("VALIDATION", "Nome obrigatório");
     const durationMin = Math.max(5, Math.min(480, Number(input.durationMin) || 30));
     const pct = input.commissionPct?.trim()
       ? Math.round(Number(String(input.commissionPct).replace(",", ".")) * 100)
       : null;
+    const branchId =
+      input.branchId !== undefined && input.branchId !== null && String(input.branchId).length > 0
+        ? await resolveServiceBranchId(input.branchId)
+        : await resolveServiceBranchId(session.branch?.id ?? "__all__");
     const db = createDb();
     const [row] = await db
       .insert(schema.services)
       .values({
         tenantId: tenant.id,
+        branchId,
         name: name.slice(0, 160),
         durationMin,
         priceCents: moneyToCents(input.price || "0"),
@@ -221,6 +245,7 @@ export async function updateService(
     price: string;
     commissionPct?: string;
     bookableOnline?: boolean;
+    branchId?: string | null;
   }
 ): Promise<ActionResult> {
   try {
@@ -232,6 +257,8 @@ export async function updateService(
     const pct = input.commissionPct?.trim()
       ? Math.round(Number(String(input.commissionPct).replace(",", ".")) * 100)
       : null;
+    const branchId =
+      input.branchId !== undefined ? await resolveServiceBranchId(input.branchId) : undefined;
     const db = createDb();
     const [row] = await db
       .update(schema.services)
@@ -241,6 +268,7 @@ export async function updateService(
         priceCents: moneyToCents(input.price || "0"),
         commissionBps: pct != null && Number.isFinite(pct) ? pct : null,
         bookableOnline: input.bookableOnline !== false,
+        ...(branchId !== undefined ? { branchId } : {}),
         updatedAt: new Date(),
       })
       .where(

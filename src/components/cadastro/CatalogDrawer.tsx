@@ -7,6 +7,7 @@ import {
   createPackageAction,
   createProductAction,
   createServiceAction,
+  deactivateCatalogAction,
   updatePackageAction,
   updateProductAction,
   updateServiceAction,
@@ -34,6 +35,7 @@ type ServiceDefaults = {
   priceCents?: number;
   commissionBps?: number | null;
   bookableOnline?: boolean;
+  branchId?: string | null;
 };
 
 type PackageDefaults = {
@@ -57,6 +59,7 @@ type PackageDefaults = {
 
 type ServiceOption = { id: string; name: string };
 type ProductOption = { id: string; name: string };
+type BranchOption = { id: string; name: string };
 
 type PackageLine = {
   kind: "service" | "product";
@@ -73,6 +76,8 @@ type Props = {
   pkg?: PackageDefaults | null;
   serviceOptions?: ServiceOption[];
   productOptions?: ProductOption[];
+  branches?: BranchOption[];
+  defaultBranchId?: string | null;
 };
 
 function centsToPrice(cents?: number) {
@@ -103,16 +108,26 @@ export function CatalogDrawer({
   pkg,
   serviceOptions = [],
   productOptions = [],
+  branches = [],
+  defaultBranchId = null,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [packageLines, setPackageLines] = useState<PackageLine[]>(linesFromPkg(pkg));
 
   useEffect(() => {
     if (!open || kind !== "package") return;
     setPackageLines(linesFromPkg(pkg));
   }, [open, kind, pkg?.id]);
+
+  useEffect(() => {
+    if (open) {
+      setError("");
+      setConfirmDelete(false);
+    }
+  }, [open, service?.id, product?.id, pkg?.id]);
 
   const isEdit =
     (kind === "product" && product?.id) ||
@@ -131,6 +146,13 @@ export function CatalogDrawer({
         : isEdit
           ? "Editar pacote"
           : "Novo pacote";
+
+  const editId =
+    kind === "product"
+      ? product?.id
+      : kind === "service"
+        ? service?.id
+        : pkg?.id;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -174,6 +196,21 @@ export function CatalogDrawer({
     });
   }
 
+  function handleDelete() {
+    if (!editId) return;
+    setError("");
+    startTransition(async () => {
+      const result = await deactivateCatalogAction(kind, editId);
+      setConfirmDelete(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onClose();
+      router.refresh();
+    });
+  }
+
   return (
     <Drawer
       open={open}
@@ -183,17 +220,67 @@ export function CatalogDrawer({
       width={kind === "package" ? 480 : 420}
       footer={
         <>
-          <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
-            Cancelar
-          </button>
-          <button type="submit" form="catalog-form" className="btn btn-primary" disabled={pending}>
-            {pending ? "Salvando…" : "Salvar"}
-          </button>
+          {isEdit && editId ? (
+            confirmDelete ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={pending}
+                >
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleDelete}
+                  disabled={pending}
+                >
+                  {pending ? "Excluindo…" : "Confirmar exclusão"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={pending}
+                  title="Excluir"
+                  aria-label="Excluir"
+                >
+                  🗑 Excluir
+                </button>
+                <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
+                  Cancelar
+                </button>
+                <button type="submit" form="catalog-form" className="btn btn-primary" disabled={pending}>
+                  {pending ? "Salvando…" : "Salvar"}
+                </button>
+              </>
+            )
+          ) : (
+            <>
+              <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
+                Cancelar
+              </button>
+              <button type="submit" form="catalog-form" className="btn btn-primary" disabled={pending}>
+                {pending ? "Salvando…" : "Salvar"}
+              </button>
+            </>
+          )}
         </>
       }
     >
       {error ? <div className="form-error">{error}</div> : null}
-      <form id="catalog-form" className="form-stack" onSubmit={handleSubmit}>
+      {confirmDelete ? (
+        <p className="client-profile-hint">
+          Excluir este {kind === "service" ? "serviço" : kind === "product" ? "produto" : "pacote"}?
+          Ele some do cadastro e deixa de aparecer na agenda/comanda.
+        </p>
+      ) : null}
+      <form id="catalog-form" className="form-stack" onSubmit={handleSubmit} hidden={confirmDelete}>
         {kind === "product" ? (
           <>
             <label className="form-field">
@@ -296,6 +383,31 @@ export function CatalogDrawer({
                 }
               />
             </label>
+            {branches.length > 1 ? (
+              <label className="form-field">
+                <span>Unidade *</span>
+                <select
+                  name="branchId"
+                  required
+                  defaultValue={
+                    service?.id
+                      ? (service.branchId ?? "__all__")
+                      : (defaultBranchId ?? "__all__")
+                  }
+                >
+                  <option value="__all__">Todas as unidades</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      Só {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : branches.length === 1 ? (
+              <input type="hidden" name="branchId" value={branches[0].id} />
+            ) : (
+              <input type="hidden" name="branchId" value="__all__" />
+            )}
             <label className="form-check">
               <input
                 name="bookableOnline"

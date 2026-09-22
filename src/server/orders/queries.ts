@@ -3,7 +3,7 @@ import { createDb, schema } from "@/db";
 import { PAGE_SIZE } from "@/lib/cadastros";
 import { rangeBoundsSp, todaySp } from "@/lib/datetime";
 import { ForbiddenError, NotFoundError } from "../errors";
-import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
+import { resolveBranchScope, withBranchScope, withCatalogBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import { isBarberRole, isOwnerRole } from "../permissions/roles";
@@ -477,7 +477,18 @@ export async function listCatalogForOrders(): Promise<{
   staff: CatalogStaff[];
 }> {
   const tenant = await requireTenantContext();
+  const scope = await resolveBranchScope();
   const db = createDb();
+
+  const servicesWhere = withCatalogBranchScope(
+    scope,
+    schema.services.branchId,
+    and(
+      eq(schema.services.tenantId, tenant.id),
+      eq(schema.services.isActive, true),
+      isNull(schema.services.deletedAt)
+    )
+  );
 
   const [services, products, staff] = await Promise.all([
     db
@@ -489,13 +500,7 @@ export async function listCatalogForOrders(): Promise<{
         durationMin: schema.services.durationMin,
       })
       .from(schema.services)
-      .where(
-        and(
-          eq(schema.services.tenantId, tenant.id),
-          eq(schema.services.isActive, true),
-          isNull(schema.services.deletedAt)
-        )
-      )
+      .where(servicesWhere)
       .orderBy(asc(schema.services.name)),
     db
       .select({
@@ -523,10 +528,14 @@ export async function listCatalogForOrders(): Promise<{
       })
       .from(schema.staff)
       .where(
-        and(
-          eq(schema.staff.tenantId, tenant.id),
-          eq(schema.staff.isActive, true),
-          isNull(schema.staff.deletedAt)
+        withBranchScope(
+          scope,
+          schema.staff.branchId,
+          and(
+            eq(schema.staff.tenantId, tenant.id),
+            eq(schema.staff.isActive, true),
+            isNull(schema.staff.deletedAt)
+          )
         )
       )
       .orderBy(asc(schema.staff.name)),

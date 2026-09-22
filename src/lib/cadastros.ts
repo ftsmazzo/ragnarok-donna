@@ -16,7 +16,7 @@ import { schema } from "@/db";
 import { dayBoundsSp } from "./datetime";
 import { getDb } from "./db";
 import { getDefaultTenant } from "./tenant";
-import { resolveBranchScope, withBranchScope } from "@/server/context/branch-scope";
+import { resolveBranchScope, withBranchScope, withCatalogBranchScope } from "@/server/context/branch-scope";
 
 export const PAGE_SIZE = 50;
 
@@ -71,6 +71,8 @@ export type ServiceRow = {
   commissionBps: number | null;
   isActive: boolean;
   bookableOnline: boolean;
+  branchId: string | null;
+  branchName: string | null;
 };
 
 export type PackageRow = {
@@ -195,11 +197,13 @@ export async function listServices(opts: { q?: string }) {
   const tenant = await getDefaultTenant();
   const db = getDb();
   const q = opts.q?.trim();
+  const scope = await resolveBranchScope();
 
   let where = and(
     eq(schema.services.tenantId, tenant.id),
     isNull(schema.services.deletedAt)
   );
+  where = withCatalogBranchScope(scope, schema.services.branchId, where);
   if (q) {
     where = and(where, ilike(schema.services.name, `%${q}%`));
   }
@@ -214,12 +218,15 @@ export async function listServices(opts: { q?: string }) {
       commissionBps: schema.services.commissionBps,
       isActive: schema.services.isActive,
       bookableOnline: schema.services.bookableOnline,
+      branchId: schema.services.branchId,
+      branchName: schema.branches.name,
     })
     .from(schema.services)
     .leftJoin(
       schema.serviceCategories,
       eq(schema.services.categoryId, schema.serviceCategories.id)
     )
+    .leftJoin(schema.branches, eq(schema.services.branchId, schema.branches.id))
     .where(where)
     .orderBy(asc(schema.serviceCategories.sortOrder), asc(schema.services.name));
 

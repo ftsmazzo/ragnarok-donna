@@ -238,6 +238,9 @@ ALTER TABLE order_items ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS avatar_url text;
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS commission_bps integer;
 
+ALTER TABLE services ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES branches(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS services_tenant_branch_idx ON services (tenant_id, branch_id);
+
 ALTER TABLE client_package_credits ALTER COLUMN service_id DROP NOT NULL;
 ALTER TABLE client_package_credits ADD COLUMN IF NOT EXISTS product_id uuid REFERENCES products(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS client_package_credits_product_idx ON client_package_credits (tenant_id, product_id);
