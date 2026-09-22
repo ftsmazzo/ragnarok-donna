@@ -17,6 +17,7 @@ export type Capability =
   | "appointments.status_own"
   | "cash.read"
   | "cash.write"
+  | "finance.treasury"
   | "commissions.read_all"
   | "commissions.read_own"
   | "commissions.write"
@@ -45,6 +46,7 @@ const OWNER: Capability[] = [
   "appointments.cancel",
   "cash.read",
   "cash.write",
+  "finance.treasury",
   "commissions.read_all",
   "commissions.read_own",
   "commissions.write",
@@ -72,6 +74,7 @@ const RECEPTION: Capability[] = [
   "appointments.cancel",
   "cash.read",
   "cash.write",
+  "finance.treasury",
   "reports.operational",
   "conversations.read",
   "conversations.write",

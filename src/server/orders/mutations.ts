@@ -1707,6 +1707,17 @@ export async function addPayment(input: {
           description: labelStoredPayment(method, input.meta),
         });
       }
+
+      const { bridgePaymentToTreasury } = await import("../treasury/bridge");
+      await bridgePaymentToTreasury(tx, {
+        tenantId: tenant.id,
+        paymentId: payment.id,
+        orderId: input.orderId,
+        amountCents,
+        method,
+        description: `Receita comanda · ${labelStoredPayment(method, input.meta)}`,
+      });
+
       return payment.id;
     });
 
@@ -2172,13 +2183,16 @@ export async function payAndCloseOrder(input: {
       }
 
       if (state.balanceCents > 0) {
-        await tx.insert(schema.payments).values({
-          tenantId: tenant.id,
-          orderId: input.orderId,
-          method,
-          amountCents: state.balanceCents,
-          meta: input.meta ?? {},
-        });
+        const [payment] = await tx
+          .insert(schema.payments)
+          .values({
+            tenantId: tenant.id,
+            orderId: input.orderId,
+            method,
+            amountCents: state.balanceCents,
+            meta: input.meta ?? {},
+          })
+          .returning({ id: schema.payments.id });
         if (input.insertInCash !== false) {
           const { recordPaymentInCashTx } = await import("../finance/mutations");
           await recordPaymentInCashTx(tx, {
@@ -2189,6 +2203,15 @@ export async function payAndCloseOrder(input: {
             description: labelStoredPayment(method, input.meta),
           });
         }
+        const { bridgePaymentToTreasury } = await import("../treasury/bridge");
+        await bridgePaymentToTreasury(tx, {
+          tenantId: tenant.id,
+          paymentId: payment.id,
+          orderId: input.orderId,
+          amountCents: state.balanceCents,
+          method,
+          description: `Receita comanda · ${labelStoredPayment(method, input.meta)}`,
+        });
       }
 
       if (state.clientId) {

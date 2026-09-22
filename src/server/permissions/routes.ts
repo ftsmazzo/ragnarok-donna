@@ -48,6 +48,9 @@ const RULES: RouteRule[] = [
     roles: ["owner", "admin", "staff"],
   },
 
+  { pattern: "/financeiro", roles: ["owner", "admin", "manager"] },
+  { pattern: "/financeiro/*", roles: ["owner", "admin", "manager"] },
+
   { pattern: "/modulo/fluxo-caixa", roles: ["owner", "admin"] },
   { pattern: "/modulo/contas", roles: ["owner", "admin"] },
   { pattern: "/contas", roles: ["owner", "admin"] },

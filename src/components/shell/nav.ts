@@ -68,6 +68,13 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Caixa", href: "/caixa", icon: "$" },
       { label: "Hist. caixa", href: "/caixa/historico", icon: "▤" },
+      { label: "Tesouraria", href: "/financeiro", icon: "◆" },
+      { label: "A pagar", href: "/financeiro/a-pagar", icon: "↓" },
+      { label: "A receber", href: "/financeiro/a-receber", icon: "↑" },
+      { label: "Bancos", href: "/financeiro/bancos", icon: "▤" },
+      { label: "Cartões", href: "/financeiro/cartoes", icon: "▣" },
+      { label: "Relatórios DFC", href: "/financeiro/relatorios", icon: "↗" },
+      { label: "Calculadoras", href: "/financeiro/calculadoras", icon: "%" },
       { label: "Fluxo de caixa", href: "/relatorios/fluxo", icon: "↗" },
       { label: "Contas", href: "/contas", icon: "≡" },
       { label: "Comissões", href: "/comissoes", icon: "%" },
