@@ -117,7 +117,10 @@ export async function syncStaffMonthServiceCommission(
     const name = (row.serviceName || row.description || "").replace(/\s·\sPacote.*$/i, "");
     const kind = classifyServiceCommission(name, row.categoryName);
     let base = row.totalCents;
-    if (typeof meta.commissionBaseCents === "number" && meta.commissionBaseCents >= 0) {
+    if (meta.courtesy) {
+      // Cortesia: sem comissão (não usar preço de tabela nem commissionBaseCents).
+      base = 0;
+    } else if (typeof meta.commissionBaseCents === "number" && meta.commissionBaseCents >= 0) {
       base = meta.commissionBaseCents;
     } else if (meta.redeemed && typeof meta.clientPackageId === "string") {
       const slice = await packageSliceCents(db, tenantId, meta.clientPackageId);

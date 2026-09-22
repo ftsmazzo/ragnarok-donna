@@ -662,6 +662,8 @@ export async function addOrderItem(input: {
   usePackageCredit?: boolean;
   /** Pacote do cliente (Conta Recorrência). Sem isso, FIFO. */
   clientPackageId?: string;
+  /** Zera o item (100% desconto) e marca meta.courtesy — não entra no caixa. */
+  courtesy?: boolean;
 }): Promise<ActionResult> {
   try {
     const session = await requireSession();
@@ -675,6 +677,9 @@ export async function addOrderItem(input: {
       if (input.itemType !== "product") {
         throw new ForbiddenError("Barbeiro só pode lançar produtos na comanda");
       }
+      if (input.courtesy) {
+        throw new ForbiddenError("Barbeiro não pode marcar cortesia");
+      }
       await assertOwnOrderAccess(input.orderId);
       const ownStaffId = await resolveSessionStaffId(session);
       if (!ownStaffId) {
@@ -686,10 +691,16 @@ export async function addOrderItem(input: {
     }
 
     const qty = Math.max(1, Math.min(99, input.qty ?? 1));
-    const discountCents = Math.max(0, input.discountCents ?? 0);
+    const courtesy = Boolean(input.courtesy);
+    const discountCents = courtesy
+      ? 0
+      : Math.max(0, input.discountCents ?? 0);
     const db = createDb();
 
     if (input.itemType === "package") {
+      if (courtesy) {
+        throw new AppError("VALIDATION", "Venda de pacote não pode ser cortesia");
+      }
       return await addPackageSaleItem({
         orderId: input.orderId,
         packageId: input.catalogId,
@@ -811,7 +822,18 @@ export async function addOrderItem(input: {
           (input.itemType === "product" && productId))
     );
 
-    if (useCredit) {
+    if (courtesy && useCredit) {
+      throw new AppError(
+        "VALIDATION",
+        "Cortesia não pode ser usada junto com crédito de pacote"
+      );
+    }
+
+    if (courtesy) {
+      appliedDiscount = lineGross;
+      totalCents = 0;
+      meta = { courtesy: true };
+    } else if (useCredit) {
       const [orderRow] = await db
         .select({ clientId: schema.orders.clientId })
         .from(schema.orders)
@@ -857,8 +879,11 @@ export async function addOrderItem(input: {
     }
 
     const bps = itemCommissionBps ?? staffCommissionBps;
-    let commission = calcCommission(useCredit ? lineGross : totalCents, bps);
-    if (input.itemType === "service") {
+    let commission = calcCommission(
+      courtesy ? 0 : useCredit ? lineGross : totalCents,
+      bps
+    );
+    if (input.itemType === "service" && !courtesy) {
       const house = await annotateServiceCommission({
         tenantId: tenant.id,
         serviceName: description.replace(/\s·\sPacote.*$/i, ""),
@@ -870,6 +895,12 @@ export async function addOrderItem(input: {
       });
       meta = { ...meta, ...house.metaPatch };
       commission = calcCommission(house.baseCents, 4000);
+    }
+    if (courtesy) {
+      commission = {
+        commissionBps: bps ?? null,
+        commissionCents: 0,
+      };
     }
 
     // Com crédito: insert na mesma conexão após debit (restore se insert falhar)
@@ -1255,6 +1286,175 @@ async function addPackageSaleItem(input: {
   });
 
   return { ok: true, id: rowId };
+}
+
+/** Marca/desmarca cortesia em item já lançado (zera valor ou restaura). */
+export async function setOrderItemCourtesy(
+  itemId: string,
+  courtesy: boolean
+): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "orders.write");
+    if (isBarberRole(session.role)) {
+      throw new ForbiddenError("Barbeiro não pode marcar cortesia");
+    }
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const [item] = await db
+      .select({
+        id: schema.orderItems.id,
+        orderId: schema.orderItems.orderId,
+        itemType: schema.orderItems.itemType,
+        description: schema.orderItems.description,
+        qty: schema.orderItems.qty,
+        unitPriceCents: schema.orderItems.unitPriceCents,
+        discountCents: schema.orderItems.discountCents,
+        totalCents: schema.orderItems.totalCents,
+        staffId: schema.orderItems.staffId,
+        commissionBps: schema.orderItems.commissionBps,
+        meta: schema.orderItems.meta,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(eq(schema.orderItems.id, itemId), eq(schema.orderItems.tenantId, tenant.id))
+      )
+      .limit(1);
+
+    if (!item) throw new AppError("NOT_FOUND", "Item não encontrado");
+    const order = await assertOpenOrder(item.orderId, tenant.id);
+
+    const meta = { ...((item.meta ?? {}) as Record<string, unknown>) };
+    if (item.itemType !== "service" && item.itemType !== "product") {
+      throw new AppError("VALIDATION", "Só serviço ou produto pode ser cortesia");
+    }
+    if (meta.packageSale) {
+      throw new AppError("VALIDATION", "Venda de pacote não pode ser cortesia");
+    }
+    if (meta.redeemed) {
+      throw new AppError(
+        "VALIDATION",
+        "Item com crédito de pacote não pode ser cortesia"
+      );
+    }
+
+    const already = Boolean(meta.courtesy);
+    if (already === courtesy) {
+      return { ok: true, id: item.orderId };
+    }
+
+    const lineGross = item.unitPriceCents * item.qty;
+    let nextDiscount: number;
+    let nextTotal: number;
+    let nextMeta: Record<string, unknown>;
+    let nextCommission: {
+      commissionBps: number | null;
+      commissionCents: number | null;
+    };
+
+    if (courtesy) {
+      nextDiscount = lineGross;
+      nextTotal = 0;
+      nextMeta = {
+        ...meta,
+        courtesy: true,
+        courtesyPrevDiscountCents: item.discountCents,
+      };
+      delete nextMeta.commissionKind;
+      delete nextMeta.commissionBaseCents;
+      nextCommission = {
+        commissionBps: item.commissionBps,
+        commissionCents: 0,
+      };
+    } else {
+      const prevDisc =
+        typeof meta.courtesyPrevDiscountCents === "number" &&
+        Number.isFinite(meta.courtesyPrevDiscountCents)
+          ? Math.max(
+              0,
+              Math.min(lineGross, Math.round(meta.courtesyPrevDiscountCents))
+            )
+          : 0;
+      nextDiscount = prevDisc;
+      nextTotal = lineGross - nextDiscount;
+      const {
+        courtesy: _c,
+        courtesyPrevDiscountCents: _p,
+        ...rest
+      } = meta;
+      nextMeta = rest;
+      nextCommission = calcCommission(nextTotal, item.commissionBps);
+      if (item.itemType === "service") {
+        const house = await annotateServiceCommission({
+          tenantId: tenant.id,
+          serviceName: item.description,
+          baseCents: nextTotal,
+          clientPackageId: null,
+        });
+        nextMeta = { ...nextMeta, ...house.metaPatch };
+        nextCommission = calcCommission(house.baseCents, 4000);
+      }
+    }
+
+    if (nextTotal < item.totalCents) {
+      const [paidRow] = await db
+        .select({
+          paid: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+        })
+        .from(schema.payments)
+        .where(
+          and(
+            eq(schema.payments.orderId, item.orderId),
+            eq(schema.payments.tenantId, tenant.id)
+          )
+        );
+      const [itemsRow] = await db
+        .select({
+          total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+        })
+        .from(schema.orderItems)
+        .where(
+          and(
+            eq(schema.orderItems.orderId, item.orderId),
+            eq(schema.orderItems.tenantId, tenant.id),
+            ne(schema.orderItems.id, itemId)
+          )
+        );
+      const nextOrderTotal = Number(itemsRow?.total ?? 0) + nextTotal;
+      const paidCents = Number(paidRow?.paid ?? 0);
+      if (paidCents > 0 && nextOrderTotal - order.discountCents < paidCents) {
+        throw new AppError(
+          "VALIDATION",
+          "Não é possível zerar: o total ficaria abaixo do já pago. Ajuste o pagamento antes."
+        );
+      }
+    }
+
+    await db
+      .update(schema.orderItems)
+      .set({
+        discountCents: nextDiscount,
+        totalCents: nextTotal,
+        commissionBps: nextCommission.commissionBps,
+        commissionCents: nextCommission.commissionCents,
+        meta: nextMeta,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.orderItems.id, itemId), eq(schema.orderItems.tenantId, tenant.id))
+      );
+
+    await recalculateOrderTotal(item.orderId, tenant.id);
+    if (item.itemType === "service") {
+      await syncStaffMonthServiceCommission(tenant.id, item.staffId);
+    }
+    return { ok: true, id: item.orderId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível atualizar a cortesia" };
+  }
 }
 
 export async function removeOrderItem(itemId: string): Promise<ActionResult> {

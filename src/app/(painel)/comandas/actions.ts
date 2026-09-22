@@ -13,6 +13,7 @@ import {
   removeOrderItem,
   setOrderClient,
   setOrderDiscount,
+  setOrderItemCourtesy,
 } from "@/server/orders/mutations";
 
 function revalidateOrders(id?: string) {
@@ -87,6 +88,9 @@ export async function addOrderItemAction(formData: FormData) {
     coveredRaw != null && String(coveredRaw).trim() !== ""
       ? Math.round(Number(String(coveredRaw).replace(",", ".")) * 100)
       : undefined;
+  const courtesy =
+    String(formData.get("courtesy") ?? "") === "1" ||
+    String(formData.get("courtesy") ?? "") === "on";
   const result = await addOrderItem({
     orderId,
     itemType,
@@ -97,6 +101,7 @@ export async function addOrderItemAction(formData: FormData) {
     coveredCents,
     usePackageCredit,
     clientPackageId,
+    courtesy,
   });
   if (result.ok) revalidateOrders(orderId);
   return result;
@@ -104,6 +109,16 @@ export async function addOrderItemAction(formData: FormData) {
 
 export async function removeOrderItemAction(itemId: string, orderId: string) {
   const result = await removeOrderItem(itemId);
+  if (result.ok) revalidateOrders(orderId);
+  return result;
+}
+
+export async function setOrderItemCourtesyAction(
+  itemId: string,
+  orderId: string,
+  courtesy: boolean
+) {
+  const result = await setOrderItemCourtesy(itemId, courtesy);
   if (result.ok) revalidateOrders(orderId);
   return result;
 }

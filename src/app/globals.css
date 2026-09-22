@@ -3616,6 +3616,29 @@ body.is-agenda-dragging .slot {
   color: #0d47a1;
 }
 
+.order-badge.is-courtesy {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.order-item-courtesy {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.order-courtesy-toggle {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: #fafafa;
+}
+
+.order-courtesy-toggle.is-on {
+  border-color: #ffcc80;
+  background: #fff8f0;
+}
+
 .order-wallet {
   border: 1px solid var(--line);
   background: #f8fafb;
