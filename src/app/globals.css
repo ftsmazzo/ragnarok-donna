@@ -2531,6 +2531,18 @@ input {
   gap: 14px;
 }
 
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 560px) {
+  .form-row-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .form-actions {
   display: flex;
   gap: 8px;
@@ -5772,3 +5784,59 @@ body.is-agenda-dragging .slot {
 }
 
 
+
+/* —— Tesouraria —— */
+.treasury-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.treasury-nav-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.treasury-nav-card:hover {
+  border-color: color-mix(in srgb, var(--accent, #3e7454) 45%, var(--line));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.treasury-nav-card strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.treasury-nav-card .muted {
+  font-size: 12px;
+}
+
+.treasury-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.treasury-admin-card {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.treasury-admin-card strong {
+  font-size: 13px;
+}
+
+.treasury-admin-card code {
+  font-size: 11px;
+}

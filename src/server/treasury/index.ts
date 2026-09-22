@@ -23,6 +23,11 @@ export {
 export type { FinanceEntryInput, ActionResult } from "./mutations";
 export { seedTreasuryFromDonnaSample } from "./seed";
 export type { SeedResult } from "./seed";
+export {
+  importTreasuryEntriesFromFile,
+  importChartAccountsFromFile,
+} from "./import-file";
+export type { ImportResult } from "./import-file";
 export { reportFcm, reportFcd, reportDre } from "./reports";
 export { calcWorkingCapital, calcBreakEven } from "./calculators";
 export {

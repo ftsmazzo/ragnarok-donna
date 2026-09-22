@@ -4,6 +4,7 @@ import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import { TreasuryAdminPanel } from "@/components/financeiro/TreasuryAdminPanel";
 import { formatMoney } from "@/lib/format";
 import { requirePageAccess } from "@/server/permissions/page-access";
+import { requireTenantContext } from "@/server/context/tenant";
 import {
   getTreasuryDashboard,
   getTreasuryPermissions,
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 export default async function FinanceiroHomePage() {
   await requirePageAccess("/financeiro");
+  const tenant = await requireTenantContext();
   const [dash, permissions, bridge, charts] = await Promise.all([
     getTreasuryDashboard(),
     getTreasuryPermissions(),
@@ -22,11 +24,24 @@ export default async function FinanceiroHomePage() {
     listChartAccounts(),
   ]);
 
+  const showDonnaSeed =
+    /donna/i.test(tenant.slug) || /donna/i.test(tenant.name);
+
+  const links = [
+    { href: "/financeiro/a-pagar", label: "Contas a pagar", hint: "Despesas e baixas" },
+    { href: "/financeiro/a-receber", label: "Contas a receber", hint: "Receitas previstas" },
+    { href: "/financeiro/bancos", label: "Bancos / extrato", hint: "Conciliação" },
+    { href: "/financeiro/cartoes", label: "Cartões", hint: "Limite e fatura" },
+    { href: "/financeiro/plano", label: "Plano de contas", hint: `${charts.length} contas` },
+    { href: "/financeiro/relatorios", label: "FCM · FCD · DRE", hint: "Relatórios" },
+    { href: "/financeiro/calculadoras", label: "Calculadoras", hint: "CG e PE" },
+  ] as const;
+
   return (
     <>
       <PageHeader
         title="Tesouraria"
-        subtitle="Plano de contas, títulos AP/AR e relatórios — separado do caixa de turno"
+        subtitle={`${tenant.name} · separado do caixa de turno`}
         actions={
           <>
             <Link href="/financeiro/a-pagar" className="btn btn-outline">
@@ -34,9 +49,6 @@ export default async function FinanceiroHomePage() {
             </Link>
             <Link href="/financeiro/a-receber" className="btn btn-outline">
               A receber
-            </Link>
-            <Link href="/financeiro/plano" className="btn btn-outline">
-              Plano de contas
             </Link>
             <Link href="/caixa" className="btn btn-ghost">
               Caixa (turno)
@@ -57,32 +69,20 @@ export default async function FinanceiroHomePage() {
         ]}
       />
 
-      <nav
-        className="panel"
-        style={{
-          marginTop: 12,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-          gap: 8,
-          padding: 12,
-        }}
-      >
-        {[
-          ["/financeiro/a-pagar", "Contas a pagar"],
-          ["/financeiro/a-receber", "Contas a receber"],
-          ["/financeiro/bancos", "Bancos / extrato"],
-          ["/financeiro/cartoes", "Cartões"],
-          ["/financeiro/plano", `Plano (${charts.length})`],
-          ["/financeiro/relatorios", "FCM · FCD · DRE"],
-          ["/financeiro/calculadoras", "Calculadoras"],
-        ].map(([href, label]) => (
-          <Link key={href} href={href} className="btn btn-outline" style={{ justifyContent: "center" }}>
-            {label}
+      <nav className="treasury-nav" aria-label="Módulos da tesouraria">
+        {links.map((item) => (
+          <Link key={item.href} href={item.href} className="treasury-nav-card">
+            <strong>{item.label}</strong>
+            <span className="muted">{item.hint}</span>
           </Link>
         ))}
       </nav>
 
-      <TreasuryAdminPanel bridge={bridge} canWrite={permissions.canWrite} />
+      <TreasuryAdminPanel
+        bridge={bridge}
+        canWrite={permissions.canWrite}
+        showDonnaSeed={showDonnaSeed}
+      />
     </>
   );
 }
