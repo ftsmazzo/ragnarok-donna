@@ -8,6 +8,12 @@ export async function saveOutreachSettingsAction(
   input: Partial<OutreachSettingsView> & {
     customClosedDatesText?: string;
     followupMonthDaysText?: string;
+    templateConfirmationVariantsText?: string;
+    templateFollowup30VariantsText?: string;
+    templateFollowup60VariantsText?: string;
+    templateSundayBlastVariantsText?: string;
+    templateEmptyAgendaVariantsText?: string;
+    templateBirthdayVariantsText?: string;
   }
 ) {
   const result = await saveOutreachSettings(input);

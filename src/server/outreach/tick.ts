@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { planDelayAndNoShowMessages } from "@/server/house-rules/delay-planner";
-import { isOutreachDispatchEnabled } from "./kill-switch";
+import { isOutreachPlanningEnabled } from "./kill-switch";
 import { getOutreachSettingsForTenant } from "./settings";
 import { processPendingOutreachJobs } from "./queue";
 import {
@@ -28,10 +28,14 @@ export type OutreachTickResult = {
   };
   processed: {
     sent: number;
+    dryRun: number;
     failed: number;
     skipped: number;
     kindProcessed: string | null;
     hourlyCapHit: boolean;
+    dailyCapHit: boolean;
+    quietHours: boolean;
+    outsideWindow: boolean;
   };
   skippedReason?: string;
 };
@@ -40,11 +44,6 @@ export async function runOutreachTick(opts?: {
   tenantSlug?: string | null;
   limitPerTenant?: number;
 }): Promise<OutreachTickResult[]> {
-  if (!isOutreachDispatchEnabled()) {
-    console.info("[outreach] tick ignorado — OUTREACH_DISPATCH_ENABLED off");
-    return [];
-  }
-
   const db = createDb();
   let tenants: { id: string; slug: string; name: string }[];
 
@@ -72,6 +71,37 @@ export async function runOutreachTick(opts?: {
 
   for (const tenant of tenants) {
     const settings = await getOutreachSettingsForTenant(tenant.id);
+
+    if (!isOutreachPlanningEnabled(settings.dryRunEnabled)) {
+      console.info("[outreach] tick ignorado — planning off", tenant.slug);
+      results.push({
+        tenantId: tenant.id,
+        slug: tenant.slug,
+        planned: {
+          confirmation: 0,
+          followup30: 0,
+          followup60: 0,
+          sundayBlast: 0,
+          emptyAgenda: 0,
+          birthday: 0,
+          voceVem: 0,
+          delayReschedule: 0,
+        },
+        processed: {
+          sent: 0,
+          dryRun: 0,
+          failed: 0,
+          skipped: 0,
+          kindProcessed: null,
+          hourlyCapHit: false,
+          dailyCapHit: false,
+          quietHours: false,
+          outsideWindow: false,
+        },
+        skippedReason: "planning_disabled",
+      });
+      continue;
+    }
 
     const confirmation = await planConfirmationDaily({
       tenantId: tenant.id,

@@ -773,6 +773,38 @@ async function ensureRequiredAccountSchema() {
       ALTER TABLE tenant_outreach_settings
       ADD COLUMN IF NOT EXISTS template_birthday text NOT NULL DEFAULT ''
     `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS template_confirmation_variants jsonb NOT NULL DEFAULT '[]'::jsonb
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS template_followup30_variants jsonb NOT NULL DEFAULT '[]'::jsonb
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS template_followup60_variants jsonb NOT NULL DEFAULT '[]'::jsonb
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS template_sunday_blast_variants jsonb NOT NULL DEFAULT '[]'::jsonb
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS template_empty_agenda_variants jsonb NOT NULL DEFAULT '[]'::jsonb
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS template_birthday_variants jsonb NOT NULL DEFAULT '[]'::jsonb
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS daily_cap integer NOT NULL DEFAULT 100
+    `;
+    await sql`
+      ALTER TABLE tenant_outreach_settings
+      ADD COLUMN IF NOT EXISTS dry_run_enabled boolean NOT NULL DEFAULT true
+    `;
   } finally {
     await sql.end({ timeout: 5 });
   }

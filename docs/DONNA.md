@@ -141,3 +141,8 @@ Business facts: `tenants.settings` via `business-profile.ts`
 - Webhook: `AGENT_WEBHOOK_SECRET` (não reutilizar apikey Evolution como secret)
 - APIs de serviço: `AGENT_SERVICE_TOKEN`
 - Handoff: IA para de responder até humano devolver (`mode=human`)
+
+## Disparos (outreach) ≠ conversa reativa
+
+Campanhas / confirmação D+1 / follow-up inativo moram em `src/server/outreach/**` (fila + pacing anti-ban).  
+A Donna reativa (webhook → orchestrator) **não** envia blast. Ver [`docs/Demandas/DISPAROS.md`](Demandas/DISPAROS.md) antes de ligar `OUTREACH_DISPATCH_ENABLED`.

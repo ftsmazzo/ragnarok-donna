@@ -5,7 +5,12 @@ import { saveOutreachSettingsAction } from "@/app/(painel)/configuracoes/disparo
 import { ConfigSectionCard } from "@/components/config/ConfigSectionCard";
 import { Toggle } from "@/components/ui/Toggle";
 import type { OutreachSettingsView } from "@/server/outreach/defaults";
-import { renderOutreachTemplate } from "@/server/outreach/templates";
+import {
+  normalizeTemplatePool,
+  pickVariantTemplate,
+  renderOutreachTemplate,
+} from "@/server/outreach/templates";
+import { DEFAULT_OUTREACH_VARIANT_POOLS } from "@/server/outreach/defaults";
 
 type Props = { initial: OutreachSettingsView };
 
@@ -31,25 +36,61 @@ export function DisparosConfigForm({ initial }: Props) {
   const [birthdayEnabled, setBirthdayEnabled] = useState(initial.birthdayEnabled);
   const [skipSundays, setSkipSundays] = useState(initial.skipSundays);
   const [skipHolidays, setSkipHolidays] = useState(initial.skipHolidays);
+  const [dryRunEnabled, setDryRunEnabled] = useState(initial.dryRunEnabled);
 
   const [tplConfirm, setTplConfirm] = useState(initial.templateConfirmation);
-  const [tplBirthday, setTplBirthday] = useState(initial.templateBirthday);
-  const preview = useMemo(
-    () =>
-      renderOutreachTemplate(tplConfirm, {
-        nome: "Carlos",
-        data: "12/09",
-        hora: "15:00",
-        profissional: "Luciano",
-        barbearia: "Ragnarok",
-      }),
-    [tplConfirm]
+  const [tplConfirmVariants, setTplConfirmVariants] = useState(
+    initial.templateConfirmationVariants.join("\n")
   );
+  const [tplBirthday, setTplBirthday] = useState(initial.templateBirthday);
+
+  const confirmPool = useMemo(
+    () =>
+      normalizeTemplatePool(
+        tplConfirm,
+        tplConfirmVariants.split("\n"),
+        DEFAULT_OUTREACH_VARIANT_POOLS.confirmation
+      ),
+    [tplConfirm, tplConfirmVariants]
+  );
+
+  const previewA = useMemo(() => {
+    const p = pickVariantTemplate({
+      pool: confirmPool,
+      phoneE164: "+5511999990001",
+      dayKey: "confirm:demo",
+      kind: "confirmation_daily",
+    });
+    return renderOutreachTemplate(p.template, {
+      nome: "Carlos",
+      data: "12/09",
+      hora: "15:00",
+      profissional: "Luciano",
+      barbearia: "Donna",
+    });
+  }, [confirmPool]);
+
+  const previewB = useMemo(() => {
+    const p = pickVariantTemplate({
+      pool: confirmPool,
+      phoneE164: "+5511988880002",
+      dayKey: "confirm:demo",
+      kind: "confirmation_daily",
+    });
+    return renderOutreachTemplate(p.template, {
+      nome: "Ana",
+      data: "12/09",
+      hora: "16:30",
+      profissional: "Diogo",
+      barbearia: "Donna",
+    });
+  }, [confirmPool]);
+
   const birthdayPreview = useMemo(
     () =>
       renderOutreachTemplate(tplBirthday, {
         nome: "Carlos",
-        barbearia: "Ragnarok",
+        barbearia: "Donna",
         desconto: initial.birthdayDiscountPct,
         data: "17/09",
       }),
@@ -70,7 +111,9 @@ export function DisparosConfigForm({ initial }: Props) {
         emptyAgendaEnabled: boolFromFd(fd, "emptyAgendaEnabled", emptyAgendaEnabled),
         soundOnConfirmEnabled: boolFromFd(fd, "soundOnConfirmEnabled", soundOnConfirmEnabled),
         birthdayEnabled: boolFromFd(fd, "birthdayEnabled", birthdayEnabled),
+        dryRunEnabled: boolFromFd(fd, "dryRunEnabled", dryRunEnabled),
         birthdayDiscountPct: Number(fd.get("birthdayDiscountPct") ?? 10),
+        dailyCap: Number(fd.get("dailyCap") ?? 100),
         skipSundays: boolFromFd(fd, "skipSundays", skipSundays),
         skipHolidays: boolFromFd(fd, "skipHolidays", skipHolidays),
         confirmationSendTime: String(fd.get("confirmationSendTime") ?? "18:00"),
@@ -85,6 +128,18 @@ export function DisparosConfigForm({ initial }: Props) {
         templateSundayBlast: String(fd.get("templateSundayBlast") ?? ""),
         templateEmptyAgenda: String(fd.get("templateEmptyAgenda") ?? ""),
         templateBirthday: String(fd.get("templateBirthday") ?? ""),
+        templateConfirmationVariantsText: String(
+          fd.get("templateConfirmationVariantsText") ?? ""
+        ),
+        templateFollowup30VariantsText: String(fd.get("templateFollowup30VariantsText") ?? ""),
+        templateFollowup60VariantsText: String(fd.get("templateFollowup60VariantsText") ?? ""),
+        templateSundayBlastVariantsText: String(
+          fd.get("templateSundayBlastVariantsText") ?? ""
+        ),
+        templateEmptyAgendaVariantsText: String(
+          fd.get("templateEmptyAgendaVariantsText") ?? ""
+        ),
+        templateBirthdayVariantsText: String(fd.get("templateBirthdayVariantsText") ?? ""),
       });
       if (result.ok) setMsg("Regras salvas nesta unidade.");
       else setErr(result.error);
@@ -94,15 +149,43 @@ export function DisparosConfigForm({ initial }: Props) {
   return (
     <form className="agent-config-form" onSubmit={onSubmit}>
       <div className="agent-config-intro">
-        <strong>Regras da casa.</strong> Tudo começa desligado. Enquanto os clientes estiverem no
-        AppBarber, o envio global fica bloqueado no servidor — mesmo com toggle ligado, nada sai
-        no WhatsApp até liberarmos a migração.
-        Placeholders: {"{{nome}}"}, {"{{data}}"}, {"{{hora}}"}, {"{{profissional}}"}, {"{{barbearia}}"}, {"{{desconto}}"}.
+        <strong>Estrutura anti-ban.</strong> Mensagens alternadas + janela horária + teto diário.
+        Com dry-run ligado (padrão), a fila roda sem WhatsApp. Só ligue envio real depois de
+        validar variantes no painel. Placeholders: {"{{nome}}"}, {"{{data}}"}, {"{{hora}}"},{" "}
+        {"{{profissional}}"}, {"{{barbearia}}"}, {"{{desconto}}"}.
       </div>
 
       <ConfigSectionCard
+        title="Segurança / dry-run"
+        description="Nunca dispare em massa sem dry-run e caps."
+        accent="orange"
+      >
+        <div className="config-grid" style={{ gridTemplateColumns: "1fr" }}>
+          <Toggle
+            id="dryRunEnabled"
+            name="dryRunEnabled"
+            checked={dryRunEnabled}
+            onChange={setDryRunEnabled}
+            label="Dry-run (simula fila, não manda Zap)"
+            hint="Recomendado até validar textos. Mesmo com OUTREACH_DISPATCH_ENABLED=true, dry-run desta unidade bloqueia Evolution."
+          />
+          <label className="filter-field">
+            <span>Teto diário (msgs sent + dry-run)</span>
+            <input
+              name="dailyCap"
+              type="number"
+              min={10}
+              max={500}
+              className="search-input"
+              defaultValue={initial.dailyCap}
+            />
+          </label>
+        </div>
+      </ConfigSectionCard>
+
+      <ConfigSectionCard
         title="Liga / desliga"
-        description="Cada disparo só roda se estiver ligado."
+        description="Cada disparo só roda se estiver ligado. Comece só pela confirmação."
         accent="orange"
       >
         <div className="config-grid" style={{ gridTemplateColumns: "1fr" }}>
@@ -112,7 +195,7 @@ export function DisparosConfigForm({ initial }: Props) {
             checked={confirmationEnabled}
             onChange={setConfirmationEnabled}
             label="Confirmação diária (amanhã)"
-            hint="Envia WhatsApp pedindo OK; resposta OK deixa o horário verde."
+            hint="Envia pedindo OK; resposta OK deixa o horário verde. Preferido para liberar primeiro."
           />
           <Toggle
             id="followup30Enabled"
@@ -134,6 +217,7 @@ export function DisparosConfigForm({ initial }: Props) {
             checked={sundayBlastEnabled}
             onChange={setSundayBlastEnabled}
             label="Blast no domingo"
+            hint="Também exige OUTREACH_ALLOW_SUNDAY_BLAST=true no servidor."
           />
           <Toggle
             id="emptyAgendaEnabled"
@@ -141,7 +225,7 @@ export function DisparosConfigForm({ initial }: Props) {
             checked={emptyAgendaEnabled}
             onChange={setEmptyAgendaEnabled}
             label="Agenda vazia do profissional"
-            hint="Só se o barbeiro estiver sem horário amanhã. Cap baixo (8) + cooldown 14d. Exige pacing e kill switch on."
+            hint="Cap 8 + cooldown 14d. Só depois da confirmação estável."
           />
           <Toggle
             id="soundOnConfirmEnabled"
@@ -156,19 +240,19 @@ export function DisparosConfigForm({ initial }: Props) {
             checked={birthdayEnabled}
             onChange={setBirthdayEnabled}
             label="Aniversariantes automáticos (fila)"
-            hint="Default off. No dia do aniversário enfileira texto+desconto. Preferência: enviar manual em Clientes → Aniversariantes (humano, sem kill switch da fila)."
+            hint="Preferência: envio manual em Clientes → Aniversariantes."
           />
         </div>
       </ConfigSectionCard>
 
       <ConfigSectionCard
         title="Horário e calendário"
-        description="Confirmação só dispara depois do horário. Domingo/feriado podem ser pulados."
+        description="Envios espalhados na janela (âncora ±30–60 min). Quiet hours 22h–8h SP."
         accent="blue"
       >
         <div className="config-grid">
           <label className="filter-field">
-            <span>Horário da confirmação (SP)</span>
+            <span>Horário âncora da confirmação (SP)</span>
             <input
               name="confirmationSendTime"
               className="search-input"
@@ -260,10 +344,14 @@ export function DisparosConfigForm({ initial }: Props) {
         </div>
       </ConfigSectionCard>
 
-      <ConfigSectionCard title="Textos" description="Mensagens enviadas no WhatsApp." accent="green">
+      <ConfigSectionCard
+        title="Textos e variantes"
+        description="Principal + variantes (uma por linha). O sistema alterna por telefone/dia."
+        accent="green"
+      >
         <div className="config-grid" style={{ gridTemplateColumns: "1fr" }}>
           <label className="filter-field">
-            <span>Confirmação D+1</span>
+            <span>Confirmação D+1 (principal)</span>
             <textarea
               name="templateConfirmation"
               className="search-input"
@@ -272,8 +360,20 @@ export function DisparosConfigForm({ initial }: Props) {
               onChange={(e) => setTplConfirm(e.target.value)}
               maxLength={2000}
             />
+          </label>
+          <label className="filter-field">
+            <span>Variantes da confirmação (1 por linha, até 5)</span>
+            <textarea
+              name="templateConfirmationVariantsText"
+              className="search-input"
+              rows={4}
+              value={tplConfirmVariants}
+              onChange={(e) => setTplConfirmVariants(e.target.value)}
+            />
             <small style={{ color: "var(--muted)", display: "block", marginTop: 6 }}>
-              Preview: {preview}
+              Preview A: {previewA}
+              <br />
+              Preview B: {previewB}
             </small>
           </label>
           <label className="filter-field">
@@ -287,6 +387,15 @@ export function DisparosConfigForm({ initial }: Props) {
             />
           </label>
           <label className="filter-field">
+            <span>Variantes retorno 30</span>
+            <textarea
+              name="templateFollowup30VariantsText"
+              className="search-input"
+              rows={2}
+              defaultValue={initial.templateFollowup30Variants.join("\n")}
+            />
+          </label>
+          <label className="filter-field">
             <span>Retorno 60 dias</span>
             <textarea
               name="templateFollowup60"
@@ -294,6 +403,15 @@ export function DisparosConfigForm({ initial }: Props) {
               rows={2}
               defaultValue={initial.templateFollowup60}
               maxLength={2000}
+            />
+          </label>
+          <label className="filter-field">
+            <span>Variantes retorno 60</span>
+            <textarea
+              name="templateFollowup60VariantsText"
+              className="search-input"
+              rows={2}
+              defaultValue={initial.templateFollowup60Variants.join("\n")}
             />
           </label>
           <label className="filter-field">
@@ -307,6 +425,15 @@ export function DisparosConfigForm({ initial }: Props) {
             />
           </label>
           <label className="filter-field">
+            <span>Variantes blast</span>
+            <textarea
+              name="templateSundayBlastVariantsText"
+              className="search-input"
+              rows={2}
+              defaultValue={initial.templateSundayBlastVariants.join("\n")}
+            />
+          </label>
+          <label className="filter-field">
             <span>Agenda vazia</span>
             <textarea
               name="templateEmptyAgenda"
@@ -314,6 +441,15 @@ export function DisparosConfigForm({ initial }: Props) {
               rows={2}
               defaultValue={initial.templateEmptyAgenda}
               maxLength={2000}
+            />
+          </label>
+          <label className="filter-field">
+            <span>Variantes agenda vazia</span>
+            <textarea
+              name="templateEmptyAgendaVariantsText"
+              className="search-input"
+              rows={2}
+              defaultValue={initial.templateEmptyAgendaVariants.join("\n")}
             />
           </label>
           <label className="filter-field">
@@ -329,6 +465,15 @@ export function DisparosConfigForm({ initial }: Props) {
             <small style={{ color: "var(--muted)", display: "block", marginTop: 6 }}>
               Preview: {birthdayPreview}
             </small>
+          </label>
+          <label className="filter-field">
+            <span>Variantes aniversário</span>
+            <textarea
+              name="templateBirthdayVariantsText"
+              className="search-input"
+              rows={2}
+              defaultValue={initial.templateBirthdayVariants.join("\n")}
+            />
           </label>
         </div>
       </ConfigSectionCard>

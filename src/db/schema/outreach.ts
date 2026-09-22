@@ -60,6 +60,37 @@ export const tenantOutreachSettings = pgTable(
     templateEmptyAgenda: text("template_empty_agenda").notNull().default(""),
     templateBirthday: text("template_birthday").notNull().default(""),
 
+    /** Variantes extras por kind (anti-fingerprint). */
+    templateConfirmationVariants: jsonb("template_confirmation_variants")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    templateFollowup30Variants: jsonb("template_followup30_variants")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    templateFollowup60Variants: jsonb("template_followup60_variants")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    templateSundayBlastVariants: jsonb("template_sunday_blast_variants")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    templateEmptyAgendaVariants: jsonb("template_empty_agenda_variants")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    templateBirthdayVariants: jsonb("template_birthday_variants")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+
+    /** Teto diário de jobs sent/dry_run. */
+    dailyCap: integer("daily_cap").notNull().default(100),
+    /** Simula sem Evolution. */
+    dryRunEnabled: boolean("dry_run_enabled").notNull().default(true),
+
     ...timestamps,
   },
   (t) => [uniqueIndex("tenant_outreach_settings_tenant_uidx").on(t.tenantId)]
