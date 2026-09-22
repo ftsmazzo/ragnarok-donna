@@ -4,9 +4,25 @@ import { ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import {
+  DEFAULT_OUTREACH_VARIANT_POOLS,
   defaultOutreachSettings,
   type OutreachSettingsView,
 } from "./defaults";
+
+function asStringArray(raw: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(raw)) return fallback;
+  return raw.map((x) => String(x).trim()).filter(Boolean).slice(0, 5);
+}
+
+function parseVariantsText(raw: string | string[] | undefined, fallback: string[]): string[] {
+  if (raw == null) return fallback;
+  if (Array.isArray(raw)) return asStringArray(raw, fallback);
+  return raw
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+}
 
 function rowToView(row: typeof schema.tenantOutreachSettings.$inferSelect): OutreachSettingsView {
   const defaults = defaultOutreachSettings();
@@ -30,12 +46,38 @@ function rowToView(row: typeof schema.tenantOutreachSettings.$inferSelect): Outr
     followup30Days: row.followup30Days || 30,
     followup60Days: row.followup60Days || 60,
     blastActiveWithinDays: row.blastActiveWithinDays || 120,
+    dailyCap: Math.min(500, Math.max(10, Number(row.dailyCap ?? defaults.dailyCap) || 100)),
+    dryRunEnabled: row.dryRunEnabled ?? defaults.dryRunEnabled,
     templateConfirmation: row.templateConfirmation || defaults.templateConfirmation,
     templateFollowup30: row.templateFollowup30 || defaults.templateFollowup30,
     templateFollowup60: row.templateFollowup60 || defaults.templateFollowup60,
     templateSundayBlast: row.templateSundayBlast || defaults.templateSundayBlast,
     templateEmptyAgenda: row.templateEmptyAgenda || defaults.templateEmptyAgenda,
     templateBirthday: row.templateBirthday || defaults.templateBirthday,
+    templateConfirmationVariants: asStringArray(
+      row.templateConfirmationVariants,
+      defaults.templateConfirmationVariants
+    ),
+    templateFollowup30Variants: asStringArray(
+      row.templateFollowup30Variants,
+      defaults.templateFollowup30Variants
+    ),
+    templateFollowup60Variants: asStringArray(
+      row.templateFollowup60Variants,
+      defaults.templateFollowup60Variants
+    ),
+    templateSundayBlastVariants: asStringArray(
+      row.templateSundayBlastVariants,
+      defaults.templateSundayBlastVariants
+    ),
+    templateEmptyAgendaVariants: asStringArray(
+      row.templateEmptyAgendaVariants,
+      defaults.templateEmptyAgendaVariants
+    ),
+    templateBirthdayVariants: asStringArray(
+      row.templateBirthdayVariants,
+      defaults.templateBirthdayVariants
+    ),
   };
 }
 
@@ -124,6 +166,12 @@ export async function saveOutreachSettings(
   input: Partial<OutreachSettingsView> & {
     customClosedDatesText?: string;
     followupMonthDaysText?: string;
+    templateConfirmationVariantsText?: string;
+    templateFollowup30VariantsText?: string;
+    templateFollowup60VariantsText?: string;
+    templateSundayBlastVariantsText?: string;
+    templateEmptyAgendaVariantsText?: string;
+    templateBirthdayVariantsText?: string;
   }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
@@ -167,6 +215,11 @@ export async function saveOutreachSettings(
         730,
         Math.max(30, Number(input.blastActiveWithinDays ?? current.blastActiveWithinDays) || 120)
       ),
+      dailyCap: Math.min(
+        500,
+        Math.max(10, Number(input.dailyCap ?? current.dailyCap) || 100)
+      ),
+      dryRunEnabled: input.dryRunEnabled ?? current.dryRunEnabled,
       templateConfirmation: (input.templateConfirmation ?? current.templateConfirmation)
         .trim()
         .slice(0, 2000),
@@ -185,7 +238,36 @@ export async function saveOutreachSettings(
       templateBirthday: (input.templateBirthday ?? current.templateBirthday)
         .trim()
         .slice(0, 2000),
+      templateConfirmationVariants: parseVariantsText(
+        input.templateConfirmationVariantsText ?? input.templateConfirmationVariants,
+        current.templateConfirmationVariants
+      ),
+      templateFollowup30Variants: parseVariantsText(
+        input.templateFollowup30VariantsText ?? input.templateFollowup30Variants,
+        current.templateFollowup30Variants
+      ),
+      templateFollowup60Variants: parseVariantsText(
+        input.templateFollowup60VariantsText ?? input.templateFollowup60Variants,
+        current.templateFollowup60Variants
+      ),
+      templateSundayBlastVariants: parseVariantsText(
+        input.templateSundayBlastVariantsText ?? input.templateSundayBlastVariants,
+        current.templateSundayBlastVariants
+      ),
+      templateEmptyAgendaVariants: parseVariantsText(
+        input.templateEmptyAgendaVariantsText ?? input.templateEmptyAgendaVariants,
+        current.templateEmptyAgendaVariants
+      ),
+      templateBirthdayVariants: parseVariantsText(
+        input.templateBirthdayVariantsText ?? input.templateBirthdayVariants,
+        current.templateBirthdayVariants
+      ),
     };
+
+    // Garantir pool mínimo se usuário limpar tudo
+    if (!next.templateConfirmation.trim()) {
+      next.templateConfirmation = DEFAULT_OUTREACH_VARIANT_POOLS.confirmation[0];
+    }
 
     const db = createDb();
     const [existing] = await db

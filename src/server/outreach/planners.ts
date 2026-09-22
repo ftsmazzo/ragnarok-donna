@@ -2,13 +2,44 @@ import { and, eq, gte, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { dayBoundsSp, formatDateLabelSp, formatTimeSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { isClosedForOutreach, timeReachedSp } from "./calendar";
-import type { OutreachSettingsView } from "./defaults";
+import {
+  DEFAULT_OUTREACH_VARIANT_POOLS,
+  type OutreachSettingsView,
+} from "./defaults";
+import { isSundayBlastHardAllowed } from "./kill-switch";
 import {
   EMPTY_AGENDA_CLIENT_CAP,
   EMPTY_AGENDA_COOLDOWN_DAYS,
+  spreadScheduledAt,
 } from "./pacing";
 import { enqueueOutreachJob } from "./queue";
-import { renderOutreachTemplate } from "./templates";
+import {
+  normalizeTemplatePool,
+  pickVariantTemplate,
+  renderOutreachTemplate,
+} from "./templates";
+
+function buildBody(input: {
+  kind: string;
+  primary: string;
+  variants: string[];
+  fallback: readonly string[];
+  phoneE164: string;
+  dayKey: string;
+  vars: Parameters<typeof renderOutreachTemplate>[1];
+}): { body: string; variantIndex: number } {
+  const pool = normalizeTemplatePool(input.primary, input.variants, input.fallback);
+  const picked = pickVariantTemplate({
+    pool,
+    phoneE164: input.phoneE164,
+    dayKey: input.dayKey,
+    kind: input.kind,
+  });
+  return {
+    body: renderOutreachTemplate(picked.template, input.vars),
+    variantIndex: picked.variantIndex,
+  };
+}
 
 export async function planConfirmationDaily(input: {
   tenantId: string;
@@ -18,7 +49,11 @@ export async function planConfirmationDaily(input: {
   if (!input.settings.confirmationEnabled) return { enqueued: 0, skippedClosed: false };
 
   const today = todaySp();
-  if (!timeReachedSp(input.settings.confirmationSendTime)) {
+  // Enfileira a partir do início da janela (âncora - 30min)
+  const [ah, am] = input.settings.confirmationSendTime.split(":").map(Number);
+  const startTotal = (((ah * 60 + am - 30) % 1440) + 1440) % 1440;
+  const windowStart = `${String(Math.floor(startTotal / 60)).padStart(2, "0")}:${String(startTotal % 60).padStart(2, "0")}`;
+  if (!timeReachedSp(windowStart)) {
     return { enqueued: 0, skippedClosed: false };
   }
 
@@ -78,12 +113,28 @@ export async function planConfirmationDaily(input: {
     if (!phone) continue;
     if (row.meta?.confirmationRequestedAt) continue;
 
-    const body = renderOutreachTemplate(input.settings.templateConfirmation, {
-      nome: row.clientName,
-      data: dateLabel,
-      hora: formatTimeSp(row.startsAt),
-      profissional: row.staffName,
-      barbearia: input.tenantName,
+    const dayKey = `confirm:${targetDate}`;
+    const { body, variantIndex } = buildBody({
+      kind: "confirmation_daily",
+      primary: input.settings.templateConfirmation,
+      variants: input.settings.templateConfirmationVariants,
+      fallback: DEFAULT_OUTREACH_VARIANT_POOLS.confirmation,
+      phoneE164: phone,
+      dayKey,
+      vars: {
+        nome: row.clientName,
+        data: dateLabel,
+        hora: formatTimeSp(row.startsAt),
+        profissional: row.staffName,
+        barbearia: input.tenantName,
+      },
+    });
+
+    const scheduledAt = spreadScheduledAt({
+      dateStr: today,
+      anchorHm: input.settings.confirmationSendTime,
+      phoneE164: phone,
+      dayKey,
     });
 
     const res = await enqueueOutreachJob({
@@ -92,8 +143,10 @@ export async function planConfirmationDaily(input: {
       phoneE164: phone,
       clientId: row.clientId,
       body,
-      dayKey: `confirm:${targetDate}`,
-      meta: { appointmentId: row.id, targetDate },
+      dayKey,
+      scheduledAt,
+      dryRunEnabled: input.settings.dryRunEnabled,
+      meta: { appointmentId: row.id, targetDate, variantIndex },
     });
     if (res.created) enqueued += 1;
   }
@@ -155,7 +208,9 @@ export async function planFollowupInactive(input: {
   async function enqueueBand(
     days: number,
     enabled: boolean,
-    template: string,
+    primary: string,
+    variants: string[],
+    fallback: readonly string[],
     band: "30" | "60"
   ) {
     if (!enabled) return 0;
@@ -171,9 +226,21 @@ export async function planFollowupInactive(input: {
     for (const row of rows) {
       const phone = row.phoneE164?.trim();
       if (!phone) continue;
-      const body = renderOutreachTemplate(template, {
-        nome: row.clientName,
-        barbearia: input.tenantName,
+      const dayKey = `fu${band}:${today}`;
+      const { body, variantIndex } = buildBody({
+        kind: "followup_inactive",
+        primary,
+        variants,
+        fallback,
+        phoneE164: phone,
+        dayKey,
+        vars: { nome: row.clientName, barbearia: input.tenantName },
+      });
+      const scheduledAt = spreadScheduledAt({
+        dateStr: today,
+        anchorHm: input.settings.confirmationSendTime,
+        phoneE164: phone,
+        dayKey,
       });
       const res = await enqueueOutreachJob({
         tenantId: input.tenantId,
@@ -181,8 +248,10 @@ export async function planFollowupInactive(input: {
         phoneE164: phone,
         clientId: row.clientId,
         body,
-        dayKey: `fu${band}:${today}`,
-        meta: { inactiveDays: days, band },
+        dayKey,
+        scheduledAt,
+        dryRunEnabled: input.settings.dryRunEnabled,
+        meta: { inactiveDays: days, band, variantIndex },
       });
       if (res.created) n += 1;
     }
@@ -193,12 +262,16 @@ export async function planFollowupInactive(input: {
     input.settings.followup30Days,
     input.settings.followup30Enabled,
     input.settings.templateFollowup30,
+    input.settings.templateFollowup30Variants,
+    DEFAULT_OUTREACH_VARIANT_POOLS.followup30,
     "30"
   );
   const enqueued60 = await enqueueBand(
     input.settings.followup60Days,
     input.settings.followup60Enabled,
     input.settings.templateFollowup60,
+    input.settings.templateFollowup60Variants,
+    DEFAULT_OUTREACH_VARIANT_POOLS.followup60,
     "60"
   );
 
@@ -211,6 +284,8 @@ export async function planSundayBlast(input: {
   settings: OutreachSettingsView;
 }): Promise<{ enqueued: number }> {
   if (!input.settings.sundayBlastEnabled) return { enqueued: 0 };
+  if (!isSundayBlastHardAllowed()) return { enqueued: 0 };
+
   const today = todaySp();
   const wd = new Date(`${today}T12:00:00-03:00`).toLocaleDateString("en-US", {
     timeZone: "America/Sao_Paulo",
@@ -232,9 +307,21 @@ export async function planSundayBlast(input: {
   for (const row of rows) {
     const phone = row.phoneE164?.trim();
     if (!phone) continue;
-    const body = renderOutreachTemplate(input.settings.templateSundayBlast, {
-      nome: row.clientName,
-      barbearia: input.tenantName,
+    const dayKey = `blast:${today}`;
+    const { body, variantIndex } = buildBody({
+      kind: "sunday_blast",
+      primary: input.settings.templateSundayBlast,
+      variants: input.settings.templateSundayBlastVariants,
+      fallback: DEFAULT_OUTREACH_VARIANT_POOLS.sundayBlast,
+      phoneE164: phone,
+      dayKey,
+      vars: { nome: row.clientName, barbearia: input.tenantName },
+    });
+    const scheduledAt = spreadScheduledAt({
+      dateStr: today,
+      anchorHm: input.settings.confirmationSendTime,
+      phoneE164: phone,
+      dayKey,
     });
     const res = await enqueueOutreachJob({
       tenantId: input.tenantId,
@@ -242,7 +329,10 @@ export async function planSundayBlast(input: {
       phoneE164: phone,
       clientId: row.clientId,
       body,
-      dayKey: `blast:${today}`,
+      dayKey,
+      scheduledAt,
+      dryRunEnabled: input.settings.dryRunEnabled,
+      meta: { variantIndex },
     });
     if (res.created) enqueued += 1;
   }
@@ -316,7 +406,7 @@ export async function planEmptyAgenda(input: {
         and(
           eq(schema.outreachJobs.tenantId, input.tenantId),
           eq(schema.outreachJobs.kind, "empty_agenda"),
-          sql`${schema.outreachJobs.status} in ('pending','sending','sent')`,
+          sql`${schema.outreachJobs.status} in ('pending','sending','sent','dry_run')`,
           gte(schema.outreachJobs.createdAt, cooldownSince)
         )
       );
@@ -359,11 +449,26 @@ export async function planEmptyAgenda(input: {
       const phone = row.phoneE164?.trim();
       if (!phone) continue;
       if (cooldownPhones.has(phone)) continue;
-      const body = renderOutreachTemplate(input.settings.templateEmptyAgenda, {
-        nome: row.clientName,
-        profissional: st.name,
-        barbearia: input.tenantName,
-        data: formatDateLabelSp(targetDate),
+      const dayKey = `empty:${st.id}:${targetDate}`;
+      const { body, variantIndex } = buildBody({
+        kind: "empty_agenda",
+        primary: input.settings.templateEmptyAgenda,
+        variants: input.settings.templateEmptyAgendaVariants,
+        fallback: DEFAULT_OUTREACH_VARIANT_POOLS.emptyAgenda,
+        phoneE164: phone,
+        dayKey,
+        vars: {
+          nome: row.clientName,
+          profissional: st.name,
+          barbearia: input.tenantName,
+          data: formatDateLabelSp(targetDate),
+        },
+      });
+      const scheduledAt = spreadScheduledAt({
+        dateStr: today,
+        anchorHm: input.settings.confirmationSendTime,
+        phoneE164: phone,
+        dayKey,
       });
       const res = await enqueueOutreachJob({
         tenantId: input.tenantId,
@@ -371,8 +476,10 @@ export async function planEmptyAgenda(input: {
         phoneE164: phone,
         clientId: row.clientId,
         body,
-        dayKey: `empty:${st.id}:${targetDate}`,
-        meta: { staffId: st.id, targetDate },
+        dayKey,
+        scheduledAt,
+        dryRunEnabled: input.settings.dryRunEnabled,
+        meta: { staffId: st.id, targetDate, variantIndex },
       });
       if (res.created) {
         enqueued += 1;
@@ -420,11 +527,26 @@ export async function planBirthday(input: {
   for (const row of rows) {
     const phone = row.phoneE164?.trim();
     if (!phone) continue;
-    const body = renderOutreachTemplate(input.settings.templateBirthday, {
-      nome: row.name,
-      barbearia: input.tenantName,
-      desconto: discount,
-      data: formatDateLabelSp(today),
+    const dayKey = `birthday:${today}`;
+    const { body, variantIndex } = buildBody({
+      kind: "birthday",
+      primary: input.settings.templateBirthday,
+      variants: input.settings.templateBirthdayVariants,
+      fallback: DEFAULT_OUTREACH_VARIANT_POOLS.birthday,
+      phoneE164: phone,
+      dayKey,
+      vars: {
+        nome: row.name,
+        barbearia: input.tenantName,
+        desconto: discount,
+        data: formatDateLabelSp(today),
+      },
+    });
+    const scheduledAt = spreadScheduledAt({
+      dateStr: today,
+      anchorHm: input.settings.confirmationSendTime,
+      phoneE164: phone,
+      dayKey,
     });
     const res = await enqueueOutreachJob({
       tenantId: input.tenantId,
@@ -432,8 +554,10 @@ export async function planBirthday(input: {
       phoneE164: phone,
       clientId: row.id,
       body,
-      dayKey: `birthday:${today}`,
-      meta: { discountPct: discount },
+      dayKey,
+      scheduledAt,
+      dryRunEnabled: input.settings.dryRunEnabled,
+      meta: { discountPct: discount, variantIndex },
     });
     if (res.created) enqueued += 1;
   }
