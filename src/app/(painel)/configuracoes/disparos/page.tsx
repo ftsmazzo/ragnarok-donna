@@ -19,8 +19,8 @@ export default async function DisparosConfigPage() {
   return (
     <>
       <PageHeader
-        title="Disparos WhatsApp"
-        subtitle="Anti-ban: variantes, janela horária e dry-run antes de liberar envio real"
+        title="Mensagens no WhatsApp"
+        subtitle="Confirma horário, chama quem sumiu e avisa a casa — com calma, sem flood"
       />
       <OutreachMetricsPanel metrics={metrics} />
       <section className="panel" style={{ background: "transparent", border: "none", boxShadow: "none" }}>

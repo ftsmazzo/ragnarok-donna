@@ -2,56 +2,109 @@ import type { OutreachMetrics } from "@/server/outreach/metrics";
 
 type Props = { metrics: OutreachMetrics };
 
+const KIND_LABEL: Record<string, string> = {
+  confirmation_daily: "Confirmação de amanhã",
+  followup_inactive: "Convite de retorno",
+  empty_agenda: "Horário livre",
+  birthday: "Aniversário",
+  sunday_blast: "Mensagem de domingo",
+  voce_vem: "Você vem?",
+  delay_reschedule: "Remarcação",
+  manual: "Manual",
+  campaign: "Campanha",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  sent: "Enviada",
+  dry_run: "Só teste",
+  pending: "Na fila",
+  failed: "Falhou",
+  sending: "Enviando",
+};
+
 export function OutreachMetricsPanel({ metrics }: Props) {
+  const sendingLive = metrics.dispatchEnabled && !metrics.dryRunActive;
+
   return (
-    <section className="panel" style={{ marginBottom: 16 }}>
+    <section className="disparos-status panel">
       <div className="panel-body">
-        <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Status anti-ban</h3>
-        <p className="client-profile-hint muted" style={{ marginTop: 0 }}>
-          {metrics.dispatchEnabled
-            ? metrics.dryRunActive
-              ? "Dispatch on, mas dry-run ativo — nada sai no WhatsApp."
-              : "Envio real ligado. Caps e variantes ativos."
-            : "Dispatch off. Fila pode rodar em dry-run (sem Evolution)."}
-        </p>
-        <div
-          className="config-grid"
-          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10 }}
-        >
-          <Metric label="Hoje (sent)" value={String(metrics.sentToday)} />
-          <Metric label="Hoje (dry-run)" value={String(metrics.dryRunToday)} />
-          <Metric label="Falhas hoje" value={String(metrics.failedToday)} />
-          <Metric label="Pending" value={String(metrics.pending)} />
+        <div className={`disparos-status-banner${sendingLive ? " is-live" : " is-safe"}`}>
+          <div>
+            <p className="disparos-status-kicker">Situação agora</p>
+            <h3 className="disparos-status-title">
+              {sendingLive
+                ? "Mensagens podem ir para o WhatsApp dos clientes"
+                : "Modo seguro — nada chega no WhatsApp do cliente"}
+            </h3>
+            <p className="disparos-status-desc">
+              {sendingLive
+                ? "O envio real está liberado. Use com calma: confirme o texto e o horário antes de aumentar o volume."
+                : "Pode ligar a confirmação e treinar os textos. O sistema só simula a fila — o cliente não recebe nada até liberarmos o envio de verdade."}
+            </p>
+          </div>
+          <span className={`disparos-pill${sendingLive ? " is-warn" : " is-ok"}`}>
+            {sendingLive ? "Envio real" : "Só teste"}
+          </span>
+        </div>
+
+        <div className="disparos-metrics">
           <Metric
-            label="Última hora"
-            value={`${metrics.sentLastHour}/${metrics.hourlyCap}`}
+            label="Enviadas hoje"
+            value={String(metrics.sentToday)}
+            hint="Chegaram no WhatsApp"
           />
-          <Metric label="Teto diário" value={String(metrics.dailyCap)} />
           <Metric
-            label="Sunday blast"
-            value={metrics.sundayBlastHardAllowed ? "liberado" : "bloqueado"}
+            label="Só teste hoje"
+            value={String(metrics.dryRunToday)}
+            hint="Simuladas, sem Zap"
+          />
+          <Metric
+            label="Na fila"
+            value={String(metrics.pending)}
+            hint="Esperando a hora"
+          />
+          <Metric
+            label="Falharam hoje"
+            value={String(metrics.failedToday)}
+            hint="Precisam olhar"
+          />
+          <Metric
+            label="Nesta hora"
+            value={`${metrics.sentLastHour} de ${metrics.hourlyCap}`}
+            hint="Limite pra não saturar"
+          />
+          <Metric
+            label="Máx. no dia"
+            value={String(metrics.dailyCap)}
+            hint="Teto diário da unidade"
           />
         </div>
 
         {metrics.recentBodies.length ? (
-          <div style={{ marginTop: 14 }}>
-            <strong style={{ fontSize: 13 }}>Últimos textos (amostra)</strong>
-            <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13 }}>
+          <div className="disparos-recent">
+            <h4 className="disparos-recent-title">Últimas mensagens montadas</h4>
+            <p className="disparos-recent-hint">
+              Assim você vê se os textos estão saindo diferentes (menos cara de robô).
+            </p>
+            <ul className="disparos-recent-list">
               {metrics.recentBodies.map((r) => (
-                <li key={r.id} style={{ marginBottom: 6 }}>
-                  <span className="muted">
-                    [{r.status}] {r.kind}
-                    {r.variantIndex != null ? ` v${r.variantIndex}` : ""} {r.phoneTail}
-                  </span>
-                  <br />
-                  {r.bodyPreview}
+                <li key={r.id} className="disparos-recent-item">
+                  <div className="disparos-recent-meta">
+                    <span className="disparos-chip">
+                      {STATUS_LABEL[r.status] ?? r.status}
+                    </span>
+                    <span>{KIND_LABEL[r.kind] ?? r.kind}</span>
+                    <span className="muted">tel {r.phoneTail}</span>
+                  </div>
+                  <p className="disparos-recent-body">{r.bodyPreview}</p>
                 </li>
               ))}
             </ul>
           </div>
         ) : (
-          <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
-            Nenhum job ainda — ligue dry-run + confirmação e rode o tick para ver variantes.
+          <p className="disparos-empty muted">
+            Ainda não tem mensagem na fila. Ligue a confirmação de amanhã (abaixo) e salve —
+            depois aparece aqui o que o sistema montaria.
           </p>
         )}
       </div>
@@ -59,20 +112,20 @@ export function OutreachMetricsPanel({ metrics }: Props) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
   return (
-    <div
-      style={{
-        border: "1px solid var(--line)",
-        borderRadius: 8,
-        padding: "8px 10px",
-        background: "var(--panel)",
-      }}
-    >
-      <div className="muted" style={{ fontSize: 11 }}>
-        {label}
-      </div>
-      <div style={{ fontWeight: 600, fontSize: 16 }}>{value}</div>
+    <div className="disparos-metric">
+      <div className="disparos-metric-label">{label}</div>
+      <div className="disparos-metric-value">{value}</div>
+      <div className="disparos-metric-hint">{hint}</div>
     </div>
   );
 }

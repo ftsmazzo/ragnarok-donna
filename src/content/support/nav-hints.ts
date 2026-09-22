@@ -122,8 +122,8 @@ export const FEATURE_HINTS: FeatureHint[] = [
   {
     id: "disparos",
     aliases: ["disparo", "disparos", "confirmação", "blast", "campanha"],
-    title: "Disparos WhatsApp",
-    where: "Configurações → Disparos WhatsApp",
+    title: "Mensagens WhatsApp",
+    where: "Configurações → Mensagens WhatsApp",
     tip: "Regras automáticas (não blast manual). Toggle pode não enviar se o servidor estiver bloqueado.",
   },
   {
