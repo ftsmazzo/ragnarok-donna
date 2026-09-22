@@ -7,6 +7,7 @@ import {
   recreateWhatsAppInstanceFromScratchAction,
   refreshWhatsAppPairingAction,
   replaceWhatsAppInstanceAction,
+  requestWhatsAppQrAction,
   startWhatsAppPairingAction,
   updateWhatsAppProfileNameAction,
   updateWhatsAppProfilePictureAction,
@@ -29,7 +30,10 @@ export function WhatsAppConnectPanel({
   const [state, setState] = useState<WhatsAppConnectionView | null>(initial);
   const [error, setError] = useState<string | null>(null);
   const [okNote, setOkNote] = useState<string | null>(null);
-  const [linkName, setLinkName] = useState(initial?.availableInstances[0] ?? "");
+  const openAvailable = state?.openAvailableInstances ?? [];
+  const [linkName, setLinkName] = useState(
+    openAvailable[0] ?? initial?.availableInstances[0] ?? ""
+  );
   const [replaceName, setReplaceName] = useState(
     initial?.suggestedInstanceName || initial?.instanceName || ""
   );
@@ -53,23 +57,25 @@ export function WhatsAppConnectPanel({
     if (data.suggestedInstanceName && !showReplace) {
       setReplaceName(data.suggestedInstanceName);
     }
+    const open = data.openAvailableInstances ?? [];
+    if (open.length && !open.includes(linkName)) {
+      setLinkName(open[0]!);
+    }
   }
 
-  // Revalida status ao montar / periodicamente se ainda não conectado — evita QR fantasma.
+  // Poll só de STATUS (sem /connect). Cura vínculo se Evolution já estiver open.
   useEffect(() => {
     let cancelled = false;
-    async function syncOnce() {
+    async function syncStatus() {
       if (document.visibilityState !== "visible") return;
       const result = await refreshWhatsAppPairingAction();
       if (cancelled || !result.ok) return;
       apply(result.data);
     }
-    if (!connected) {
-      void syncOnce();
-    }
+    void syncStatus();
     const id = window.setInterval(() => {
-      if (!cancelled && !connected) void syncOnce();
-    }, 20_000);
+      if (!cancelled) void syncStatus();
+    }, connected ? 30_000 : 10_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -87,11 +93,15 @@ export function WhatsAppConnectPanel({
         return;
       }
       apply(result.data);
-      setOkNote("QR gerado — escaneie no celular.");
+      if (result.data.status === "connected") {
+        setOkNote("Instância já estava conectada na Evolution — vínculo atualizado.");
+      } else {
+        setOkNote("QR gerado — escaneie no celular.");
+      }
     });
   }
 
-  function refresh() {
+  function refreshStatus() {
     setError(null);
     startTransition(async () => {
       const result = await refreshWhatsAppPairingAction();
@@ -100,6 +110,27 @@ export function WhatsAppConnectPanel({
         return;
       }
       apply(result.data);
+      if (result.data.status === "connected") {
+        setOkNote("Conectado — vínculo com a Evolution ok.");
+      }
+    });
+  }
+
+  function requestQr() {
+    setError(null);
+    setOkNote(null);
+    startTransition(async () => {
+      const result = await requestWhatsAppQrAction();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      apply(result.data);
+      if (result.data.status === "connected") {
+        setOkNote("Já estava conectada — QR não necessário.");
+      } else if (result.data.qrcodeBase64) {
+        setOkNote("QR gerado — escaneie no celular.");
+      }
     });
   }
 
@@ -118,7 +149,11 @@ export function WhatsAppConnectPanel({
         return;
       }
       apply(result.data);
-      setOkNote(`Instância "${result.data.instanceName}" vinculada a esta unidade.`);
+      setOkNote(
+        result.data.status === "connected"
+          ? `Instância "${result.data.instanceName}" vinculada e conectada.`
+          : `Instância "${result.data.instanceName}" vinculada — ainda desconectada na Evolution.`
+      );
     });
   }
 
@@ -400,7 +435,7 @@ export function WhatsAppConnectPanel({
                 {pending ? "Sincronizando…" : "Sincronizar inbox"}
               </button>
             ) : null}
-            <button type="button" className="btn btn-outline btn-sm" disabled={pending} onClick={refresh}>
+            <button type="button" className="btn btn-outline btn-sm" disabled={pending} onClick={refreshStatus}>
               Atualizar status
             </button>
           </div>
@@ -408,23 +443,50 @@ export function WhatsAppConnectPanel({
         </>
       ) : (
         <>
+          {openAvailable.length > 0 ? (
+            <div className="wa-link-existing" style={{ marginBottom: 12 }}>
+              <p className="muted-note" style={{ marginTop: 0 }}>
+                Evolution já tem sessão <strong>open</strong> — vincule aqui (sem QR):
+              </p>
+              <div className="wa-connect-actions">
+                {openAvailable.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={pending}
+                    onClick={() => {
+                      setLinkName(n);
+                      setError(null);
+                      setOkNote(null);
+                      startTransition(async () => {
+                        const result = await linkWhatsAppInstanceAction(n);
+                        if (!result.ok) {
+                          setError(result.error);
+                          return;
+                        }
+                        apply(result.data);
+                        setOkNote(`Vinculada: ${n}`);
+                      });
+                    }}
+                  >
+                    Vincular {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="wa-connect-actions">
-            <button type="button" className="btn btn-primary" disabled={pending} onClick={startPairing}>
-              {pending
-                ? "Gerando…"
-                : state?.instanceName
-                  ? "Gerar / renovar QR"
-                  : "Criar instância e conectar"}
+            <button type="button" className="btn btn-outline" disabled={pending} onClick={refreshStatus}>
+              {pending ? "Verificando…" : "Atualizar status (sem QR)"}
             </button>
-            {state?.qrcodeBase64 ? (
-              <button type="button" className="btn btn-outline" disabled={pending} onClick={refresh}>
-                Atualizar QR
-              </button>
-            ) : (
-              <button type="button" className="btn btn-outline" disabled={pending} onClick={refresh}>
-                Atualizar status
-              </button>
-            )}
+            <button type="button" className="btn btn-primary" disabled={pending} onClick={requestQr}>
+              {pending ? "Gerando…" : "Gerar QR"}
+            </button>
+            <button type="button" className="btn btn-outline" disabled={pending} onClick={startPairing}>
+              Criar instância nova
+            </button>
           </div>
 
           {replaceBlock}
@@ -432,7 +494,7 @@ export function WhatsAppConnectPanel({
           {(available.length > 0 || variant === "agente") && (
             <div className="wa-link-existing">
               <p className="muted-note">
-                Já tem instância na Evolution? Vincule sem recriar (caso Ragnarok).
+                Ou digite/selecione o nome exato da instância na Evolution e vincule.
               </p>
               <div className="wa-link-row">
                 {available.length > 0 ? (
@@ -444,7 +506,7 @@ export function WhatsAppConnectPanel({
                     <option value="">Selecione…</option>
                     {available.map((n) => (
                       <option key={n} value={n}>
-                        {n}
+                        {openAvailable.includes(n) ? `${n} · open` : n}
                       </option>
                     ))}
                   </select>
