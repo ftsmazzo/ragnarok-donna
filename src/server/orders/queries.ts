@@ -456,6 +456,7 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
               : 0,
         packageSale: Boolean(meta.packageSale),
         walletPending: Boolean(meta.packageSale) && !meta.clientPackageId,
+        courtesy: Boolean(meta.courtesy),
       };
     }),
     payments,

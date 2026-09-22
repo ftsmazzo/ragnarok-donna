@@ -36,6 +36,8 @@ export type OrderItemDetail = {
   coveredCents: number;
   packageSale: boolean;
   walletPending: boolean;
+  /** Item zerado como cortesia (meta.courtesy) — não entra no caixa. */
+  courtesy: boolean;
 };
 
 export type OrderPaymentDetail = {

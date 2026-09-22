@@ -24,6 +24,7 @@ import {
   removeOrderItemAction,
   setOrderClientAction,
   setOrderDiscountAction,
+  setOrderItemCourtesyAction,
 } from "@/app/(painel)/comandas/actions";
 import { renewOrTopUpClientPackageAction, cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
@@ -112,6 +113,7 @@ export function OrderDrawer({
   const [catalogId, setCatalogId] = useState("");
   const [useCredit, setUseCredit] = useState(true);
   const [itemDiscountPct, setItemDiscountPct] = useState("");
+  const [itemCourtesy, setItemCourtesy] = useState(false);
   const [coveredReais, setCoveredReais] = useState("");
   const [orderDiscountPct, setOrderDiscountPct] = useState(() =>
     orderDiscountPercent(order.totalCents, order.discountCents)
@@ -147,6 +149,7 @@ export function OrderDrawer({
   useEffect(() => {
     setCoveredReais("");
     setItemDiscountPct("");
+    setItemCourtesy(false);
   }, [catalogId, itemType]);
 
   useEffect(() => {
@@ -349,22 +352,27 @@ export function OrderDrawer({
       formData.set("clientPackageId", selectedClientPackageId);
     }
 
-    const pct = parsePct(formData.get("discountPercent"));
-    if (pct > 0 && (itemType === "service" || itemType === "product")) {
-      const coveredRaw = formData.get("coveredReais");
-      const covered =
-        willUseCredit && coveredRaw != null && String(coveredRaw).trim() !== ""
-          ? Math.round(Number(String(coveredRaw).replace(",", ".")) * 100)
-          : willUseCredit
-            ? selectedCatalogPriceCents
-            : 0;
-      const base = willUseCredit
-        ? Math.max(0, selectedCatalogPriceCents - Math.min(selectedCatalogPriceCents, covered))
-        : selectedCatalogPriceCents;
-      const discountCents = discountCentsFromPercent(base, pct);
-      formData.set("discountReais", (discountCents / 100).toFixed(2));
-    } else {
+    if (itemCourtesy && (itemType === "service" || itemType === "product")) {
+      formData.set("courtesy", "1");
       formData.set("discountReais", "0");
+    } else {
+      const pct = parsePct(formData.get("discountPercent"));
+      if (pct > 0 && (itemType === "service" || itemType === "product")) {
+        const coveredRaw = formData.get("coveredReais");
+        const covered =
+          willUseCredit && coveredRaw != null && String(coveredRaw).trim() !== ""
+            ? Math.round(Number(String(coveredRaw).replace(",", ".")) * 100)
+            : willUseCredit
+              ? selectedCatalogPriceCents
+              : 0;
+        const base = willUseCredit
+          ? Math.max(0, selectedCatalogPriceCents - Math.min(selectedCatalogPriceCents, covered))
+          : selectedCatalogPriceCents;
+        const discountCents = discountCentsFromPercent(base, pct);
+        formData.set("discountReais", (discountCents / 100).toFixed(2));
+      } else {
+        formData.set("discountReais", "0");
+      }
     }
 
     run(async () => {
@@ -375,6 +383,7 @@ export function OrderDrawer({
         setItemType("service");
         setUseCredit(true);
         setItemDiscountPct("");
+        setItemCourtesy(false);
         setCoveredReais("");
         setSelectedClientPackageId("");
         setBookFlash("Crédito abatido. Saldo atualizado na carteira.");
@@ -859,6 +868,9 @@ export function OrderDrawer({
                           : "Venda pacote"}
                       </span>
                     ) : null}
+                    {item.courtesy ? (
+                      <span className="order-badge is-courtesy">Cortesia</span>
+                    ) : null}
                   </strong>
                   <span className="muted">
                     {item.qty}x · {item.staffName ?? "Sem profissional"}
@@ -869,15 +881,41 @@ export function OrderDrawer({
                       ? item.totalCents > 0
                         ? ` · pacote cobre ${formatMoney(item.coveredCents)} · diferença ${formatMoney(item.totalCents)}`
                         : ` · tabela ${formatMoney(item.unitPriceCents)} abatida`
-                      : item.discountCents > 0
-                        ? ` · desconto ${formatMoney(item.discountCents)}`
-                        : ""}
+                      : item.courtesy
+                        ? ` · tabela ${formatMoney(item.unitPriceCents * item.qty)} zerada`
+                        : item.discountCents > 0
+                          ? ` · desconto ${formatMoney(item.discountCents)}`
+                          : ""}
                   </span>
+                  {canEdit &&
+                  !item.packageSale &&
+                  !item.redeemed &&
+                  (item.itemType === "service" || item.itemType === "product") ? (
+                    <label className="form-check order-item-courtesy">
+                      <input
+                        type="checkbox"
+                        checked={item.courtesy}
+                        disabled={pending}
+                        onChange={(e) =>
+                          run(() =>
+                            setOrderItemCourtesyAction(
+                              item.id,
+                              order.id,
+                              e.target.checked
+                            )
+                          )
+                        }
+                      />
+                      <span>Cortesia</span>
+                    </label>
+                  ) : null}
                 </div>
                 <div className="order-item-actions">
                   <strong
                     className={
-                      item.redeemed && item.totalCents === 0 ? "is-zero" : undefined
+                      (item.redeemed || item.courtesy) && item.totalCents === 0
+                        ? "is-zero"
+                        : undefined
                     }
                   >
                     {formatMoney(item.totalCents)}
@@ -1082,28 +1120,61 @@ export function OrderDrawer({
               </select>
             </label>
             {itemType !== "package" ? (
-              <label className="form-field">
-                <span>Desconto no item (%)</span>
-                <input
-                  name="discountPercent"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.01}
-                  value={itemDiscountPct}
-                  onChange={(e) => setItemDiscountPct(e.target.value)}
-                  placeholder="0"
-                />
-                <span className="client-profile-hint muted">
-                  {parsePct(itemDiscountPct) > 0
-                    ? `= ${formatMoney(itemDiscountCentsPreview)} sobre ${formatMoney(itemDiscountBaseCents)}${
-                        willUseCredit ? " (residual após abate)" : ""
-                      }`
-                    : willUseCredit
-                      ? "Digite a % — o R$ é calculado no residual após o abate."
-                      : "Digite a % — o R$ é calculado automaticamente sobre o preço."}
-                </span>
-              </label>
+              <>
+                <label className="form-field">
+                  <span>Desconto no item (%)</span>
+                  <input
+                    name="discountPercent"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={itemCourtesy ? "100" : itemDiscountPct}
+                    onChange={(e) => setItemDiscountPct(e.target.value)}
+                    placeholder="0"
+                    disabled={itemCourtesy}
+                  />
+                  <span className="client-profile-hint muted">
+                    {itemCourtesy
+                      ? `Cortesia: item sai a ${formatMoney(0)} (tabela ${formatMoney(itemDiscountBaseCents)}).`
+                      : parsePct(itemDiscountPct) > 0
+                        ? `= ${formatMoney(itemDiscountCentsPreview)} sobre ${formatMoney(itemDiscountBaseCents)}${
+                            willUseCredit ? " (residual após abate)" : ""
+                          }`
+                        : willUseCredit
+                          ? "Digite a % — o R$ é calculado no residual após o abate."
+                          : "Digite a % — o R$ é calculado automaticamente sobre o preço."}
+                  </span>
+                </label>
+                <label
+                  className={
+                    itemCourtesy
+                      ? "form-check order-courtesy-toggle is-on"
+                      : "form-check order-courtesy-toggle"
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    checked={itemCourtesy}
+                    disabled={willUseCredit}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setItemCourtesy(on);
+                      if (on) {
+                        setItemDiscountPct("100");
+                        setUseCredit(false);
+                      } else {
+                        setItemDiscountPct("");
+                      }
+                    }}
+                  />
+                  <span>
+                    {willUseCredit
+                      ? "Desmarque o crédito de pacote para marcar cortesia."
+                      : "Cortesia — zera o valor deste item (não entra no caixa)."}
+                  </span>
+                </label>
+              </>
             ) : null}
             <button
               type="submit"
