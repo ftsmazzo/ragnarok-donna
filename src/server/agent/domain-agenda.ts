@@ -312,3 +312,125 @@ export async function cancelAppointmentForAgent(input: {
   if (!row) return { ok: false, error: "Agendamento não encontrado" };
   return { ok: true };
 }
+
+/**
+ * Remarcação atômica: cancela o antigo e cria o novo na mesma transação.
+ * Se o book falhar, o cancel é revertido (cliente não fica sem horário).
+ */
+export async function rescheduleAppointmentForAgent(input: {
+  tenantId: string;
+  appointmentId: string;
+  staffId: string;
+  serviceId?: string | null;
+  date: string;
+  hour: number;
+  minute?: number;
+  durationMin: number;
+  priceCents?: number | null;
+  notes?: string;
+}): Promise<
+  | { ok: true; id: string; startsAt: Date; endsAt: Date; cancelledId: string }
+  | { ok: false; error: string }
+> {
+  const db = createDb();
+  const minute = input.minute === 30 ? 30 : 0;
+  const { start, end } = slotRangeSp(input.date, input.hour, input.durationMin, minute);
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [old] = await tx
+        .select({
+          id: schema.appointments.id,
+          clientId: schema.appointments.clientId,
+          serviceId: schema.appointments.serviceId,
+          priceCents: schema.appointments.priceCents,
+          status: schema.appointments.status,
+        })
+        .from(schema.appointments)
+        .where(
+          and(
+            eq(schema.appointments.id, input.appointmentId),
+            eq(schema.appointments.tenantId, input.tenantId),
+            isNull(schema.appointments.deletedAt)
+          )
+        )
+        .limit(1);
+
+      if (!old) throw new Error("Agendamento não encontrado");
+      if (old.status === "cancelled") throw new Error("Agendamento já cancelado");
+      if (!old.clientId) throw new Error("Agendamento sem cliente");
+
+      const [staff] = await tx
+        .select({ id: schema.staff.id })
+        .from(schema.staff)
+        .where(
+          and(
+            eq(schema.staff.id, input.staffId),
+            eq(schema.staff.tenantId, input.tenantId),
+            eq(schema.staff.isBookable, true),
+            isNull(schema.staff.deletedAt)
+          )
+        )
+        .limit(1);
+      if (!staff) throw new Error("Profissional inválido");
+
+      await tx
+        .update(schema.appointments)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.appointments.id, old.id),
+            eq(schema.appointments.tenantId, input.tenantId)
+          )
+        );
+
+      const existing = await tx
+        .select({
+          id: schema.appointments.id,
+          startsAt: schema.appointments.startsAt,
+          endsAt: schema.appointments.endsAt,
+        })
+        .from(schema.appointments)
+        .where(
+          and(
+            eq(schema.appointments.tenantId, input.tenantId),
+            eq(schema.appointments.staffId, input.staffId),
+            isNull(schema.appointments.deletedAt),
+            inArray(schema.appointments.status, [...ACTIVE])
+          )
+        );
+
+      for (const row of existing) {
+        if (rangesOverlap(start, end, row.startsAt, row.endsAt)) {
+          throw new Error("Horário acabou de ser ocupado");
+        }
+      }
+
+      const serviceId = input.serviceId !== undefined ? input.serviceId : old.serviceId;
+      const [row] = await tx
+        .insert(schema.appointments)
+        .values({
+          tenantId: input.tenantId,
+          staffId: input.staffId,
+          clientId: old.clientId,
+          serviceId: serviceId || null,
+          startsAt: start,
+          endsAt: end,
+          status: "scheduled",
+          source: "whatsapp_ai",
+          priceCents: input.priceCents ?? old.priceCents ?? null,
+          notes:
+            input.notes?.trim() ||
+            `Remarcado pela Donna (WhatsApp) — anterior ${old.id.slice(0, 8)}`,
+        })
+        .returning({ id: schema.appointments.id });
+
+      return { id: row.id, cancelledId: old.id, startsAt: start, endsAt: end };
+    });
+
+    return { ok: true, ...result };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg || "Falha ao remarcar" };
+  }
+}

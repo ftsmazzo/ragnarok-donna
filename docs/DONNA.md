@@ -1,90 +1,143 @@
-# Donna — Orquestrador multi-tenant (Sprint 6)
+# Donna — Agente Operacional (WhatsApp)
 
-Persona por unidade (Donna, Pati, …). **Mesmo motor** em todas as barbearias.  
-Tools batem em `server/agenda|orders|clients|insights` — nunca SQL cru no n8n/MCP.
+**Doc vivo do cérebro.** Qualquer mudança em `src/server/agent/**` deve manter este arquivo coerente.
 
-## Mapa em camadas
+Persona por unidade (`Donna`, `Pati`, …). **Mesmo motor** multi-tenant.  
+Tools usam Drizzle via wrappers `*ForAgent` — nunca SQL cru no n8n/MCP.
+
+**Não confundir:**
+
+| Canal | Público | Código |
+|-------|---------|--------|
+| **Donna (WhatsApp)** | Cliente final | `src/server/agent/**` |
+| **Suporte do painel** | Dono/recepção | `src/server/support/**` + FAB |
+| Tenant “Donna Elegant” | Import de salão | `data/donna-elegant-export/` — não é o motor |
+
+## Runtime
 
 ```
-WhatsApp (Evolution)
-        ↓
-  Orquestrador  (src/server/agent)
-        ↓
-  Persona       agent_profiles (nome, prompt, toolsEnabled)
-        ↓
-  Skills        playbooks versionados (agendar, comanda, follow-up, handoff)
-        ↓
-  Tools         funções tipadas + auditoria agent_tool_calls
-        ↓
-  Domínio       appointments / orders / clients / insights
-        ↓
-  Painel        /conversas (inbox + handoff)
+WhatsApp → Evolution API
+  → POST /api/agent/webhook  (200 imediato; after())
+  → inbound.ts processInboundMessage
+  → orchestrator.ts runOrchestrator
+  → short-circuits (obrigado / espera) OU loop LLM (max 6 tools, ~50s)
+  → executeTool → domain-agenda | domain-waitlist | domain-orders
+  → deliverWhatsAppText → Evolution
+  → painel /conversas (mode ai|human)
 ```
 
-## Subdivisão do Sprint 6
+| Entrada | Arquivo |
+|---------|---------|
+| Webhook Evolution | `src/app/api/agent/webhook/route.ts` |
+| Orquestrar (serviço) | `src/app/api/agent/orchestrate/route.ts` (`AGENT_SERVICE_TOKEN`) |
+| Catálogo | `src/app/api/agent/catalog/route.ts` |
+| Config UI | `/configuracoes/agente` |
+| Inbox | `/conversas` + PWA `/pwa/conversas` |
 
-| Fase | Entrega | Status |
-|------|---------|--------|
-| **6.0** | Contrato + schema `outreach_jobs` + scaffolding agent/tools/skills + APIs stub + `/conversas` esqueleto | ✅ |
-| **6.1** | Inbox `/conversas` (lista + thread + handoff UI) | ✅ |
-| **6.2** | Webhook Evolution → persistir msg → resposta automática + QR no painel | ✅ |
-| **6.3** | Tools v1 ligadas ao domínio (agenda + cliente) | ✅ |
-| **6.4** | Skills + follow-up (lista retorno → fila → envio) | próximo |
-| **6.5** | MCP bridge (mesmas tools) + n8n opcional | |
+LLM: Haiku primary → Sonnet fallback (`llm.ts`). Memória: últimas **12** mensagens.
 
-## Tools v1 (fechadas)
+## Camadas
 
-| Tool | Domínio | Efeito |
-|------|---------|--------|
-| `get_unit_context` | shop | Nome loja, horário, profissionais bookable |
-| `find_client` | clients | Por telefone / nome |
-| `list_services` | catalog | Serviços ativos + preço/duração |
-| `list_slots` | agenda | Horários livres |
-| `book_appointment` | agenda | Cria `appointments` |
-| `cancel_appointment` | agenda | Cancela / no-show policy |
-| `open_order` | orders | Abre comanda (opcional vínculo appointment) |
-| `add_order_item` | orders | Serviço/produto na comanda |
-| `list_followups` | insights | Retorno 60–100d / recorrência |
-| `handoff_human` | conversas | `mode = human` |
-| `send_whatsapp` | evolution | Envio (só runtime com conexão) |
+| Camada | Onde | Papel |
+|-------|------|--------|
+| Persona | `persona/defaults.ts` + `agent_profiles.persona` | Tom, fluxos; `systemPrompt` **compilado** |
+| Regras fortes | `orchestrator.ts` → `runtimeRules()` | Datas, espera, handoff, comprimento |
+| Skills | `skills.ts` → `SKILL_PLAYBOOKS` | Playbooks schedule/order/followup/handoff |
+| Tools | `catalog.ts` / `tools.ts` (**18**) | Agenda, espera, cliente, comanda, handoff, remarcação |
+| Domínio | `domain-agenda.ts`, `domain-waitlist.ts`, `domain-orders.ts` | Slots 30min, almoço 12–14, waitlist |
+| Auditoria | `agent_tool_calls` | Toda tool |
 
-## Skills v1
+## Tools (canônicas)
 
-| Skill | Usa tools | Objetivo |
-|-------|-----------|----------|
-| `skill.schedule` | find_client, list_services, list_slots, book | Agendar pelo chat |
-| `skill.order` | open_order, add_order_item | Empurrar consumo → comanda |
-| `skill.followup` | list_followups, send_whatsapp | Convite retorno |
-| `skill.handoff` | handoff_human | Recepção assume |
+Fonte: `AGENT_TOOL_NAMES` em `src/server/agent/types.ts`.
 
-## Auto-configuração por unidade
+| Tool | Efeito |
+|------|--------|
+| `get_unit_context` | Tenant, staff bookable, perfil da loja |
+| `find_client` | Cliente por telefone; histórico; `serviceQuery` |
+| `list_services` | Serviços ativos bookable |
+| `list_products` | Produtos à venda |
+| `list_client_appointments` | Agendas (today/week/upcoming/next/all) |
+| `resolve_date` | Frase → YYYY-MM-DD + weekday SP |
+| `list_slots` | Livres; preferredHour; alternatives; staffDayFull |
+| `book_appointment` | Cria appointment `source: whatsapp_ai` |
+| `cancel_appointment` | Cancela + pode promover waitlist |
+| `reschedule_appointment` | Remarcação atômica (book novo + cancel antigo) |
+| `add_to_waitlist` | Upsert espera |
+| `list_waitlist` | Consulta waiting/notified |
+| `open_order` / `add_order_item` / `list_open_orders` | Comanda |
+| `list_followups` | Retorno inativo |
+| `send_whatsapp` | Envio Evolution |
+| `handoff_human` | `mode=human` + alerta |
 
-No início de cada conversa (ou cache curto):
+## Skills
 
-1. Resolver `tenant_id` pela instância Evolution  
-2. Carregar `agent_profiles` (displayName = “Donna” ou outro)  
-3. `get_unit_context` + catálogo → prompt dinâmico  
-4. Filtrar `toolsEnabled` do perfil  
+| Skill | Objetivo |
+|-------|----------|
+| `skill.schedule` | Agendar, remarcar, cancelar, espera, datas |
+| `skill.order` | Produtos / comanda |
+| `skill.followup` | Convite retorno |
+| `skill.handoff` | Recepção assume |
 
-Replicar loja = novo tenant + perfil + conexão WA. Zero fork de código.
+## Tom e cadência
 
-## MCP
+- Traits default: caloroso, direto, ágil, atencioso (`persona/defaults.ts`)
+- Comprimento: **curta** (1–2 frases); sem markdown; nunca dizer que é IA/bot
+- Cadência agenda: serviço → data (`resolve_date`) → slots → **confirmar uma vez** → book
+- Pós-book: “obrigado” / “ok” → short-circuit, **não** reconfirma
+- Check-in (“cheguei”) ≠ encaixe; encaixe imediato = recepção
 
-As **mesmas** tools do registry serão expostas como MCP server (fase 6.5) para n8n/Cursor.  
-Auth: token de serviço + `tenant_id` obrigatório.
+## Short-circuits (sem LLM)
 
-## Persona (tom de voz)
+Em `orchestrator.ts`, antes do loop:
 
-Template estruturado em `agent_profiles.persona` (jsonb). `systemPrompt` é **compilado** — não editar manualmente.
+1. **Obrigado pós-booking** — reply curto
+2. **Oferta de espera** — após recusa suave das alternativas
+3. **Aceite de espera** — `add_to_waitlist` direto
+4. **“Estou na lista?”** — `list_waitlist` filtrado por telefone
+5. **Handoff forçado no fluxo de espera** — redirecionado para `add_to_waitlist`
 
-- Defaults: `src/server/agent/persona/defaults.ts` (barbearia pré-montada)
-- Compile: `compilePersonaToSystemPrompt()` — usado na humanização LLM
-- Runtime: **1 agente** (Donna) = persona + LLM (`OPENROUTER_API_KEY` / `LLM_MODEL`). Orquestrador = loop que carrega skills → tools → responde.
-- Skills (`src/server/agent/skills.ts`) munem o prompt e expõem as tools certas.
-- Tela de edição no painel: próximo passo (Configurações → Agente IA)
+## Contratos de fluxo
 
+**Agendar:** `find_client` → `list_services` → `resolve_date` → `list_slots` → confirma → `book_appointment`
 
-- Webhook valida `webhook_secret` / assinatura Evolution  
-- APIs de agente usam `AGENT_SERVICE_TOKEN` (não sessão de usuário)  
-- Toda tool grava `agent_tool_calls`  
-- Handoff: IA para de responder até humano devolver
+**Remarcar:** `reschedule_appointment` (preferido) — evita buraco cancel-then-book
+
+**Horário ocupado:** 2–3 `alternatives` → se recusar → oferecer espera → `add_to_waitlist`
+
+**Cancelar:** `list_client_appointments` → `cancel_appointment` → pode avisar espera
+
+## Config por tenant
+
+`agent_profiles`: `displayName`, `persona`, `systemPrompt`, `toolsEnabled`, `model`, `meta.handoffNotifyPhoneE164`  
+WhatsApp: `whatsapp_connections` · Conversas: `conversations` / `messages`  
+Business facts: `tenants.settings` via `business-profile.ts`
+
+## Critério premium (aceitação)
+
+- Zero inventário de horário ou dia da semana
+- Waitlist sempre confirma (ou erro explícito) — nunca silêncio
+- Remarcação sem cancelar e ficar sem horário
+- Tom curto e humano
+- Eval harness verde (`scripts/eval-agent-brain.mjs`)
+
+## Observabilidade
+
+- `agent_tool_calls` por conversa
+- Ops: `GET /api/agent/ops/llm-stats` (uso + falhas de tools + handoff/waitlist)
+- Inbox: `/conversas`
+
+## Sprint 6 (status)
+
+| Fase | Status |
+|------|--------|
+| 6.0–6.3 scaffold + webhook + tools domínio | ✅ |
+| Cérebro: doc + eval + remarcação atômica + prompts | em curso |
+| 6.4 Follow-up conversacional completo | backlog |
+| 6.5 MCP bridge | backlog |
+
+## Segurança
+
+- Webhook: `AGENT_WEBHOOK_SECRET` (não reutilizar apikey Evolution como secret)
+- APIs de serviço: `AGENT_SERVICE_TOKEN`
+- Handoff: IA para de responder até humano devolver (`mode=human`)

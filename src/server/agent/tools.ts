@@ -29,6 +29,7 @@ import {
   bookAppointmentForAgent,
   cancelAppointmentForAgent,
   listFreeSlotsForTenant,
+  rescheduleAppointmentForAgent,
 } from "./domain-agenda";
 import { isLockedStaffName } from "@/server/house-rules/defaults";
 import {
@@ -979,6 +980,16 @@ export async function executeTool(
           result = { ok: false, error: "clientId, staffId, date e hour obrigatórios" };
           break;
         }
+        const UUID_RE_BOOK =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!UUID_RE_BOOK.test(clientId) || !UUID_RE_BOOK.test(staffId)) {
+          result = {
+            ok: false,
+            error:
+              "clientId e staffId devem ser UUIDs (use find_client e list_slots — não invente ids)",
+          };
+          break;
+        }
 
         const dbBook = createDb();
         const [staffRow] = await dbBook
@@ -1094,6 +1105,59 @@ export async function executeTool(
         }
 
         result = { ok: true, data: { appointmentId, waitlistNote } };
+        break;
+      }
+      case "reschedule_appointment": {
+        const appointmentId = String(args.appointmentId ?? "").trim();
+        const staffId = String(args.staffId ?? "").trim();
+        const date = String(args.date ?? "").trim();
+        const hour = Number(args.hour);
+        const minute = Number(args.minute) === 30 ? 30 : 0;
+        const durationMin = Number(args.durationMin ?? 30);
+        if (!appointmentId || !staffId || !date || !Number.isFinite(hour)) {
+          result = {
+            ok: false,
+            error: "appointmentId, staffId, date e hour são obrigatórios",
+          };
+          break;
+        }
+        const UUID_RE =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!UUID_RE.test(appointmentId) || !UUID_RE.test(staffId)) {
+          result = {
+            ok: false,
+            error: "appointmentId e staffId devem ser UUIDs válidos (use list_client_appointments / list_slots)",
+          };
+          break;
+        }
+        const moved = await rescheduleAppointmentForAgent({
+          tenantId: ctx.tenantId,
+          appointmentId,
+          staffId,
+          serviceId: args.serviceId ? String(args.serviceId) : undefined,
+          date,
+          hour,
+          minute,
+          durationMin: Number.isFinite(durationMin) ? durationMin : 30,
+          priceCents: typeof args.priceCents === "number" ? args.priceCents : null,
+          notes: args.notes ? String(args.notes) : undefined,
+        });
+        result = moved.ok
+          ? {
+              ok: true,
+              data: {
+                appointmentId: moved.id,
+                cancelledId: moved.cancelledId,
+                startsAt: moved.startsAt.toISOString(),
+                endsAt: moved.endsAt.toISOString(),
+                hour,
+                minute,
+                ...describeDate(date),
+                confirmationHint:
+                  "Confirme UMA vez o novo horário com label. Não reenvie se o cliente só agradecer.",
+              },
+            }
+          : { ok: false, error: moved.error };
         break;
       }
       case "open_order": {

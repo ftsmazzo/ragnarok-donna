@@ -9,6 +9,7 @@ export const AGENT_TOOL_NAMES = [
   "resolve_date",
   "book_appointment",
   "cancel_appointment",
+  "reschedule_appointment",
   "open_order",
   "add_order_item",
   "list_open_orders",

@@ -73,8 +73,10 @@ Detalhes: `docs/ui/MOTION.md`.
 
 ## Donna vs Suporte
 
-- **Donna** = WhatsApp do cliente.
+- **Donna** = WhatsApp do cliente (Agente Operacional).
 - **Suporte do painel** = FAB Central de ajuda (guias em `src/content/support`). Não misturar personas.
+
+**Cérebro Donna (obrigatório antes de mudar o agente):** ler [`docs/DONNA.md`](docs/DONNA.md) — runtime, tools, short-circuits, agenda/espera, critério premium. Mudanças em `src/server/agent/**` devem atualizar esse doc.
 
 ## Como começar uma tarefa
 

@@ -38,6 +38,7 @@ Quando o cliente quer marcar, remarcar, cancelar, ver horários livres OU confer
    e) Se aceitar a espera: add_to_waitlist; confirme; NUNCA handoff_human por causa da espera.
    f) Se recusar TAMBÉM a espera → handoff_human com motivo curto.
 8. Cancelar → list_client_appointments → cancel_appointment com o id.
+8b. Remarcar → list_client_appointments → reschedule_appointment (appointmentId + nova date/hour/staff). NÃO faça cancel+book separados — a tool é atômica.
 9. Endereço / horário / sobre a loja → get_unit_context.
 Nunca invente horário nem dia da semana.`,
 
@@ -216,6 +217,29 @@ const TOOL_SCHEMAS: Record<AgentToolName, ChatToolDef> = {
         type: "object",
         properties: { appointmentId: { type: "string" } },
         required: ["appointmentId"],
+      },
+    },
+  },
+  reschedule_appointment: {
+    type: "function",
+    function: {
+      name: "reschedule_appointment",
+      description:
+        "Remarca de forma atômica: cancela o horário antigo e cria o novo na mesma transação. Prefira esta tool a cancel+book.",
+      parameters: {
+        type: "object",
+        properties: {
+          appointmentId: { type: "string", description: "Id do agendamento atual" },
+          staffId: { type: "string" },
+          serviceId: { type: "string" },
+          date: { type: "string", description: "YYYY-MM-DD do novo horário" },
+          hour: { type: "number" },
+          minute: { type: "number", description: "0 ou 30" },
+          durationMin: { type: "number" },
+          priceCents: { type: "number" },
+          notes: { type: "string" },
+        },
+        required: ["appointmentId", "staffId", "date", "hour"],
       },
     },
   },

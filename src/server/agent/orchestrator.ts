@@ -22,9 +22,7 @@ import {
 import {
   compilePersonaToSystemPrompt,
   normalizeReplyLength,
-  replyLengthInstruction,
   type AgentPersona,
-  type ReplyLength,
 } from "./persona";
 import {
   buildToolsForSkills,
@@ -39,46 +37,25 @@ import {
   extractSchedulingIntent,
 } from "./scheduling-intent";
 import { extractWaitlistContextFromThread } from "./waitlist-context";
+import {
+  donnaOfferedAlternatives,
+  isShortThanks,
+  isSoftRefusalOfAlternatives,
+  isStrictWaitlistAccept,
+  isWaitlistStatusQuestion,
+  lastDonnaMessage,
+  runtimeRules,
+  userPickedAlternative,
+  waitlistAlreadyOffered,
+  waitlistConfirmReply,
+  waitlistFailReply,
+  waitlistOfferReply,
+} from "./brain-policy";
 import type { AgentSkillName, AgentToolName, OrchestratorInput, OrchestratorResult } from "./types";
 
 function readPersona(raw: unknown): AgentPersona | null {
   if (!raw || typeof raw !== "object" || Object.keys(raw as object).length === 0) return null;
   return raw as AgentPersona;
-}
-
-function runtimeRules(
-  businessName: string,
-  displayName: string,
-  phoneE164: string,
-  replyLength: ReplyLength
-) {
-  return `
-Você é ${displayName}, recepção da ${businessName}, no WhatsApp.
-Timezone: America/Sao_Paulo. Telefone desta conversa: ${phoneE164}.
-
-${buildCalendarContext()}
-
-REGRAS:
-1. Responda a pergunta real. Não desvie para oferta se pediram outra coisa (ex.: listar agendamentos).
-2. Use as SKILLS e as TOOLS antes de afirmar fato de agenda, preço, histórico ou disponibilidade.
-3. Em find_client / list_client_appointments use o telefone acima se faltar argumento.
-4. Para conferir agendas: SEMPRE list_client_appointments. Liste TODOS os itens retornados, do mais próximo ao mais longe. Nunca invente dia da semana — use o campo label/weekday da tool.
-5. Para "última vez que fiz X": find_client com serviceQuery e use lastServiceMatch.label (tem data). recentServices também vem com dateBr/label — não diga que não tem data se a tool trouxe.
-6. Produtos à venda (balm, pomada, etc.): list_products com query — responda nome + priceLabel. Não diga que não tem acesso se a tool retornar itens.
-7. find_client.nextAppointment = mais próximo; lastAppointment = passado. Não use lastAppointment como se fosse o próximo.
-8. ${replyLengthInstruction(replyLength)}
-9. Áudio transcrito chega como texto — responda ao que o cliente disse, sem avisar que "não ouve áudio".
-10. Oferta de serviço do histórico só quando couber (saudação / novo agendamento) — nunca no lugar de uma consulta.
-11. Nunca invente horário, produto, preço ou dia da semana. Nunca diga que é IA/bot.
-12. Resposta final = só o texto do WhatsApp.
-13. HORÁRIO OCUPADO (só se a tool disser staffDayFull ou preferredHourOccupied SEM slots do barbeiro): ofereça 2–3 alternativas curtas; se recusar, ofereça lista de espera; se recusar a espera → handoff_human. Se slots.length>0, NUNCA diga que está cheio — liste os horários.
-13b. BARBEIRO FIXADO pelo cliente: list_slots com o nome dele e mostre 2–3 próximos livres. Sem menu "outro barbeiro / outro dia" nessa hora. Sem insistir em escolha de caminho.
-14. LISTA DE ESPERA: quando o cliente aceitar esperar, chame add_to_waitlist com o telefone da conversa. NUNCA use handoff_human por falha ou sucesso da espera — a Donna resolve sozinha. Se a tool falhar, peça desculpa e tente de novo (ou confirme telefone), sem chamar a equipe.
-15. DATAS: chame resolve_date / list_slots com a frase LITERAL do cliente quando houver DD/MM (ex.: "sábado dia 26/09"). O servidor força a data absoluta — você DEVE repetir exatamente dateLabel/dateBr da tool. NUNCA diga "próximo sábado" de cabeça se a tool trouxe outro dia. Se mismatchWeekday=true, corrija com educação usando o note da tool.
-16. ENCAIXE / AGORA: você NÃO sobrepõe agenda. Ofereça o próximo slot LIVRE (list_slots). Se insistir em entrar agora sem vaga → handoff_human. Encaixe imediato é da recepção na loja.
-17. "TÔ NA BARBEARIA" / CHEGUEI: se o cliente JÁ TEM horário hoje, isso é check-in (sistema marca "chegou") — NÃO trate como pedido de encaixe. Se NÃO tem horário hoje, aí sim ofereça próximo slot ou handoff.
-18. Seja DIRETA no agendamento: não repita pergunta de serviço se já souber; não force o cliente a escolher entre caminhos abstratos. Depois de book_appointment ok, confirme UMA vez — se o cliente só agradecer, não reenvie a confirmação.
-`.trim();
 }
 
 async function loadRecentThread(conversationId: string, limit = 12) {
@@ -134,12 +111,6 @@ function parseToolArgs(raw: string): Record<string, unknown> {
   return {};
 }
 
-function isShortThanks(text: string): boolean {
-  const t = text.trim();
-  if (t.length > 40) return false;
-  return /^(obrigad[oa]|valeu|vlw|ok|obrigado[!.]?|thanks|tmj|fechado|show)([!.?\s]|$)/i.test(t);
-}
-
 async function recentBookingMeta(conversationId: string): Promise<boolean> {
   const db = createDb();
   const [row] = await db
@@ -172,90 +143,6 @@ async function markBookingConfirmed(conversationId: string) {
       updatedAt: new Date(),
     })
     .where(eq(schema.conversations.id, conversationId));
-}
-
-function lastDonnaMessage(history: string[]): string | null {
-  return [...history].reverse().find((h) => h.startsWith("donna:")) ?? null;
-}
-
-function donnaOfferedAlternatives(donnaBody: string): boolean {
-  if (/(opções|opcoes) pra|tenho essas opções|Qual (dessas|funciona)/i.test(donnaBody)) {
-    return true;
-  }
-  const hasSlots = /(às|as) \d{1,2}h com/i.test(donnaBody);
-  const hasList = /(?:^|\n)\s*(?:[123][\.\)]|1️⃣|2️⃣|3️⃣)/m.test(donnaBody);
-  return hasSlots && hasList;
-}
-
-function waitlistAlreadyOffered(history: string[]): boolean {
-  return history.some(
-    (h) =>
-      h.startsWith("donna:") &&
-      /lista de espera|te coloco na espera|na espera do horário|te aviso se liberar|me avisa se liberar/i.test(
-        h
-      )
-  );
-}
-
-/** Cliente escolheu uma das opções numeradas / horário concreto. */
-function userPickedAlternative(text: string): boolean {
-  const t = text.trim();
-  if (/^(a\s*)?[123]([.\)]|\s|$)/i.test(t)) return true;
-  if (/\b(primeira|segunda|terceira)\s*(opção|opcao)?\b/i.test(t)) return true;
-  if (/\b(quero|vou|fico|pode)\b.{0,20}\b(com o|com a|às|as)\b/i.test(t)) return true;
-  if (/\b(diogo|diego|barba|corte)\b/i.test(t) && /\b(\d{1,2})\s*h?\b/i.test(t)) return true;
-  return false;
-}
-
-function userWantsWaitlist(text: string): boolean {
-  return /lista de espera|me avisa se liberar|coloca na espera|quero a espera|pode me colocar na espera|entra na espera/i.test(
-    text
-  );
-}
-
-/** Aceite curto da oferta de espera — NÃO "pode confirmar", "pode ser amanhã", etc. */
-function isStrictWaitlistAccept(text: string, history: string[]): boolean {
-  if (!waitlistAlreadyOffered(history)) return false;
-  const last = lastDonnaMessage(history) || "";
-  // Só se a última fala da Donna foi OFERTA (não confirmação "Pronto, você está…")
-  if (!/quer que eu te coloque na lista|lista de espera do horário|te aviso se liberar|te aviso aqui no Zap\?/i.test(last)) {
-    return false;
-  }
-  if (/Pronto, você está na lista/i.test(last)) return false;
-
-  const t = text.trim();
-  if (t.length > 48) return false;
-  if (/confirm|hora|dia|quando|onde|qual|lista\?|estou|tô na|to na/i.test(t)) return false;
-  if (/^(sim|quero|pode|ok|fechado|isso|uhum|pode ser|pode colocar|coloca)([!.?\s]|$)/i.test(t)) {
-    return true;
-  }
-  return userWantsWaitlist(t);
-}
-
-function isWaitlistStatusQuestion(text: string): boolean {
-  return /confirm|estou na lista|tô na lista|to na lista|entrei na lista|na lista de espera|meu lugar|ainda (estou|tô|to) na espera/i.test(
-    text
-  );
-}
-
-/**
- * Recusa suave das alternativas (depois vejo, obrigado, deixa…)
- * — deve oferecer espera SEM depender do LLM (evita timeout / silêncio).
- */
-function isSoftRefusalOfAlternatives(userText: string, history: string[]): boolean {
-  const lastDonna = lastDonnaMessage(history);
-  if (!lastDonna || !donnaOfferedAlternatives(lastDonna)) return false;
-  if (waitlistAlreadyOffered(history)) return false;
-  if (userPickedAlternative(userText)) return false;
-  if (userWantsWaitlist(userText)) return false;
-
-  return /depois vejo|vejo depois|deixa|mais tarde|outra hora|outro dia|não me interessa|nao me interessa|nenhuma|não quero|nao quero|não serve|nao serve|pode deixar|deixa quieto|não precisa|nao precisa|não\.?\s*obrigad|nao\.?\s*obrigad|obrigad|valeu|vlw|blz|beleza|tá bom|ta bom|tudo bem|tenha uma|ótima tarde|otima tarde|até mais|ate mais|falou|flw/i.test(
-    userText
-  );
-}
-
-function waitlistOfferReply(): string {
-  return "Sem problema! Antes de encerrar: quer que eu te coloque na lista de espera do horário que você pediu? Se liberar, te aviso aqui no Zap.";
 }
 
 /**
@@ -304,6 +191,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       (persona ? compilePersonaToSystemPrompt(persona, displayName) : `Você é ${displayName}.`),
     businessFacts,
     compileSkillsBlock(skillNames),
+    buildCalendarContext(),
     runtimeRules(
       businessName,
       displayName,
@@ -377,8 +265,8 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
       .join(" ");
     return {
       reply: added.ok
-        ? `Pronto, você está na lista de espera${detail ? ` ${detail}` : ""}! Se liberar, te chamo aqui no Zap. 👊`
-        : "Quase consegui te colocar na espera — me confirma rapidinho o horário e o profissional que você queria?",
+        ? waitlistConfirmReply(detail)
+        : waitlistFailReply(),
       skills: ["skill.schedule"],
       toolCalls: [{ name: "add_to_waitlist", ok: added.ok }],
     };
@@ -412,7 +300,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         .filter(Boolean)
         .join(" — ");
       return {
-        reply: `Sim, você está na lista de espera${bits ? ` (${bits})` : ""}. Se liberar, te aviso aqui no Zap. 👊`,
+        reply: `Sim, você está na lista de espera${bits ? ` (${bits})` : ""}. Se liberar, te aviso aqui no Zap.`,
         skills: ["skill.schedule"],
         toolCalls: [{ name: "list_waitlist", ok: true }],
       };

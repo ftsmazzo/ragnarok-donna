@@ -31,5 +31,7 @@ jobs:
         run: npm run check:support-guides
       - name: Support reliability
         run: npm run check:support-reliability
+      - name: Agent brain policy
+        run: npm run check:agent-brain
       - name: Playwright config compiles
         run: npx playwright test --list
