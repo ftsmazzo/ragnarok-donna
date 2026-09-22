@@ -588,7 +588,7 @@ export async function createClientPackageFromSale(input: {
   expiresAfterDays: number | null;
   items: Array<{ serviceId?: string; productId?: string; qty: number }>;
 }, transaction?: DbTransaction): Promise<string> {
-  const db = transaction ?? createDb();
+  const { AppError } = await import("../errors");
   const now = new Date();
   const expiresAt =
     input.expiresAfterDays && input.expiresAfterDays > 0
@@ -599,7 +599,6 @@ export async function createClientPackageFromSale(input: {
     .filter((item) => item.serviceId || item.productId)
     .map((item) => ({
       tenantId: input.tenantId,
-      clientPackageId: "" as string,
       serviceId: item.serviceId ?? null,
       productId: item.productId ?? null,
       totalQty: item.qty,
@@ -607,33 +606,50 @@ export async function createClientPackageFromSale(input: {
     }));
 
   if (creditRows.length === 0) {
-    const { AppError } = await import("../errors");
     throw new AppError("VALIDATION", "Pacote sem itens de crédito para liberar");
   }
 
-  const [pkg] = await db
-    .insert(schema.clientPackages)
-    .values({
-      tenantId: input.tenantId,
-      clientId: input.clientId,
-      packageId: input.packageId,
-      orderId: input.orderId,
-      orderItemId: input.orderItemId,
-      name: input.packageName,
-      status: "active",
-      purchasedAt: now,
-      expiresAt,
-    })
-    .returning({ id: schema.clientPackages.id });
+  async function insertBoth(db: DbTransaction | ReturnType<typeof createDb>) {
+    const [pkg] = await db
+      .insert(schema.clientPackages)
+      .values({
+        tenantId: input.tenantId,
+        clientId: input.clientId,
+        packageId: input.packageId,
+        orderId: input.orderId,
+        orderItemId: input.orderItemId,
+        name: input.packageName,
+        status: "active",
+        purchasedAt: now,
+        expiresAt,
+      })
+      .returning({ id: schema.clientPackages.id });
+    if (!pkg) {
+      throw new AppError("VALIDATION", "Não deu para criar a carteira do pacote.");
+    }
+    await db.insert(schema.clientPackageCredits).values(
+      creditRows.map((row) => ({
+        ...row,
+        clientPackageId: pkg.id,
+      }))
+    );
+    return pkg.id;
+  }
 
-  await db.insert(schema.clientPackageCredits).values(
-    creditRows.map((row) => ({
-      ...row,
-      clientPackageId: pkg.id,
-    }))
-  );
-
-  return pkg.id;
+  try {
+    if (transaction) {
+      return await insertBoth(transaction);
+    }
+    const db = createDb();
+    return await db.transaction(async (tx) => insertBoth(tx));
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    console.error("[createClientPackageFromSale]", err);
+    throw new AppError(
+      "VALIDATION",
+      "Não deu para liberar a carteira do pacote. Revise os itens do pacote no cadastro."
+    );
+  }
 }
 
 /** Libera carteiras de vendas de pacote desta comanda (chamar ao fechar/pagar). */
