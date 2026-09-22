@@ -11,6 +11,8 @@
     "check:client-account": "tsx scripts/check-client-account.ts",
     "check:support-guides": "tsx scripts/check-support-guides.ts",
     "check:support-reliability": "tsx scripts/check-support-reliability.ts",
+    "check:agent-brain": "tsx scripts/check-agent-brain.ts",
+    "audit:agent-brain": "node scripts/audit-agent-brain.mjs",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test e2e/package-sale.spec.ts",
     "db:generate": "drizzle-kit generate",

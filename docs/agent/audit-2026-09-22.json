@@ -1,0 +1,87 @@
+{
+  "tenant": "ragnaroks",
+  "days": 21,
+  "since": "2026-09-01T12:13:18.123Z",
+  "toolStats": [
+    {
+      "tool_name": "find_client",
+      "status": "ok",
+      "n": 22
+    },
+    {
+      "tool_name": "list_slots",
+      "status": "ok",
+      "n": 20
+    },
+    {
+      "tool_name": "resolve_date",
+      "status": "ok",
+      "n": 16
+    },
+    {
+      "tool_name": "list_services",
+      "status": "ok",
+      "n": 10
+    },
+    {
+      "tool_name": "cancel_appointment",
+      "status": "ok",
+      "n": 2
+    },
+    {
+      "tool_name": "book_appointment",
+      "status": "ok",
+      "n": 2
+    },
+    {
+      "tool_name": "get_unit_context",
+      "status": "ok",
+      "n": 2
+    },
+    {
+      "tool_name": "book_appointment",
+      "status": "error",
+      "n": 2
+    }
+  ],
+  "failSampleCount": 2,
+  "failSamples": [
+    {
+      "tool": "book_appointment",
+      "error": "{\"error\":\"Failed query: select \\\"id\\\" from \\\"staff\\\" where (\\\"staff\\\".\\\"id\\\" = $1 and \\\"staff\\\".\\\"tenant_id\\\" = $2 and \\\"staff\\\".\\\"is_bookable\\\" = $3 and \\\"staf",
+      "at": "2026-09-15T00:08:52.875Z"
+    },
+    {
+      "tool": "book_appointment",
+      "error": "{\"error\":\"Failed query: select \\\"id\\\" from \\\"staff\\\" where (\\\"staff\\\".\\\"id\\\" = $1 and \\\"staff\\\".\\\"tenant_id\\\" = $2 and \\\"staff\\\".\\\"is_bookable\\\" = $3 and \\\"staf",
+      "at": "2026-09-14T19:38:00.768Z"
+    }
+  ],
+  "handoffsHuman": 1,
+  "waitlistTools": [],
+  "cancelWithoutBook10m": 0,
+  "longAiReplies": 0,
+  "inboundNoAiReply3m": 0,
+  "classifications": [
+    {
+      "id": "reschedule-gap",
+      "label": "Cancel sem book em 10min (possível remarcação quebrada)",
+      "count": 0
+    },
+    {
+      "id": "silence",
+      "label": "Inbound sem reply AI em 3min (modo ai)",
+      "count": 0
+    },
+    {
+      "id": "verbose",
+      "label": "Replies AI > 420 chars",
+      "count": 0
+    },
+    {
+      "id": "tool-fail",
+      "label": "Tool calls falhos",
+      "count": 2
+    }
+  ]
+}

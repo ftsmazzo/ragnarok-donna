@@ -49,6 +49,12 @@ export const TOOL_CATALOG: AgentToolDefinition[] = [
     skills: ["skill.schedule", "skill.handoff"],
   },
   {
+    name: "reschedule_appointment",
+    description:
+      "Remarca de forma atômica (cancela o antigo e cria o novo na mesma transação)",
+    skills: ["skill.schedule"],
+  },
+  {
     name: "open_order",
     description: "Abre comanda (opcionalmente ligada ao appointment)",
     skills: ["skill.order"],
@@ -106,6 +112,7 @@ export const SKILL_CATALOG: AgentSkillDefinition[] = [
       "resolve_date",
       "book_appointment",
       "cancel_appointment",
+      "reschedule_appointment",
       "add_to_waitlist",
       "list_waitlist",
       "send_whatsapp",
