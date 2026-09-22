@@ -469,6 +469,9 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
         if (name === "book_appointment" && exec.ok) {
           await markBookingConfirmed(input.conversationId);
         }
+        if (name === "reschedule_appointment" && exec.ok) {
+          await markBookingConfirmed(input.conversationId);
+        }
         if (name === "list_slots" && exec.ok && exec.data && typeof exec.data === "object") {
           const data = exec.data as {
             alternatives?: { label?: string }[];
