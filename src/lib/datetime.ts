@@ -175,8 +175,21 @@ export function daysAgoSp(days: number): string {
 }
 
 export function rangeBoundsSp(from: string, to: string) {
-  const start = new Date(`${from}T00:00:00-03:00`);
-  const end = new Date(`${to}T23:59:59.999-03:00`);
+  let start = new Date(`${from}T00:00:00-03:00`);
+  let end = new Date(`${to}T23:59:59.999-03:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    const today = new Date();
+    start = new Date(today);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(today);
+    end.setHours(23, 59, 59, 999);
+    return { from, to, start, end };
+  }
+  if (start.getTime() > end.getTime()) {
+    const tmp = start;
+    start = end;
+    end = tmp;
+  }
   return { from, to, start, end };
 }
 

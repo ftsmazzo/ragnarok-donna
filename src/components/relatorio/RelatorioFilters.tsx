@@ -5,6 +5,7 @@ type Props = {
   q?: string;
   qPlaceholder?: string;
   showSearch?: boolean;
+  submitLabel?: string;
   children?: React.ReactNode;
   hidden?: Record<string, string | undefined>;
 };
@@ -16,6 +17,7 @@ export function RelatorioFilters({
   q,
   qPlaceholder = "Cliente ou profissional",
   showSearch = false,
+  submitLabel = "Gerar",
   children,
   hidden,
 }: Props) {
@@ -23,11 +25,11 @@ export function RelatorioFilters({
     <form action={action} method="get" className="relatorio-filters">
       <label className="filter-field">
         <span>De</span>
-        <input type="date" name="from" defaultValue={from} className="search-input" />
+        <input type="date" name="from" defaultValue={from} required className="search-input" />
       </label>
       <label className="filter-field">
         <span>Até</span>
-        <input type="date" name="to" defaultValue={to} className="search-input" />
+        <input type="date" name="to" defaultValue={to} required className="search-input" />
       </label>
       {children}
       {showSearch ? (
@@ -48,7 +50,7 @@ export function RelatorioFilters({
             .map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)
         : null}
       <button type="submit" className="btn btn-primary">
-        Gerar
+        {submitLabel}
       </button>
     </form>
   );
