@@ -31,17 +31,15 @@ export async function resolveSessionStaffId(session: AppSession): Promise<string
 }
 
 /**
- * Atualiza o cookie se o barbeiro já tem vínculo no banco mas o JWT ainda
- * está com staffId null (login antigo / vínculo feito depois do login).
+ * Resolve staffId do barbeiro para o request atual.
+ * Não grava cookie aqui — `cookies().set` no render do RSC quebra a página
+ * (Next só permite em Server Action / Route Handler).
  */
 export async function hydrateSessionStaffId(session: AppSession): Promise<AppSession> {
   if (!isBarberRole(session.role) || session.staffId) return session;
   const staffId = await getStaffIdForUser(session.tenant.id, session.user.id);
   if (!staffId) return session;
-  const next: AppSession = { ...session, staffId };
-  const { setSessionCookie } = await import("../auth/session");
-  await setSessionCookie(next);
-  return next;
+  return { ...session, staffId };
 }
 
 /** Garante que barbeiro só acessa o próprio staffId. */

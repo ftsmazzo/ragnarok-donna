@@ -6,7 +6,7 @@ import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability, requireCapability } from "../permissions";
 import { findOpenCashSessionId } from "../finance/queries";
-import { syncTenantMonthServiceCommission } from "./house";
+import { syncStaffMonthServiceCommission, syncTenantMonthServiceCommission } from "./house";
 
 const commissionExpr = sql<number>`coalesce(
   ${schema.orderItems.commissionCents},
@@ -81,7 +81,15 @@ export async function reportCommissions(opts: {
   const from = opts.from ?? monthStartSp();
   const to = opts.to ?? todaySp();
   if (from.slice(0, 7) === monthStartSp().slice(0, 7)) {
-    await syncTenantMonthServiceCommission(tenant.id);
+    try {
+      if (opts.staffId) {
+        await syncStaffMonthServiceCommission(tenant.id, opts.staffId);
+      } else {
+        await syncTenantMonthServiceCommission(tenant.id);
+      }
+    } catch (err) {
+      console.error("[reportCommissions] sync mês falhou (seguindo sem sync)", err);
+    }
   }
   const { start, end } = rangeBoundsSp(from, to);
   const page = Math.max(1, opts.page ?? 1);
