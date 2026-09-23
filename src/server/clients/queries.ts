@@ -16,7 +16,6 @@ import {
 } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { NotFoundError } from "../errors";
-import { resolveBranchScope } from "../context/branch-scope";
 import { requireTenantContext } from "../context/tenant";
 import {
   andWhere,
@@ -147,23 +146,14 @@ export async function listClients(opts: {
   page?: number;
 }) {
   const tenant = await requireTenantContext();
-  const scope = await resolveBranchScope();
   const db = createDb();
   const filter = opts.filter ?? "ativos";
   const page = Math.max(1, opts.page ?? 1);
   const q = opts.q?.trim();
 
-  if (scope.isInactiveBranch) {
-    return {
-      rows: [],
-      total: 0,
-      page,
-      pageSize: CLIENT_PAGE_SIZE,
-      totalPages: 1,
-      filter,
-      q: q ?? "",
-    };
-  }
+  // Clientes são do tenant (rede), não da unidade.
+  // Donna U01 e U02 compartilham a mesma base — unidade sem equipe (U02)
+  // não pode zerar a lista (isInactiveBranch).
 
   let where = clientFilterWhere(tenant.id, filter);
   if (q) {

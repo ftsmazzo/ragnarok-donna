@@ -124,7 +124,13 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       meta: schema.appointments.meta,
     })
     .from(schema.appointments)
-    .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
+    .leftJoin(
+      schema.clients,
+      and(
+        eq(schema.appointments.clientId, schema.clients.id),
+        eq(schema.clients.tenantId, schema.appointments.tenantId)
+      )
+    )
     .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
     .leftJoin(schema.orders, eq(schema.appointments.orderId, schema.orders.id))
     .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
@@ -208,7 +214,13 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       meta: schema.appointments.meta,
     })
     .from(schema.appointments)
-    .leftJoin(schema.clients, eq(schema.appointments.clientId, schema.clients.id))
+    .leftJoin(
+      schema.clients,
+      and(
+        eq(schema.appointments.clientId, schema.clients.id),
+        eq(schema.clients.tenantId, schema.appointments.tenantId)
+      )
+    )
     .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
     .leftJoin(schema.orders, eq(schema.appointments.orderId, schema.orders.id))
     .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))

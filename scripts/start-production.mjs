@@ -820,6 +820,92 @@ WHERE a.staff_id = s.id
   AND a.deleted_at IS NULL
 `);
     console.log("[bootstrap] appointments.branch_id backfill from staff ok");
+
+    // Isolamento de marca (#168): branches da Ragnarok não podem se chamar "Donna Elegant".
+    // Bug legado: ensureBusinessProfile renomeava qualquer slug unidade-01 para Donna.
+    const repairedBranches = await sql`
+      UPDATE branches b
+      SET
+        name = CASE
+          WHEN b.slug = 'unidade-01' THEN 'Unidade 01'
+          WHEN b.slug = 'unidade-02' THEN 'Unidade 02'
+          ELSE regexp_replace(b.name, '^Donna Elegant —\\s*', '')
+        END,
+        updated_at = now()
+      FROM tenants t
+      WHERE b.tenant_id = t.id
+        AND t.slug = 'ragnaroks'
+        AND b.name ILIKE '%Donna Elegant%'
+        AND b.deleted_at IS NULL
+      RETURNING b.id, b.slug, b.name
+    `;
+    if (repairedBranches.length) {
+      console.log(
+        "[bootstrap] branches Ragnarok desalinhadas corrigidas:",
+        repairedBranches.map((r) => `${r.slug}→${r.name}`).join(", ")
+      );
+    }
+
+    // Log de sanidade: clientes por tenant (sem misturar bases).
+    const clientCounts = await sql`
+      SELECT t.slug, count(c.id)::int AS n,
+        count(*) FILTER (WHERE c.external_source = 'appbarber')::int AS appbarber,
+        count(*) FILTER (WHERE c.external_source = 'appbeleza')::int AS appbeleza
+      FROM tenants t
+      LEFT JOIN clients c ON c.tenant_id = t.id AND c.deleted_at IS NULL
+      WHERE t.slug IN ('ragnaroks', 'donna-elegant')
+      GROUP BY t.slug
+      ORDER BY t.slug
+    `;
+    console.log("[bootstrap] clients por tenant:", clientCounts);
+
+    const crossTenant = await sql`
+      SELECT count(*)::int AS n
+      FROM appointments a
+      JOIN clients c ON c.id = a.client_id
+      WHERE a.tenant_id <> c.tenant_id
+        AND a.deleted_at IS NULL
+    `;
+    if (crossTenant[0]?.n > 0) {
+      console.warn(
+        "[bootstrap] ALERTA: appointments com client de outro tenant:",
+        crossTenant[0].n
+      );
+      // Desvincula referência cruzada (mantém o agendamento; cliente some do join isolado).
+      await sql`
+        UPDATE appointments a
+        SET client_id = NULL, updated_at = now()
+        FROM clients c
+        WHERE a.client_id = c.id
+          AND a.tenant_id <> c.tenant_id
+          AND a.deleted_at IS NULL
+      `;
+      console.log("[bootstrap] appointments cross-tenant: client_id anulado");
+    }
+
+    // Settings poluído: perfil Donna dentro do tenant Ragnarok (ou vice-versa).
+    const polluted = await sql`
+      SELECT t.id, t.slug, t.settings->>'businessProfile' IS NOT NULL AS has_profile,
+        t.settings->'businessProfile'->>'nomeFantasia' AS nome
+      FROM tenants t
+      WHERE t.slug IN ('ragnaroks', 'donna-elegant')
+        AND t.settings ? 'businessProfile'
+        AND (
+          (t.slug = 'ragnaroks' AND (t.settings->'businessProfile'->>'nomeFantasia') ILIKE '%donna%')
+          OR (t.slug = 'donna-elegant' AND (t.settings->'businessProfile'->>'nomeFantasia') ILIKE '%ragnarok%')
+        )
+    `;
+    for (const row of polluted) {
+      await sql`
+        UPDATE tenants
+        SET settings = settings - 'businessProfile' - 'branding',
+            updated_at = now()
+        WHERE id = ${row.id}
+      `;
+      console.log(
+        `[bootstrap] settings poluído removido em ${row.slug} (era nome=${row.nome}) — reseed no próximo ensure`
+      );
+    }
   } finally {
     await sql.end({ timeout: 5 });
   }
