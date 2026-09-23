@@ -11,6 +11,7 @@ import { listTenantBranches } from "@/server/context/branch";
 import { requireSession } from "@/server/context/tenant";
 import { canSwitchBranches, getMembershipBranchId } from "@/server/members";
 import { isOwnerRole } from "@/server/permissions/roles";
+import { hydrateSessionStaffId } from "@/server/permissions/staff-scope";
 import { ensureDonnaImportIfEmpty } from "@/server/tenant/donna-import";
 
 export default async function PainelLayout({
@@ -18,7 +19,8 @@ export default async function PainelLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireSession();
+  let session = await requireSession();
+  session = await hydrateSessionStaffId(session);
   void ensureDonnaImportIfEmpty(session.tenant.id, session.tenant.slug);
   const db = createDb();
   const [tenantRow] = await db

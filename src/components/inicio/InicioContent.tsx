@@ -92,6 +92,9 @@ export async function InicioContent({ session, searchParams }: Props) {
       href: profissionaisHref(session.role, session.staffId),
       label: session.role === "staff" ? "Minha performance" : "Profissionais",
     },
+    ...(session.role === "staff"
+      ? [{ href: "/comissoes", label: "Minhas comissões", hint: "Acompanhar valores" }]
+      : []),
     { href: "/clientes", label: "Clientes" },
   ]);
 

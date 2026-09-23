@@ -7,13 +7,16 @@ import {
   defaultRouteForRole,
   type RouteAccessContext,
 } from "./routes";
+import { hydrateSessionStaffId } from "./staff-scope";
 
 /** Guarda de página — redireciona se rota não permitida. */
 export async function requirePageAccess(
   pathname: string,
   searchParams?: Record<string, string | undefined>
 ): Promise<AppSession> {
-  const session = await requireSession();
+  let session = await requireSession();
+  session = await hydrateSessionStaffId(session);
+
   const ctx: RouteAccessContext = {
     staffId: session.staffId,
     queryStaffId: searchParams?.id,

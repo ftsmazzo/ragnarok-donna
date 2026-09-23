@@ -64,6 +64,9 @@ export function ConsumoMobileApp({ brandName, orders, products }: Props) {
         <Link href="/agenda?modo=tablet" className="minbox-panel-link">
           Agenda
         </Link>
+        <Link href="/comissoes" className="minbox-panel-link">
+          Comissões
+        </Link>
       </header>
 
       {error ? <div className="consumo-flash is-err">{error}</div> : null}

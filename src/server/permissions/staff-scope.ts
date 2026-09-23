@@ -30,6 +30,20 @@ export async function resolveSessionStaffId(session: AppSession): Promise<string
   return getStaffIdForUser(session.tenant.id, session.user.id);
 }
 
+/**
+ * Atualiza o cookie se o barbeiro já tem vínculo no banco mas o JWT ainda
+ * está com staffId null (login antigo / vínculo feito depois do login).
+ */
+export async function hydrateSessionStaffId(session: AppSession): Promise<AppSession> {
+  if (!isBarberRole(session.role) || session.staffId) return session;
+  const staffId = await getStaffIdForUser(session.tenant.id, session.user.id);
+  if (!staffId) return session;
+  const next: AppSession = { ...session, staffId };
+  const { setSessionCookie } = await import("../auth/session");
+  await setSessionCookie(next);
+  return next;
+}
+
 /** Garante que barbeiro só acessa o próprio staffId. */
 export async function assertOwnStaffAccess(
   session: AppSession,
