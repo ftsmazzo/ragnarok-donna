@@ -315,6 +315,10 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
   const tenant = await requireTenantContext();
   const db = createDb();
 
+  // Cura cabeçalho desincronizado (itens com valor, orders.total_cents = 0).
+  const { ensureOrderTotalSynced } = await import("./totals");
+  await ensureOrderTotalSynced(orderId, tenant.id);
+
   const [order] = await db
     .select({
       id: schema.orders.id,
