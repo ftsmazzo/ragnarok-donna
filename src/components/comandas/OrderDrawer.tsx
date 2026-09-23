@@ -400,13 +400,82 @@ export function OrderDrawer({
     run(() => setOrderDiscountAction(order.id, reais));
   }
 
-  function handlePayment(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function defaultPayMethod() {
+    return clientCreditAvailable >= order.balanceCents &&
+      order.balanceCents > 0 &&
+      !hasPackageSale
+      ? "client_account"
+      : "pix";
+  }
+
+  function scrollCheckoutIntoView() {
+    requestAnimationFrame(() => {
+      const body = document.querySelector(".ui-drawer-body");
+      if (body instanceof HTMLElement) {
+        body.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      const sheet = document.querySelector(".order-checkout-sheet");
+      if (sheet instanceof HTMLElement) {
+        sheet.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+    });
+  }
+
+  function closeCheckout() {
+    setPayOpen(false);
+    setPayCloseOpen(false);
+  }
+
+  function openPayOnly() {
+    if (order.balanceCents <= 0) {
+      const msg =
+        order.items.length === 0
+          ? "Adicione itens antes de pagar."
+          : "Nada a pagar — saldo já está zerado. Use Fechar comanda.";
+      setError(msg);
+      showToast(msg, "error");
+      return;
+    }
+    setPayLines([makeCheckoutLine(order.balanceCents, defaultPayMethod())]);
+    setInsertInCash(true);
+    setPayCloseOpen(false);
+    setPayOpen(true);
+    scrollCheckoutIntoView();
+  }
+
+  function openPayAndClose() {
+    if (order.items.length === 0) {
+      const msg = "Adicione ao menos um item antes de fechar.";
+      setError(msg);
+      showToast(msg, "error");
+      return;
+    }
+    if (order.balanceCents > 0) {
+      setPayLines([makeCheckoutLine(order.balanceCents, defaultPayMethod())]);
+      setInsertInCash(true);
+    }
+    setPayOpen(false);
+    setPayCloseOpen(true);
+    scrollCheckoutIntoView();
+  }
+
+  function submitPayOnly() {
     const line = payLines[0];
-    if (!line) return;
+    if (!line) {
+      const msg = "Informe a forma de pagamento";
+      setError(msg);
+      showToast(msg, "error");
+      return;
+    }
     const amountCents = parseReaisToCents(line.amountReais);
     if (amountCents <= 0) {
       const msg = "Informe o valor do pagamento";
+      setError(msg);
+      showToast(msg, "error");
+      return;
+    }
+    if (!line.method) {
+      const msg = "Escolha a forma de pagamento";
       setError(msg);
       showToast(msg, "error");
       return;
@@ -421,9 +490,62 @@ export function OrderDrawer({
     }
     run(async () => {
       const result = await addPaymentAction(formData);
-      if (result.ok) closeCheckout();
+      if (result.ok) {
+        closeCheckout();
+        showToast("Pagamento registrado", "success");
+      }
       return result;
     });
+  }
+
+  function submitPayAndClose() {
+    if (Math.abs(payLinesDiffCents) > 1) {
+      const msg =
+        payLinesDiffCents < 0
+          ? `Falta ${formatMoney(-payLinesDiffCents)} nas formas de pagamento`
+          : `Formas somam ${formatMoney(payLinesDiffCents)} a mais que o saldo`;
+      setError(msg);
+      showToast(msg, "error");
+      return;
+    }
+    run(async () => {
+      let remaining = order.balanceCents;
+      for (const line of payLines) {
+        let cents = parseReaisToCents(line.amountReais);
+        if (cents <= 0) continue;
+        cents = Math.min(cents, remaining);
+        if (cents <= 0) continue;
+        const fd = new FormData();
+        fd.set("orderId", order.id);
+        fd.set("method", line.method);
+        fd.set("amountReais", (cents / 100).toFixed(2));
+        fd.set("insertInCash", insertInCash ? "1" : "0");
+        if (line.method === "credit" && Number(line.installments) > 1) {
+          fd.set("installments", line.installments);
+        }
+        const paid = await addPaymentAction(fd);
+        if (!paid.ok) return paid;
+        remaining -= cents;
+      }
+      if (remaining > 1) {
+        return {
+          ok: false as const,
+          error: `Ainda falta pagar ${formatMoney(remaining)}`,
+        };
+      }
+      const closed = await closeOrderAction(order.id);
+      if (closed.ok) {
+        closeCheckout();
+        onClose();
+        showToast("Comanda paga e fechada", "success");
+      }
+      return closed;
+    });
+  }
+
+  function handlePayment(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    submitPayOnly();
   }
 
   function updatePayLine(key: string, patch: Partial<CheckoutLine>) {
@@ -450,21 +572,6 @@ export function OrderDrawer({
   }, 0);
   const anyNonAccount = payLines.some((r) => r.method !== "client_account");
   const checkoutMode = payOpen ? "pay" : payCloseOpen ? "payClose" : null;
-
-  function closeCheckout() {
-    setPayOpen(false);
-    setPayCloseOpen(false);
-  }
-
-  function openPayOnly() {
-    setPayCloseOpen(false);
-    setPayOpen(true);
-  }
-
-  function openPayAndClose() {
-    setPayOpen(false);
-    setPayCloseOpen(true);
-  }
 
   const catalog =
     itemType === "service" ? services : itemType === "product" ? products : packages;
@@ -512,8 +619,7 @@ export function OrderDrawer({
                 </button>
               ) : null}
               <button
-                type="submit"
-                form={checkoutMode === "pay" ? "pay-form" : "pay-close-form"}
+                type="button"
                 className={`btn btn-primary${pending ? " is-pending" : ""}`}
                 disabled={
                   pending ||
@@ -527,6 +633,10 @@ export function OrderDrawer({
                       : `Formas somam ${formatMoney(payLinesDiffCents)} a mais`
                     : undefined
                 }
+                onClick={() => {
+                  if (checkoutMode === "pay") submitPayOnly();
+                  else submitPayAndClose();
+                }}
               >
                 {pending
                   ? checkoutMode === "pay"
@@ -557,8 +667,13 @@ export function OrderDrawer({
                   <button
                     type="button"
                     className="btn btn-outline"
-                    disabled={pending || order.balanceCents <= 0}
+                    disabled={pending}
                     onClick={openPayOnly}
+                    title={
+                      order.balanceCents <= 0
+                        ? "Saldo zerado — nada a pagar"
+                        : "Registrar pagamento parcial ou total"
+                    }
                   >
                     Pagar
                   </button>
@@ -708,47 +823,7 @@ export function OrderDrawer({
                 className="form-stack"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (Math.abs(payLinesDiffCents) > 1) {
-                    const msg =
-                      payLinesDiffCents < 0
-                        ? `Falta ${formatMoney(-payLinesDiffCents)} nas formas de pagamento`
-                        : `Formas somam ${formatMoney(payLinesDiffCents)} a mais que o saldo`;
-                    setError(msg);
-                    showToast(msg, "error");
-                    return;
-                  }
-                  run(async () => {
-                    let remaining = order.balanceCents;
-                    for (const line of payLines) {
-                      let cents = parseReaisToCents(line.amountReais);
-                      if (cents <= 0) continue;
-                      cents = Math.min(cents, remaining);
-                      if (cents <= 0) continue;
-                      const fd = new FormData();
-                      fd.set("orderId", order.id);
-                      fd.set("method", line.method);
-                      fd.set("amountReais", (cents / 100).toFixed(2));
-                      fd.set("insertInCash", insertInCash ? "1" : "0");
-                      if (line.method === "credit" && Number(line.installments) > 1) {
-                        fd.set("installments", line.installments);
-                      }
-                      const paid = await addPaymentAction(fd);
-                      if (!paid.ok) return paid;
-                      remaining -= cents;
-                    }
-                    if (remaining > 1) {
-                      return {
-                        ok: false as const,
-                        error: `Ainda falta pagar ${formatMoney(remaining)}`,
-                      };
-                    }
-                    const closed = await closeOrderAction(order.id);
-                    if (closed.ok) {
-                      closeCheckout();
-                      onClose();
-                    }
-                    return closed;
-                  });
+                  submitPayAndClose();
                 }}
               >
                 <div className="checkout-summary">
@@ -1603,7 +1678,8 @@ export function OrderDrawer({
         )}
 
         <p className="client-profile-hint muted">
-          A pagar: {formatMoney(due)} · Saldo: {formatMoney(order.balanceCents)}
+          Total: {formatMoney(due)} · Já pago: {formatMoney(order.paidCents)} · Saldo:{" "}
+          {formatMoney(order.balanceCents)}
         </p>
           </>
         )}
