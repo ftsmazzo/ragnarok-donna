@@ -822,41 +822,47 @@ WHERE a.staff_id = s.id
     console.log("[bootstrap] appointments.branch_id backfill from staff ok");
 
     // Comandas abertas com total desincronizado (itens > 0, orders.total_cents = 0).
-    const fixedTotals = await sql`
-      UPDATE orders o
-      SET
-        total_cents = coalesce(x.items_sum, 0),
-        updated_at = now()
-      FROM (
-        SELECT oi.order_id, oi.tenant_id, sum(oi.total_cents)::int AS items_sum
-        FROM order_items oi
-        GROUP BY oi.order_id, oi.tenant_id
-      ) x
-      WHERE o.id = x.order_id
-        AND o.tenant_id = x.tenant_id
-        AND o.status = 'open'
-        AND o.deleted_at IS NULL
-        AND o.total_cents IS DISTINCT FROM coalesce(x.items_sum, 0)
-      RETURNING o.id
-    `;
-    if (fixedTotals.length) {
-      console.log(`[bootstrap] orders.total_cents sincronizado: ${fixedTotals.length} comanda(s)`);
+    try {
+      const fixedTotals = await sql`
+        UPDATE orders o
+        SET
+          total_cents = coalesce(x.items_sum, 0),
+          updated_at = now()
+        FROM (
+          SELECT oi.order_id, oi.tenant_id, sum(oi.total_cents)::int AS items_sum
+          FROM order_items oi
+          GROUP BY oi.order_id, oi.tenant_id
+        ) x
+        WHERE o.id = x.order_id
+          AND o.tenant_id = x.tenant_id
+          AND o.status = 'open'
+          AND o.deleted_at IS NULL
+          AND o.total_cents IS DISTINCT FROM coalesce(x.items_sum, 0)
+        RETURNING o.id
+      `;
+      if (fixedTotals.length) {
+        console.log(`[bootstrap] orders.total_cents sincronizado: ${fixedTotals.length} comanda(s)`);
+      }
+    } catch (err) {
+      console.error("[bootstrap] orders.total_cents sync falhou (não bloqueia start):", err.message ?? err);
     }
 
-    // Comandas sem unidade: herdam branch do agendamento ou do staff do 1º item.
-    await sql.unsafe(`
-UPDATE orders o
-SET branch_id = coalesce(a.branch_id, s.branch_id),
-    updated_at = now()
-FROM appointments a
-LEFT JOIN order_items oi ON oi.order_id = o.id
-LEFT JOIN staff s ON s.id = oi.staff_id
-WHERE o.appointment_id = a.id
-  AND o.branch_id IS NULL
-  AND o.deleted_at IS NULL
-  AND coalesce(a.branch_id, s.branch_id) IS NOT NULL
-`);
-    console.log("[bootstrap] orders.branch_id backfill ok");
+    // Comandas sem unidade: herdam branch do agendamento (SQL válido — sem JOIN em o.id no FROM).
+    try {
+      await sql`
+        UPDATE orders o
+        SET branch_id = a.branch_id,
+            updated_at = now()
+        FROM appointments a
+        WHERE o.appointment_id = a.id
+          AND o.branch_id IS NULL
+          AND a.branch_id IS NOT NULL
+          AND o.deleted_at IS NULL
+      `;
+      console.log("[bootstrap] orders.branch_id backfill from appointment ok");
+    } catch (err) {
+      console.error("[bootstrap] orders.branch_id backfill falhou (não bloqueia start):", err.message ?? err);
+    }
 
     // Donna U02: unidade aberta — ativa branch e alinha staff com memberships da U02.
     const donnaU02 = await sql`
