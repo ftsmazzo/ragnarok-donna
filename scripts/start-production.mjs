@@ -821,6 +821,44 @@ WHERE a.staff_id = s.id
 `);
     console.log("[bootstrap] appointments.branch_id backfill from staff ok");
 
+    // Donna U02: unidade aberta — ativa branch e alinha staff com memberships da U02.
+    const donnaU02 = await sql`
+      SELECT b.id
+      FROM branches b
+      JOIN tenants t ON t.id = b.tenant_id
+      WHERE t.slug = 'donna-elegant'
+        AND b.slug = 'unidade-02'
+        AND b.deleted_at IS NULL
+      LIMIT 1
+    `;
+    if (donnaU02[0]?.id) {
+      const u02Id = donnaU02[0].id;
+      await sql`
+        UPDATE branches
+        SET is_active = true, updated_at = now()
+        WHERE id = ${u02Id}
+      `;
+      const aligned = await sql`
+        UPDATE staff s
+        SET branch_id = ${u02Id}, updated_at = now()
+        FROM memberships m
+        WHERE m.user_id = s.user_id
+          AND m.tenant_id = s.tenant_id
+          AND m.branch_id = ${u02Id}
+          AND m.role = 'staff'
+          AND s.deleted_at IS NULL
+          AND (s.branch_id IS DISTINCT FROM ${u02Id})
+        RETURNING s.id, s.name
+      `;
+      const [countU02] = await sql`
+        SELECT count(*)::int AS n FROM staff
+        WHERE branch_id = ${u02Id} AND deleted_at IS NULL
+      `;
+      console.log(
+        `[bootstrap] Donna U02 aberta — staff alinhados=${aligned.length}, staff na U02=${countU02?.n ?? 0}`
+      );
+    }
+
     // Isolamento de marca (#168): branches da Ragnarok não podem se chamar "Donna Elegant".
     // Bug legado: ensureBusinessProfile renomeava qualquer slug unidade-01 para Donna.
     const repairedBranches = await sql`
