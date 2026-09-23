@@ -118,6 +118,7 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
       orderId: schema.appointments.orderId,
+      linkedOrderId: schema.orders.id,
       orderStatus: schema.orders.status,
       orderTotalCents: schema.orders.totalCents,
       staffName: schema.staff.name,
@@ -132,7 +133,16 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       )
     )
     .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
-    .leftJoin(schema.orders, eq(schema.appointments.orderId, schema.orders.id))
+    .leftJoin(
+      schema.orders,
+      and(
+        eq(schema.orders.tenantId, schema.appointments.tenantId),
+        or(
+          eq(schema.appointments.orderId, schema.orders.id),
+          eq(schema.orders.appointmentId, schema.appointments.id)
+        )
+      )
+    )
     .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
     .where(apptWhere)
     .orderBy(asc(schema.appointments.startsAt));
@@ -208,6 +218,7 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       notes: schema.appointments.notes,
       priceCents: schema.appointments.priceCents,
       orderId: schema.appointments.orderId,
+      linkedOrderId: schema.orders.id,
       orderStatus: schema.orders.status,
       orderTotalCents: schema.orders.totalCents,
       staffName: schema.staff.name,
@@ -222,7 +233,16 @@ export async function getAppointmentDetail(id: string): Promise<AgendaAppointmen
       )
     )
     .leftJoin(schema.services, eq(schema.appointments.serviceId, schema.services.id))
-    .leftJoin(schema.orders, eq(schema.appointments.orderId, schema.orders.id))
+    .leftJoin(
+      schema.orders,
+      and(
+        eq(schema.orders.tenantId, schema.appointments.tenantId),
+        or(
+          eq(schema.appointments.orderId, schema.orders.id),
+          eq(schema.orders.appointmentId, schema.appointments.id)
+        )
+      )
+    )
     .leftJoin(schema.staff, eq(schema.appointments.staffId, schema.staff.id))
     .where(
       and(
@@ -268,6 +288,7 @@ function mapAgendaAppointment(r: {
   notes: string | null;
   priceCents: number | null;
   orderId: string | null;
+  linkedOrderId?: string | null;
   orderStatus?: string | null;
   orderTotalCents?: number | null;
   meta: Record<string, unknown> | null;
@@ -310,7 +331,7 @@ function mapAgendaAppointment(r: {
     isEncaixe: r.isEncaixe,
     notes: r.notes,
     priceCents,
-    orderId: r.orderId,
+    orderId: r.orderId ?? r.linkedOrderId ?? null,
     orderStatus: r.orderStatus ?? null,
     blockedByName: typeof meta.blockedByName === "string" ? meta.blockedByName : null,
     seriesId: typeof meta.seriesId === "string" ? meta.seriesId : null,

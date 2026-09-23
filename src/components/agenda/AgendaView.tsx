@@ -467,8 +467,9 @@ export function AgendaView({
                             style={{
                               ...slotSpanStyle(a),
                               ...previewStyle(drag.preview, a.id),
+                              // Cor do profissional só como detalhe — status manda no fundo (todos os tenants).
                               ...(s.color && a.status !== "blocked"
-                                ? { background: s.color }
+                                ? { borderLeft: `3px solid ${s.color}` }
                                 : {}),
                             }}
                             onPointerDown={(e) => {
@@ -571,10 +572,19 @@ export function AgendaView({
 
           <div className="legend">
             <span>
-              <i style={{ background: "var(--slot)" }} /> Agendado
+              <i style={{ background: "#7dd3fc" }} /> Não confirmou
             </span>
             <span>
-              <i style={{ background: "#16a34a" }} /> Confirmado ✓
+              <i style={{ background: "#1e3a8a" }} /> Confirmou
+            </span>
+            <span>
+              <i style={{ background: "#15803d" }} /> Paga / fechada
+            </span>
+            <span>
+              <i style={{ background: "#eab308" }} /> Sem preferência
+            </span>
+            <span>
+              <i style={{ background: "#b91c1c" }} /> Não veio
             </span>
             <span>
               <span className="legend-glyph" aria-hidden>
@@ -598,7 +608,7 @@ export function AgendaView({
               <i style={{ background: "var(--slot-block)" }} /> Bloqueio
             </span>
             <span>
-              <i style={{ background: "#9ca3af" }} /> Cancelado / ausente ✕
+              <i style={{ background: "#9ca3af" }} /> Cancelado
             </span>
             {permissions.canWrite ? (
               <span className="legend-hint">
