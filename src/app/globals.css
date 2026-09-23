@@ -21,14 +21,14 @@
   --success: #00a65a;
   --danger: #dd4b39;
   --info: #3c8dbc;
-  --slot: #7b68c8;
+  --slot: #7dd3fc;
   --slot-block: #3cbbb0;
   --sidebar-w: 230px;
   --topbar-h: 50px;
   --font: "Quicksand", system-ui, sans-serif;
 }
 
-/* —— Donna Elegant (manual de marca — PDF) —— */
+/* ââ Donna Elegant (manual de marca â PDF) ââ */
 .app-shell.theme-donna-elegant {
   --header: #3e7454;
   --header-ink: #ffffff;
@@ -113,7 +113,7 @@ input {
   padding: 16px 18px 28px;
 }
 
-/* —— Sidebar (AdminLTE) —— */
+/* ââ Sidebar (AdminLTE) ââ */
 .sidebar {
   background: var(--sidebar);
   color: var(--sidebar-ink);
@@ -271,7 +271,7 @@ input {
   color: var(--sidebar-ink-active);
 }
 
-/* Barra laranja só no item principal — submenu não desloca */
+/* Barra laranja sÃ³ no item principal â submenu nÃ£o desloca */
 .nav-link.is-active:not(.nav-child) {
   border-left: 3px solid var(--header);
   padding-left: 13px;
@@ -320,7 +320,7 @@ input {
   font-size: 13px;
 }
 
-/* —— Topbar laranja —— */
+/* ââ Topbar laranja ââ */
 .topbar {
   height: var(--topbar-h);
   background: var(--header);
@@ -607,7 +607,7 @@ input {
   font-size: 14px;
 }
 
-/* —— Content —— */
+/* ââ Content ââ */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -1353,7 +1353,7 @@ input {
   }
 }
 
-/* —— Suporte (chat flutuante estilo AppBarber) —— */
+/* ââ Suporte (chat flutuante estilo AppBarber) ââ */
 .support-chat {
   position: fixed;
   left: 20px;
@@ -1743,27 +1743,27 @@ input {
 }
 
 .slot.tone-noshow {
-  background: #b91c1c;
+  background: #b91c1c !important;
   color: #fff;
 }
 
 .slot.tone-paid {
-  background: #15803d;
+  background: #15803d !important;
   color: #fff;
 }
 
 .slot.tone-confirmed {
-  background: #1e3a8a;
+  background: #1e3a8a !important;
   color: #fff;
 }
 
 .slot.tone-open {
-  background: #7dd3fc;
+  background: #7dd3fc !important;
   color: #0c4a6e;
 }
 
 .slot.tone-nopref {
-  background: #eab308;
+  background: #eab308 !important;
   color: #422006;
 }
 
@@ -2208,7 +2208,7 @@ input {
   }
 }
 
-/* —— Login —— */
+/* ââ Login ââ */
 .login-page {
   min-height: 100vh;
   display: grid;
@@ -2389,7 +2389,7 @@ input {
   padding: 5px 10px;
 }
 
-/* —— Drawer / Modal —— */
+/* ââ Drawer / Modal ââ */
 .ui-overlay {
   position: fixed;
   inset: 0;
@@ -2405,7 +2405,7 @@ input {
   background: rgba(15, 18, 22, 0.35);
 }
 
-/* Classe explícita — não depende de :has() (tablets antigos). */
+/* Classe explÃ­cita â nÃ£o depende de :has() (tablets antigos). */
 .ui-overlay-modal {
   z-index: 10000;
   justify-content: center;
@@ -2777,7 +2777,7 @@ input {
   color: var(--ok, #15803d);
 }
 
-/* ——— CRM redesign ——— */
+/* âââ CRM redesign âââ */
 .crm-page {
   display: flex;
   flex-direction: column;
@@ -4377,7 +4377,7 @@ body.is-agenda-dragging .slot {
   min-width: 180px;
 }
 
-/* —— Alertas / tomada de decisão —— */
+/* ââ Alertas / tomada de decisÃ£o ââ */
 .alert-list {
   list-style: none;
   margin: 0;
@@ -4603,7 +4603,7 @@ body.is-agenda-dragging .slot {
   min-width: 0;
 }
 
-/* —— Inbox / chat mobile (PWA) —— */
+/* ââ Inbox / chat mobile (PWA) ââ */
 .minbox {
   display: flex;
   flex-direction: column;
@@ -5022,7 +5022,7 @@ body.is-agenda-dragging .slot {
   }
 }
 
-/* —— Config agente (persona) —— */
+/* ââ Config agente (persona) ââ */
 .agent-config-form {
   display: flex;
   flex-direction: column;
@@ -5446,7 +5446,7 @@ body.is-agenda-dragging .slot {
   margin: 0;
 }
 
-/* —— Skeleton / pending (motion Emil) —— */
+/* ââ Skeleton / pending (motion Emil) ââ */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -5530,7 +5530,7 @@ body.is-agenda-dragging .slot {
   }
 }
 
-/* —— Disparos WhatsApp (UX balcão) —— */
+/* ââ Disparos WhatsApp (UX balcÃ£o) ââ */
 .disparos-status {
   margin-bottom: 16px;
 }
@@ -5790,7 +5790,7 @@ body.is-agenda-dragging .slot {
 
 
 
-/* �� Tesouraria �� */
+/* ï¿½ï¿½ Tesouraria ï¿½ï¿½ */
 .treasury-nav {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
