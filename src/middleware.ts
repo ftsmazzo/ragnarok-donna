@@ -104,16 +104,27 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (barberNeedsStaffLink(normalized, session.role, session.staffId)) {
+  // Comissões / performance: JWT pode ter staffId null mesmo com vínculo no banco
+  // (login antigo). Deixa a página hidratar o cookie e validar de verdade.
+  const deferStaffLinkCheck =
+    isBarberRole(session.role) &&
+    !session.staffId &&
+    (normalized === "/comissoes" || normalized === "/profissionais");
+
+  if (
+    !deferStaffLinkCheck &&
+    barberNeedsStaffLink(normalized, session.role, session.staffId)
+  ) {
     const url = new URL(deviceHome(request, session.role, session.staffId), request.url);
     url.searchParams.set("aviso", "vinculo-profissional");
     return NextResponse.redirect(url);
   }
 
-  const allowed = canAccessRoute(normalized, session.role, {
-    staffId: session.staffId,
-    queryStaffId: searchParams.get("id"),
-  });
+  const allowed =
+    canAccessRoute(normalized, session.role, {
+      staffId: session.staffId,
+      queryStaffId: searchParams.get("id"),
+    }) || deferStaffLinkCheck;
 
   if (!allowed) {
     // No celular, nunca devolve para /inicio (isso reabre o redirect e vira loop).
