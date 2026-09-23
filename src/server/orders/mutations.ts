@@ -361,6 +361,108 @@ async function attachSameDayClientAppointments(input: {
   await recalculateOrderTotal(input.orderId, input.tenantId);
 }
 
+/**
+ * Serviço lançado na comanda → card na agenda do profissional (visível pra ela).
+ * Produto não cria. Encaixe: não bloqueia por overlap no balcão.
+ */
+async function createAgendaSlotForOrderService(input: {
+  tenantId: string;
+  orderId: string;
+  orderItemId: string;
+  staffId: string;
+  serviceId: string;
+  clientId: string | null;
+  branchId: string | null;
+  priceCents: number;
+  qty: number;
+  performedAt: Date;
+  itemMeta: Record<string, unknown>;
+}) {
+  const db = createDb();
+  const [svc] = await db
+    .select({ durationMin: schema.services.durationMin })
+    .from(schema.services)
+    .where(
+      and(
+        eq(schema.services.id, input.serviceId),
+        eq(schema.services.tenantId, input.tenantId),
+        isNull(schema.services.deletedAt)
+      )
+    )
+    .limit(1);
+  const baseMin = svc?.durationMin && svc.durationMin > 0 ? svc.durationMin : 30;
+  const durationMin = Math.max(5, Math.min(480, baseMin * Math.max(1, input.qty)));
+  const startsAt = input.performedAt;
+  const endsAt = new Date(startsAt.getTime() + durationMin * 60_000);
+
+  const [appt] = await db
+    .insert(schema.appointments)
+    .values({
+      tenantId: input.tenantId,
+      branchId: input.branchId,
+      clientId: input.clientId,
+      staffId: input.staffId,
+      serviceId: input.serviceId,
+      startsAt,
+      endsAt,
+      status: "in_progress",
+      priceCents: input.priceCents,
+      source: "comanda",
+      isEncaixe: true,
+      orderId: input.orderId,
+      meta: {
+        fromOrderItemId: input.orderItemId,
+        walkInFromOrder: true,
+      },
+    })
+    .returning({ id: schema.appointments.id });
+
+  if (!appt) return;
+
+  await db
+    .update(schema.orderItems)
+    .set({
+      meta: {
+        ...input.itemMeta,
+        appointmentId: appt.id,
+        walkInFromOrder: true,
+      },
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.orderItems.id, input.orderItemId),
+        eq(schema.orderItems.tenantId, input.tenantId)
+      )
+    );
+}
+
+async function cancelAgendaSlotFromOrderItem(
+  tenantId: string,
+  meta: Record<string, unknown>
+) {
+  const appointmentId =
+    typeof meta.appointmentId === "string" ? meta.appointmentId : null;
+  if (!appointmentId) return;
+  if (!meta.walkInFromOrder && !meta.fromOrderItemId) return;
+
+  const db = createDb();
+  await db
+    .update(schema.appointments)
+    .set({
+      status: "cancelled",
+      deletedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.appointments.id, appointmentId),
+        eq(schema.appointments.tenantId, tenantId),
+        isNull(schema.appointments.deletedAt)
+      )
+    );
+}
+
 export async function openOrder(input: {
   clientId?: string;
   appointmentId?: string;
@@ -1131,6 +1233,35 @@ export async function addOrderItem(input: {
     await recalculateOrderTotal(input.orderId, tenant.id);
     if (input.itemType === "service") {
       await syncStaffMonthServiceCommission(tenant.id, staffId);
+      if (staffId && serviceId) {
+        const [orderCtx] = await db
+          .select({
+            clientId: schema.orders.clientId,
+            branchId: schema.orders.branchId,
+          })
+          .from(schema.orders)
+          .where(
+            and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id))
+          )
+          .limit(1);
+        try {
+          await createAgendaSlotForOrderService({
+            tenantId: tenant.id,
+            orderId: input.orderId,
+            orderItemId: row.id,
+            staffId,
+            serviceId,
+            clientId: orderCtx?.clientId ?? null,
+            branchId: orderCtx?.branchId ?? session.branch?.id ?? null,
+            priceCents: unitPriceCents,
+            qty,
+            performedAt: new Date(),
+            itemMeta: meta,
+          });
+        } catch (slotErr) {
+          console.error("[addOrderItem] falha ao criar slot na agenda", slotErr);
+        }
+      }
     }
     return { ok: true, id: row.id };
   } catch (err) {
@@ -1722,6 +1853,8 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
           )
         );
     }
+
+    await cancelAgendaSlotFromOrderItem(tenant.id, meta);
 
     await db
       .delete(schema.orderItems)
