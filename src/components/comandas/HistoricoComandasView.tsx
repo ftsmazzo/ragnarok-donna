@@ -110,7 +110,8 @@ export function HistoricoComandasView({
             to={data.to}
             q={data.q}
             showSearch
-            qPlaceholder="Cliente ou código"
+            submitLabel="Buscar"
+            qPlaceholder="Cliente, telefone ou código"
           >
             <label className="filter-field">
               <span>Status</span>

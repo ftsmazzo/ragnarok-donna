@@ -154,13 +154,7 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
   }
 
   if (q) {
-    where = and(
-      where,
-      or(
-        ilike(schema.clients.name, `%${q}%`),
-        ilike(schema.orders.externalId, `%${q}%`)
-      )
-    );
+    where = and(where, orderSearchCondition(q));
   }
 
   const rows = await db
@@ -176,6 +170,7 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
       total: sql<number>`coalesce(sum(${schema.orders.totalCents}), 0)::int`,
     })
     .from(schema.orders)
+    .leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
     .where(where);
 
   return {
@@ -213,12 +208,12 @@ export async function listOrderHistory(opts: {
   const scope = await resolveBranchScope();
   const staffFilter = await resolveBarberStaffFilter();
   const db = createDb();
-  const from = opts.from ?? shiftDaysSp(todaySp(), -30);
-  const to = opts.to ?? todaySp();
+  const from = normalizeDayParam(opts.from, shiftDaysSp(todaySp(), -30));
+  const to = normalizeDayParam(opts.to, todaySp());
   const { start, end } = rangeBoundsSp(from, to);
-  const status = opts.status ?? "all";
-  const page = Math.max(1, opts.page ?? 1);
-  const q = opts.q?.trim();
+  const status = normalizeHistoryStatus(opts.status);
+  const page = Math.max(1, Number(opts.page) || 1);
+  const q = typeof opts.q === "string" ? opts.q.trim() : "";
 
   if (scope.isInactiveBranch || staffFilter === null) {
     return {
@@ -231,7 +226,7 @@ export async function listOrderHistory(opts: {
       from,
       to,
       status,
-      q: q ?? "",
+      q,
     };
   }
 
@@ -255,13 +250,7 @@ export async function listOrderHistory(opts: {
   }
 
   if (q) {
-    where = and(
-      where,
-      or(
-        ilike(schema.clients.name, `%${q}%`),
-        ilike(schema.orders.externalId, `%${q}%`)
-      )
-    );
+    where = and(where, orderSearchCondition(q));
   }
 
   const [totalRow] = await db
@@ -299,8 +288,34 @@ export async function listOrderHistory(opts: {
     from,
     to,
     status,
-    q: q ?? "",
+    q,
   };
+}
+
+/** Cliente, telefone, código externo ou prefixo do id (ex.: 115380f8). */
+function orderSearchCondition(q: string) {
+  const like = `%${q.replace(/[%_\\]/g, "")}%`;
+  return or(
+    ilike(schema.clients.name, like),
+    ilike(schema.clients.phone, like),
+    ilike(schema.orders.externalId, like),
+    sql`(${schema.orders.id})::text ilike ${like}`
+  );
+}
+
+function normalizeDayParam(value: string | undefined, fallback: string): string {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return fallback;
+  const probe = new Date(`${raw}T12:00:00-03:00`);
+  if (Number.isNaN(probe.getTime())) return fallback;
+  return raw;
+}
+
+function normalizeHistoryStatus(
+  value: OrderStatus | "all" | string | undefined
+): OrderStatus | "all" {
+  if (value === "open" || value === "closed" || value === "cancelled") return value;
+  return "all";
 }
 
 function shiftDaysSp(dateStr: string, days: number): string {
