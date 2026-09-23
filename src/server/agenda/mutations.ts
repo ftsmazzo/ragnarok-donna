@@ -58,10 +58,13 @@ async function loadServiceDuration(
   return { durationMin: svc.durationMin, priceCents: svc.priceCents };
 }
 
-async function assertStaffBookable(tenantId: string, staffId: string) {
+async function assertStaffBookable(
+  tenantId: string,
+  staffId: string
+): Promise<{ id: string; branchId: string | null }> {
   const db = createDb();
   const [s] = await db
-    .select({ id: schema.staff.id })
+    .select({ id: schema.staff.id, branchId: schema.staff.branchId })
     .from(schema.staff)
     .where(
       and(
@@ -74,6 +77,20 @@ async function assertStaffBookable(tenantId: string, staffId: string) {
     )
     .limit(1);
   if (!s) throw new AppError("VALIDATION", "Profissional inválido");
+  return s;
+}
+
+/** Unidade do agendamento: staff → sessão → primeira branch do tenant. */
+async function resolveAppointmentBranchId(
+  tenantId: string,
+  staffBranchId: string | null | undefined,
+  sessionBranchId?: string | null
+): Promise<string | null> {
+  if (staffBranchId) return staffBranchId;
+  if (sessionBranchId) return sessionBranchId;
+  const { listTenantBranches } = await import("../context/branch");
+  const branches = await listTenantBranches(tenantId);
+  return branches[0]?.id ?? null;
 }
 
 async function assertNoOverlap(
@@ -133,7 +150,12 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
     requireCapability(session, "appointments.write");
 
     const tenant = await requireTenantContext();
-    await assertStaffBookable(tenant.id, raw.staffId);
+    const staff = await assertStaffBookable(tenant.id, raw.staffId);
+    const branchId = await resolveAppointmentBranchId(
+      tenant.id,
+      staff.branchId,
+      session.branch?.id
+    );
 
     const { durationMin, minute } = parseWriteInput(raw);
     const svc = await loadServiceDuration(tenant.id, raw.serviceId, durationMin);
@@ -160,6 +182,7 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
         .insert(schema.appointments)
         .values({
           tenantId: tenant.id,
+          branchId,
           staffId: raw.staffId,
           startsAt: start,
           endsAt: end,
@@ -237,6 +260,7 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
       .insert(schema.appointments)
       .values({
         tenantId: tenant.id,
+        branchId,
         staffId: raw.staffId,
         clientId: raw.clientId,
         serviceId: raw.serviceId || null,
@@ -497,10 +521,12 @@ export async function updateAppointment(input: {
     const { formatDateSp, hourInSp, minuteInSp } = await import("@/lib/datetime");
 
     let staffId = appt.staffId;
+    let branchId: string | null | undefined;
     if (touchStaff) {
       if (!input.staffId) throw new AppError("VALIDATION", "Profissional obrigatório");
-      await assertStaffBookable(tenant.id, input.staffId);
+      const staff = await assertStaffBookable(tenant.id, input.staffId);
       staffId = input.staffId;
+      branchId = staff.branchId ?? session.branch?.id ?? null;
     }
     if (!staffId) throw new AppError("VALIDATION", "Profissional inválido");
 
@@ -560,6 +586,7 @@ export async function updateAppointment(input: {
       .update(schema.appointments)
       .set({
         staffId,
+        ...(branchId !== undefined ? { branchId } : {}),
         serviceId,
         startsAt,
         endsAt,

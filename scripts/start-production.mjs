@@ -807,6 +807,19 @@ async function ensureRequiredAccountSchema() {
     `;
 
     await ensureTreasurySchema(sql);
+
+    // Agendamentos antigos sem unidade: herdam branch do profissional (multi-unidade Donna).
+    await sql.unsafe(`
+UPDATE appointments a
+SET branch_id = s.branch_id,
+    updated_at = now()
+FROM staff s
+WHERE a.staff_id = s.id
+  AND a.branch_id IS NULL
+  AND s.branch_id IS NOT NULL
+  AND a.deleted_at IS NULL
+`);
+    console.log("[bootstrap] appointments.branch_id backfill from staff ok");
   } finally {
     await sql.end({ timeout: 5 });
   }

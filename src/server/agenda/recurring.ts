@@ -160,7 +160,7 @@ export async function scheduleRecurringSeries(raw: {
     const db = createDb();
 
     const [staff] = await db
-      .select({ id: schema.staff.id })
+      .select({ id: schema.staff.id, branchId: schema.staff.branchId })
       .from(schema.staff)
       .where(
         and(
@@ -173,6 +173,24 @@ export async function scheduleRecurringSeries(raw: {
       )
       .limit(1);
     if (!staff) throw new AppError("VALIDATION", "Profissional inválido");
+
+    const branchId =
+      staff.branchId ??
+      session.branch?.id ??
+      (
+        await db
+          .select({ id: schema.branches.id })
+          .from(schema.branches)
+          .where(
+            and(
+              eq(schema.branches.tenantId, tenant.id),
+              eq(schema.branches.isActive, true),
+              isNull(schema.branches.deletedAt)
+            )
+          )
+          .limit(1)
+      )[0]?.id ??
+      null;
 
     const [client] = await db
       .select({ id: schema.clients.id })
@@ -254,6 +272,7 @@ export async function scheduleRecurringSeries(raw: {
         .insert(schema.appointments)
         .values({
           tenantId: tenant.id,
+          branchId,
           staffId: raw.staffId,
           clientId: raw.clientId,
           serviceId: raw.serviceId || null,

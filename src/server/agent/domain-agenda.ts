@@ -235,7 +235,7 @@ export async function bookAppointmentForAgent(input: {
   const { start, end } = slotRangeSp(input.date, input.hour, input.durationMin, minute);
 
   const [staff] = await db
-    .select({ id: schema.staff.id })
+    .select({ id: schema.staff.id, branchId: schema.staff.branchId })
     .from(schema.staff)
     .where(
       and(
@@ -274,6 +274,7 @@ export async function bookAppointmentForAgent(input: {
     .insert(schema.appointments)
     .values({
       tenantId: input.tenantId,
+      branchId: staff.branchId,
       staffId: input.staffId,
       clientId: input.clientId,
       serviceId: input.serviceId || null,
@@ -361,7 +362,7 @@ export async function rescheduleAppointmentForAgent(input: {
       if (!old.clientId) throw new Error("Agendamento sem cliente");
 
       const [staff] = await tx
-        .select({ id: schema.staff.id })
+        .select({ id: schema.staff.id, branchId: schema.staff.branchId })
         .from(schema.staff)
         .where(
           and(
@@ -411,6 +412,7 @@ export async function rescheduleAppointmentForAgent(input: {
         .insert(schema.appointments)
         .values({
           tenantId: input.tenantId,
+          branchId: staff.branchId,
           staffId: input.staffId,
           clientId: old.clientId,
           serviceId: serviceId || null,
