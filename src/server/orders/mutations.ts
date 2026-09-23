@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
@@ -16,6 +16,7 @@ import {
   annotateServiceCommission,
   syncStaffMonthServiceCommission,
 } from "../commissions/house";
+import { dayBoundsSp } from "@/lib/datetime";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -180,6 +181,186 @@ function calcCommission(
   };
 }
 
+const ATTACHABLE_APPT = ["scheduled", "confirmed", "arrived", "in_progress"] as const;
+
+/** Marca completed todos os horários vinculados à comanda (+ appointment primário legado). */
+async function completeAppointmentsLinkedToOrder(
+  db: DbTransaction | ReturnType<typeof createDb>,
+  tenantId: string,
+  orderId: string,
+  primaryAppointmentId?: string | null
+) {
+  await db
+    .update(schema.appointments)
+    .set({ status: "completed", updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenantId),
+        isNull(schema.appointments.deletedAt),
+        or(
+          eq(schema.appointments.orderId, orderId),
+          primaryAppointmentId
+            ? eq(schema.appointments.id, primaryAppointmentId)
+            : sql`false`
+        )
+      )
+    );
+}
+
+type SeedAppt = {
+  id: string;
+  staffId: string | null;
+  serviceId: string | null;
+  priceCents: number | null;
+  serviceName: string | null;
+  servicePriceCents: number | null;
+  serviceCommissionBps: number | null;
+};
+
+async function seedServiceItemFromAppointment(
+  db: ReturnType<typeof createDb>,
+  tenantId: string,
+  orderId: string,
+  appt: SeedAppt
+) {
+  if (!appt.serviceId || !appt.serviceName) return;
+  const priceCents =
+    appt.priceCents != null && appt.priceCents > 0
+      ? appt.priceCents
+      : appt.servicePriceCents != null && appt.servicePriceCents > 0
+        ? appt.servicePriceCents
+        : null;
+  if (priceCents == null || priceCents <= 0) return;
+
+  const existing = await db
+    .select({ id: schema.orderItems.id })
+    .from(schema.orderItems)
+    .where(
+      and(
+        eq(schema.orderItems.orderId, orderId),
+        eq(schema.orderItems.tenantId, tenantId),
+        eq(schema.orderItems.serviceId, appt.serviceId),
+        appt.staffId
+          ? eq(schema.orderItems.staffId, appt.staffId)
+          : isNull(schema.orderItems.staffId)
+      )
+    )
+    .limit(1);
+  if (existing[0]) return;
+
+  const { commissionBps, commissionCents } = calcCommission(
+    priceCents,
+    appt.serviceCommissionBps
+  );
+  await db.insert(schema.orderItems).values({
+    tenantId,
+    orderId,
+    itemType: "service",
+    serviceId: appt.serviceId,
+    productId: null,
+    packageId: null,
+    staffId: appt.staffId,
+    description: appt.serviceName,
+    qty: 1,
+    unitPriceCents: priceCents,
+    discountCents: 0,
+    totalCents: priceCents,
+    commissionBps,
+    commissionCents,
+    performedAt: new Date(),
+    meta: {},
+  });
+  await syncStaffMonthServiceCommission(tenantId, appt.staffId);
+}
+
+/**
+ * Agrupa na mesma comanda os horários do mesmo cliente no mesmo dia (unidade).
+ * Não cria agenda nova — só vincula e seeda itens faltantes.
+ */
+async function attachSameDayClientAppointments(input: {
+  tenantId: string;
+  orderId: string;
+  clientId: string;
+  branchId?: string | null;
+  dayAnchor: Date;
+}) {
+  const db = createDb();
+  const { start, end } = dayBoundsSp(
+    input.dayAnchor.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
+  );
+
+  let where = and(
+    eq(schema.appointments.tenantId, input.tenantId),
+    eq(schema.appointments.clientId, input.clientId),
+    gte(schema.appointments.startsAt, start),
+    lte(schema.appointments.startsAt, end),
+    isNull(schema.appointments.deletedAt),
+    inArray(schema.appointments.status, [...ATTACHABLE_APPT]),
+    or(
+      isNull(schema.appointments.orderId),
+      eq(schema.appointments.orderId, input.orderId)
+    )
+  );
+  if (input.branchId) {
+    where = and(
+      where,
+      or(
+        eq(schema.appointments.branchId, input.branchId),
+        isNull(schema.appointments.branchId)
+      )
+    );
+  }
+
+  const siblings = await db
+    .select({
+      id: schema.appointments.id,
+      staffId: schema.appointments.staffId,
+      serviceId: schema.appointments.serviceId,
+      priceCents: schema.appointments.priceCents,
+      orderId: schema.appointments.orderId,
+      serviceName: schema.services.name,
+      servicePriceCents: schema.services.priceCents,
+      serviceCommissionBps: schema.services.commissionBps,
+    })
+    .from(schema.appointments)
+    .leftJoin(
+      schema.services,
+      and(
+        eq(schema.services.id, schema.appointments.serviceId),
+        eq(schema.services.tenantId, input.tenantId)
+      )
+    )
+    .where(where);
+
+  for (const appt of siblings) {
+    await db
+      .update(schema.appointments)
+      .set({
+        orderId: input.orderId,
+        status: "in_progress",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.id, appt.id),
+          eq(schema.appointments.tenantId, input.tenantId)
+        )
+      );
+
+    await seedServiceItemFromAppointment(db, input.tenantId, input.orderId, {
+      id: appt.id,
+      staffId: appt.staffId,
+      serviceId: appt.serviceId,
+      priceCents: appt.priceCents,
+      serviceName: appt.serviceName,
+      servicePriceCents: appt.servicePriceCents,
+      serviceCommissionBps: appt.serviceCommissionBps,
+    });
+  }
+
+  await recalculateOrderTotal(input.orderId, input.tenantId);
+}
+
 export async function openOrder(input: {
   clientId?: string;
   appointmentId?: string;
@@ -208,11 +389,8 @@ export async function openOrder(input: {
       if (!client) throw new AppError("VALIDATION", "Cliente inválido");
     }
 
-    let seedServiceId: string | null = null;
-    let seedStaffId: string | null = null;
-    let seedPriceCents: number | null = null;
-    let seedServiceName: string | null = null;
-    let seedCommissionBps: number | null = null;
+    let dayAnchor: Date | null = null;
+    let apptBranchId: string | null = null;
 
     if (appointmentId) {
       const [appt] = await db
@@ -223,6 +401,8 @@ export async function openOrder(input: {
           staffId: schema.appointments.staffId,
           serviceId: schema.appointments.serviceId,
           priceCents: schema.appointments.priceCents,
+          startsAt: schema.appointments.startsAt,
+          branchId: schema.appointments.branchId,
           serviceName: schema.services.name,
           servicePriceCents: schema.services.priceCents,
           serviceCommissionBps: schema.services.commissionBps,
@@ -244,29 +424,31 @@ export async function openOrder(input: {
         )
         .limit(1);
       if (!appt) throw new AppError("VALIDATION", "Agendamento inválido");
-      if (appt.orderId) {
-        return { ok: true, id: appt.orderId };
-      }
       if (!clientId && appt.clientId) {
         clientId = appt.clientId;
       }
-      seedServiceId = appt.serviceId;
-      seedStaffId = appt.staffId;
-      seedServiceName = appt.serviceName;
-      seedPriceCents =
-        appt.priceCents != null && appt.priceCents > 0
-          ? appt.priceCents
-          : appt.servicePriceCents != null && appt.servicePriceCents > 0
-            ? appt.servicePriceCents
-            : null;
-      seedCommissionBps = appt.serviceCommissionBps;
+      dayAnchor = appt.startsAt;
+      apptBranchId = appt.branchId ?? session.branch?.id ?? null;
+
+      if (appt.orderId) {
+        if (clientId && dayAnchor) {
+          await attachSameDayClientAppointments({
+            tenantId: tenant.id,
+            orderId: appt.orderId,
+            clientId,
+            branchId: apptBranchId,
+            dayAnchor,
+          });
+        }
+        return { ok: true, id: appt.orderId };
+      }
     }
 
     const [row] = await db
       .insert(schema.orders)
       .values({
         tenantId: tenant.id,
-        branchId: session.branch?.id ?? null,
+        branchId: session.branch?.id ?? apptBranchId ?? null,
         clientId: clientId || null,
         appointmentId: appointmentId || null,
         status: "open",
@@ -275,7 +457,15 @@ export async function openOrder(input: {
       })
       .returning({ id: schema.orders.id });
 
-    if (appointmentId) {
+    if (appointmentId && clientId && dayAnchor) {
+      await attachSameDayClientAppointments({
+        tenantId: tenant.id,
+        orderId: row.id,
+        clientId,
+        branchId: apptBranchId ?? session.branch?.id ?? null,
+        dayAnchor,
+      });
+    } else if (appointmentId) {
       await db
         .update(schema.appointments)
         .set({
@@ -289,33 +479,6 @@ export async function openOrder(input: {
             eq(schema.appointments.tenantId, tenant.id)
           )
         );
-    }
-
-    if (seedServiceId && seedServiceName && seedPriceCents != null && seedPriceCents > 0) {
-      const { commissionBps, commissionCents } = calcCommission(
-        seedPriceCents,
-        seedCommissionBps
-      );
-      await db.insert(schema.orderItems).values({
-        tenantId: tenant.id,
-        orderId: row.id,
-        itemType: "service",
-        serviceId: seedServiceId,
-        productId: null,
-        packageId: null,
-        staffId: seedStaffId,
-        description: seedServiceName,
-        qty: 1,
-        unitPriceCents: seedPriceCents,
-        discountCents: 0,
-        totalCents: seedPriceCents,
-        commissionBps,
-        commissionCents,
-        performedAt: new Date(),
-        meta: {},
-      });
-      await syncStaffMonthServiceCommission(tenant.id, seedStaffId);
-      await recalculateOrderTotal(row.id, tenant.id);
     }
 
     return { ok: true, id: row.id };
@@ -2009,17 +2172,12 @@ export async function settleAndCloseOrder(input: {
       if (!updated) {
         throw new AppError("CONFLICT", "A comanda já foi fechada por outra operação");
       }
-      if (updated.appointmentId) {
-        await tx
-          .update(schema.appointments)
-          .set({ status: "completed", updatedAt: new Date() })
-          .where(
-            and(
-              eq(schema.appointments.id, updated.appointmentId),
-              eq(schema.appointments.tenantId, tenant.id)
-            )
-          );
-      }
+      await completeAppointmentsLinkedToOrder(
+        tx,
+        tenant.id,
+        input.orderId,
+        updated.appointmentId
+      );
     });
 
     return { ok: true, id: input.orderId };
@@ -2120,17 +2278,12 @@ export async function closeOrder(orderId: string): Promise<ActionResult> {
       })
       .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
 
-    if (detail.appointmentId) {
-      await db
-        .update(schema.appointments)
-        .set({ status: "completed", updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.appointments.id, detail.appointmentId),
-            eq(schema.appointments.tenantId, tenant.id)
-          )
-        );
-    }
+    await completeAppointmentsLinkedToOrder(
+      db,
+      tenant.id,
+      orderId,
+      detail.appointmentId
+    );
 
     return { ok: true, id: orderId };
   } catch (err) {
@@ -2453,17 +2606,12 @@ export async function payAndCloseOrder(input: {
           throw new AppError("CONFLICT", "A comanda já foi fechada por outra operação");
         }
 
-        if (updated.appointmentId) {
-          await tx
-            .update(schema.appointments)
-            .set({ status: "completed", updatedAt: new Date() })
-            .where(
-              and(
-                eq(schema.appointments.id, updated.appointmentId),
-                eq(schema.appointments.tenantId, tenant.id)
-              )
-            );
-        }
+        await completeAppointmentsLinkedToOrder(
+          tx,
+          tenant.id,
+          input.orderId,
+          updated.appointmentId
+        );
       });
 
       return { ok: true, id: input.orderId };
@@ -2547,17 +2695,12 @@ export async function payAndCloseOrder(input: {
       if (!updated) {
         throw new AppError("CONFLICT", "A comanda já foi fechada por outra operação");
       }
-      if (updated.appointmentId) {
-        await tx
-          .update(schema.appointments)
-          .set({ status: "completed", updatedAt: new Date() })
-          .where(
-            and(
-              eq(schema.appointments.id, updated.appointmentId),
-              eq(schema.appointments.tenantId, tenant.id)
-            )
-          );
-      }
+      await completeAppointmentsLinkedToOrder(
+        tx,
+        tenant.id,
+        input.orderId,
+        updated.appointmentId
+      );
     });
     return { ok: true, id: input.orderId };
   } catch (err) {
@@ -2666,17 +2809,12 @@ export async function closeOrderToClientAccount(orderId: string): Promise<Action
         throw new AppError("CONFLICT", "A comanda já foi fechada por outra operação");
       }
 
-      if (updated.appointmentId) {
-        await tx
-          .update(schema.appointments)
-          .set({ status: "completed", updatedAt: new Date() })
-          .where(
-            and(
-              eq(schema.appointments.id, updated.appointmentId),
-              eq(schema.appointments.tenantId, tenant.id)
-            )
-          );
-      }
+      await completeAppointmentsLinkedToOrder(
+        tx,
+        tenant.id,
+        orderId,
+        updated.appointmentId
+      );
 
     });
 

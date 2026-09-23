@@ -3641,6 +3641,11 @@ body.is-agenda-dragging .slot {
   color: #e65100;
 }
 
+.order-badge.is-closed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
 .order-checkout-sheet {
   display: flex;
   flex-direction: column;
@@ -5785,7 +5790,7 @@ body.is-agenda-dragging .slot {
 
 
 
-/* —— Tesouraria —— */
+/* ï¿½ï¿½ Tesouraria ï¿½ï¿½ */
 .treasury-nav {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

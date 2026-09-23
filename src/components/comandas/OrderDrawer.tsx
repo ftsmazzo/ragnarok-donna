@@ -596,7 +596,17 @@ export function OrderDrawer({
         onClose={onClose}
         width={560}
         title={order.externalId ? `Comanda #${order.externalId}` : "Comanda"}
-        subtitle={`${order.clientName ?? "Sem cliente"} · ${labelOrderStatus(order.status)}`}
+        subtitle={
+          <>
+            {order.clientName ?? "Sem cliente"}
+            {" · "}
+            {order.status === "closed" ? (
+              <span className="order-badge is-closed">{labelOrderStatus(order.status)}</span>
+            ) : (
+              labelOrderStatus(order.status)
+            )}
+          </>
+        }
         footer={
           checkoutMode ? (
             <>
@@ -1412,6 +1422,12 @@ export function OrderDrawer({
 
         {canEdit ? (
           <form className="form-stack order-add-item" onSubmit={handleAddItem}>
+            {itemType === "service" ? (
+              <p className="client-profile-hint muted">
+                Serviço avulso — não cria horário na agenda. Escolha serviço e profissional
+                da comissão.
+              </p>
+            ) : null}
             <div className="form-row-2">
               <label className="form-field">
                 <span>Tipo</span>
@@ -1576,17 +1592,29 @@ export function OrderDrawer({
               <>
                 <label className="form-field">
                   <span>Desconto no item (%)</span>
-                  <input
-                    name="discountPercent"
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.01}
-                    value={itemCourtesy ? "100" : itemDiscountPct}
-                    onChange={(e) => setItemDiscountPct(e.target.value)}
-                    placeholder="0"
-                    disabled={itemCourtesy}
-                  />
+                  <div className="form-row-2" style={{ alignItems: "center", gap: 8 }}>
+                    <input
+                      name="discountPercent"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={itemCourtesy ? "100" : itemDiscountPct}
+                      onChange={(e) => setItemDiscountPct(e.target.value)}
+                      placeholder="0"
+                      disabled={itemCourtesy}
+                    />
+                    {!itemCourtesy ? (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        title="Aplica 50% de desconto no item"
+                        onClick={() => setItemDiscountPct("50")}
+                      >
+                        50%
+                      </button>
+                    ) : null}
+                  </div>
                   <span className="client-profile-hint muted">
                     {itemCourtesy
                       ? `Cortesia: item sai a ${formatMoney(0)} (tabela ${formatMoney(itemDiscountBaseCents)}).`

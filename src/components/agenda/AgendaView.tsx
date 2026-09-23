@@ -93,7 +93,7 @@ function slotClass(a: AgendaAppointment): string {
   if (a.status === "blocked") parts.push("block");
   else if (a.status === "cancelled") parts.push("muted");
   else if (a.status === "no_show" || (a.seriesConflict && a.status === "scheduled")) parts.push("tone-noshow");
-  else if (a.orderStatus === "closed") parts.push("tone-paid");
+  else if (a.orderStatus === "closed" || a.status === "completed") parts.push("tone-paid");
   else if (a.status === "confirmed") parts.push("tone-confirmed");
   else if (a.noPreference) parts.push("tone-nopref");
   else parts.push("tone-open");
