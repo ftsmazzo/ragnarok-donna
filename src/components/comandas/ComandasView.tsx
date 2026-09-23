@@ -142,7 +142,13 @@ export function ComandasView({
                     <td>{formatMoney(o.paidCents)}</td>
                     <td>{formatMoney(o.totalCents)}</td>
                     <td>
-                      <span className="badge is-warn">{labelOrderStatus(o.status)}</span>
+                      <span
+                        className={
+                          o.status === "closed" ? "badge is-success" : "badge is-warn"
+                        }
+                      >
+                        {labelOrderStatus(o.status)}
+                      </span>
                     </td>
                   </tr>
                 ))
