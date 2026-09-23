@@ -5,11 +5,23 @@ import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import { requireCapability } from "../permissions/guards";
+import { isBarberRole } from "../permissions/roles";
 import { assertOwnStaffAccess } from "../permissions/staff-scope";
 import { HOUSE_RULES, isLockedStaffName, isLunchTimeHm } from "../house-rules/defaults";
 import { getAppointmentDetail } from "./queries";
 import { rangesOverlap } from "./utils";
 import type { AppointmentEditScope } from "./types";
+import type { AppSession } from "../types";
+
+/** Barbeiro só opera a própria coluna — dono/recepção passam direto. */
+async function assertBarberOwnStaff(
+  session: AppSession,
+  staffId: string | null | undefined
+): Promise<void> {
+  if (!isBarberRole(session.role)) return;
+  if (!staffId) throw new ForbiddenError();
+  await assertOwnStaffAccess(session, staffId);
+}
 
 export type ActionResult =
   | { ok: true; id: string; warning?: string }
@@ -148,6 +160,7 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
   try {
     const session = await requireSession();
     requireCapability(session, "appointments.write");
+    await assertBarberOwnStaff(session, raw.staffId);
 
     const tenant = await requireTenantContext();
     const staff = await assertStaffBookable(tenant.id, raw.staffId);
@@ -323,11 +336,11 @@ export async function updateAppointmentStatus(
 
     if (status === "cancelled" || status === "no_show") {
       requireCapability(session, "appointments.cancel");
+      await assertBarberOwnStaff(session, appt.staffId);
     } else if (hasCapability(session.role, "appointments.write")) {
-      // ok
+      await assertBarberOwnStaff(session, appt.staffId);
     } else if (hasCapability(session.role, "appointments.status_own")) {
-      if (!appt.staffId) throw new ForbiddenError();
-      await assertOwnStaffAccess(session, appt.staffId);
+      await assertBarberOwnStaff(session, appt.staffId);
       const barberAllowed = ["arrived", "in_progress", "completed", "confirmed"];
       if (!barberAllowed.includes(status)) {
         throw new ForbiddenError("Barbeiro não pode alterar para este status");
@@ -389,6 +402,7 @@ export async function removeBlock(id: string): Promise<ActionResult> {
     requireCapability(session, "appointments.write");
 
     const appt = await getAppointmentDetail(id);
+    await assertBarberOwnStaff(session, appt.staffId);
     if (appt.status !== "blocked") {
       throw new AppError("VALIDATION", "Não é um bloqueio");
     }
@@ -430,10 +444,7 @@ export async function patchAppointmentMeta(
     if (appt.status === "blocked") {
       throw new AppError("VALIDATION", "Bloqueio não aceita tag/preferência");
     }
-    if (hasCapability(session.role, "appointments.status_own") && !hasCapability(session.role, "appointments.write")) {
-      if (!appt.staffId) throw new ForbiddenError();
-      await assertOwnStaffAccess(session, appt.staffId);
-    }
+    await assertBarberOwnStaff(session, appt.staffId);
 
     const tenant = await requireTenantContext();
     const db = createDb();
@@ -502,6 +513,7 @@ export async function updateAppointment(input: {
     requireCapability(session, "appointments.write");
 
     const appt = await getAppointmentDetail(input.id);
+    await assertBarberOwnStaff(session, appt.staffId);
     if (appt.status === "blocked") {
       throw new AppError("VALIDATION", "Use edição de bloqueio / remover");
     }
@@ -524,6 +536,7 @@ export async function updateAppointment(input: {
     let branchId: string | null | undefined;
     if (touchStaff) {
       if (!input.staffId) throw new AppError("VALIDATION", "Profissional obrigatório");
+      await assertBarberOwnStaff(session, input.staffId);
       const staff = await assertStaffBookable(tenant.id, input.staffId);
       staffId = input.staffId;
       branchId = staff.branchId ?? session.branch?.id ?? null;
@@ -618,6 +631,7 @@ export async function setAppointmentEncaixe(
     requireCapability(session, "appointments.write");
 
     const appt = await getAppointmentDetail(id);
+    await assertBarberOwnStaff(session, appt.staffId);
     if (appt.status === "blocked") {
       throw new AppError("VALIDATION", "Bloqueio não vira encaixe");
     }

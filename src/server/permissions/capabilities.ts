@@ -85,7 +85,10 @@ const RECEPTION: Capability[] = [
 ];
 
 const BARBER: Capability[] = [
+  "clients.read",
   "appointments.read",
+  "appointments.write",
+  "appointments.cancel",
   "appointments.status_own",
   "orders.read",
   /** Só produtos na própria comanda — mutations restringem o restante. */

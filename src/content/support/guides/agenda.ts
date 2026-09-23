@@ -69,12 +69,12 @@ export const guideAgenda: SupportGuide = {
     {
       title: "Ausente e Cancelado",
       detail:
-        "No detalhe (botões Ausente e Cancelado) ou menu de contexto — só com permissão de cancelamento (Titular, admin, gerente). Ausente = no-show (cliente faltou). Cancelado = desistência antes ou no dia. Horários encerrados somem das ações rápidas.",
+        "No detalhe (botões Ausente e Cancelado) ou menu de contexto — com permissão de cancelamento (Titular, admin, gerente e profissional na própria coluna). Ausente = no-show (cliente faltou). Cancelado = desistência antes ou no dia. Horários encerrados somem das ações rápidas.",
     },
     {
       title: "Quem pode cancelar / marcar status",
       detail:
-        "Gerente e titular/admin: escrevem na agenda, cancelam (Ausente/Cancelado) e mudam qualquer horário. Barbeiro: vê só a própria coluna (profissional vinculado), marca No Local / Em atendimento / Finalizar horário nos seus — não vê Ausente/Cancelado. Somente leitura: consulta a grade, sem botões de alteração.",
+        "Gerente e titular/admin: escrevem na agenda, cancelam (Ausente/Cancelado) e mudam qualquer horário. Profissional (barbeiro): vê só a própria coluna, agenda/remarca/cancela nela, marca No Local / Em atendimento / Finalizar e consulta a própria comissão. Somente leitura: consulta a grade, sem botões de alteração.",
     },
     {
       title: "Confirmar / desconfirmar",

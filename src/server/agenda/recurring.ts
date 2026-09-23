@@ -3,6 +3,8 @@ import { createDb, schema } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
+import { isBarberRole } from "../permissions/roles";
+import { assertOwnStaffAccess } from "../permissions/staff-scope";
 import { rangesOverlap } from "./utils";
 
 export type RecurringPeriodicity =
@@ -130,6 +132,10 @@ export async function scheduleRecurringSeries(raw: {
   try {
     const session = await requireSession();
     requireCapability(session, "appointments.write");
+    if (isBarberRole(session.role)) {
+      if (!raw.staffId) throw new ForbiddenError();
+      await assertOwnStaffAccess(session, raw.staffId);
+    }
     const tenant = await requireTenantContext();
 
     if (!raw.staffId) throw new AppError("VALIDATION", "Profissional obrigatório");
