@@ -10,9 +10,10 @@ import { listUserOrganizations } from "@/server/auth/organizations";
 import { listTenantBranches } from "@/server/context/branch";
 import { requireSession } from "@/server/context/tenant";
 import { canSwitchBranches, getMembershipBranchId } from "@/server/members";
-import { isOwnerRole } from "@/server/permissions/roles";
+import { isBarberRole, isOwnerRole } from "@/server/permissions/roles";
 import { hydrateSessionStaffId } from "@/server/permissions/staff-scope";
 import { ensureDonnaImportIfEmpty } from "@/server/tenant/donna-import";
+import { PersistStaffSession } from "@/components/shell/PersistStaffSession";
 
 export default async function PainelLayout({
   children,
@@ -20,7 +21,10 @@ export default async function PainelLayout({
   children: React.ReactNode;
 }) {
   let session = await requireSession();
+  const staffIdBefore = session.staffId;
   session = await hydrateSessionStaffId(session);
+  const needsStaffPersist =
+    isBarberRole(session.role) && !staffIdBefore && Boolean(session.staffId);
   void ensureDonnaImportIfEmpty(session.tenant.id, session.tenant.slug);
   const db = createDb();
   const [tenantRow] = await db
@@ -81,6 +85,7 @@ export default async function PainelLayout({
           branches: branches.map((b) => ({ slug: b.slug, name: b.name })),
         }}
       >
+        <PersistStaffSession needsPersist={needsStaffPersist} />
         <Suspense
           fallback={
             <div className="panel" style={{ margin: 16 }}>
