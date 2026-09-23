@@ -303,11 +303,29 @@ export async function getTenantOverview(): Promise<TenantOverview> {
   const db = getDb();
   const { start, end } = dayBoundsSp();
 
+  // Clientes são compartilhados entre unidades do tenant (ex.: Donna U01 ↔ U02).
+  // Unidade sem equipe ainda mostra a base de clientes; zera só métricas da unidade.
   if (scope.isInactiveBranch) {
+    const [[clients], [clientsActive]] = await Promise.all([
+      db
+        .select({ n: count() })
+        .from(schema.clients)
+        .where(eq(schema.clients.tenantId, tenant.id)),
+      db
+        .select({ n: count() })
+        .from(schema.clients)
+        .where(
+          and(
+            eq(schema.clients.tenantId, tenant.id),
+            eq(schema.clients.isActive, true),
+            isNull(schema.clients.deletedAt)
+          )
+        ),
+    ]);
     return {
       tenantName: tenant.name,
-      clients: 0,
-      clientsActive: 0,
+      clients: Number(clients?.n ?? 0),
+      clientsActive: Number(clientsActive?.n ?? 0),
       staff: 0,
       services: 0,
       products: 0,

@@ -200,23 +200,21 @@ export async function ensureBusinessProfile(input: {
     .orderBy(asc(schema.branches.slug))
     .limit(1);
 
-  if (branch && branch.slug === "unidade-01") {
-    await db
-      .update(schema.branches)
-      .set({
-        name: "Donna Elegant — Unidade 01",
-        address: profile.endereco.textoCompleto,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.branches.id, branch.id));
-  } else if (branch) {
-    await db
-      .update(schema.branches)
-      .set({
-        address: profile.endereco.textoCompleto,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.branches.id, branch.id));
+  const isDonnaTenant = /donna/i.test(tenant.slug) || /donna/i.test(tenant.name);
+  if (branch) {
+    // Nunca renomear unidade da Ragnarok para "Donna Elegant — …"
+    // (bug antigo: qualquer slug unidade-01 virava Donna e a Carol via
+    // "Unidades Donna" com a base de clientes da barbearia).
+    const branchPatch: { address: string; updatedAt: Date; name?: string } = {
+      address: profile.endereco.textoCompleto,
+      updatedAt: new Date(),
+    };
+    if (isDonnaTenant && branch.slug === "unidade-01") {
+      branchPatch.name = "Donna Elegant — Unidade 01";
+    } else if (isDonnaTenant && branch.slug === "unidade-02") {
+      branchPatch.name = "Donna Elegant — Unidade 02";
+    }
+    await db.update(schema.branches).set(branchPatch).where(eq(schema.branches.id, branch.id));
   }
 
   const businessName = profile.nomeFantasia;

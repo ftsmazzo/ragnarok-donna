@@ -30,6 +30,28 @@ export function resolveTenantBrand(input: {
   const looksDonna = /donna/i.test(input.tenantSlug) || /donna/i.test(input.tenantName);
 
   if (profile) {
+    // Slug manda: se o settings foi poluído com perfil da outra marca, não troca a UI.
+    const profileIsDonna = /donna/i.test(profile.nomeFantasia);
+    if (looksRagnarok && profileIsDonna) {
+      const b = RAGNAROK_BUSINESS_PROFILE;
+      return {
+        displayName: b.nomeFantasia,
+        tagline: b.tagline,
+        logoSrc: b.brand.logoLocalPath ?? b.brand.logoUrl,
+        faviconSrc: "/branding/ragnarok-app-icon-192.png",
+        themeClass: "theme-ragnaroks",
+      };
+    }
+    if (looksDonna && !profileIsDonna && /ragnarok/i.test(profile.nomeFantasia)) {
+      const b = DONNA_ELEGANT_BUSINESS_PROFILE;
+      return {
+        displayName: b.nomeFantasia,
+        tagline: b.tagline,
+        logoSrc: b.brand.logoLocalPath ?? b.brand.logoUrl,
+        faviconSrc: "/branding/donna-elegant-logo.png",
+        themeClass: "theme-donna-elegant",
+      };
+    }
     return {
       displayName: profile.nomeFantasia,
       tagline: profile.tagline,

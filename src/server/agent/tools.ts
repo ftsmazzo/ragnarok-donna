@@ -1523,7 +1523,9 @@ export async function executeTool(
           const [cli] = await db
             .select({ name: schema.clients.name })
             .from(schema.clients)
-            .where(eq(schema.clients.id, conv.clientId))
+            .where(
+              and(eq(schema.clients.id, conv.clientId), eq(schema.clients.tenantId, ctx.tenantId))
+            )
             .limit(1);
           clientName = cli?.name ?? null;
         }

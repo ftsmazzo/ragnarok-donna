@@ -7,7 +7,8 @@ import { requireSession } from "./tenant";
 export type BranchScope = {
   branchId: string | null;
   multiBranch: boolean;
-  /** Unidade cadastrada mas sem equipe/dados (ex.: Donna U02). */
+  /** Unidade cadastrada mas sem equipe (ex.: Donna U02 ainda não abriu).
+   * Afeta agenda/comandas/staff da unidade — NÃO a base de clientes (compartilhada no tenant). */
   isInactiveBranch: boolean;
 };
 
