@@ -20,11 +20,13 @@ import {
   cancelOrderAction,
   closeOrderAction,
   closeOrderToClientAccountAction,
+  removePaymentAction,
   reopenOrderAction,
   removeOrderItemAction,
   setOrderClientAction,
   setOrderDiscountAction,
   setOrderItemCourtesyAction,
+  settleAndCloseOrderAction,
 } from "@/app/(painel)/comandas/actions";
 import { renewOrTopUpClientPackageAction, cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
@@ -492,13 +494,30 @@ export function OrderDrawer({
       const result = await addPaymentAction(formData);
       if (result.ok) {
         closeCheckout();
-        showToast("Pagamento registrado", "success");
+        const left = order.balanceCents - amountCents;
+        if (left <= 1) {
+          showToast("Pagamento ok — clique em Fechar comanda", "success");
+        } else {
+          showToast("Pagamento registrado", "success");
+        }
       }
       return result;
     });
   }
 
   function submitPayAndClose() {
+    if (order.balanceCents <= 0) {
+      run(async () => {
+        const closed = await closeOrderAction(order.id);
+        if (closed.ok) {
+          closeCheckout();
+          onClose();
+          showToast("Comanda fechada", "success");
+        }
+        return closed;
+      });
+      return;
+    }
     if (Math.abs(payLinesDiffCents) > 1) {
       const msg =
         payLinesDiffCents < 0
@@ -508,32 +527,26 @@ export function OrderDrawer({
       showToast(msg, "error");
       return;
     }
+    const payments = payLines
+      .map((line) => ({
+        method: line.method,
+        amountCents: parseReaisToCents(line.amountReais),
+        installments:
+          line.method === "credit" ? Number(line.installments) || undefined : undefined,
+      }))
+      .filter((p) => p.amountCents > 0 && p.method);
+    if (payments.length === 0) {
+      const msg = "Informe ao menos uma forma de pagamento";
+      setError(msg);
+      showToast(msg, "error");
+      return;
+    }
     run(async () => {
-      let remaining = order.balanceCents;
-      for (const line of payLines) {
-        let cents = parseReaisToCents(line.amountReais);
-        if (cents <= 0) continue;
-        cents = Math.min(cents, remaining);
-        if (cents <= 0) continue;
-        const fd = new FormData();
-        fd.set("orderId", order.id);
-        fd.set("method", line.method);
-        fd.set("amountReais", (cents / 100).toFixed(2));
-        fd.set("insertInCash", insertInCash ? "1" : "0");
-        if (line.method === "credit" && Number(line.installments) > 1) {
-          fd.set("installments", line.installments);
-        }
-        const paid = await addPaymentAction(fd);
-        if (!paid.ok) return paid;
-        remaining -= cents;
-      }
-      if (remaining > 1) {
-        return {
-          ok: false as const,
-          error: `Ainda falta pagar ${formatMoney(remaining)}`,
-        };
-      }
-      const closed = await closeOrderAction(order.id);
+      const closed = await settleAndCloseOrderAction({
+        orderId: order.id,
+        payments,
+        insertInCash,
+      });
       if (closed.ok) {
         closeCheckout();
         onClose();
@@ -1671,11 +1684,39 @@ export function OrderDrawer({
                   <strong>{labelStoredPayment(p.method, p.meta)}</strong>
                   <span className="muted">{formatDateTimeSp(p.paidAt)}</span>
                 </div>
-                <strong>{formatMoney(p.amountCents)}</strong>
+                <div className="order-item-actions">
+                  <strong>{formatMoney(p.amountCents)}</strong>
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={pending}
+                      title="Remover para trocar a forma de pagamento"
+                      onClick={() =>
+                        run(async () => {
+                          const result = await removePaymentAction(p.id);
+                          if (result.ok) {
+                            showToast("Pagamento removido — escolha outra forma", "success");
+                          }
+                          return result;
+                        })
+                      }
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>
         )}
+
+        {canEdit && order.balanceCents <= 0 && order.items.length > 0 ? (
+          <p className="client-profile-hint">
+            Saldo zerado. Use <strong>Fechar comanda</strong> para concluir — ou remova um
+            pagamento acima se precisar trocar a forma.
+          </p>
+        ) : null}
 
         <p className="client-profile-hint muted">
           Total: {formatMoney(due)} · Já pago: {formatMoney(order.paidCents)} · Saldo:{" "}

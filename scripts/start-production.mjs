@@ -847,6 +847,36 @@ WHERE a.staff_id = s.id
       console.error("[bootstrap] orders.total_cents sync falhou (não bloqueia start):", err.message ?? err);
     }
 
+    // Comandas abertas já quitadas (pago ≥ total): fechar — evita “Pix lançado, status Aberta”.
+    try {
+      const closedPaid = await sql`
+        UPDATE orders o
+        SET
+          status = 'closed',
+          closed_at = coalesce(o.closed_at, now()),
+          updated_at = now()
+        WHERE o.status = 'open'
+          AND o.deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id)
+          AND (
+            SELECT coalesce(sum(p.amount_cents), 0)::int
+            FROM payments p
+            WHERE p.order_id = o.id AND p.tenant_id = o.tenant_id
+          ) >= greatest(0, o.total_cents - coalesce(o.discount_cents, 0))
+        RETURNING o.id
+      `;
+      if (closedPaid.length) {
+        console.log(
+          `[bootstrap] comandas pagas abertas fechadas: ${closedPaid.length}`
+        );
+      }
+    } catch (err) {
+      console.error(
+        "[bootstrap] fechar comandas pagas falhou (não bloqueia start):",
+        err.message ?? err
+      );
+    }
+
     // Comandas sem unidade: herdam branch do agendamento (SQL válido — sem JOIN em o.id no FROM).
     try {
       await sql`

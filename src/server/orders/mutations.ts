@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
@@ -1731,6 +1731,303 @@ export async function addPayment(input: {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return { ok: false, error: "Não foi possível registrar o pagamento" };
+  }
+}
+
+/** Remove pagamento de comanda aberta (troca de forma / estorno operacional). */
+export async function removePayment(paymentId: string): Promise<ActionResult> {
+  try {
+    const session = await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    await db.transaction(async (tx) => {
+      const [payment] = await tx
+        .select({
+          id: schema.payments.id,
+          orderId: schema.payments.orderId,
+          method: schema.payments.method,
+          amountCents: schema.payments.amountCents,
+        })
+        .from(schema.payments)
+        .where(
+          and(
+            eq(schema.payments.id, paymentId),
+            eq(schema.payments.tenantId, tenant.id)
+          )
+        )
+        .for("update");
+      if (!payment?.orderId) {
+        throw new AppError("NOT_FOUND", "Pagamento não encontrado");
+      }
+
+      const state = await lockOrderFinancialState(tx, payment.orderId, tenant.id);
+
+      const [link] = await tx
+        .select({
+          id: schema.financeEntryLinks.id,
+          financeEntryId: schema.financeEntryLinks.financeEntryId,
+        })
+        .from(schema.financeEntryLinks)
+        .where(eq(schema.financeEntryLinks.paymentId, payment.id))
+        .limit(1);
+      if (link) {
+        await tx
+          .delete(schema.financeEntryLinks)
+          .where(eq(schema.financeEntryLinks.id, link.id));
+        await tx
+          .delete(schema.financeEntries)
+          .where(
+            and(
+              eq(schema.financeEntries.id, link.financeEntryId),
+              eq(schema.financeEntries.tenantId, tenant.id)
+            )
+          );
+      }
+
+      const [cashRow] = await tx
+        .select({ id: schema.cashMovements.id })
+        .from(schema.cashMovements)
+        .where(
+          and(
+            eq(schema.cashMovements.tenantId, tenant.id),
+            eq(schema.cashMovements.orderId, payment.orderId),
+            eq(schema.cashMovements.direction, "in"),
+            eq(schema.cashMovements.method, payment.method),
+            eq(schema.cashMovements.amountCents, payment.amountCents)
+          )
+        )
+        .orderBy(desc(schema.cashMovements.createdAt))
+        .limit(1);
+      if (cashRow) {
+        await tx
+          .delete(schema.cashMovements)
+          .where(eq(schema.cashMovements.id, cashRow.id));
+      }
+
+      if (payment.method === "client_account") {
+        if (!state.clientId) {
+          throw new AppError(
+            "VALIDATION",
+            "Não foi possível estornar Conta do Cliente: comanda sem cliente"
+          );
+        }
+        await applyClientAccountDeltaTx(tx, {
+          tenantId: tenant.id,
+          clientId: state.clientId,
+          deltaCents: payment.amountCents,
+          reason: "order_reversal",
+          notes: "Estorno de pagamento na comanda aberta",
+          orderId: payment.orderId,
+          paymentId: payment.id,
+          createdByUserId: session.user.id,
+        });
+      }
+
+      await tx
+        .delete(schema.payments)
+        .where(
+          and(
+            eq(schema.payments.id, payment.id),
+            eq(schema.payments.tenantId, tenant.id)
+          )
+        );
+    });
+
+    return { ok: true, id: paymentId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[removePayment]", err);
+    return { ok: false, error: "Não foi possível remover o pagamento" };
+  }
+}
+
+/**
+ * Registra um ou mais pagamentos e fecha a comanda no mesmo commit.
+ * Evita comanda “paga e aberta” quando o fechar falha depois do Pix.
+ */
+export async function settleAndCloseOrder(input: {
+  orderId: string;
+  payments: {
+    method: string;
+    amountCents: number;
+    meta?: Record<string, unknown>;
+  }[];
+  insertInCash?: boolean;
+}): Promise<ActionResult> {
+  try {
+    const session = await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    const lines = input.payments
+      .map((p) => {
+        const resolved = resolvePaymentCode(p.method);
+        return {
+          method: resolved.method,
+          amountCents: Math.round(p.amountCents),
+          meta: { ...resolved.meta, ...(p.meta ?? {}) },
+        };
+      })
+      .filter((p) => p.amountCents > 0);
+
+    const db = createDb();
+    await db.transaction(async (tx) => {
+      const state = await lockOrderFinancialState(tx, input.orderId, tenant.id);
+      if (state.itemCount === 0) {
+        throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
+      }
+
+      let remaining = state.balanceCents;
+      for (const line of lines) {
+        if (!PAYMENT_METHODS.includes(line.method as PaymentMethod)) {
+          throw new AppError("VALIDATION", "Forma de pagamento inválida");
+        }
+        if (line.amountCents > remaining) {
+          const resto = (remaining / 100).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          });
+          throw new AppError("VALIDATION", `Valor excede o saldo (restante ${resto})`);
+        }
+        if (line.method === "client_account") {
+          if (state.packageCount > 0) {
+            throw new AppError(
+              "VALIDATION",
+              "Conta do Cliente não está disponível para venda de pacote"
+            );
+          }
+          if (!state.clientId) {
+            throw new AppError("VALIDATION", "Vincule um cliente para usar a Conta do Cliente");
+          }
+          const [client] = await tx
+            .select({ accountBalanceCents: schema.clients.accountBalanceCents })
+            .from(schema.clients)
+            .where(
+              and(
+                eq(schema.clients.id, state.clientId),
+                eq(schema.clients.tenantId, tenant.id)
+              )
+            )
+            .for("update");
+          const credit = client?.accountBalanceCents ?? 0;
+          if (line.amountCents > credit) {
+            throw new AppError("VALIDATION", "Crédito insuficiente na Conta do Cliente");
+          }
+          const [payment] = await tx
+            .insert(schema.payments)
+            .values({
+              tenantId: tenant.id,
+              orderId: input.orderId,
+              method: "client_account",
+              amountCents: line.amountCents,
+              meta: line.meta,
+            })
+            .returning({ id: schema.payments.id });
+          await applyClientAccountDeltaTx(tx, {
+            tenantId: tenant.id,
+            clientId: state.clientId,
+            deltaCents: -line.amountCents,
+            reason: "order_payment",
+            notes: "Pagamento com crédito da conta",
+            orderId: input.orderId,
+            paymentId: payment.id,
+            createdByUserId: session.user.id,
+          });
+        } else {
+          const method = line.method as PaymentMethod;
+          const [payment] = await tx
+            .insert(schema.payments)
+            .values({
+              tenantId: tenant.id,
+              orderId: input.orderId,
+              method,
+              amountCents: line.amountCents,
+              meta: line.meta,
+            })
+            .returning({ id: schema.payments.id });
+          if (input.insertInCash !== false) {
+            const { recordPaymentInCashTx } = await import("../finance/mutations");
+            await recordPaymentInCashTx(tx, {
+              tenantId: tenant.id,
+              orderId: input.orderId,
+              method,
+              amountCents: line.amountCents,
+              description: labelStoredPayment(method, line.meta),
+            });
+          }
+          const { bridgePaymentToTreasury } = await import("../treasury/bridge");
+          await bridgePaymentToTreasury(tx, {
+            tenantId: tenant.id,
+            paymentId: payment.id,
+            orderId: input.orderId,
+            amountCents: line.amountCents,
+            method,
+            description: `Receita comanda · ${labelStoredPayment(method, line.meta)}`,
+          });
+        }
+        remaining -= line.amountCents;
+      }
+
+      if (remaining > 1) {
+        throw new AppError(
+          "VALIDATION",
+          `Ainda falta pagar ${(remaining / 100).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          })}`
+        );
+      }
+
+      if (state.clientId) {
+        const { activateClientPackagesForOrder } = await import("../packages/credits");
+        await activateClientPackagesForOrder(
+          {
+            tenantId: tenant.id,
+            orderId: input.orderId,
+            clientId: state.clientId,
+          },
+          tx
+        );
+      }
+
+      const [updated] = await tx
+        .update(schema.orders)
+        .set({
+          status: "closed",
+          closedAt: new Date(),
+          closedByUserId: session.user.id,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.orders.id, input.orderId),
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.status, "open")
+          )
+        )
+        .returning({ appointmentId: schema.orders.appointmentId });
+      if (!updated) {
+        throw new AppError("CONFLICT", "A comanda já foi fechada por outra operação");
+      }
+      if (updated.appointmentId) {
+        await tx
+          .update(schema.appointments)
+          .set({ status: "completed", updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.appointments.id, updated.appointmentId),
+              eq(schema.appointments.tenantId, tenant.id)
+            )
+          );
+      }
+    });
+
+    return { ok: true, id: input.orderId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[settleAndCloseOrder]", err);
+    return { ok: false, error: "Não foi possível pagar e fechar" };
   }
 }
 

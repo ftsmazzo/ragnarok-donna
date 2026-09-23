@@ -144,6 +144,35 @@ export async function addPaymentAction(formData: FormData) {
   return result;
 }
 
+export async function removePaymentAction(paymentId: string) {
+  const { removePayment } = await import("@/server/orders/mutations");
+  const result = await removePayment(paymentId);
+  if (result.ok) revalidateOrders();
+  return result;
+}
+
+export async function settleAndCloseOrderAction(input: {
+  orderId: string;
+  payments: { method: string; amountCents: number; installments?: number }[];
+  insertInCash?: boolean;
+}) {
+  const { settleAndCloseOrder } = await import("@/server/orders/mutations");
+  const result = await settleAndCloseOrder({
+    orderId: input.orderId,
+    insertInCash: input.insertInCash,
+    payments: input.payments.map((p) => ({
+      method: p.method,
+      amountCents: p.amountCents,
+      meta:
+        p.method === "credit" && p.installments && p.installments > 1
+          ? { installments: Math.min(24, Math.max(2, Math.round(p.installments))) }
+          : undefined,
+    })),
+  });
+  if (result.ok) revalidateOrders(input.orderId);
+  return result;
+}
+
 export async function setOrderDiscountAction(orderId: string, discountReais: number) {
   const result = await setOrderDiscount(orderId, Math.round(discountReais * 100));
   if (result.ok) revalidateOrders(orderId);
