@@ -1,6 +1,5 @@
 import { ConsolidatedOverviewPanel } from "@/components/inicio/ConsolidatedOverviewPanel";
 import { DonnaImportBanner } from "@/components/inicio/DonnaImportBanner";
-import { BranchInaugurationBanner } from "@/components/inicio/BranchInaugurationBanner";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import {
@@ -123,12 +122,6 @@ export async function InicioContent({ session, searchParams }: Props) {
         <ConsolidatedOverviewPanel data={consolidated} tenantSlug={session.tenant.slug} />
       ) : null}
       {donnaImport ? <DonnaImportBanner status={donnaImport} /> : null}
-      {!isConsolidated ? (
-        <BranchInaugurationBanner
-          tenantSlug={session.tenant.slug}
-          branchSlug={session.branch?.slug}
-        />
-      ) : null}
 
       <PageHeader
         title={

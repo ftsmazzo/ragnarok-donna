@@ -1,14 +1,16 @@
-import { and, count, eq, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNull, or, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
-import { createDb, schema } from "@/db";
 import { listTenantBranches } from "./branch";
 import { requireSession } from "./tenant";
 
 export type BranchScope = {
   branchId: string | null;
   multiBranch: boolean;
-  /** Unidade cadastrada mas sem equipe (ex.: Donna U02 ainda não abriu).
-   * Afeta agenda/comandas/staff da unidade — NÃO a base de clientes (compartilhada no tenant). */
+  /**
+   * Legado: bloqueava unidade sem staff (Donna U02 pré-abertura).
+   * Sempre false — unidade aberta mostra agenda vazia se ainda não houver equipe
+   * vinculada à branch; não “trava” a operação.
+   */
   isInactiveBranch: boolean;
 };
 
@@ -18,33 +20,12 @@ export async function resolveBranchScope(): Promise<BranchScope> {
   const branches = await listTenantBranches(session.tenant.id);
   const multiBranch = branches.length > 1;
 
-  if (!multiBranch || !branchId) {
-    return { branchId, multiBranch, isInactiveBranch: false };
-  }
-
-  const db = createDb();
-  const [row] = await db
-    .select({ n: count() })
-    .from(schema.staff)
-    .where(
-      and(
-        eq(schema.staff.tenantId, session.tenant.id),
-        eq(schema.staff.branchId, branchId),
-        isNull(schema.staff.deletedAt)
-      )
-    );
-
-  return {
-    branchId,
-    multiBranch,
-    isInactiveBranch: (row?.n ?? 0) === 0,
-  };
+  return { branchId, multiBranch, isInactiveBranch: false };
 }
 
 /** Condição drizzle: restringe à unidade ativa quando o tenant é multi-unidade. */
 export function branchWhere(scope: BranchScope, column: AnyColumn): SQL | undefined {
   if (!scope.multiBranch || !scope.branchId) return undefined;
-  if (scope.isInactiveBranch) return sql`false`;
   return eq(column, scope.branchId);
 }
 
