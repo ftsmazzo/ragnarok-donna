@@ -122,13 +122,15 @@ async function recalculateOrderTotal(orderId: string, tenantId: string) {
       and(eq(schema.orderItems.orderId, orderId), eq(schema.orderItems.tenantId, tenantId))
     );
 
+  const totalCents = Number(agg?.total ?? 0);
   await db
     .update(schema.orders)
     .set({
-      totalCents: Number(agg?.total ?? 0),
+      totalCents,
       updatedAt: new Date(),
     })
     .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenantId)));
+  return totalCents;
 }
 
 async function assertOpenOrder(orderId: string, tenantId: string) {
@@ -254,7 +256,9 @@ export async function openOrder(input: {
       seedPriceCents =
         appt.priceCents != null && appt.priceCents > 0
           ? appt.priceCents
-          : appt.servicePriceCents;
+          : appt.servicePriceCents != null && appt.servicePriceCents > 0
+            ? appt.servicePriceCents
+            : null;
       seedCommissionBps = appt.serviceCommissionBps;
     }
 
@@ -262,6 +266,7 @@ export async function openOrder(input: {
       .insert(schema.orders)
       .values({
         tenantId: tenant.id,
+        branchId: session.branch?.id ?? null,
         clientId: clientId || null,
         appointmentId: appointmentId || null,
         status: "open",
@@ -286,7 +291,7 @@ export async function openOrder(input: {
         );
     }
 
-    if (seedServiceId && seedServiceName && seedPriceCents != null) {
+    if (seedServiceId && seedServiceName && seedPriceCents != null && seedPriceCents > 0) {
       const { commissionBps, commissionCents } = calcCommission(
         seedPriceCents,
         seedCommissionBps
