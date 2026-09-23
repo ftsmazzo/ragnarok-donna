@@ -1424,8 +1424,8 @@ export function OrderDrawer({
           <form className="form-stack order-add-item" onSubmit={handleAddItem}>
             {itemType === "service" ? (
               <p className="client-profile-hint muted">
-                Serviço avulso — não cria horário na agenda. Escolha serviço e profissional
-                da comissão.
+                Serviço na comanda aparece na agenda do profissional escolhido (comissão).
+                Produto não entra na agenda.
               </p>
             ) : null}
             <div className="form-row-2">

@@ -20,6 +20,7 @@ function revalidateOrders(id?: string) {
   revalidatePath("/comandas");
   revalidatePath("/comandas/historico");
   revalidatePath("/caixa");
+  revalidatePath("/agenda");
   if (id) revalidatePath(`/comandas?id=${id}`);
 }
 
