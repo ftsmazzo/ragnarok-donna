@@ -217,7 +217,10 @@ export async function addOrderItemForAgent(input: {
       baseCents: totalCents,
     });
     meta = house.metaPatch;
-    commission = calcCommission(house.baseCents, 4000);
+    commission = calcCommission(
+      house.baseCents,
+      itemCommissionBps ?? staffCommissionBps
+    );
   }
 
   const [row] = await db

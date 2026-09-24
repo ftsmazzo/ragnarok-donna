@@ -1164,7 +1164,7 @@ export async function addOrderItem(input: {
             : null,
       });
       meta = { ...meta, ...house.metaPatch };
-      commission = calcCommission(house.baseCents, 4000);
+      commission = calcCommission(house.baseCents, bps);
     }
     if (courtesy) {
       commission = {
@@ -1692,7 +1692,7 @@ export async function setOrderItemCourtesy(
           clientPackageId: null,
         });
         nextMeta = { ...nextMeta, ...house.metaPatch };
-        nextCommission = calcCommission(house.baseCents, 4000);
+        nextCommission = calcCommission(house.baseCents, item.commissionBps);
       }
     }
 
