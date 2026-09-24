@@ -295,7 +295,8 @@ export function OrderDrawer({
     setBookFlash("");
   }
 
-  const showClientLinker = canEdit && (!order.clientId || linkClientOpen);
+  const showClientLinker =
+    canEdit && !order.isStaffConsumption && (!order.clientId || linkClientOpen);
   const packageBlockedNoClient =
     itemType === "package" && !order.clientId && !selectedPackage?.billAsLines;
 
@@ -612,7 +613,16 @@ export function OrderDrawer({
         title={order.externalId ? `Comanda #${order.externalId}` : "Comanda"}
         subtitle={
           <>
-            {order.clientName ?? "Sem cliente"}
+            {order.isStaffConsumption ? (
+              <>
+                <span className="order-badge">Consumo</span>
+                {" · "}
+                {order.consumerStaffName ?? "Profissional"}
+                {order.occurredOn ? ` · ${order.occurredOn}` : null}
+              </>
+            ) : (
+              (order.clientName ?? "Sem cliente")
+            )}
             {" · "}
             {order.status === "closed" ? (
               <span className="order-badge is-closed">{labelOrderStatus(order.status)}</span>
@@ -634,6 +644,7 @@ export function OrderDrawer({
               </button>
               {checkoutMode === "payClose" &&
               order.clientId &&
+              !order.isStaffConsumption &&
               order.balanceCents > 0 &&
               !hasPackageSale ? (
                 <button
@@ -1054,7 +1065,7 @@ export function OrderDrawer({
           </p>
         ) : null}
 
-        {canEdit && order.clientId && !linkClientOpen ? (
+        {canEdit && order.clientId && !order.isStaffConsumption && !linkClientOpen ? (
           <button
             type="button"
             className="btn btn-ghost btn-sm"
@@ -1121,7 +1132,7 @@ export function OrderDrawer({
           </section>
         ) : null}
 
-        {order.clientId ? (
+        {order.clientId && !order.isStaffConsumption ? (
           <section className="order-wallet">
             <div className="order-wallet-head">
               <strong>Carteira de pacotes</strong>
@@ -1517,8 +1528,9 @@ export function OrderDrawer({
           <form className="form-stack order-add-item" onSubmit={handleAddItem}>
             {itemType === "service" ? (
               <p className="client-profile-hint muted">
-                Serviço na comanda aparece na agenda do profissional escolhido (comissão).
-                Produto não entra na agenda.
+                {order.isStaffConsumption
+                  ? "Consumo de profissional: valor e comissão no executor, sem card na agenda."
+                  : "Serviço na comanda aparece na agenda do profissional escolhido (comissão). Produto não entra na agenda."}
               </p>
             ) : null}
             <div className="form-row-2">
@@ -1537,7 +1549,9 @@ export function OrderDrawer({
                 >
                   <option value="service">Serviço</option>
                   <option value="product">Produto</option>
-                  <option value="package">Vender pacote</option>
+                  {!order.isStaffConsumption ? (
+                    <option value="package">Vender pacote</option>
+                  ) : null}
                 </select>
               </label>
               <label className="form-field">
@@ -1585,6 +1599,7 @@ export function OrderDrawer({
             </label>
 
             {(itemType === "service" || itemType === "product") &&
+            !order.isStaffConsumption &&
             selectedCreditQty > 0 ? (
               <label
                 className={
@@ -1749,7 +1764,7 @@ export function OrderDrawer({
                       : "Cortesia — zera o valor deste item (não entra no caixa)."}
                   </span>
                 </label>
-                {itemType === "service" ? (
+                {itemType === "service" && !order.isStaffConsumption ? (
                   <>
                     <label
                       className={

@@ -58,10 +58,19 @@ export const FEATURE_HINTS: FeatureHint[] = [
   },
   {
     id: "consumo",
-    aliases: ["consumo", "meu consumo", "uso interno", "venda celular", "consumo barbeiro"],
-    title: "Consumo do barbeiro",
-    where: "Financeiro → Comissões → Consumo do barbeiro",
-    tip: "Recepção: profissional + produto (estoque − e 70% na comissão). Celular /pwa/consumo = só venda na comanda do cliente.",
+    aliases: [
+      "consumo",
+      "meu consumo",
+      "uso interno",
+      "venda celular",
+      "consumo barbeiro",
+      "consumo de profissional",
+      "consumo profissional",
+    ],
+    title: "Consumo (produto vs profissional)",
+    where:
+      "Produto −30%: Financeiro → Comissões → Consumo do barbeiro. Serviço sem agenda: Comandas → Consumo de profissional.",
+    tip: "Coca/trufa (−30% + estoque) = Comissões. Serviço entre profissionais (valor/comissão, sem card na agenda) = Comandas → Consumo de profissional. Celular /pwa/consumo = só venda na comanda do cliente.",
   },
   {
     id: "caixa",

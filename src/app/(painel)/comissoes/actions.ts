@@ -32,6 +32,7 @@ export async function registerStaffConsumptionAction(formData: FormData) {
     staffId: String(formData.get("staffId") ?? ""),
     productId: String(formData.get("productId") ?? ""),
     qty: Number.isFinite(qtyRaw) ? qtyRaw : 1,
+    occurredOn: String(formData.get("occurredOn") ?? "") || undefined,
   });
   if (result.ok) {
     revalidatePath("/comissoes");

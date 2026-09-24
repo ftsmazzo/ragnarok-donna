@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Pagination } from "@/components/cadastro/Pagination";
 import { OrdersTable } from "@/components/comandas/OrdersTable";
+import { OpenStaffConsumptionModal } from "@/components/comandas/OpenStaffConsumptionModal";
 import { OrderDrawer } from "@/components/comandas/OrderDrawer";
 import { RelatorioFilters } from "@/components/relatorio/RelatorioFilters";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
@@ -56,6 +57,7 @@ export function HistoricoComandasView({
   const searchParams = useSearchParams();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [staffConsumptionOpen, setStaffConsumptionOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   function buildUrl(params: Record<string, string | undefined>) {
@@ -100,6 +102,17 @@ export function HistoricoComandasView({
       <PageHeader
         title="Histórico de comandas"
         subtitle={`${data.total.toLocaleString("pt-BR")} comanda(s) no período`}
+        actions={
+          permissions.canWrite ? (
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setStaffConsumptionOpen(true)}
+            >
+              Consumo de profissional
+            </button>
+          ) : undefined
+        }
       />
 
       <section className="panel">
@@ -166,6 +179,19 @@ export function HistoricoComandasView({
           />
         </div>
       </section>
+
+      {permissions.canWrite ? (
+        <OpenStaffConsumptionModal
+          open={staffConsumptionOpen}
+          onClose={() => setStaffConsumptionOpen(false)}
+          onCreated={(id) => {
+            setStaffConsumptionOpen(false);
+            router.push(`/comandas?id=${id}`);
+            router.refresh();
+          }}
+          staff={staff}
+        />
+      ) : null}
 
       {selectedOrder ? (
         <OrderDrawer

@@ -11,6 +11,7 @@ export {
   cancelOrder,
   closeOrder,
   openOrder,
+  openStaffConsumptionOrder,
   reopenOrder,
   removeOrderItem,
   setOrderClient,

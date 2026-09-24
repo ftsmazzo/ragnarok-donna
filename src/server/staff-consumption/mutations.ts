@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
+import { todaySp } from "@/lib/datetime";
 import { staffConsumptionAmountCents } from "@/lib/staff-consumption";
 import { AppError, ForbiddenError, NotFoundError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
@@ -17,12 +18,19 @@ export async function registerStaffProductConsumption(input: {
   qty?: number;
   /** Titular/admin pode lançar em nome de um profissional. */
   staffId?: string;
+  /** YYYY-MM-DD (SP) — default hoje. */
+  occurredOn?: string;
 }): Promise<ActionResult> {
   try {
     const session = await requireSession();
     const tenant = await requireTenantContext();
     const qty = Math.max(1, Math.min(99, input.qty ?? 1));
     const db = createDb();
+    const occurredOn =
+      input.occurredOn && /^\d{4}-\d{2}-\d{2}$/.test(input.occurredOn)
+        ? input.occurredOn
+        : todaySp();
+    const occurredAt = new Date(`${occurredOn}T12:00:00-03:00`);
 
     let staffId: string | null = null;
     if (isBarberRole(session.role)) {
@@ -97,7 +105,7 @@ export async function registerStaffProductConsumption(input: {
         kind: "discount",
         status: "open",
         amountCents,
-        occurredAt: new Date(),
+        occurredAt,
         notes: note.slice(0, 240),
         createdByUserId: session.user.id,
       })

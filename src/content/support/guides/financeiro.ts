@@ -117,7 +117,7 @@ export const guideComissoes: SupportGuide = {
     {
       title: "Consumo do barbeiro (−30%)",
       detail:
-        "Botão Consumo do barbeiro: profissional + produto. Baixa estoque e lança desconto (preço × 70%) nos ajustes do período. Não misturar com produto na comanda do cliente.",
+        "Botão Consumo do barbeiro: profissional + data + produto. Baixa estoque e lança desconto (preço × 70%) nos ajustes do período. Não misturar com produto na comanda do cliente. Serviço entre profissionais (valor + comissão, sem agenda): Comandas → Consumo de profissional.",
     },
     {
       title: "Lançar vale, bônus, desconto ou pagamento",
@@ -153,11 +153,8 @@ export const guideComissoes: SupportGuide = {
     },
   ],
   relatedGuideIds: ["comandas", "pacotes", "consumo-pwa", "profissionais", "caixa"],
-  lastVerified: "2026-09-15",
-};
-
-
-export const guideFluxoCaixa: SupportGuide = {
+  lastVerified: "2026-09-24",
+};export const guideFluxoCaixa: SupportGuide = {
   id: "fluxo-caixa",
   title: "Fluxo de caixa",
   status: "ready",

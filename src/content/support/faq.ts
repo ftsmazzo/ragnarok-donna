@@ -69,9 +69,17 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "consumo-barbeiro",
     question: "Como o barbeiro lança consumo (coca, trufa)?",
     answer:
-      "A recepção/gerente lança em Financeiro → Comissões → botão Consumo do barbeiro (escolhe profissional + produto). Baixa estoque e desconta 70% do preço na comissão. Não use a comanda do cliente. Uso interno da loja: Cadastros → Produtos.",
+      "A recepção/gerente lança em Financeiro → Comissões → botão Consumo do barbeiro (profissional + data + produto). Baixa estoque e desconta 70% do preço na comissão. Não use a comanda do cliente. Uso interno da loja: Cadastros → Produtos. Serviço entre profissionais (barba etc., sem agenda): Comandas → Consumo de profissional.",
     tags: ["consumo", "barbeiro", "produto", "comissões", "comanda"],
     menuPath: "Financeiro → Comissões",
+  },
+  {
+    id: "consumo-profissional-comanda",
+    question: "Onde lanço consumo de profissional (serviço sem agenda)?",
+    answer:
+      "Comandas → Abertas (ou Histórico) → Consumo de profissional: escolha o profissional e a data, abra a comanda e lance serviço/produto. Contabiliza valor e comissão, sem aparecer na agenda. Não usa pacote nem conta do cliente. Coca/trufa com −30%: Comissões → Consumo do barbeiro.",
+    tags: ["consumo", "profissional", "serviço", "comanda", "agenda", "comissão"],
+    menuPath: "Comandas → Abertas",
   },
   {
     id: "uso-interno",

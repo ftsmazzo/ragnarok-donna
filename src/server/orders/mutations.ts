@@ -17,7 +17,7 @@ import {
   syncStaffMonthServiceCommission,
 } from "../commissions/house";
 import { resolveCommissionBps } from "@/lib/commission-policy";
-import { dayBoundsSp } from "@/lib/datetime";
+import { dayBoundsSp, todaySp } from "@/lib/datetime";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -143,6 +143,8 @@ async function assertOpenOrder(orderId: string, tenantId: string) {
       status: schema.orders.status,
       totalCents: schema.orders.totalCents,
       discountCents: schema.orders.discountCents,
+      meta: schema.orders.meta,
+      clientId: schema.orders.clientId,
     })
     .from(schema.orders)
     .where(
@@ -593,6 +595,72 @@ export async function openOrder(input: {
 }
 
 /**
+ * Comanda Consumo de Profissional (paridade AppBarber).
+ * Sem cliente, sem agendamento na grade; data escolhida pela recepção.
+ */
+export async function openStaffConsumptionOrder(input: {
+  staffId: string;
+  occurredOn?: string;
+  notes?: string;
+}): Promise<ActionResult> {
+  try {
+    const session = await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const staffId = input.staffId?.trim();
+    if (!staffId) throw new AppError("VALIDATION", "Informe o profissional");
+
+    const occurredOn =
+      input.occurredOn && /^\d{4}-\d{2}-\d{2}$/.test(input.occurredOn)
+        ? input.occurredOn
+        : todaySp();
+
+    const [staff] = await db
+      .select({ id: schema.staff.id, name: schema.staff.name, branchId: schema.staff.branchId })
+      .from(schema.staff)
+      .where(
+        and(
+          eq(schema.staff.id, staffId),
+          eq(schema.staff.tenantId, tenant.id),
+          eq(schema.staff.isActive, true),
+          isNull(schema.staff.deletedAt)
+        )
+      )
+      .limit(1);
+    if (!staff) throw new AppError("VALIDATION", "Profissional inválido");
+
+    const openedAt = new Date(`${occurredOn}T12:00:00-03:00`);
+
+    const [row] = await db
+      .insert(schema.orders)
+      .values({
+        tenantId: tenant.id,
+        branchId: session.branch?.id ?? staff.branchId ?? null,
+        clientId: null,
+        appointmentId: null,
+        status: "open",
+        openedAt,
+        notes: input.notes?.trim() || null,
+        openedByUserId: session.user.id,
+        meta: {
+          kind: "staff_consumption",
+          consumerStaffId: staff.id,
+          consumerStaffName: staff.name,
+          occurredOn,
+        },
+      })
+      .returning({ id: schema.orders.id });
+
+    return { ok: true, id: row.id };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível abrir a comanda de consumo" };
+  }
+}
+
+/**
  * Conta Recorrência (Agenda): abre/usa a comanda do horário e aplica 1 crédito
  * do pacote no serviço do agendamento (comissão no preço de tabela).
  *
@@ -946,7 +1014,9 @@ export async function addOrderItem(input: {
     const session = await requireSession();
     requireCapability(session, "orders.write");
     const tenant = await requireTenantContext();
-    await assertOpenOrder(input.orderId, tenant.id);
+    const openOrderRow = await assertOpenOrder(input.orderId, tenant.id);
+    const orderMeta = (openOrderRow.meta ?? {}) as Record<string, unknown>;
+    const isStaffConsumption = orderMeta.kind === "staff_consumption";
 
     const barber = isBarberRole(session.role);
     let staffIdInput = input.staffId;
@@ -968,6 +1038,15 @@ export async function addOrderItem(input: {
         );
       }
       staffIdInput = ownStaffId;
+    }
+
+    if (isStaffConsumption) {
+      if (input.itemType === "package" || input.usePackageCredit) {
+        throw new AppError(
+          "VALIDATION",
+          "Comanda de consumo não usa pacote nem crédito de carteira"
+        );
+      }
     }
 
     const qty = Math.max(1, Math.min(99, input.qty ?? 1));
@@ -1340,7 +1419,7 @@ export async function addOrderItem(input: {
 
     if (input.itemType === "service") {
       await syncStaffMonthServiceCommission(tenant.id, staffId);
-      if (staffId && serviceId) {
+      if (staffId && serviceId && !isStaffConsumption) {
         const [orderCtx] = await db
           .select({
             clientId: schema.orders.clientId,
@@ -2767,7 +2846,11 @@ export async function setOrderClient(input: {
 
     await db.transaction(async (tx) => {
       const [order] = await tx
-        .select({ clientId: schema.orders.clientId, status: schema.orders.status })
+        .select({
+          clientId: schema.orders.clientId,
+          status: schema.orders.status,
+          meta: schema.orders.meta,
+        })
         .from(schema.orders)
         .where(
           and(
@@ -2780,6 +2863,13 @@ export async function setOrderClient(input: {
       if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
       if (order.status !== "open") {
         throw new AppError("VALIDATION", "A comanda não está aberta");
+      }
+      const orderMeta = (order.meta ?? {}) as Record<string, unknown>;
+      if (orderMeta.kind === "staff_consumption") {
+        throw new AppError(
+          "VALIDATION",
+          "Comanda de consumo de profissional não vincula cliente"
+        );
       }
 
       const [client] = await tx

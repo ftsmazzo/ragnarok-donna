@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/Modal";
+import { todaySp } from "@/lib/datetime";
 import { formatMoney } from "@/lib/format";
 import { staffConsumptionAmountCents } from "@/lib/staff-consumption";
 import { registerStaffConsumptionAction } from "@/app/(painel)/comissoes/actions";
@@ -70,7 +71,7 @@ export function StaffConsumptionPanel({ staffList, products, defaultStaffId }: P
           ) : null}
           <p className="client-profile-hint muted">
             Baixa estoque e desconta 70% do preço na comissão (venda −30%). Não vai para a
-            comanda do cliente.
+            comanda do cliente. Serviço entre profissionais: Comandas → Consumo de profissional.
           </p>
           <label className="filter-field">
             <span>Profissional *</span>
@@ -89,6 +90,16 @@ export function StaffConsumptionPanel({ staffList, products, defaultStaffId }: P
                 </option>
               ))}
             </select>
+          </label>
+          <label className="filter-field">
+            <span>Data *</span>
+            <input
+              name="occurredOn"
+              type="date"
+              required
+              defaultValue={todaySp()}
+              className="search-input"
+            />
           </label>
           <label className="filter-field">
             <span>Produto *</span>
