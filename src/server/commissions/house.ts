@@ -2,10 +2,8 @@ import { and, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { monthStartOfSp, rangeBoundsSp, shiftMonthSp, formatDateSp } from "@/lib/datetime";
 import {
-  SERVICE_BASE_BPS,
   classifyServiceCommission,
   commissionCentsFrom,
-  extrasCommissionBps,
   packageCreditBaseCents,
   type ServiceCommissionKind,
 } from "@/lib/commission-policy";
@@ -46,8 +44,10 @@ export async function packageSliceCents(
 }
 
 /**
- * Recalcula a comissão dos serviços do profissional no mês civil (SP).
- * Ordinário fica em 40%. Extra sobe para 45% / 50% se a meta do mês bater.
+ * Recalcula comissão dos serviços do profissional no mês (SP).
+ * Base = % do serviço no catálogo; se vazio, % padrão do profissional.
+ * Não força 40% da casa (isso quebrava Donna / variações AppBarber).
+ * Venda de pacote continua sem comissão (0) até o uso do crédito.
  */
 export async function syncStaffMonthServiceCommission(
   tenantId: string,
@@ -58,6 +58,13 @@ export async function syncStaffMonthServiceCommission(
   const db = createDb();
   const { start, endExclusive } = monthRange(at);
   const when = sql`coalesce(${schema.orderItems.performedAt}, ${schema.orderItems.createdAt})`;
+
+  const [staffRow] = await db
+    .select({ defaultCommissionBps: schema.staff.defaultCommissionBps })
+    .from(schema.staff)
+    .where(and(eq(schema.staff.id, staffId), eq(schema.staff.tenantId, tenantId)))
+    .limit(1);
+  const staffDefaultBps = staffRow?.defaultCommissionBps ?? null;
 
   const rows = await db
     .select({
@@ -70,6 +77,7 @@ export async function syncStaffMonthServiceCommission(
       commissionBps: schema.orderItems.commissionBps,
       commissionCents: schema.orderItems.commissionCents,
       serviceName: schema.services.name,
+      serviceCommissionBps: schema.services.commissionBps,
       categoryName: schema.serviceCategories.name,
     })
     .from(schema.orderItems)
@@ -104,21 +112,13 @@ export async function syncStaffMonthServiceCommission(
       )
     );
 
-  const prepared: {
-    id: string;
-    kind: ServiceCommissionKind;
-    baseCents: number;
-    commissionBps: number | null;
-    commissionCents: number | null;
-  }[] = [];
-
   for (const row of rows) {
     const meta = (row.meta ?? {}) as Record<string, unknown>;
     const name = (row.serviceName || row.description || "").replace(/\s·\sPacote.*$/i, "");
     const kind = classifyServiceCommission(name, row.categoryName);
+
     let base = row.totalCents;
     if (meta.courtesy) {
-      // Cortesia: sem comissão (não usar preço de tabela nem commissionBaseCents).
       base = 0;
     } else if (typeof meta.commissionBaseCents === "number" && meta.commissionBaseCents >= 0) {
       base = meta.commissionBaseCents;
@@ -128,36 +128,46 @@ export async function syncStaffMonthServiceCommission(
     } else if (base <= 0) {
       base = row.unitPriceCents * Math.max(1, row.qty);
     }
-    prepared.push({
-      id: row.id,
-      kind,
-      baseCents: base,
-      commissionBps: row.commissionBps,
-      commissionCents: row.commissionCents,
-    });
-  }
 
-  const extrasTotal = prepared
-    .filter((row) => row.kind === "extra")
-    .reduce((sum, row) => sum + row.baseCents, 0);
-  const extraBps = extrasCommissionBps(extrasTotal);
+    const bps =
+      base <= 0
+        ? 0
+        : row.serviceCommissionBps != null && row.serviceCommissionBps >= 0
+          ? row.serviceCommissionBps
+          : staffDefaultBps != null && staffDefaultBps >= 0
+            ? staffDefaultBps
+            : null;
 
-  for (const row of prepared) {
-    const bps = row.kind === "extra" ? extraBps : SERVICE_BASE_BPS;
-    const cents = commissionCentsFrom(row.baseCents, bps);
-    if (row.commissionBps === bps && row.commissionCents === cents) continue;
+    const cents = bps == null ? 0 : commissionCentsFrom(base, bps);
+    const nextBps = bps == null ? null : bps;
+    const nextMeta = {
+      ...meta,
+      commissionKind: kind,
+      commissionBaseCents: base,
+    };
+
+    if (
+      row.commissionBps === nextBps &&
+      row.commissionCents === cents &&
+      meta.commissionKind === kind &&
+      meta.commissionBaseCents === base
+    ) {
+      continue;
+    }
+
     await db
       .update(schema.orderItems)
       .set({
-        commissionBps: bps,
+        commissionBps: nextBps,
         commissionCents: cents,
+        meta: nextMeta,
         updatedAt: new Date(),
       })
       .where(and(eq(schema.orderItems.id, row.id), eq(schema.orderItems.tenantId, tenantId)));
   }
 }
 
-/** Aplica a regra da casa aos serviços do mês (SP) de cada profissional do tenant. */
+/** Recalcula comissão do mês (SP) de cada profissional do tenant a partir do catálogo. */
 export async function syncTenantMonthServiceCommission(
   tenantId: string,
   at = new Date()

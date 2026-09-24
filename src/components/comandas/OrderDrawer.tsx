@@ -1337,9 +1337,19 @@ export function OrderDrawer({
                   </strong>
                   <span className="muted">
                     {item.qty}x · {item.staffName ?? "Sem profissional"}
-                    {item.commissionCents != null
-                      ? ` · comissão ${formatMoney(item.commissionCents)}`
-                      : ""}
+                    {item.commissionCents != null && item.commissionCents > 0
+                      ? ` · comissão${
+                          item.commissionBps != null
+                            ? ` ${(item.commissionBps / 100).toFixed(
+                                item.commissionBps % 100 === 0 ? 0 : 1
+                              )}%`
+                            : ""
+                        } ${formatMoney(item.commissionCents)}`
+                      : item.commissionBps != null && item.commissionBps > 0
+                        ? ` · comissão ${(item.commissionBps / 100).toFixed(
+                            item.commissionBps % 100 === 0 ? 0 : 1
+                          )}%`
+                        : ""}
                     {item.redeemed
                       ? item.totalCents > 0
                         ? ` · pacote cobre ${formatMoney(item.coveredCents)} · diferença ${formatMoney(item.totalCents)}`

@@ -1,4 +1,4 @@
-/** Regras de comissão da casa (Daniel, 2026-09-21). */
+/** Regras legado de meta de extras (ranking). A % paga vem do serviço/produto no catálogo. */
 
 export const SERVICE_BASE_BPS = 4000;
 export const EXTRAS_BPS_AT_2000 = 4500;
