@@ -94,7 +94,7 @@ export async function openOrderForAgent(input: {
   if (appointmentId) {
     await db
       .update(schema.appointments)
-      .set({ orderId: row.id, status: "in_progress", updatedAt: new Date() })
+      .set({ orderId: row.id, status: "arrived", updatedAt: new Date() })
       .where(
         and(
           eq(schema.appointments.id, appointmentId),

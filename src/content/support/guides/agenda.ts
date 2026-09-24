@@ -59,22 +59,22 @@ export const guideAgenda: SupportGuide = {
     {
       title: "No Local e fluxo do atendimento",
       detail:
-        "No detalhe ou menu de contexto: No Local (status chegou — na grade aparece · no local e o ícone ●). Depois Em atendimento (· em atend. / ▶) e Finalizar horário (vira Realizado no status e nos relatórios). Barbeiro vinculado pode marcar status nos próprios horários; cancelar/ausente exige gerente/Titular.",
+        "No detalhe ou menu de contexto: No Local (card rosa na grade, · no local / ●). Abrir comanda também marca No Local. Finalizar horário vira Realizado nos relatórios. Em Ausente/Cancelado use Reabrir horário ou Alterar status (botão direito).",
     },
     {
       title: "Check-in pelo WhatsApp",
       detail:
-        "Se o cliente manda que está na barbearia e já tem horário hoje, a Donna faz check-in automático (equivalente a chegada). A recepção confere na grade o · no local / ícone ● ou o status no detalhe.",
+        "Se o cliente manda que está na barbearia e já tem horário hoje, a Donna faz check-in automático (equivalente a No Local). A recepção confere na grade o card rosa / · no local.",
     },
     {
       title: "Ausente e Cancelado",
       detail:
-        "No detalhe (botões Ausente e Cancelado) ou menu de contexto — com permissão de cancelamento (Titular, admin, gerente e profissional na própria coluna). Ausente = no-show (cliente faltou). Cancelado = desistência antes ou no dia. Horários encerrados somem das ações rápidas.",
+        "No detalhe (botões Ausente e Cancelado) ou menu de contexto — com permissão de cancelamento (Titular, admin, gerente e profissional na própria coluna). Ausente = no-show (cliente faltou). Cancelado = desistência antes ou no dia. Para voltar: Reabrir horário (botão direito ou detalhe).",
     },
     {
       title: "Quem pode cancelar / marcar status",
       detail:
-        "Gerente e titular/admin: escrevem na agenda, cancelam (Ausente/Cancelado) e mudam qualquer horário. Profissional (barbeiro): vê só a própria coluna, agenda/remarca/cancela nela, marca No Local / Em atendimento / Finalizar e consulta a própria comissão. Somente leitura: consulta a grade, sem botões de alteração.",
+        "Gerente e titular/admin: escrevem na agenda, cancelam (Ausente/Cancelado) e mudam qualquer horário. Profissional (barbeiro): vê só a própria coluna, agenda/remarca/cancela nela, marca No Local / Finalizar e consulta a própria comissão. Somente leitura: consulta a grade, sem botões de alteração.",
     },
     {
       title: "Confirmar / desconfirmar",

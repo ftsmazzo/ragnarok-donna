@@ -338,7 +338,7 @@ async function attachSameDayClientAppointments(input: {
       .update(schema.appointments)
       .set({
         orderId: input.orderId,
-        status: "in_progress",
+        status: "arrived",
         updatedAt: new Date(),
       })
       .where(
@@ -406,7 +406,7 @@ async function createAgendaSlotForOrderService(input: {
       serviceId: input.serviceId,
       startsAt,
       endsAt,
-      status: "in_progress",
+      status: "arrived",
       priceCents: input.priceCents,
       source: "comanda",
       isEncaixe: true,
@@ -573,7 +573,7 @@ export async function openOrder(input: {
         .update(schema.appointments)
         .set({
           orderId: row.id,
-          status: "in_progress",
+          status: "arrived",
           updatedAt: new Date(),
         })
         .where(

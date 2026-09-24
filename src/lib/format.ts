@@ -52,8 +52,8 @@ const ORDER_STATUS: Record<string, string> = {
 const APPT_STATUS: Record<string, string> = {
   scheduled: "Agendado",
   confirmed: "Confirmado",
-  arrived: "Chegou",
-  in_progress: "Em atendimento",
+  arrived: "No Local",
+  in_progress: "No Local",
   completed: "Realizado",
   cancelled: "Cancelado",
   no_show: "Ausente",

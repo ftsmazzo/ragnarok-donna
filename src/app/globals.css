@@ -1776,6 +1776,11 @@ input {
   color: #422006;
 }
 
+.slot.tone-local {
+  background: #ec4899 !important;
+  color: #fff;
+}
+
 .agenda-form-tabs {
   display: flex;
   gap: 6px;
