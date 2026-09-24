@@ -3,6 +3,7 @@ import { createDb, schema } from "@/db";
 import { monthStartSp, rangeBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { PAGE_SIZE } from "@/lib/cadastros";
 import { AppError, ForbiddenError } from "../errors";
+import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability, requireCapability } from "../permissions";
 import { findOpenCashSessionId } from "../finance/queries";
@@ -77,6 +78,7 @@ export async function reportCommissions(opts: {
   page?: number;
 }) {
   const tenant = await requireTenantContext();
+  const scope = await resolveBranchScope();
   const db = createDb();
   const from = opts.from ?? monthStartSp();
   const to = opts.to ?? todaySp();
@@ -95,13 +97,17 @@ export async function reportCommissions(opts: {
   const page = Math.max(1, opts.page ?? 1);
   const itemType = opts.itemType?.trim();
 
-  let itemWhere = and(
-    eq(schema.orderItems.tenantId, tenant.id),
-    eq(schema.orders.tenantId, tenant.id),
-    eq(schema.orders.status, "closed"),
-    isNull(schema.orders.deletedAt),
-    gte(schema.orderItems.performedAt, start),
-    lte(schema.orderItems.performedAt, end)
+  let itemWhere = withBranchScope(
+    scope,
+    schema.orders.branchId,
+    and(
+      eq(schema.orderItems.tenantId, tenant.id),
+      eq(schema.orders.tenantId, tenant.id),
+      eq(schema.orders.status, "closed"),
+      isNull(schema.orders.deletedAt),
+      gte(schema.orderItems.performedAt, start),
+      lte(schema.orderItems.performedAt, end)
+    )
   );
 
   if (opts.staffId) {
@@ -126,13 +132,19 @@ export async function reportCommissions(opts: {
     .groupBy(schema.orderItems.staffId, schema.staff.name)
     .orderBy(desc(sql`sum(${commissionExpr})`));
 
-  const advanceWhere = [
-    eq(schema.staffAdvances.tenantId, tenant.id),
-    ne(schema.staffAdvances.status, "cancelled"),
-    gte(schema.staffAdvances.occurredAt, start),
-    lte(schema.staffAdvances.occurredAt, end),
-  ];
-  if (opts.staffId) advanceWhere.push(eq(schema.staffAdvances.staffId, opts.staffId));
+  let advanceWhere = withBranchScope(
+    scope,
+    schema.staff.branchId,
+    and(
+      eq(schema.staffAdvances.tenantId, tenant.id),
+      ne(schema.staffAdvances.status, "cancelled"),
+      gte(schema.staffAdvances.occurredAt, start),
+      lte(schema.staffAdvances.occurredAt, end)
+    )
+  );
+  if (opts.staffId) {
+    advanceWhere = and(advanceWhere, eq(schema.staffAdvances.staffId, opts.staffId));
+  }
 
   const advanceRows = await db
     .select({
@@ -141,7 +153,8 @@ export async function reportCommissions(opts: {
       total: sql<number>`coalesce(sum(${schema.staffAdvances.amountCents}), 0)::int`,
     })
     .from(schema.staffAdvances)
-    .where(and(...advanceWhere))
+    .innerJoin(schema.staff, eq(schema.staffAdvances.staffId, schema.staff.id))
+    .where(advanceWhere)
     .groupBy(schema.staffAdvances.staffId, schema.staffAdvances.kind);
 
   const advanceMap = new Map<
@@ -190,7 +203,17 @@ export async function reportCommissions(opts: {
       const names = await db
         .select({ id: schema.staff.id, name: schema.staff.name })
         .from(schema.staff)
-        .where(and(eq(schema.staff.tenantId, tenant.id), inArray(schema.staff.id, missingIds)));
+        .where(
+          withBranchScope(
+            scope,
+            schema.staff.branchId,
+            and(
+              eq(schema.staff.tenantId, tenant.id),
+              inArray(schema.staff.id, missingIds),
+              isNull(schema.staff.deletedAt)
+            )
+          )
+        );
       const nameMap = new Map(names.map((n) => [n.id, n.name]));
       for (const staffId of missingIds) {
         const adv = advanceMap.get(staffId)!;
@@ -268,15 +291,21 @@ export async function reportCommissions(opts: {
       notes: schema.staffAdvances.notes,
     })
     .from(schema.staffAdvances)
-    .leftJoin(schema.staff, eq(schema.staffAdvances.staffId, schema.staff.id))
-    .where(and(...advanceWhere))
+    .innerJoin(schema.staff, eq(schema.staffAdvances.staffId, schema.staff.id))
+    .where(advanceWhere)
     .orderBy(desc(schema.staffAdvances.occurredAt))
     .limit(80);
 
   const staffList = await db
     .select({ id: schema.staff.id, name: schema.staff.name })
     .from(schema.staff)
-    .where(and(eq(schema.staff.tenantId, tenant.id), isNull(schema.staff.deletedAt)))
+    .where(
+      withBranchScope(
+        scope,
+        schema.staff.branchId,
+        and(eq(schema.staff.tenantId, tenant.id), isNull(schema.staff.deletedAt))
+      )
+    )
     .orderBy(asc(schema.staff.name));
 
   const totalCommissionCents = Number(totals?.commission ?? 0);
