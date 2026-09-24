@@ -49,7 +49,7 @@ export const guideAgenda: SupportGuide = {
     {
       title: "Ver / editar um horário",
       detail:
-        "Clique no card do agendamento para abrir Agendamento (detalhe). Clique com o botão direito (desktop) abre o menu rápido (comanda, No Local, Ausente, Confirmar…).",
+        "Clique no card do agendamento para abrir Agendamento (detalhe). Clique com o botão direito (desktop) abre o menu rápido: Confirmar/Desconfirmar, comanda, No Local, Ausente…",
     },
     {
       title: "Remarcar (Editar agendamento)",

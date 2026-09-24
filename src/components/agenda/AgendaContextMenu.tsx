@@ -251,6 +251,34 @@ export function AgendaContextMenu({
         </button>
       ) : null}
 
+      {permissions.canUpdateStatus && !closedOps && a.status === "scheduled" ? (
+        <button
+          type="button"
+          className="agenda-ctx-item"
+          disabled={pending}
+          onClick={() => run(() => updateAppointmentStatusAction(a.id, "confirmed", date))}
+        >
+          <span className="agenda-ctx-ico is-ok" aria-hidden>
+            ✓
+          </span>
+          Confirmar
+        </button>
+      ) : null}
+
+      {permissions.canUpdateStatus && !closedOps && a.status === "confirmed" ? (
+        <button
+          type="button"
+          className="agenda-ctx-item"
+          disabled={pending}
+          onClick={() => run(() => updateAppointmentStatusAction(a.id, "scheduled", date))}
+        >
+          <span className="agenda-ctx-ico" aria-hidden>
+            👎
+          </span>
+          Desconfirmar
+        </button>
+      ) : null}
+
       {permissions.canOpenOrder && a.clientId && a.serviceId && !closedOps ? (
         <button
           type="button"
@@ -395,7 +423,7 @@ export function AgendaContextMenu({
                     run(() => updateAppointmentStatusAction(a.id, "confirmed", date))
                   }
                 >
-                  Confirmado
+                  Confirmar
                 </button>
               ) : null}
               {!onLocal ? (
