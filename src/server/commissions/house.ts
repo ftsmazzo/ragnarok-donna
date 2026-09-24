@@ -228,7 +228,8 @@ export async function recalcOrderCatalogCommissions(
       serviceName: schema.services.name,
       serviceCommissionBps: schema.services.commissionBps,
       productCommissionBps: schema.products.commissionBps,
-      overrideBps: schema.staffServices.commissionBps,
+      serviceOverrideBps: schema.staffServices.commissionBps,
+      productOverrideBps: schema.staffProducts.commissionBps,
       staffDefaultBps: schema.staff.defaultCommissionBps,
       categoryName: schema.serviceCategories.name,
     })
@@ -242,6 +243,14 @@ export async function recalcOrderCatalogCommissions(
         eq(schema.staffServices.staffId, schema.orderItems.staffId),
         eq(schema.staffServices.serviceId, schema.orderItems.serviceId),
         eq(schema.staffServices.tenantId, tenantId)
+      )
+    )
+    .leftJoin(
+      schema.staffProducts,
+      and(
+        eq(schema.staffProducts.staffId, schema.orderItems.staffId),
+        eq(schema.staffProducts.productId, schema.orderItems.productId),
+        eq(schema.staffProducts.tenantId, tenantId)
       )
     )
     .leftJoin(
@@ -290,7 +299,8 @@ export async function recalcOrderCatalogCommissions(
       base <= 0
         ? 0
         : resolveCommissionBps({
-            overrideBps: row.itemType === "service" ? row.overrideBps : null,
+            overrideBps:
+              row.itemType === "service" ? row.serviceOverrideBps : row.productOverrideBps,
             catalogBps,
             staffDefaultBps: row.staffDefaultBps,
           });
@@ -362,7 +372,8 @@ export async function recalcPeriodCatalogCommissions(input: {
       serviceName: schema.services.name,
       serviceCommissionBps: schema.services.commissionBps,
       productCommissionBps: schema.products.commissionBps,
-      overrideBps: schema.staffServices.commissionBps,
+      serviceOverrideBps: schema.staffServices.commissionBps,
+      productOverrideBps: schema.staffProducts.commissionBps,
       staffDefaultBps: schema.staff.defaultCommissionBps,
       categoryName: schema.serviceCategories.name,
     })
@@ -377,6 +388,14 @@ export async function recalcPeriodCatalogCommissions(input: {
         eq(schema.staffServices.staffId, schema.orderItems.staffId),
         eq(schema.staffServices.serviceId, schema.orderItems.serviceId),
         eq(schema.staffServices.tenantId, input.tenantId)
+      )
+    )
+    .leftJoin(
+      schema.staffProducts,
+      and(
+        eq(schema.staffProducts.staffId, schema.orderItems.staffId),
+        eq(schema.staffProducts.productId, schema.orderItems.productId),
+        eq(schema.staffProducts.tenantId, input.tenantId)
       )
     )
     .leftJoin(
@@ -418,7 +437,8 @@ export async function recalcPeriodCatalogCommissions(input: {
       base <= 0
         ? 0
         : resolveCommissionBps({
-            overrideBps: row.itemType === "service" ? row.overrideBps : null,
+            overrideBps:
+              row.itemType === "service" ? row.serviceOverrideBps : row.productOverrideBps,
             catalogBps,
             staffDefaultBps: row.staffDefaultBps,
           });

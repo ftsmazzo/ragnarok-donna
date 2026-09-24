@@ -22,9 +22,12 @@ O campo `staff.default_commission_bps` fica só como rede de segurança legado �
 | Pedicure/Manicure Donna 45% no catálogo | 45% para todos |
 | Bebida/comida com 0% no produto | 0% |
 | Produto com 10% no catálogo | 10% |
+| Produto 10%, profissional com override 15% | 15% só para ela |
 
 Ragnarok: a maioria dos serviços fica em 40% no **cadastro**.  
 Donna: varia por serviço (35 / 40 / 45).
+
+Override de produto: tabela `staff_products.commission_bps` (espelho de `staff_services`).
 
 ## Valor na comanda (fechado)
 

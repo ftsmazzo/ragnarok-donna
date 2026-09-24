@@ -399,10 +399,11 @@ export function StaffDrawer({
   const comissoesForm = isEdit ? (
     <form id="comissoes-form" className="form-stack" onSubmit={handleComissoesSubmit}>
       <p className="client-profile-hint">
-        % padrão vem do <strong>cadastro do serviço</strong>. Preencha só as exceções deste
-        profissional (ex.: líder 45% no corte). Vazio = usa o catálogo. Alteração pontual numa
-        comanda continua sendo editar o valor/desconto na linha.
+        % padrão vem do <strong>cadastro</strong> (serviço ou produto). Preencha só as exceções
+        deste profissional. Vazio = usa o catálogo. Alteração pontual numa comanda continua sendo
+        editar o valor/desconto na linha.
       </p>
+      <h3 className="client-profile-heading">Serviços</h3>
       {(staff.serviceCommissions ?? []).length === 0 ? (
         <p className="client-profile-empty">Nenhum serviço ativo no catálogo.</p>
       ) : (
@@ -423,6 +424,41 @@ export function StaffDrawer({
                   </span>
                   <input
                     name={`svc_pct_${row.serviceId}`}
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    defaultValue={commissionPct(row.overrideCommissionBps)}
+                    disabled={isRemoved}
+                    placeholder={catalog === "—" ? "catálogo" : catalog.replace("%", "")}
+                  />
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <h3 className="client-profile-heading">Produtos</h3>
+      {(staff.productCommissions ?? []).length === 0 ? (
+        <p className="client-profile-empty">Nenhum produto à venda no catálogo.</p>
+      ) : (
+        <div className="staff-commission-list">
+          {(staff.productCommissions ?? []).map((row) => {
+            const catalog =
+              row.catalogCommissionBps != null
+                ? `${(row.catalogCommissionBps / 100).toFixed(
+                    row.catalogCommissionBps % 100 === 0 ? 0 : 1
+                  )}%`
+                : "—";
+            return (
+              <div key={row.productId} className="staff-commission-row form-row-2">
+                <label className="form-field">
+                  <span>
+                    {row.productName}
+                    <span className="muted"> · catálogo {catalog}</span>
+                  </span>
+                  <input
+                    name={`prod_pct_${row.productId}`}
                     type="number"
                     min={0}
                     max={100}
@@ -542,12 +578,14 @@ export function StaffDrawer({
                 onClick={() => setTab("comissoes")}
               >
                 Comissões
-                {(staff.serviceCommissions ?? []).some((r) => r.overrideCommissionBps != null) ? (
+                {(staff.serviceCommissions ?? []).some((r) => r.overrideCommissionBps != null) ||
+                (staff.productCommissions ?? []).some((r) => r.overrideCommissionBps != null) ? (
                   <span className="drawer-tab-badge">
                     {
-                      (staff.serviceCommissions ?? []).filter(
-                        (r) => r.overrideCommissionBps != null
-                      ).length
+                      [
+                        ...(staff.serviceCommissions ?? []),
+                        ...(staff.productCommissions ?? []),
+                      ].filter((r) => r.overrideCommissionBps != null).length
                     }
                   </span>
                 ) : null}

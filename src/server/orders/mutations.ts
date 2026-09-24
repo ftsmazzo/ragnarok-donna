@@ -1107,6 +1107,19 @@ export async function addOrderItem(input: {
         )
         .limit(1);
       if (ov?.commissionBps != null) overrideBps = ov.commissionBps;
+    } else if (staffId && productId) {
+      const [ov] = await db
+        .select({ commissionBps: schema.staffProducts.commissionBps })
+        .from(schema.staffProducts)
+        .where(
+          and(
+            eq(schema.staffProducts.tenantId, tenant.id),
+            eq(schema.staffProducts.staffId, staffId),
+            eq(schema.staffProducts.productId, productId)
+          )
+        )
+        .limit(1);
+      if (ov?.commissionBps != null) overrideBps = ov.commissionBps;
     }
 
     const lineGross = unitPriceCents * qty;
@@ -1710,6 +1723,7 @@ export async function updateOrderItemLine(
         totalCents: schema.orderItems.totalCents,
         staffId: schema.orderItems.staffId,
         serviceId: schema.orderItems.serviceId,
+        productId: schema.orderItems.productId,
         commissionBps: schema.orderItems.commissionBps,
         meta: schema.orderItems.meta,
       })
@@ -1782,6 +1796,19 @@ export async function updateOrderItemLine(
         )
         .limit(1);
       if (ov?.commissionBps != null) overrideBps = ov.commissionBps;
+    } else if (item.productId && item.staffId) {
+      const [ov] = await db
+        .select({ commissionBps: schema.staffProducts.commissionBps })
+        .from(schema.staffProducts)
+        .where(
+          and(
+            eq(schema.staffProducts.tenantId, tenant.id),
+            eq(schema.staffProducts.staffId, item.staffId),
+            eq(schema.staffProducts.productId, item.productId)
+          )
+        )
+        .limit(1);
+      if (ov?.commissionBps != null) overrideBps = ov.commissionBps;
     }
 
     const [full] = await db
@@ -1804,7 +1831,7 @@ export async function updateOrderItemLine(
     const staffDefaultBps = full?.staffDefaultBps ?? null;
 
     const bps = resolveCommissionBps({
-      overrideBps: item.itemType === "service" ? overrideBps : null,
+      overrideBps,
       catalogBps,
       staffDefaultBps,
     });
