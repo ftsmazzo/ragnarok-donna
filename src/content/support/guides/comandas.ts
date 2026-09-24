@@ -102,7 +102,7 @@ export const guideComandas: SupportGuide = {
     {
       concern: "Barbeiro não consegue lançar corte na comanda",
       reply:
-        "No painel, barbeiro só lança produto na comanda. Serviço e pacote são recepção/Titular. Consumo do barbeiro (coca etc.) é em Comandas → Venda / Consumo no celular.",
+        "No painel, barbeiro só lança produto na comanda. Serviço e pacote são recepção/Titular. Consumo do barbeiro (coca etc.): Comissões → Consumo do barbeiro.",
     },
     {
       concern: "Vendi pacote e o crédito não aparece",
@@ -216,53 +216,53 @@ export const guideConsumoPwa: SupportGuide = {
   roles: ["owner", "admin", "reception", "staff"],
   intents: ["onde_fica", "como_fazer", "objecao", "permissao"],
   summary:
-    "No celular: vender produto na comanda aberta (preço cheio) ou lançar Meu consumo (−30% na comissão).",
+    "No celular: vender produto na comanda aberta (preço cheio). Consumo do barbeiro (coca/trufa −30%) é na recepção: Comissões → Consumo do barbeiro.",
   steps: [
     {
-      title: "Onde fica",
+      title: "Onde fica a venda no celular",
       detail:
-        "Menu → Comandas → Venda / Consumo (celular), ou abra /pwa/consumo no celular. Também pelo atalho App celular (PWA).",
+        "Menu → Comandas → Venda (celular), ou /pwa/consumo. Também pelo atalho da Agenda.",
     },
     {
-      title: "Aba Venda — produto na comanda do cliente",
+      title: "Venda — produto na comanda do cliente",
       detail:
-        "Escolha a comanda aberta na lista → toque no produto em estoque. Lança 1 un. na comanda pelo preço cheio e baixa estoque. Se não há comanda aberta “sua”, peça à recepção para abrir.",
+        "Escolha a comanda aberta → toque no produto em estoque. Lança 1 un. pelo preço cheio e baixa estoque. Se não há comanda, peça à recepção para abrir.",
     },
     {
-      title: "Aba Meu consumo — desconto do barbeiro",
+      title: "Consumo do barbeiro (não é esta tela)",
       detail:
-        "Aba Meu consumo → toque no produto. Baixa estoque e lança desconto na comissão: cobra 70% do preço de venda (venda − 30%). A conta precisa estar vinculada a um profissional (Configurações → Equipe).",
+        "Financeiro → Comissões → botão Consumo do barbeiro: escolha profissional + produto. Baixa estoque e desconta 70% do preço na comissão (venda −30%). Só recepção/gerente/titular.",
     },
     {
-      title: "Uso interno da loja (não é esta tela)",
+      title: "Uso interno da loja",
       detail:
-        "Baixa de produto de uso interno (sem comanda/comissão) fica em Cadastros → Produtos: o produto precisa estar marcado como Uso interno; aí há ação para baixar 1 un. do estoque.",
+        "Cadastros → Produtos: marque Uso interno e baixe 1 un. na lista. Sem comanda e sem desconto de comissão.",
     },
   ],
   objections: [
     {
       concern: "Não aparece nenhuma comanda na Venda",
       reply:
-        "Só lista comandas abertas que o usuário pode ver. Peça à recepção para abrir a comanda do cliente (Comandas → Abertas ou pela Agenda).",
+        "Só lista comandas abertas. Peça à recepção para abrir a comanda do cliente (Comandas → Abertas ou pela Agenda).",
     },
     {
-      concern: "Meu consumo deu erro de vínculo",
+      concern: "Onde lanço coca/trufa do barbeiro?",
       reply:
-        "O login do barbeiro precisa estar ligado a um profissional em Configurações → Equipe de acesso. Sem isso não lança consumo.",
+        "Não é no celular. Vá em Comissões → Consumo do barbeiro e escolha o profissional.",
     },
     {
       concern: "Onde lanço uso interno / produto da casa?",
       reply:
-        "Não é no PWA de consumo. Vá em Cadastros → Produtos, marque Uso interno no produto e use a baixa de estoque por lá.",
+        "Cadastros → Produtos, marque Uso interno e use a baixa de estoque por lá.",
     },
     {
       concern: "Consumo aparece nas comissões?",
       reply:
-        "Sim: Financeiro → Comissões. O valor descontado é preço × 70% (venda − 30%).",
+        "Sim: Financeiro → Comissões, nos vales/descontos do período. Valor = preço × 70%.",
     },
   ],
   relatedGuideIds: ["comandas", "produtos", "comissoes", "pwa-app", "equipe-acesso"],
-  lastVerified: "2026-09-15",
-  enrichNotes: ["FAQ uso-interno alinhado para Produtos, não PWA"],
+  lastVerified: "2026-09-24",
+  enrichNotes: ["Consumo barbeiro em Comissões; PWA só venda"],
 };
 

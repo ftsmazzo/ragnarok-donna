@@ -75,6 +75,8 @@ const RECEPTION: Capability[] = [
   "cash.read",
   "cash.write",
   "finance.treasury",
+  "commissions.read_all",
+  "commissions.write",
   "reports.operational",
   "conversations.read",
   "conversations.write",

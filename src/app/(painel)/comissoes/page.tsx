@@ -5,8 +5,10 @@ import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import { ExportCsvButton } from "@/components/relatorio/ExportCsvButton";
 import { PaymentMixDonut, RankingBarChart } from "@/components/relatorio/charts";
 import { CommissionAdvancePanel } from "@/components/comissoes/CommissionAdvancePanel";
+import { StaffConsumptionPanel } from "@/components/comissoes/StaffConsumptionPanel";
 import { RecalcCommissionsButton } from "@/components/comissoes/RecalcCommissionsButton";
 import { reportCommissions } from "@/server/commissions";
+import { listCatalogForOrders } from "@/server/orders";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelAdvanceKind, labelItemType } from "@/lib/format";
 import {
@@ -40,15 +42,25 @@ export default async function ComissoesPage({ searchParams }: Props) {
 
   const staffFilter = forcedStaffId ?? (sp.staff || undefined);
 
-  const data = await reportCommissions({
-    from: sp.from,
-    to: sp.to,
-    staffId: staffFilter,
-    itemType: sp.type,
-    page: Number(sp.page) || 1,
-  });
+  const [data, catalog] = await Promise.all([
+    reportCommissions({
+      from: sp.from,
+      to: sp.to,
+      staffId: staffFilter,
+      itemType: sp.type,
+      page: Number(sp.page) || 1,
+    }),
+    scope === "own" ? Promise.resolve(null) : listCatalogForOrders(),
+  ]);
 
   const ownOnly = Boolean(forcedStaffId);
+  const consumptionProducts =
+    catalog?.products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      priceCents: p.priceCents,
+      stockQty: p.stockQty ?? 0,
+    })) ?? [];
 
   const ranking = data.byStaff
     .filter((s) => s.staffName)
@@ -80,6 +92,13 @@ export default async function ComissoesPage({ searchParams }: Props) {
             {data.canWrite && !ownOnly ? (
               <CommissionAdvancePanel
                 staffList={data.staffList}
+                defaultStaffId={data.staffId || undefined}
+              />
+            ) : null}
+            {data.canWrite && !ownOnly ? (
+              <StaffConsumptionPanel
+                staffList={data.staffList}
+                products={consumptionProducts}
                 defaultStaffId={data.staffId || undefined}
               />
             ) : null}

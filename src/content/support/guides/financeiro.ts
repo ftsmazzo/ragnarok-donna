@@ -117,12 +117,12 @@ export const guideComissoes: SupportGuide = {
     {
       title: "Consumo do barbeiro (−30%)",
       detail:
-        "Meu consumo no celular gera desconto na conta do profissional (preço × 70%). Aparece nos ajustes/descontos do período — ver guia Consumo PWA.",
+        "Botão Consumo do barbeiro: profissional + produto. Baixa estoque e lança desconto (preço × 70%) nos ajustes do período. Não misturar com produto na comanda do cliente.",
     },
     {
       title: "Lançar vale, bônus, desconto ou pagamento",
       detail:
-        "titular/admin: botão Lançar vale / ajuste → profissional, tipo (vale, bônus, desconto na comissão, pagamento de comissão), valor e data. Também há atalho Vale no Caixa.",
+        "titular/admin/gerente: botão Lançar vale / ajuste → profissional, tipo (vale, bônus, desconto na comissão, pagamento de comissão), valor. Também há atalho Vale no Caixa.",
     },
     {
       title: "A pagar",
@@ -144,7 +144,7 @@ export const guideComissoes: SupportGuide = {
     {
       concern: "Não acho o consumo de coca na comissão",
       reply:
-        "Consumo (−30%) entra como ajuste/desconto do profissional, não como item de serviço. Filtre o período em que foi lançado e olhe vales/descontos.",
+        "Consumo (−30%) entra como ajuste/desconto do profissional. Lance em Comissões → Consumo do barbeiro e filtre o período nos vales/descontos.",
     },
     {
       concern: "Como marco que já paguei o barbeiro?",

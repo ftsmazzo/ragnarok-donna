@@ -58,10 +58,10 @@ export const FEATURE_HINTS: FeatureHint[] = [
   },
   {
     id: "consumo",
-    aliases: ["consumo", "meu consumo", "uso interno", "venda celular"],
-    title: "Venda / Consumo",
-    where: "Comandas → Venda / Consumo (celular) ou /pwa/consumo",
-    tip: "Aba Venda = produto na comanda do cliente. Consumo de refrigerante/trufa: a recepção lança na comanda.",
+    aliases: ["consumo", "meu consumo", "uso interno", "venda celular", "consumo barbeiro"],
+    title: "Consumo do barbeiro",
+    where: "Financeiro → Comissões → Consumo do barbeiro",
+    tip: "Recepção: profissional + produto (estoque − e 70% na comissão). Celular /pwa/consumo = só venda na comanda do cliente.",
   },
   {
     id: "caixa",
@@ -75,7 +75,7 @@ export const FEATURE_HINTS: FeatureHint[] = [
     aliases: ["comissão", "comissões", "vale", "repasse"],
     title: "Comissões",
     where: "Financeiro → Comissões",
-    tip: "Barbeiro vê só as próprias. Titular/admin lança vale/bônus/pagamento. Crédito de pacote comissiona no preço de tabela.",
+    tip: "Barbeiro vê só as próprias. Titular/admin lança vale/bônus/pagamento e Consumo do barbeiro. Crédito de pacote comissiona no preço de tabela.",
   },
   {
     id: "conversas",

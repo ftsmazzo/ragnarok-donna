@@ -69,15 +69,15 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "consumo-barbeiro",
     question: "Como o barbeiro lança consumo (coca, trufa)?",
     answer:
-      "A recepção lança na comanda do atendimento (produto). O atalho Meu consumo do barbeiro no celular foi desligado — a loja pediu assim. Uso interno da loja: Cadastros → Produtos.",
-    tags: ["consumo", "barbeiro", "produto", "pwa", "comanda"],
-    menuPath: "Comandas → Venda (celular) / Cadastros → Produtos",
+      "A recepção/gerente lança em Financeiro → Comissões → botão Consumo do barbeiro (escolhe profissional + produto). Baixa estoque e desconta 70% do preço na comissão. Não use a comanda do cliente. Uso interno da loja: Cadastros → Produtos.",
+    tags: ["consumo", "barbeiro", "produto", "comissões", "comanda"],
+    menuPath: "Financeiro → Comissões",
   },
   {
     id: "uso-interno",
     question: "Onde lanço uso interno de produto?",
     answer:
-      "Cadastros → Produtos: o produto precisa estar marcado como Uso interno. Na lista, use a ação de baixar estoque (1 un.). Isso não passa por comanda nem comissão de barbeiro. Refrigerante/trufa do profissional: a recepção lança na comanda.",
+      "Cadastros → Produtos: o produto precisa estar marcado como Uso interno. Na lista, use a ação de baixar estoque (1 un.). Isso não passa por comanda nem comissão. Refrigerante/trufa do profissional: Comissões → Consumo do barbeiro.",
     tags: ["uso interno", "estoque", "dona", "produto"],
     menuPath: "Cadastros → Produtos",
   },
