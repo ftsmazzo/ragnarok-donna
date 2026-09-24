@@ -169,6 +169,8 @@ export const staffServices = pgTable(
       .references(() => services.id, { onDelete: "cascade" }),
     customPriceCents: integer("custom_price_cents"),
     customDurationMin: integer("custom_duration_min"),
+    /** Override de % só deste profissional neste serviço (bps). null = usa o catálogo. */
+    commissionBps: integer("commission_bps"),
     ...timestamps,
   },
   (t) => [

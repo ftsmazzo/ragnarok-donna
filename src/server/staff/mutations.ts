@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { AppError, ForbiddenError, NotFoundError } from "../errors";
 import { requireBranchContext } from "../context/branch";
@@ -414,5 +414,93 @@ export async function setStaffClientGoal(
     if (err instanceof ForbiddenError) return { ok: false, error: "Sem permissão" };
     console.error("[setStaffClientGoal]", err);
     return { ok: false, error: "Erro ao salvar meta de clientes" };
+  }
+}
+
+/**
+ * Salva overrides de % por serviço deste profissional.
+ * Campo vazio / null → remove override (volta ao % do catálogo).
+ */
+export async function saveStaffServiceCommissions(
+  staffId: string,
+  rows: Array<{ serviceId: string; commissionPct: string }>
+): Promise<ActionResult> {
+  try {
+    await assertCanWriteAsync();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const [exists] = await db
+      .select({ id: schema.staff.id })
+      .from(schema.staff)
+      .where(and(eq(schema.staff.id, staffId), eq(schema.staff.tenantId, tenant.id)))
+      .limit(1);
+    if (!exists) throw new NotFoundError("Profissional não encontrado");
+
+    const now = new Date();
+    for (const row of rows) {
+      const serviceId = row.serviceId?.trim();
+      if (!serviceId) continue;
+
+      const [svc] = await db
+        .select({ id: schema.services.id })
+        .from(schema.services)
+        .where(
+          and(
+            eq(schema.services.id, serviceId),
+            eq(schema.services.tenantId, tenant.id),
+            isNull(schema.services.deletedAt)
+          )
+        )
+        .limit(1);
+      if (!svc) continue;
+
+      const raw = row.commissionPct?.trim() ?? "";
+      let commissionBps: number | null = null;
+      if (raw !== "") {
+        const n = Number(raw.replace(",", "."));
+        if (Number.isNaN(n) || n < 0 || n > 100) {
+          throw new AppError(
+            "VALIDATION",
+            `Comissão inválida em um serviço (use 0–100% ou deixe vazio)`
+          );
+        }
+        commissionBps = Math.round(n * 100);
+      }
+
+      const [link] = await db
+        .select({ id: schema.staffServices.id })
+        .from(schema.staffServices)
+        .where(
+          and(
+            eq(schema.staffServices.tenantId, tenant.id),
+            eq(schema.staffServices.staffId, staffId),
+            eq(schema.staffServices.serviceId, serviceId)
+          )
+        )
+        .limit(1);
+
+      if (link) {
+        await db
+          .update(schema.staffServices)
+          .set({ commissionBps, updatedAt: now })
+          .where(eq(schema.staffServices.id, link.id));
+      } else if (commissionBps != null) {
+        await db.insert(schema.staffServices).values({
+          tenantId: tenant.id,
+          staffId,
+          serviceId,
+          commissionBps,
+        });
+      }
+    }
+
+    return { ok: true, id: staffId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof NotFoundError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: "Sem permissão" };
+    console.error("[saveStaffServiceCommissions]", err);
+    return { ok: false, error: "Erro ao salvar comissões por serviço" };
   }
 }

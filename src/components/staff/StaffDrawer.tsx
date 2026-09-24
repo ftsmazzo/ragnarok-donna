@@ -8,6 +8,7 @@ import {
   deactivateStaffAction,
   reactivateStaffAction,
   saveStaffSchedulesAction,
+  saveStaffServiceCommissionsAction,
   updateStaffAction,
 } from "@/app/(painel)/profissionais/actions";
 import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
@@ -67,7 +68,9 @@ export function StaffDrawer({
   const [error, setError] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
-  const [tab, setTab] = useState<"cadastro" | "jornada" | "performance">("cadastro");
+  const [tab, setTab] = useState<"cadastro" | "jornada" | "comissoes" | "performance">(
+    "cadastro"
+  );
   const [pending, startTransition] = useTransition();
   const { showToast } = useToast();
 
@@ -116,6 +119,24 @@ export function StaffDrawer({
         return;
       }
       showToast("Jornada salva", "success");
+      onSaved(staff.id);
+    });
+  }
+
+  function handleComissoesSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!staff) return;
+    setError("");
+    const formData = new FormData(e.currentTarget);
+
+    startTransition(async () => {
+      const result = await saveStaffServiceCommissionsAction(staff.id, formData);
+      if (!result.ok) {
+        setError(result.error);
+        showToast(result.error, "error");
+        return;
+      }
+      showToast("Comissões por serviço salvas", "success");
       onSaved(staff.id);
     });
   }
@@ -284,7 +305,7 @@ export function StaffDrawer({
 
       <div className="form-row-2">
         <label className="form-field">
-          <span>Comissão padrão (%)</span>
+          <span>Comissão padrão (%) — legado</span>
           <input
             name="commissionPct"
             type="number"
@@ -293,8 +314,11 @@ export function StaffDrawer({
             step={0.01}
             defaultValue={commissionPct(staff?.defaultCommissionBps ?? null)}
             disabled={isRemoved}
-            placeholder="40"
+            placeholder="só se o serviço não tiver %"
           />
+          <span className="client-profile-hint muted">
+            Preferir % no catálogo ou na aba Comissões (override por serviço).
+          </span>
         </label>
 
         <label className="form-field">
@@ -372,6 +396,52 @@ export function StaffDrawer({
     <p className="client-profile-empty">Salve o cadastro primeiro para configurar a jornada.</p>
   );
 
+  const comissoesForm = isEdit ? (
+    <form id="comissoes-form" className="form-stack" onSubmit={handleComissoesSubmit}>
+      <p className="client-profile-hint">
+        % padrão vem do <strong>cadastro do serviço</strong>. Preencha só as exceções deste
+        profissional (ex.: líder 45% no corte). Vazio = usa o catálogo. Alteração pontual numa
+        comanda continua sendo editar o valor/desconto na linha.
+      </p>
+      {(staff.serviceCommissions ?? []).length === 0 ? (
+        <p className="client-profile-empty">Nenhum serviço ativo no catálogo.</p>
+      ) : (
+        <div className="staff-commission-list">
+          {(staff.serviceCommissions ?? []).map((row) => {
+            const catalog =
+              row.catalogCommissionBps != null
+                ? `${(row.catalogCommissionBps / 100).toFixed(
+                    row.catalogCommissionBps % 100 === 0 ? 0 : 1
+                  )}%`
+                : "—";
+            return (
+              <div key={row.serviceId} className="staff-commission-row form-row-2">
+                <label className="form-field">
+                  <span>
+                    {row.serviceName}
+                    <span className="muted"> · catálogo {catalog}</span>
+                  </span>
+                  <input
+                    name={`svc_pct_${row.serviceId}`}
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    defaultValue={commissionPct(row.overrideCommissionBps)}
+                    disabled={isRemoved}
+                    placeholder={catalog === "—" ? "catálogo" : catalog.replace("%", "")}
+                  />
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </form>
+  ) : (
+    <p className="client-profile-empty">Salve o cadastro primeiro para definir overrides.</p>
+  );
+
   return (
     <>
       <Drawer
@@ -421,7 +491,16 @@ export function StaffDrawer({
                 >
                   {pending ? "Salvando…" : "Salvar jornada"}
                 </button>
-              ) : (
+              ) : tab === "comissoes" && isEdit ? (
+                <button
+                  type="submit"
+                  form="comissoes-form"
+                  className="btn btn-primary"
+                  disabled={pending}
+                >
+                  {pending ? "Salvando…" : "Salvar comissões"}
+                </button>
+              ) : tab === "performance" ? null : (
                 <button
                   type="submit"
                   form="staff-form"
@@ -459,6 +538,22 @@ export function StaffDrawer({
               </button>
               <button
                 type="button"
+                className={tab === "comissoes" ? "drawer-tab is-active" : "drawer-tab"}
+                onClick={() => setTab("comissoes")}
+              >
+                Comissões
+                {(staff.serviceCommissions ?? []).some((r) => r.overrideCommissionBps != null) ? (
+                  <span className="drawer-tab-badge">
+                    {
+                      (staff.serviceCommissions ?? []).filter(
+                        (r) => r.overrideCommissionBps != null
+                      ).length
+                    }
+                  </span>
+                ) : null}
+              </button>
+              <button
+                type="button"
                 className={tab === "performance" ? "drawer-tab is-active" : "drawer-tab"}
                 onClick={() => setTab("performance")}
               >
@@ -467,6 +562,7 @@ export function StaffDrawer({
             </nav>
             {tab === "cadastro" ? cadastroForm : null}
             {tab === "jornada" ? jornadaForm : null}
+            {tab === "comissoes" ? comissoesForm : null}
             {tab === "performance" && performance && staff ? (
               <StaffPerformancePanel
                 staffId={staff.id}

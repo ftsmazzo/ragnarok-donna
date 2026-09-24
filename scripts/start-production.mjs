@@ -237,6 +237,7 @@ ALTER TABLE order_items ADD COLUMN IF NOT EXISTS package_id uuid;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS avatar_url text;
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS commission_bps integer;
+ALTER TABLE staff_services ADD COLUMN IF NOT EXISTS commission_bps integer;
 
 ALTER TABLE services ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES branches(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS services_tenant_branch_idx ON services (tenant_id, branch_id);

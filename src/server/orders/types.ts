@@ -38,6 +38,8 @@ export type OrderItemDetail = {
   walletPending: boolean;
   /** Item zerado como cortesia (meta.courtesy) — não entra no caixa. */
   courtesy: boolean;
+  /** Consumo de serviço entre profissionais (50%). */
+  staffServiceConsumption: boolean;
 };
 
 export type OrderPaymentDetail = {

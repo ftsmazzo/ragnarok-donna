@@ -27,6 +27,7 @@ import {
   setOrderDiscountAction,
   setOrderItemCourtesyAction,
   settleAndCloseOrderAction,
+  updateOrderItemLineAction,
 } from "@/app/(painel)/comandas/actions";
 import { renewOrTopUpClientPackageAction, cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
@@ -116,6 +117,10 @@ export function OrderDrawer({
   const [useCredit, setUseCredit] = useState(true);
   const [itemDiscountPct, setItemDiscountPct] = useState("");
   const [itemCourtesy, setItemCourtesy] = useState(false);
+  const [staffServiceConsumption, setStaffServiceConsumption] = useState(false);
+  const [consumerStaffId, setConsumerStaffId] = useState("");
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editTotalReais, setEditTotalReais] = useState("");
   const [coveredReais, setCoveredReais] = useState("");
   const [orderDiscountPct, setOrderDiscountPct] = useState(() =>
     orderDiscountPercent(order.totalCents, order.discountCents)
@@ -152,6 +157,8 @@ export function OrderDrawer({
     setCoveredReais("");
     setItemDiscountPct("");
     setItemCourtesy(false);
+    setStaffServiceConsumption(false);
+    setConsumerStaffId("");
   }, [catalogId, itemType]);
 
   useEffect(() => {
@@ -377,6 +384,11 @@ export function OrderDrawer({
       }
     }
 
+    if (staffServiceConsumption && itemType === "service") {
+      formData.set("staffServiceConsumption", "1");
+      if (consumerStaffId) formData.set("consumerStaffId", consumerStaffId);
+    }
+
     run(async () => {
       const result = await addOrderItemAction(formData);
       if (result.ok) {
@@ -386,6 +398,8 @@ export function OrderDrawer({
         setUseCredit(true);
         setItemDiscountPct("");
         setItemCourtesy(false);
+        setStaffServiceConsumption(false);
+        setConsumerStaffId("");
         setCoveredReais("");
         setSelectedClientPackageId("");
         setBookFlash("Crédito abatido. Saldo atualizado na carteira.");
@@ -1334,6 +1348,9 @@ export function OrderDrawer({
                     {item.courtesy ? (
                       <span className="order-badge is-courtesy">Cortesia</span>
                     ) : null}
+                    {item.staffServiceConsumption ? (
+                      <span className="order-badge">Consumo 50%</span>
+                    ) : null}
                   </strong>
                   <span className="muted">
                     {item.qty}x · {item.staffName ?? "Sem profissional"}
@@ -1381,6 +1398,72 @@ export function OrderDrawer({
                       />
                       <span>Cortesia</span>
                     </label>
+                  ) : null}
+                  {canEdit &&
+                  !item.packageSale &&
+                  !item.redeemed &&
+                  !item.courtesy &&
+                  (item.itemType === "service" || item.itemType === "product") ? (
+                    editingItemId === item.id ? (
+                      <div className="form-row-2" style={{ alignItems: "center", gap: 8, marginTop: 6 }}>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={editTotalReais}
+                          onChange={(e) => setEditTotalReais(e.target.value)}
+                          aria-label="Valor cobrado (R$)"
+                          style={{ maxWidth: 110 }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={pending}
+                          onClick={() => {
+                            const totalReais = Number(String(editTotalReais).replace(",", "."));
+                            if (!Number.isFinite(totalReais) || totalReais < 0) {
+                              showToast("Informe um valor válido", "error");
+                              return;
+                            }
+                            run(async () => {
+                              const result = await updateOrderItemLineAction(
+                                item.id,
+                                order.id,
+                                { totalReais }
+                              );
+                              if (result.ok) {
+                                setEditingItemId(null);
+                                showToast("Valor atualizado", "success");
+                              }
+                              return result;
+                            });
+                          }}
+                        >
+                          Ok
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={pending}
+                          onClick={() => setEditingItemId(null)}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={pending}
+                        style={{ marginTop: 4 }}
+                        onClick={() => {
+                          setEditingItemId(item.id);
+                          setEditTotalReais((item.totalCents / 100).toFixed(2));
+                        }}
+                      >
+                        Editar valor
+                      </button>
+                    )
                   ) : null}
                 </div>
                 <div className="order-item-actions">
@@ -1647,13 +1730,14 @@ export function OrderDrawer({
                   <input
                     type="checkbox"
                     checked={itemCourtesy}
-                    disabled={willUseCredit}
+                    disabled={willUseCredit || staffServiceConsumption}
                     onChange={(e) => {
                       const on = e.target.checked;
                       setItemCourtesy(on);
                       if (on) {
                         setItemDiscountPct("100");
                         setUseCredit(false);
+                        setStaffServiceConsumption(false);
                       } else {
                         setItemDiscountPct("");
                       }
@@ -1665,6 +1749,54 @@ export function OrderDrawer({
                       : "Cortesia — zera o valor deste item (não entra no caixa)."}
                   </span>
                 </label>
+                {itemType === "service" ? (
+                  <>
+                    <label
+                      className={
+                        staffServiceConsumption
+                          ? "form-check order-courtesy-toggle is-on"
+                          : "form-check order-courtesy-toggle"
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={staffServiceConsumption}
+                        disabled={willUseCredit || itemCourtesy}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          setStaffServiceConsumption(on);
+                          if (on) {
+                            setItemDiscountPct("50");
+                            setUseCredit(false);
+                            setItemCourtesy(false);
+                          } else if (itemDiscountPct === "50") {
+                            setItemDiscountPct("");
+                          }
+                        }}
+                      />
+                      <span>
+                        Consumo profissional (50%) — quem executou ganha comissão sobre o valor
+                        reduzido; desconto na consumidora.
+                      </span>
+                    </label>
+                    {staffServiceConsumption ? (
+                      <label className="form-field">
+                        <span>Quem consumiu (desconto na comissão)</span>
+                        <select
+                          value={consumerStaffId}
+                          onChange={(e) => setConsumerStaffId(e.target.value)}
+                        >
+                          <option value="">— opcional —</option>
+                          {staff.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                  </>
+                ) : null}
               </>
             ) : null}
             <button

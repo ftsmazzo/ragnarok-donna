@@ -37,6 +37,16 @@ export type StaffDetail = StaffListItem & {
   externalSource: string | null;
   meta: Record<string, unknown>;
   schedules: StaffScheduleSlot[];
+  /** Serviços ativos + override de % (null = usa catálogo). */
+  serviceCommissions: StaffServiceCommission[];
+};
+
+export type StaffServiceCommission = {
+  serviceId: string;
+  serviceName: string;
+  catalogCommissionBps: number | null;
+  overrideCommissionBps: number | null;
+  priceCents: number;
 };
 
 function staffFilterWhere(tenantId: string, filter: StaffFilter) {
@@ -164,6 +174,32 @@ export async function getStaffMember(staffId: string): Promise<StaffDetail> {
     )
     .orderBy(asc(schema.staffSchedules.weekday), asc(schema.staffSchedules.slotIndex));
 
+  const serviceCommissions = await db
+    .select({
+      serviceId: schema.services.id,
+      serviceName: schema.services.name,
+      catalogCommissionBps: schema.services.commissionBps,
+      overrideCommissionBps: schema.staffServices.commissionBps,
+      priceCents: schema.services.priceCents,
+    })
+    .from(schema.services)
+    .leftJoin(
+      schema.staffServices,
+      and(
+        eq(schema.staffServices.serviceId, schema.services.id),
+        eq(schema.staffServices.staffId, staffId),
+        eq(schema.staffServices.tenantId, tenant.id)
+      )
+    )
+    .where(
+      and(
+        eq(schema.services.tenantId, tenant.id),
+        eq(schema.services.isActive, true),
+        isNull(schema.services.deletedAt)
+      )
+    )
+    .orderBy(asc(schema.services.name));
+
   return {
     ...row,
     meta: (row.meta ?? {}) as Record<string, unknown>,
@@ -173,6 +209,7 @@ export async function getStaffMember(staffId: string): Promise<StaffDetail> {
       startTime: String(s.startTime).slice(0, 5),
       endTime: String(s.endTime).slice(0, 5),
     })),
+    serviceCommissions,
   };
 }
 
