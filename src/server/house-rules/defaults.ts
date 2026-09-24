@@ -4,10 +4,10 @@ export const HOUSE_RULES = {
   waitingAlertMin: 5,
   /** Minutos sem check-in → “você vem?” (antes da remarcação) */
   voceVemAfterMin: 10,
-  /** Janela típica de almoço (não encaixar) */
+  /** Janela típica de almoço (grade cinza / slots livres — encaixe do painel ignora) */
   lunchStartHm: "12:00",
   lunchEndHm: "14:00",
-  /** Sábado: ao encaixar, avisar e preferir ~30 min livres fora do almoço */
+  /** Sábado: ao encaixar, avisar (não bloqueia) */
   saturdayEncaixeWarn: true,
   /** Profissionais com carteira fechada (só deles ou quem pediu) */
   lockedStaffNames: ["luciano", "diogo"],

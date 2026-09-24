@@ -29,7 +29,7 @@ export const SUPPORT_FAQ: SupportFaqEntry[] = [
     id: "agenda-encaixe",
     question: "Como faço um encaixe agora?",
     answer:
-      "Na Agenda, ao criar/editar o agendamento, use a opção de encaixe imediato (agora). Isso é no painel — a Donna no WhatsApp não sobrescreve esse encaixe.",
+      "Na Agenda use + Encaixe ou botão direito na célula (mesmo fora do expediente/almoço). O encaixe ignora jornada e almoço e pode sobrepor. Isso é no painel — a Donna no WhatsApp não sobrescreve.",
     tags: ["agenda", "encaixe", "agora", "imediato"],
     menuPath: "Agenda",
   },
