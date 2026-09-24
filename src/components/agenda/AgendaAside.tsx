@@ -112,7 +112,7 @@ export function AgendaAside({
                   className="agenda-side-list-item"
                   disabled={!canWrite || !onBookSlot}
                   onClick={() => {
-                    onBookSlot?.(slot.staffId, slot.hour);
+                    onBookSlot?.(slot.staffId, slot.hour, slot.minute);
                     setPanel(null);
                   }}
                 >

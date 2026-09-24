@@ -1,4 +1,5 @@
 import { dayBoundsSp, hourInSp, minuteInSp } from "@/lib/datetime";
+import { isLunchTimeHm } from "@/server/house-rules/defaults";
 import type { AgendaAppointment } from "./types";
 
 function pad2(n: number) {
@@ -87,7 +88,12 @@ export function parseHmToMin(t: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
-/** Cell fora de qualquer turno da jornada (início, almoço entre turnos, fim). */
+/**
+ * Fora do expediente / almoço (grade cinza + listas de livres).
+ * - Sem jornada cadastrada → não inventa cinza (legado; agente não oferece slot).
+ * - 2+ turnos → buraco entre turnos = almoço; fora dos turnos = fora.
+ * - 1 turno contínuo → almoço da casa (12–14) também fica fora (paridade Donna/agente).
+ */
 export function isAgendaSlotOffHours(
   windows: ScheduleWindow[] | undefined,
   hour: number,
@@ -95,7 +101,13 @@ export function isAgendaSlotOffHours(
 ): boolean {
   if (!windows || windows.length === 0) return false;
   const startMin = hour * 60 + minute;
-  return !windows.some((w) => startMin >= w.startMin && startMin < w.endMin);
+  const inWindow = windows.some((w) => startMin >= w.startMin && startMin < w.endMin);
+  if (!inWindow) return true;
+  if (windows.length < 2) {
+    const hm = `${pad2(hour)}:${pad2(minute)}`;
+    if (isLunchTimeHm(hm)) return true;
+  }
+  return false;
 }
 
 export function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
