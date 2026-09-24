@@ -5,6 +5,7 @@ import {
   deactivateStaffMember,
   reactivateStaffMember,
   saveStaffSchedules,
+  saveStaffServiceCommissions,
   setStaffClientGoal,
   updateStaffMember,
   type ActionResult,
@@ -41,6 +42,23 @@ export async function saveStaffSchedulesAction(
   if (result.ok) {
     revalidatePath("/profissionais");
     revalidatePath("/agenda");
+  }
+  return result;
+}
+
+export async function saveStaffServiceCommissionsAction(
+  staffId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  const rows: Array<{ serviceId: string; commissionPct: string }> = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("svc_pct_")) continue;
+    const serviceId = key.slice("svc_pct_".length);
+    rows.push({ serviceId, commissionPct: String(value ?? "") });
+  }
+  const result = await saveStaffServiceCommissions(staffId, rows);
+  if (result.ok) {
+    revalidatePath("/profissionais");
   }
   return result;
 }

@@ -16,6 +16,7 @@ import {
   annotateServiceCommission,
   syncStaffMonthServiceCommission,
 } from "../commissions/house";
+import { resolveCommissionBps } from "@/lib/commission-policy";
 import { dayBoundsSp } from "@/lib/datetime";
 
 export type ActionResult = { ok: true; id: string } | { ok: false; error: string };
@@ -934,6 +935,12 @@ export async function addOrderItem(input: {
   clientPackageId?: string;
   /** Zera o item (100% desconto) e marca meta.courtesy — não entra no caixa. */
   courtesy?: boolean;
+  /**
+   * Consumo de serviço entre profissionais: aplica 50% no item e, se
+   * `consumerStaffId` informado, desconta esse valor da comissão da consumidora.
+   */
+  staffServiceConsumption?: boolean;
+  consumerStaffId?: string;
 }): Promise<ActionResult> {
   try {
     const session = await requireSession();
@@ -950,6 +957,9 @@ export async function addOrderItem(input: {
       if (input.courtesy) {
         throw new ForbiddenError("Barbeiro não pode marcar cortesia");
       }
+      if (input.staffServiceConsumption) {
+        throw new ForbiddenError("Barbeiro não lança consumo de serviço");
+      }
       await assertOwnOrderAccess(input.orderId);
       const ownStaffId = await resolveSessionStaffId(session);
       if (!ownStaffId) {
@@ -962,7 +972,9 @@ export async function addOrderItem(input: {
 
     const qty = Math.max(1, Math.min(99, input.qty ?? 1));
     const courtesy = Boolean(input.courtesy);
-    const discountCents = courtesy
+    const staffServiceConsumption =
+      Boolean(input.staffServiceConsumption) && input.itemType === "service";
+    let discountCents = courtesy
       ? 0
       : Math.max(0, input.discountCents ?? 0);
     const db = createDb();
@@ -1081,7 +1093,27 @@ export async function addOrderItem(input: {
       staffCommissionBps = st.defaultCommissionBps;
     }
 
+    let overrideBps: number | null = null;
+    if (staffId && serviceId) {
+      const [ov] = await db
+        .select({ commissionBps: schema.staffServices.commissionBps })
+        .from(schema.staffServices)
+        .where(
+          and(
+            eq(schema.staffServices.tenantId, tenant.id),
+            eq(schema.staffServices.staffId, staffId),
+            eq(schema.staffServices.serviceId, serviceId)
+          )
+        )
+        .limit(1);
+      if (ov?.commissionBps != null) overrideBps = ov.commissionBps;
+    }
+
     const lineGross = unitPriceCents * qty;
+    if (staffServiceConsumption && !courtesy) {
+      // 50% do preço de tabela (consumo entre profissionais)
+      discountCents = Math.max(discountCents, Math.round(lineGross * 0.5));
+    }
     let appliedDiscount = discountCents;
     let coveredCents = 0;
     let totalCents = lineGross - appliedDiscount;
@@ -1091,6 +1123,19 @@ export async function addOrderItem(input: {
         ((input.itemType === "service" && serviceId) ||
           (input.itemType === "product" && productId))
     );
+
+    if (staffServiceConsumption && useCredit) {
+      throw new AppError(
+        "VALIDATION",
+        "Consumo entre profissionais não usa crédito de pacote"
+      );
+    }
+    if (staffServiceConsumption && courtesy) {
+      throw new AppError(
+        "VALIDATION",
+        "Consumo entre profissionais não é cortesia (use 50%, não 100%)"
+      );
+    }
 
     if (courtesy && useCredit) {
       throw new AppError(
@@ -1148,7 +1193,11 @@ export async function addOrderItem(input: {
       throw new AppError("VALIDATION", "Desconto maior que o valor do item");
     }
 
-    const bps = itemCommissionBps ?? staffCommissionBps;
+    const bps = resolveCommissionBps({
+      overrideBps,
+      catalogBps: itemCommissionBps,
+      staffDefaultBps: staffCommissionBps,
+    });
     let commission = calcCommission(
       courtesy ? 0 : useCredit ? lineGross : totalCents,
       bps
@@ -1170,6 +1219,14 @@ export async function addOrderItem(input: {
       commission = {
         commissionBps: bps ?? null,
         commissionCents: 0,
+      };
+    }
+
+    if (staffServiceConsumption) {
+      meta = {
+        ...meta,
+        staffServiceConsumption: true,
+        consumerStaffId: input.consumerStaffId?.trim() || null,
       };
     }
 
@@ -1231,6 +1288,43 @@ export async function addOrderItem(input: {
     }
 
     await recalculateOrderTotal(input.orderId, tenant.id);
+
+    if (
+      staffServiceConsumption &&
+      totalCents > 0 &&
+      input.consumerStaffId?.trim() &&
+      input.consumerStaffId.trim() !== staffId
+    ) {
+      const consumerId = input.consumerStaffId.trim();
+      const [consumer] = await db
+        .select({ id: schema.staff.id, name: schema.staff.name })
+        .from(schema.staff)
+        .where(
+          and(
+            eq(schema.staff.id, consumerId),
+            eq(schema.staff.tenantId, tenant.id),
+            isNull(schema.staff.deletedAt)
+          )
+        )
+        .limit(1);
+      if (!consumer) {
+        throw new AppError("VALIDATION", "Profissional consumidora inválida");
+      }
+      await db.insert(schema.staffAdvances).values({
+        tenantId: tenant.id,
+        staffId: consumer.id,
+        kind: "discount",
+        status: "open",
+        amountCents: totalCents,
+        occurredAt: new Date(),
+        notes: `Consumo serviço: ${description} (50%) · item ${row.id.slice(0, 8)}`.slice(
+          0,
+          240
+        ),
+        createdByUserId: session.user.id,
+      });
+    }
+
     if (input.itemType === "service") {
       await syncStaffMonthServiceCommission(tenant.id, staffId);
       if (staffId && serviceId) {
@@ -1585,6 +1679,209 @@ async function addPackageSaleItem(input: {
   });
 
   return { ok: true, id: rowId };
+}
+
+/**
+ * Edita valor cobrado na linha (serviço/produto) e recalcula comissão
+ * com o % já resolvido (override → catálogo → fallback).
+ */
+export async function updateOrderItemLine(
+  itemId: string,
+  input: { unitPriceReais?: number; discountReais?: number; totalReais?: number }
+): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "orders.write");
+    if (isBarberRole(session.role)) {
+      throw new ForbiddenError("Barbeiro não pode editar valor do item");
+    }
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const [item] = await db
+      .select({
+        id: schema.orderItems.id,
+        orderId: schema.orderItems.orderId,
+        itemType: schema.orderItems.itemType,
+        description: schema.orderItems.description,
+        qty: schema.orderItems.qty,
+        unitPriceCents: schema.orderItems.unitPriceCents,
+        discountCents: schema.orderItems.discountCents,
+        totalCents: schema.orderItems.totalCents,
+        staffId: schema.orderItems.staffId,
+        serviceId: schema.orderItems.serviceId,
+        commissionBps: schema.orderItems.commissionBps,
+        meta: schema.orderItems.meta,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(eq(schema.orderItems.id, itemId), eq(schema.orderItems.tenantId, tenant.id))
+      )
+      .limit(1);
+
+    if (!item) throw new AppError("NOT_FOUND", "Item não encontrado");
+    const order = await assertOpenOrder(item.orderId, tenant.id);
+
+    if (item.itemType !== "service" && item.itemType !== "product") {
+      throw new AppError("VALIDATION", "Só serviço ou produto pode editar valor");
+    }
+    const meta = { ...((item.meta ?? {}) as Record<string, unknown>) };
+    if (meta.packageSale) {
+      throw new AppError("VALIDATION", "Venda de pacote não edita valor pela linha");
+    }
+    if (meta.redeemed) {
+      throw new AppError(
+        "VALIDATION",
+        "Item com crédito de pacote: ajuste o abate no lançamento, não o valor livre"
+      );
+    }
+    if (meta.courtesy) {
+      throw new AppError("VALIDATION", "Desmarque cortesia antes de editar o valor");
+    }
+
+    const qty = Math.max(1, item.qty);
+    let unitPriceCents = item.unitPriceCents;
+    if (input.unitPriceReais != null && Number.isFinite(input.unitPriceReais)) {
+      unitPriceCents = Math.max(0, Math.round(input.unitPriceReais * 100));
+    }
+
+    const lineGross = unitPriceCents * qty;
+    let discountCents = item.discountCents;
+    let totalCents = item.totalCents;
+
+    if (input.totalReais != null && Number.isFinite(input.totalReais)) {
+      totalCents = Math.max(0, Math.round(input.totalReais * 100));
+      if (totalCents > lineGross) {
+        unitPriceCents = Math.round(totalCents / qty);
+        discountCents = 0;
+      } else {
+        discountCents = Math.max(0, lineGross - totalCents);
+      }
+    } else if (input.discountReais != null && Number.isFinite(input.discountReais)) {
+      discountCents = Math.max(0, Math.round(input.discountReais * 100));
+      if (discountCents > lineGross) {
+        throw new AppError("VALIDATION", "Desconto maior que o valor do item");
+      }
+      totalCents = lineGross - discountCents;
+    } else if (input.unitPriceReais != null) {
+      discountCents = Math.min(discountCents, lineGross);
+      totalCents = lineGross - discountCents;
+    }
+
+    let overrideBps: number | null = null;
+    if (item.serviceId && item.staffId) {
+      const [ov] = await db
+        .select({ commissionBps: schema.staffServices.commissionBps })
+        .from(schema.staffServices)
+        .where(
+          and(
+            eq(schema.staffServices.tenantId, tenant.id),
+            eq(schema.staffServices.staffId, item.staffId),
+            eq(schema.staffServices.serviceId, item.serviceId)
+          )
+        )
+        .limit(1);
+      if (ov?.commissionBps != null) overrideBps = ov.commissionBps;
+    }
+
+    const [full] = await db
+      .select({
+        productCommissionBps: schema.products.commissionBps,
+        serviceCommissionBps: schema.services.commissionBps,
+        staffDefaultBps: schema.staff.defaultCommissionBps,
+      })
+      .from(schema.orderItems)
+      .leftJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
+      .leftJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
+      .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
+      .where(eq(schema.orderItems.id, itemId))
+      .limit(1);
+
+    const catalogBps =
+      item.itemType === "service"
+        ? (full?.serviceCommissionBps ?? null)
+        : (full?.productCommissionBps ?? null);
+    const staffDefaultBps = full?.staffDefaultBps ?? null;
+
+    const bps = resolveCommissionBps({
+      overrideBps: item.itemType === "service" ? overrideBps : null,
+      catalogBps,
+      staffDefaultBps,
+    });
+
+    let nextMeta = { ...meta };
+    let commission = calcCommission(totalCents, bps);
+    if (item.itemType === "service") {
+      const house = await annotateServiceCommission({
+        tenantId: tenant.id,
+        serviceName: item.description.replace(/\s·\sPacote.*$/i, ""),
+        baseCents: totalCents,
+        clientPackageId: null,
+      });
+      nextMeta = { ...nextMeta, ...house.metaPatch };
+      commission = calcCommission(house.baseCents, bps);
+    }
+
+    if (totalCents < item.totalCents) {
+      const [paidRow] = await db
+        .select({
+          paid: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+        })
+        .from(schema.payments)
+        .where(
+          and(
+            eq(schema.payments.orderId, item.orderId),
+            eq(schema.payments.tenantId, tenant.id)
+          )
+        );
+      const [itemsRow] = await db
+        .select({
+          total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+        })
+        .from(schema.orderItems)
+        .where(
+          and(
+            eq(schema.orderItems.orderId, item.orderId),
+            eq(schema.orderItems.tenantId, tenant.id),
+            ne(schema.orderItems.id, itemId)
+          )
+        );
+      const nextOrderTotal = Number(itemsRow?.total ?? 0) + totalCents;
+      const paidCents = Number(paidRow?.paid ?? 0);
+      if (paidCents > 0 && nextOrderTotal - order.discountCents < paidCents) {
+        throw new AppError(
+          "VALIDATION",
+          "Total ficaria abaixo do já pago. Ajuste o pagamento antes."
+        );
+      }
+    }
+
+    await db
+      .update(schema.orderItems)
+      .set({
+        unitPriceCents,
+        discountCents,
+        totalCents,
+        commissionBps: commission.commissionBps,
+        commissionCents: commission.commissionCents,
+        meta: nextMeta,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.orderItems.id, itemId), eq(schema.orderItems.tenantId, tenant.id))
+      );
+
+    await recalculateOrderTotal(item.orderId, tenant.id);
+    if (item.itemType === "service") {
+      await syncStaffMonthServiceCommission(tenant.id, item.staffId);
+    }
+    return { ok: true, id: item.orderId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[updateOrderItemLine]", err);
+    return { ok: false, error: "Não foi possível atualizar o valor do item" };
+  }
 }
 
 /** Marca/desmarca cortesia em item já lançado (zera valor ou restaura). */

@@ -5,6 +5,7 @@ import {
   classifyServiceCommission,
   commissionCentsFrom,
   packageCreditBaseCents,
+  resolveCommissionBps,
   type ServiceCommissionKind,
 } from "@/lib/commission-policy";
 
@@ -78,11 +79,20 @@ export async function syncStaffMonthServiceCommission(
       commissionCents: schema.orderItems.commissionCents,
       serviceName: schema.services.name,
       serviceCommissionBps: schema.services.commissionBps,
+      overrideBps: schema.staffServices.commissionBps,
       categoryName: schema.serviceCategories.name,
     })
     .from(schema.orderItems)
     .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
     .leftJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
+    .leftJoin(
+      schema.staffServices,
+      and(
+        eq(schema.staffServices.staffId, schema.orderItems.staffId),
+        eq(schema.staffServices.serviceId, schema.orderItems.serviceId),
+        eq(schema.staffServices.tenantId, tenantId)
+      )
+    )
     .leftJoin(
       schema.serviceCategories,
       eq(schema.services.categoryId, schema.serviceCategories.id)
@@ -129,15 +139,15 @@ export async function syncStaffMonthServiceCommission(
       base = row.unitPriceCents * Math.max(1, row.qty);
     }
 
-    const bps =
+    const resolved =
       base <= 0
         ? 0
-        : row.serviceCommissionBps != null && row.serviceCommissionBps >= 0
-          ? row.serviceCommissionBps
-          : staffDefaultBps != null && staffDefaultBps >= 0
-            ? staffDefaultBps
-            : null;
-
+        : resolveCommissionBps({
+            overrideBps: row.overrideBps,
+            catalogBps: row.serviceCommissionBps,
+            staffDefaultBps,
+          });
+    const bps = resolved;
     const cents = bps == null ? 0 : commissionCentsFrom(base, bps);
     const nextBps = bps == null ? null : bps;
     const nextMeta = {
@@ -218,6 +228,7 @@ export async function recalcOrderCatalogCommissions(
       serviceName: schema.services.name,
       serviceCommissionBps: schema.services.commissionBps,
       productCommissionBps: schema.products.commissionBps,
+      overrideBps: schema.staffServices.commissionBps,
       staffDefaultBps: schema.staff.defaultCommissionBps,
       categoryName: schema.serviceCategories.name,
     })
@@ -225,6 +236,14 @@ export async function recalcOrderCatalogCommissions(
     .leftJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
     .leftJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
     .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
+    .leftJoin(
+      schema.staffServices,
+      and(
+        eq(schema.staffServices.staffId, schema.orderItems.staffId),
+        eq(schema.staffServices.serviceId, schema.orderItems.serviceId),
+        eq(schema.staffServices.tenantId, tenantId)
+      )
+    )
     .leftJoin(
       schema.serviceCategories,
       eq(schema.services.categoryId, schema.serviceCategories.id)
@@ -270,11 +289,11 @@ export async function recalcOrderCatalogCommissions(
     const bps =
       base <= 0
         ? 0
-        : catalogBps != null && catalogBps >= 0
-          ? catalogBps
-          : row.staffDefaultBps != null && row.staffDefaultBps >= 0
-            ? row.staffDefaultBps
-            : null;
+        : resolveCommissionBps({
+            overrideBps: row.itemType === "service" ? row.overrideBps : null,
+            catalogBps,
+            staffDefaultBps: row.staffDefaultBps,
+          });
 
     const cents = bps == null ? 0 : commissionCentsFrom(base, bps);
     const nextBps = bps == null ? null : bps;
@@ -343,6 +362,7 @@ export async function recalcPeriodCatalogCommissions(input: {
       serviceName: schema.services.name,
       serviceCommissionBps: schema.services.commissionBps,
       productCommissionBps: schema.products.commissionBps,
+      overrideBps: schema.staffServices.commissionBps,
       staffDefaultBps: schema.staff.defaultCommissionBps,
       categoryName: schema.serviceCategories.name,
     })
@@ -351,6 +371,14 @@ export async function recalcPeriodCatalogCommissions(input: {
     .leftJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
     .leftJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
     .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
+    .leftJoin(
+      schema.staffServices,
+      and(
+        eq(schema.staffServices.staffId, schema.orderItems.staffId),
+        eq(schema.staffServices.serviceId, schema.orderItems.serviceId),
+        eq(schema.staffServices.tenantId, input.tenantId)
+      )
+    )
     .leftJoin(
       schema.serviceCategories,
       eq(schema.services.categoryId, schema.serviceCategories.id)
@@ -389,11 +417,11 @@ export async function recalcPeriodCatalogCommissions(input: {
     const bps =
       base <= 0
         ? 0
-        : catalogBps != null && catalogBps >= 0
-          ? catalogBps
-          : row.staffDefaultBps != null && row.staffDefaultBps >= 0
-            ? row.staffDefaultBps
-            : null;
+        : resolveCommissionBps({
+            overrideBps: row.itemType === "service" ? row.overrideBps : null,
+            catalogBps,
+            staffDefaultBps: row.staffDefaultBps,
+          });
 
     const cents = bps == null ? 0 : commissionCentsFrom(base, bps);
     const nextBps = bps == null ? null : bps;

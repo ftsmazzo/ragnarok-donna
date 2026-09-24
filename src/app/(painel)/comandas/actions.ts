@@ -14,6 +14,7 @@ import {
   setOrderClient,
   setOrderDiscount,
   setOrderItemCourtesy,
+  updateOrderItemLine,
 } from "@/server/orders/mutations";
 
 function revalidateOrders(id?: string) {
@@ -92,6 +93,10 @@ export async function addOrderItemAction(formData: FormData) {
   const courtesy =
     String(formData.get("courtesy") ?? "") === "1" ||
     String(formData.get("courtesy") ?? "") === "on";
+  const staffServiceConsumption =
+    String(formData.get("staffServiceConsumption") ?? "") === "1" ||
+    String(formData.get("staffServiceConsumption") ?? "") === "on";
+  const consumerStaffId = String(formData.get("consumerStaffId") ?? "") || undefined;
   const result = await addOrderItem({
     orderId,
     itemType,
@@ -103,7 +108,19 @@ export async function addOrderItemAction(formData: FormData) {
     usePackageCredit,
     clientPackageId,
     courtesy,
+    staffServiceConsumption,
+    consumerStaffId,
   });
+  if (result.ok) revalidateOrders(orderId);
+  return result;
+}
+
+export async function updateOrderItemLineAction(
+  itemId: string,
+  orderId: string,
+  input: { totalReais?: number; unitPriceReais?: number; discountReais?: number }
+) {
+  const result = await updateOrderItemLine(itemId, input);
   if (result.ok) revalidateOrders(orderId);
   return result;
 }

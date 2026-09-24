@@ -47,6 +47,26 @@ export function commissionCentsFrom(baseCents: number, bps: number): number {
   return Math.round((Math.max(0, baseCents) * bps) / 10000);
 }
 
+/**
+ * Hierarquia AppBarber / áudios 23/09:
+ * 1) override profissional × serviço (ou produto)
+ * 2) % do catálogo
+ * 3) fallback legado do profissional (só se catálogo vazio)
+ * 4) null → sem comissão
+ */
+export function resolveCommissionBps(input: {
+  overrideBps?: number | null;
+  catalogBps?: number | null;
+  staffDefaultBps?: number | null;
+}): number | null {
+  if (input.overrideBps != null && input.overrideBps >= 0) return input.overrideBps;
+  if (input.catalogBps != null && input.catalogBps >= 0) return input.catalogBps;
+  if (input.staffDefaultBps != null && input.staffDefaultBps >= 0) {
+    return input.staffDefaultBps;
+  }
+  return null;
+}
+
 /** Base em centavos de uma linha de serviço extra. Ordinário devolve null. */
 export function extraServiceBaseCents(input: {
   name: string;
