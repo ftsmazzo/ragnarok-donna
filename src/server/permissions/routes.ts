@@ -45,7 +45,7 @@ const RULES: RouteRule[] = [
   { pattern: "/caixa", roles: ["owner", "admin", "manager"] },
   {
     pattern: "/comissoes",
-    roles: ["owner", "admin", "staff"],
+    roles: ["owner", "admin", "manager", "staff"],
   },
 
   { pattern: "/financeiro", roles: ["owner", "admin", "manager"] },

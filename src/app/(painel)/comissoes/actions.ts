@@ -6,6 +6,7 @@ import {
   recalcCommissionsCatalogAction,
   type AdvanceKind,
 } from "@/server/commissions";
+import { registerStaffProductConsumption } from "@/server/staff-consumption/mutations";
 
 export async function createAdvanceAction(formData: FormData) {
   const kind = String(formData.get("kind") ?? "vale") as AdvanceKind;
@@ -21,6 +22,21 @@ export async function createAdvanceAction(formData: FormData) {
     revalidatePath("/comissoes");
     revalidatePath("/caixa");
     revalidatePath("/relatorios/fluxo");
+  }
+  return result;
+}
+
+export async function registerStaffConsumptionAction(formData: FormData) {
+  const qtyRaw = Number(formData.get("qty") ?? 1);
+  const result = await registerStaffProductConsumption({
+    staffId: String(formData.get("staffId") ?? ""),
+    productId: String(formData.get("productId") ?? ""),
+    qty: Number.isFinite(qtyRaw) ? qtyRaw : 1,
+  });
+  if (result.ok) {
+    revalidatePath("/comissoes");
+    revalidatePath("/produtos");
+    revalidatePath("/relatorios/estoque");
   }
   return result;
 }

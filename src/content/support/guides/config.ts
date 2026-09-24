@@ -510,7 +510,7 @@ export const guidePwaApp: SupportGuide = {
     {
       title: "Venda / Consumo",
       detail:
-        "Outra rota: Comandas → Venda / Consumo (celular) (/pwa/consumo). Barbeiro usa aqui — abas Venda e Meu consumo. Detalhes no guia Consumo PWA.",
+        "Comandas → Venda (celular) (/pwa/consumo): só produto na comanda do cliente. Consumo do barbeiro (coca/trufa): Financeiro → Comissões → Consumo do barbeiro.",
     },
   ],
   objections: [

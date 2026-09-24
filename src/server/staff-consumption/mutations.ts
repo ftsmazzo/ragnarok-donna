@@ -10,7 +10,7 @@ export type ActionResult = { ok: true; id: string; amountCents?: number } | { ok
 
 /**
  * Consumo do profissional (venda − 30%).
- * A loja pediu para a recepção lançar na comanda — barbeiro não usa mais o atalho do celular.
+ * Recepção/gerente lança em Comissões → Consumo do barbeiro (não no celular).
  */
 export async function registerStaffProductConsumption(input: {
   productId: string;
@@ -27,7 +27,7 @@ export async function registerStaffProductConsumption(input: {
     let staffId: string | null = null;
     if (isBarberRole(session.role)) {
       throw new ForbiddenError(
-        "Consumo do profissional: a recepção lança na comanda. O atalho no celular foi desligado."
+        "Consumo do profissional: use Comissões → Consumo do barbeiro (recepção)."
       );
     } else if (hasCapability(session.role, "commissions.write")) {
       staffId = input.staffId?.trim() || null;
