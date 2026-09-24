@@ -160,8 +160,8 @@ export async function listFreeSlotsForTenant(input: {
         if (hour < 8 || hour > 20) continue;
         if (minute !== 0 && minute !== 30) continue;
         const hm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-        // Fase 4: não oferecer slots no almoço (12h–14h)
-        if (isLunchTimeHm(hm)) continue;
+        // Com jornada partida, o buraco entre turnos já é o almoço — não aplicar 12–14 fixo.
+        if (windows.length < 2 && isLunchTimeHm(hm)) continue;
         const { start: slotStart, end: slotEnd } = slotRangeSp(
           input.date,
           hour,

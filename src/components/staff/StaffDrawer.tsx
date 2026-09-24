@@ -14,6 +14,7 @@ import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import { StaffPerformancePanel } from "@/components/staff/StaffPerformancePanel";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
+import { useToast } from "@/components/ui/Toast";
 import { weekdayLabel } from "@/lib/format";
 
 type Mode = "new" | "edit";
@@ -68,6 +69,7 @@ export function StaffDrawer({
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [tab, setTab] = useState<"cadastro" | "jornada" | "performance">("cadastro");
   const [pending, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (open) {
@@ -110,8 +112,10 @@ export function StaffDrawer({
       const result = await saveStaffSchedulesAction(staff.id, formData);
       if (!result.ok) {
         setError(result.error);
+        showToast(result.error, "error");
         return;
       }
+      showToast("Jornada salva", "success");
       onSaved(staff.id);
     });
   }
