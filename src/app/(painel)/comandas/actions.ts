@@ -8,6 +8,7 @@ import {
   closeOrder,
   closeOrderToClientAccount,
   openOrder,
+  openStaffConsumptionOrder,
   payAndCloseOrder,
   reopenOrder,
   removeOrderItem,
@@ -22,6 +23,7 @@ function revalidateOrders(id?: string) {
   revalidatePath("/comandas/historico");
   revalidatePath("/caixa");
   revalidatePath("/agenda");
+  revalidatePath("/comissoes");
   if (id) revalidatePath(`/comandas?id=${id}`);
 }
 
@@ -29,6 +31,16 @@ export async function openOrderAction(formData: FormData) {
   const result = await openOrder({
     clientId: String(formData.get("clientId") ?? "") || undefined,
     appointmentId: String(formData.get("appointmentId") ?? "") || undefined,
+    notes: String(formData.get("notes") ?? "") || undefined,
+  });
+  if (result.ok) revalidateOrders(result.id);
+  return result;
+}
+
+export async function openStaffConsumptionOrderAction(formData: FormData) {
+  const result = await openStaffConsumptionOrder({
+    staffId: String(formData.get("staffId") ?? ""),
+    occurredOn: String(formData.get("occurredOn") ?? "") || undefined,
     notes: String(formData.get("notes") ?? "") || undefined,
   });
   if (result.ok) revalidateOrders(result.id);

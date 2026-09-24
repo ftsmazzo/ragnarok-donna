@@ -62,6 +62,11 @@ export type OrderDetail = {
   totalCents: number;
   discountCents: number;
   notes: string | null;
+  /** Comanda Consumo de Profissional (sem cliente / sem agenda). */
+  isStaffConsumption: boolean;
+  consumerStaffId: string | null;
+  consumerStaffName: string | null;
+  occurredOn: string | null;
   items: OrderItemDetail[];
   payments: OrderPaymentDetail[];
   paidCents: number;

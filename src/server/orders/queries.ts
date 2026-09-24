@@ -79,12 +79,50 @@ export async function assertOwnOrderAccess(orderId: string): Promise<void> {
   }
 }
 
+function mapOrderListRow(r: {
+  id: string;
+  externalId: string | null;
+  clientId: string | null;
+  clientName: string | null;
+  meta: Record<string, unknown> | null;
+  openedAt: Date;
+  closedAt: Date | null;
+  totalCents: number;
+  discountCents: number;
+  status: string;
+  itemCount: number | null;
+  paidCents: number | null;
+  staffLabel: string | null;
+}): OrderListItem {
+  const meta = (r.meta ?? {}) as Record<string, unknown>;
+  const isStaffConsumption = meta.kind === "staff_consumption";
+  const consumerName =
+    typeof meta.consumerStaffName === "string" ? meta.consumerStaffName : null;
+  return {
+    id: r.id,
+    externalId: r.externalId,
+    clientId: r.clientId,
+    clientName: isStaffConsumption
+      ? `Consumo · ${consumerName ?? "profissional"}`
+      : r.clientName,
+    openedAt: r.openedAt,
+    closedAt: r.closedAt,
+    totalCents: r.totalCents,
+    discountCents: r.discountCents,
+    status: r.status as OrderStatus,
+    itemCount: Number(r.itemCount ?? 0),
+    paidCents: Number(r.paidCents ?? 0),
+    staffLabel: r.staffLabel,
+  };
+}
+
 function orderListSelect() {
   return {
     id: schema.orders.id,
     externalId: schema.orders.externalId,
     clientId: schema.orders.clientId,
     clientName: schema.clients.name,
+    meta: schema.orders.meta,
     openedAt: schema.orders.openedAt,
     closedAt: schema.orders.closedAt,
     totalCents: schema.orders.totalCents,
@@ -174,12 +212,7 @@ export async function listOpenOrders(opts?: { q?: string }): Promise<{
     .where(where);
 
   return {
-    rows: rows.map((r) => ({
-      ...r,
-      status: r.status as OrderStatus,
-      itemCount: Number(r.itemCount ?? 0),
-      paidCents: Number(r.paidCents ?? 0),
-    })),
+    rows: rows.map(mapOrderListRow),
     total: Number(totalRow?.n ?? 0),
     totalCents: Number(totalRow?.total ?? 0),
     q: q ?? "",
@@ -274,12 +307,7 @@ export async function listOrderHistory(opts: {
   const total = Number(totalRow?.n ?? 0);
 
   return {
-    rows: rows.map((r) => ({
-      ...r,
-      status: r.status as OrderStatus,
-      itemCount: Number(r.itemCount ?? 0),
-      paidCents: Number(r.paidCents ?? 0),
-    })),
+    rows: rows.map(mapOrderListRow),
     total,
     totalCents: Number(totalRow?.total ?? 0),
     page,
@@ -455,6 +483,12 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
     totalCents: order.totalCents,
     discountCents: order.discountCents,
     notes: order.notes,
+    isStaffConsumption: orderMeta.kind === "staff_consumption",
+    consumerStaffId:
+      typeof orderMeta.consumerStaffId === "string" ? orderMeta.consumerStaffId : null,
+    consumerStaffName:
+      typeof orderMeta.consumerStaffName === "string" ? orderMeta.consumerStaffName : null,
+    occurredOn: typeof orderMeta.occurredOn === "string" ? orderMeta.occurredOn : null,
     items: items.map((item) => {
       const meta = (item.meta ?? {}) as Record<string, unknown>;
       return {

@@ -26,6 +26,8 @@ export const guideComandas: SupportGuide = {
     "saldo",
     "adicionar serviço",
     "adicionar produto",
+    "consumo de profissional",
+    "consumo profissional",
   ],
   roles: ["owner", "admin", "reception", "staff"],
   intents: ["onde_fica", "como_fazer", "objecao", "permissao"],
@@ -43,6 +45,11 @@ export const guideComandas: SupportGuide = {
         "Em Comandas → Abertas, use Nova comanda. Escolha o cliente (recomendado) e, se quiser, observação. Confirme Abrir comanda — abre o drawer da comanda.",
     },
     {
+      title: "Consumo de profissional (sem agenda)",
+      detail:
+        "Em Comandas → Abertas (ou Histórico), botão Consumo de profissional: escolha o profissional e a data → Abrir comanda. Sem cliente. Lance serviço (valor + comissão no executor) ou produto (preço cheio). Não cria horário na agenda. Produto com desconto −30% (coca/trufa) continua em Comissões → Consumo do barbeiro.",
+    },
+    {
       title: "Abrir comanda pela Agenda",
       detail:
         "Na Agenda, no horário do cliente, abra a comanda vinculada ao agendamento (não precisa sair da grade). O profissional do horário pode já vir sugerido nos itens.",
@@ -50,7 +57,7 @@ export const guideComandas: SupportGuide = {
     {
       title: "Lançar serviço",
       detail:
-        "No drawer: Tipo = Serviço → escolha o serviço → profissional (obrigatório) → quantidade → Adicionar item. Dá para aplicar desconto no item em % (o R$ é calculado automaticamente). Com crédito de pacote marcado, a % aplica no residual após a cobertura.",
+        "No drawer: Tipo = Serviço → escolha o serviço → profissional (obrigatório) → quantidade → Adicionar item. Em comanda normal, o serviço aparece na agenda. Em Consumo de profissional, só valor/comissão — sem card na grade. Dá para aplicar desconto no item em %.",
     },
     {
       title: "Lançar produto",
@@ -102,7 +109,12 @@ export const guideComandas: SupportGuide = {
     {
       concern: "Barbeiro não consegue lançar corte na comanda",
       reply:
-        "No painel, barbeiro só lança produto na comanda. Serviço e pacote são recepção/Titular. Consumo do barbeiro (coca etc.): Comissões → Consumo do barbeiro.",
+        "No painel, barbeiro só lança produto na comanda. Serviço e pacote são recepção/Titular. Serviço entre profissionais: Comandas → Consumo de profissional. Coca/trufa (−30%): Comissões → Consumo do barbeiro.",
+    },
+    {
+      concern: "Consumo de profissional vs Consumo do barbeiro",
+      reply:
+        "Consumo de profissional (Comandas): comanda sem cliente para serviço/produto com valor e comissão, sem agenda. Consumo do barbeiro (Comissões): só produto com −30% na comissão e baixa de estoque.",
     },
     {
       concern: "Vendi pacote e o crédito não aparece",
@@ -112,7 +124,7 @@ export const guideComandas: SupportGuide = {
     {
       concern: "Cliente sem nome na comanda e não vende pacote",
       reply:
-        "Na própria comanda use Vincular cliente (busca por nome/telefone). Ou abra a comanda já com cliente, ou venda pela ficha: aba Pacotes → Vender pacote.",
+        "Na própria comanda use Vincular cliente (busca por nome/telefone). Ou abra a comanda já com cliente, ou venda pela ficha: aba Pacotes → Vender pacote. Comanda de Consumo de profissional não usa pacote/crédito.",
     },
     {
       concern: "Não acho como cancelar a venda do pacote",
@@ -121,7 +133,7 @@ export const guideComandas: SupportGuide = {
     },
   ],
   relatedGuideIds: ["comandas-historico", "pacotes", "consumo-pwa", "caixa", "comissoes"],
-  lastVerified: "2026-09-15",
+  lastVerified: "2026-09-24",
   enrichNotes: ["Permissão reabrir: só owner/admin (isOwnerRole)"],
 };
 
@@ -231,7 +243,7 @@ export const guideConsumoPwa: SupportGuide = {
     {
       title: "Consumo do barbeiro (não é esta tela)",
       detail:
-        "Financeiro → Comissões → botão Consumo do barbeiro: escolha profissional + produto. Baixa estoque e desconta 70% do preço na comissão (venda −30%). Só recepção/gerente/titular.",
+        "Financeiro → Comissões → botão Consumo do barbeiro: escolha profissional + data + produto. Baixa estoque e desconta 70% do preço na comissão (venda −30%). Só recepção/gerente/titular. Serviço entre profissionais: Comandas → Consumo de profissional.",
     },
     {
       title: "Uso interno da loja",

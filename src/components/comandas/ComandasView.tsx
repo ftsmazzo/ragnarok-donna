@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { CadastroSearch } from "@/components/cadastro/CadastroSearch";
 import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import { OpenOrderModal } from "@/components/comandas/OpenOrderModal";
+import { OpenStaffConsumptionModal } from "@/components/comandas/OpenStaffConsumptionModal";
 import { OrderDrawer } from "@/components/comandas/OrderDrawer";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelOrderStatus } from "@/lib/format";
@@ -51,6 +52,7 @@ export function ComandasView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [newOpen, setNewOpen] = useState(openNew);
+  const [staffConsumptionOpen, setStaffConsumptionOpen] = useState(false);
 
   function buildUrl(params: Record<string, string | undefined>) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -87,9 +89,18 @@ export function ComandasView({
         subtitle={`${data.total} comanda(s) em aberto · ${formatMoney(data.totalCents)}`}
         actions={
           permissions.canWrite ? (
-            <button type="button" className="btn btn-primary" onClick={() => setNewOpen(true)}>
-              + Nova comanda
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setStaffConsumptionOpen(true)}
+              >
+                Consumo de profissional
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => setNewOpen(true)}>
+                + Nova comanda
+              </button>
+            </>
           ) : undefined
         }
       />
@@ -159,14 +170,22 @@ export function ComandasView({
       </section>
 
       {permissions.canWrite ? (
-        <OpenOrderModal
-          open={newOpen}
-          onClose={() => {
-            setNewOpen(false);
-            if (openNew) router.push(buildUrl({ novo: undefined }));
-          }}
-          onCreated={onCreated}
-        />
+        <>
+          <OpenOrderModal
+            open={newOpen}
+            onClose={() => {
+              setNewOpen(false);
+              if (openNew) router.push(buildUrl({ novo: undefined }));
+            }}
+            onCreated={onCreated}
+          />
+          <OpenStaffConsumptionModal
+            open={staffConsumptionOpen}
+            onClose={() => setStaffConsumptionOpen(false)}
+            onCreated={onCreated}
+            staff={staff}
+          />
+        </>
       ) : null}
 
       {selectedOrder ? (
