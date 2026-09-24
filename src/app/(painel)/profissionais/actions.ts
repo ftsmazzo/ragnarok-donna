@@ -37,7 +37,12 @@ export async function saveStaffSchedulesAction(
       }
     }
   }
-  return saveStaffSchedules(staffId, slots);
+  const result = await saveStaffSchedules(staffId, slots);
+  if (result.ok) {
+    revalidatePath("/profissionais");
+    revalidatePath("/agenda");
+  }
+  return result;
 }
 
 export async function deactivateStaffAction(staffId: string): Promise<ActionResult> {

@@ -80,6 +80,24 @@ export function slotRangeSp(
   return { start, end };
 }
 
+export type ScheduleWindow = { startMin: number; endMin: number };
+
+export function parseHmToMin(t: string): number {
+  const [h, m] = String(t).slice(0, 5).split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** Cell fora de qualquer turno da jornada (início, almoço entre turnos, fim). */
+export function isAgendaSlotOffHours(
+  windows: ScheduleWindow[] | undefined,
+  hour: number,
+  minute: number
+): boolean {
+  if (!windows || windows.length === 0) return false;
+  const startMin = hour * 60 + minute;
+  return !windows.some((w) => startMin >= w.startMin && startMin < w.endMin);
+}
+
 export function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
   return aStart < bEnd && aEnd > bStart;
 }

@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gte, ilike, isNull, lte, or } from "drizzle-orm";
+import { and, asc, count, eq, gte, ilike, inArray, isNull, lte, or } from "drizzle-orm";
 import { createDb, schema } from "@/db";
 import { resolveBranchScope, withBranchScope, withCatalogBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
@@ -13,7 +13,7 @@ import type {
   AgendaPickerClient,
   AgendaPickerService,
 } from "./types";
-import { buildAgendaHours, dayBoundsSp } from "./utils";
+import { buildAgendaHours, dayBoundsSp, parseHmToMin } from "./utils";
 
 export async function getAgendaPermissions(): Promise<AgendaPermissions> {
   const session = await requireSession();
@@ -47,6 +47,7 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       staff: [],
       appointments: [],
       hours: buildAgendaHours([]),
+      scheduleWindowsByStaffId: {},
       waitlistCount: 0,
       openOrdersCount: 0,
       totalAppointments: 0,
@@ -180,12 +181,42 @@ export async function getAgendaDay(dateStr?: string, staffFilter?: string): Prom
       )
     );
 
+  const weekday = new Date(`${date}T12:00:00-03:00`).getDay();
+  const staffIds = staff.map((s) => s.id);
+  const scheduleWindowsByStaffId: Record<string, { startMin: number; endMin: number }[]> = {};
+  if (staffIds.length) {
+    const scheduleRows = await db
+      .select({
+        staffId: schema.staffSchedules.staffId,
+        startTime: schema.staffSchedules.startTime,
+        endTime: schema.staffSchedules.endTime,
+      })
+      .from(schema.staffSchedules)
+      .where(
+        and(
+          eq(schema.staffSchedules.tenantId, tenant.id),
+          eq(schema.staffSchedules.weekday, weekday),
+          eq(schema.staffSchedules.isActive, true),
+          inArray(schema.staffSchedules.staffId, staffIds)
+        )
+      );
+    for (const row of scheduleRows) {
+      const list = scheduleWindowsByStaffId[row.staffId] ?? [];
+      list.push({
+        startMin: parseHmToMin(String(row.startTime)),
+        endMin: parseHmToMin(String(row.endTime)),
+      });
+      scheduleWindowsByStaffId[row.staffId] = list;
+    }
+  }
+
   return {
     tenantName: tenant.name,
     date,
     staff,
     appointments,
     hours: buildAgendaHours(appointments),
+    scheduleWindowsByStaffId,
     waitlistCount: Number(waitlistRow?.n ?? 0),
     openOrdersCount: Number(ordersRow?.n ?? 0),
     totalAppointments: appointments.filter((a) => a.status !== "blocked").length,

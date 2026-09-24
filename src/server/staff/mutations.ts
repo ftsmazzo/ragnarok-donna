@@ -106,10 +106,13 @@ function assertCanWriteAsync() {
 function parseTime(value: string): string | null {
   const v = value.trim();
   if (!v) return null;
-  if (!/^\d{2}:\d{2}$/.test(v)) return null;
-  const [h, m] = v.split(":").map(Number);
-  if (h > 23 || m > 59) return null;
-  return v;
+  // <input type="time"> pode mandar HH:MM ou HH:MM:SS
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(v);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
 export async function createStaffMember(raw: StaffInput): Promise<ActionResult> {
@@ -217,10 +220,15 @@ export async function saveStaffSchedules(
     const db = createDb();
 
     const valid: ScheduleSlotInput[] = [];
+    const incomplete: string[] = [];
     for (const s of slots) {
       const start = parseTime(s.startTime);
       const end = parseTime(s.endTime);
-      if (!start || !end) continue;
+      if (!start && !end) continue;
+      if (!start || !end) {
+        incomplete.push(`dia ${s.weekday} turno ${s.slotIndex}`);
+        continue;
+      }
       if (start >= end) {
         throw new AppError("VALIDATION", "Horário de início deve ser antes do fim");
       }
@@ -232,29 +240,37 @@ export async function saveStaffSchedules(
         endTime: end,
       });
     }
-
-    await db
-      .delete(schema.staffSchedules)
-      .where(
-        and(
-          eq(schema.staffSchedules.staffId, staffId),
-          eq(schema.staffSchedules.tenantId, tenant.id)
-        )
-      );
-
-    if (valid.length > 0) {
-      await db.insert(schema.staffSchedules).values(
-        valid.map((s) => ({
-          tenantId: tenant.id,
-          staffId,
-          weekday: s.weekday,
-          slotIndex: s.slotIndex,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          isActive: true,
-        }))
+    if (incomplete.length) {
+      throw new AppError(
+        "VALIDATION",
+        `Preencha início e fim do turno (${incomplete.slice(0, 3).join(", ")})`
       );
     }
+
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(schema.staffSchedules)
+        .where(
+          and(
+            eq(schema.staffSchedules.staffId, staffId),
+            eq(schema.staffSchedules.tenantId, tenant.id)
+          )
+        );
+
+      if (valid.length > 0) {
+        await tx.insert(schema.staffSchedules).values(
+          valid.map((s) => ({
+            tenantId: tenant.id,
+            staffId,
+            weekday: s.weekday,
+            slotIndex: s.slotIndex,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            isActive: true,
+          }))
+        );
+      }
+    });
 
     return { ok: true, id: staffId };
   } catch (err) {

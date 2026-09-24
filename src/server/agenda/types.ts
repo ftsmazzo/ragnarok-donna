@@ -47,6 +47,8 @@ export type AgendaDayData = {
   staff: AgendaStaff[];
   appointments: AgendaAppointment[];
   hours: string[];
+  /** Turnos do dia por profissional — usado para cinza fora do expediente/almoço. */
+  scheduleWindowsByStaffId: Record<string, { startMin: number; endMin: number }[]>;
   waitlistCount: number;
   openOrdersCount: number;
   totalAppointments: number;

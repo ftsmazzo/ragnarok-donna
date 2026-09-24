@@ -41,6 +41,7 @@ import {
   shortPersonName,
   todaySp,
 } from "@/lib/datetime";
+import { isAgendaSlotOffHours } from "@/server/agenda/utils";
 import { useAgendaNow } from "@/components/agenda/useAgendaNow";
 import { formatPhone, formatMoney, labelApptStatus } from "@/lib/format";
 
@@ -388,12 +389,19 @@ export function AgendaView({
                       hourNum,
                       minute
                     );
+                    const offHours = isAgendaSlotOffHours(
+                      data.scheduleWindowsByStaffId[s.id],
+                      hourNum,
+                      minute
+                    );
                     const showNow = nowHourLabel === hour;
 
                     return (
                       <div
                         key={`${s.id}-${hour}`}
                         className={`agenda-cell${permissions.canWrite ? " is-clickable" : ""}${showNow ? " is-now" : ""}${busy && slots.length === 0 ? " is-covered" : ""}${
+                          offHours ? " is-off-hours" : ""
+                        }${
                           drag.preview?.mode === "move" &&
                           drag.preview.staffId === s.id &&
                           drag.preview.hour === hourNum &&
@@ -407,12 +415,13 @@ export function AgendaView({
                         data-minute={minute}
                         onClick={() => {
                           if (!permissions.canWrite) return;
+                          if (offHours) return;
                           if (!busy) openSlot(s.id, hourNum, "schedule", minute);
                         }}
                         onContextMenu={(e) => {
                           if (!permissions.canWrite) return;
                           e.preventDefault();
-                          if (busy) return;
+                          if (busy || offHours) return;
                           setCtx({
                             kind: "cell",
                             staffId: s.id,
@@ -423,7 +432,9 @@ export function AgendaView({
                           });
                         }}
                         title={
-                          permissions.canWrite
+                          offHours
+                            ? "Fora do expediente / almoço"
+                            : permissions.canWrite
                             ? busy
                               ? slots.length
                                 ? "Arraste o horário · Botão direito: ações"

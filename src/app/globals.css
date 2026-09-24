@@ -28,7 +28,7 @@
   --font: "Quicksand", system-ui, sans-serif;
 }
 
-/* ââ Donna Elegant (manual de marca â PDF) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Donna Elegant (manual de marca Ã¢ÂÂ PDF) Ã¢ÂÂÃ¢ÂÂ */
 .app-shell.theme-donna-elegant {
   --header: #3e7454;
   --header-ink: #ffffff;
@@ -113,7 +113,7 @@ input {
   padding: 16px 18px 28px;
 }
 
-/* ââ Sidebar (AdminLTE) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Sidebar (AdminLTE) Ã¢ÂÂÃ¢ÂÂ */
 .sidebar {
   background: var(--sidebar);
   color: var(--sidebar-ink);
@@ -271,7 +271,7 @@ input {
   color: var(--sidebar-ink-active);
 }
 
-/* Barra laranja sÃ³ no item principal â submenu nÃ£o desloca */
+/* Barra laranja sÃÂ³ no item principal Ã¢ÂÂ submenu nÃÂ£o desloca */
 .nav-link.is-active:not(.nav-child) {
   border-left: 3px solid var(--header);
   padding-left: 13px;
@@ -320,7 +320,7 @@ input {
   font-size: 13px;
 }
 
-/* ââ Topbar laranja ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Topbar laranja Ã¢ÂÂÃ¢ÂÂ */
 .topbar {
   height: var(--topbar-h);
   background: var(--header);
@@ -607,7 +607,7 @@ input {
   font-size: 14px;
 }
 
-/* ââ Content ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Content Ã¢ÂÂÃ¢ÂÂ */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -1064,6 +1064,15 @@ input {
   cursor: default;
 }
 
+.agenda-cell.is-off-hours {
+  background: #e5e5e5;
+  cursor: default;
+}
+
+.agenda-cell.is-off-hours.is-clickable:hover {
+  background: #dcdcdc;
+}
+
 .agenda-cell .slot {
   pointer-events: auto;
   cursor: grab;
@@ -1353,7 +1362,7 @@ input {
   }
 }
 
-/* ââ Suporte (chat flutuante estilo AppBarber) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Suporte (chat flutuante estilo AppBarber) Ã¢ÂÂÃ¢ÂÂ */
 .support-chat {
   position: fixed;
   left: 20px;
@@ -2208,7 +2217,7 @@ input {
   }
 }
 
-/* ââ Login ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Login Ã¢ÂÂÃ¢ÂÂ */
 .login-page {
   min-height: 100vh;
   display: grid;
@@ -2389,7 +2398,7 @@ input {
   padding: 5px 10px;
 }
 
-/* ââ Drawer / Modal ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Drawer / Modal Ã¢ÂÂÃ¢ÂÂ */
 .ui-overlay {
   position: fixed;
   inset: 0;
@@ -2405,7 +2414,7 @@ input {
   background: rgba(15, 18, 22, 0.35);
 }
 
-/* Classe explÃ­cita â nÃ£o depende de :has() (tablets antigos). */
+/* Classe explÃÂ­cita Ã¢ÂÂ nÃÂ£o depende de :has() (tablets antigos). */
 .ui-overlay-modal {
   z-index: 10000;
   justify-content: center;
@@ -2777,7 +2786,7 @@ input {
   color: var(--ok, #15803d);
 }
 
-/* âââ CRM redesign âââ */
+/* Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ CRM redesign Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 .crm-page {
   display: flex;
   flex-direction: column;
@@ -4377,7 +4386,7 @@ body.is-agenda-dragging .slot {
   min-width: 180px;
 }
 
-/* ââ Alertas / tomada de decisÃ£o ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Alertas / tomada de decisÃÂ£o Ã¢ÂÂÃ¢ÂÂ */
 .alert-list {
   list-style: none;
   margin: 0;
@@ -4603,7 +4612,7 @@ body.is-agenda-dragging .slot {
   min-width: 0;
 }
 
-/* ââ Inbox / chat mobile (PWA) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Inbox / chat mobile (PWA) Ã¢ÂÂÃ¢ÂÂ */
 .minbox {
   display: flex;
   flex-direction: column;
@@ -5022,7 +5031,7 @@ body.is-agenda-dragging .slot {
   }
 }
 
-/* ââ Config agente (persona) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Config agente (persona) Ã¢ÂÂÃ¢ÂÂ */
 .agent-config-form {
   display: flex;
   flex-direction: column;
@@ -5446,7 +5455,7 @@ body.is-agenda-dragging .slot {
   margin: 0;
 }
 
-/* ââ Skeleton / pending (motion Emil) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Skeleton / pending (motion Emil) Ã¢ÂÂÃ¢ÂÂ */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -5530,7 +5539,7 @@ body.is-agenda-dragging .slot {
   }
 }
 
-/* ââ Disparos WhatsApp (UX balcÃ£o) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Disparos WhatsApp (UX balcÃÂ£o) Ã¢ÂÂÃ¢ÂÂ */
 .disparos-status {
   margin-bottom: 16px;
 }
@@ -5790,7 +5799,7 @@ body.is-agenda-dragging .slot {
 
 
 
-/* ï¿½ï¿½ Tesouraria ï¿½ï¿½ */
+/* Ã¯Â¿Â½Ã¯Â¿Â½ Tesouraria Ã¯Â¿Â½Ã¯Â¿Â½ */
 .treasury-nav {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
