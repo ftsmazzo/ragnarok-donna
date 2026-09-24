@@ -1,4 +1,5 @@
 import type { AgendaAppointment, AgendaDayData } from "@/server/agenda/types";
+import { isAgendaSlotOffHours } from "@/server/agenda/utils";
 import { todaySp } from "@/lib/datetime";
 
 export type AgendaFreeSlot = {
@@ -85,6 +86,9 @@ export function freeSlotsForDay(
 
       const hour = Math.floor(startMin / 60);
       const minute = startMin % 60;
+      if (isAgendaSlotOffHours(data.scheduleWindowsByStaffId?.[s.id], hour, minute)) {
+        continue;
+      }
       out.push({
         key: `${s.id}-${startMin}`,
         staffId: s.id,
