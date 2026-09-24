@@ -75,6 +75,7 @@ export function AgendaContextMenu({
   const [pending, startTransition] = useTransition();
   const [payOpen, setPayOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [tagValue, setTagValue] = useState("");
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -82,6 +83,7 @@ export function AgendaContextMenu({
     setError("");
     setPayOpen(false);
     setTagOpen(false);
+    setStatusOpen(false);
     setTagValue("");
   }, [target]);
 
@@ -91,7 +93,7 @@ export function AgendaContextMenu({
     const w = el?.offsetWidth ?? 240;
     const h = el?.offsetHeight ?? 360;
     setPos(clampPos(target.x, target.y, w, h));
-  }, [target, payOpen, tagOpen, error]);
+  }, [target, payOpen, tagOpen, statusOpen, error]);
 
   useEffect(() => {
     if (!target) return;
@@ -175,7 +177,13 @@ export function AgendaContextMenu({
 
   const a = target.appointment;
   const isBlock = a.status === "blocked";
-  const closed = a.status === "cancelled" || a.status === "completed" || a.status === "no_show";
+  /** Ausente/cancelado: ainda dá para reabrir; realizado fica fechado. */
+  const closedOps =
+    a.status === "cancelled" || a.status === "completed" || a.status === "no_show";
+  const canReopen =
+    permissions.canUpdateStatus &&
+    (a.status === "no_show" || a.status === "cancelled");
+  const onLocal = a.status === "arrived" || a.status === "in_progress";
 
   if (isBlock) {
     return (
@@ -206,7 +214,7 @@ export function AgendaContextMenu({
     <div ref={ref} className="agenda-ctx" style={pos} role="menu">
       {error ? <div className="agenda-ctx-error">{error}</div> : null}
 
-      {permissions.canOpenOrder && !closed ? (
+      {permissions.canOpenOrder && !closedOps ? (
         <button
           type="button"
           className="agenda-ctx-item"
@@ -239,7 +247,7 @@ export function AgendaContextMenu({
         </button>
       ) : null}
 
-      {permissions.canOpenOrder && a.clientId && a.serviceId && !closed ? (
+      {permissions.canOpenOrder && a.clientId && a.serviceId && !closedOps ? (
         <button
           type="button"
           className="agenda-ctx-item"
@@ -256,7 +264,7 @@ export function AgendaContextMenu({
         </button>
       ) : null}
 
-      {permissions.canOpenOrder && a.orderId && !closed ? (
+      {permissions.canOpenOrder && a.orderId && !closedOps ? (
         <div className={`agenda-ctx-flyout${payOpen ? " is-open" : ""}`}>
           <button
             type="button"
@@ -301,7 +309,7 @@ export function AgendaContextMenu({
         </div>
       ) : null}
 
-      {permissions.canCancel && !closed ? (
+      {permissions.canCancel && !closedOps ? (
         <>
           <button
             type="button"
@@ -328,35 +336,93 @@ export function AgendaContextMenu({
         </>
       ) : null}
 
-      {permissions.canUpdateStatus && !closed ? (
-        a.status === "confirmed" ? (
-          <button
-            type="button"
-            className="agenda-ctx-item"
-            disabled={pending}
-            onClick={() => run(() => updateAppointmentStatusAction(a.id, "scheduled", date))}
-          >
-            <span className="agenda-ctx-ico" aria-hidden>
-              👎
-            </span>
-            Desconfirmar
-          </button>
-        ) : a.status === "scheduled" ? (
-          <button
-            type="button"
-            className="agenda-ctx-item"
-            disabled={pending}
-            onClick={() => run(() => updateAppointmentStatusAction(a.id, "confirmed", date))}
-          >
-            <span className="agenda-ctx-ico is-ok" aria-hidden>
-              ✓
-            </span>
-            Confirmar
-          </button>
-        ) : null
+      {canReopen ? (
+        <button
+          type="button"
+          className="agenda-ctx-item"
+          disabled={pending}
+          onClick={() => run(() => updateAppointmentStatusAction(a.id, "scheduled", date))}
+        >
+          <span className="agenda-ctx-ico is-ok" aria-hidden>
+            ↺
+          </span>
+          Reabrir horário
+        </button>
       ) : null}
 
-      {permissions.canWrite && !closed ? (
+      {permissions.canUpdateStatus && a.status !== "completed" ? (
+        <div className={`agenda-ctx-flyout${statusOpen ? " is-open" : ""}`}>
+          <button
+            type="button"
+            className="agenda-ctx-item has-sub"
+            disabled={pending}
+            onClick={() => {
+              setPayOpen(false);
+              setTagOpen(false);
+              setStatusOpen((v) => !v);
+            }}
+          >
+            <span className="agenda-ctx-ico" aria-hidden>
+              ↻
+            </span>
+            Alterar status
+            <span className="agenda-ctx-chevron">›</span>
+          </button>
+          {statusOpen ? (
+            <div className="agenda-ctx-sub" role="menu">
+              {a.status !== "scheduled" ? (
+                <button
+                  type="button"
+                  className="agenda-ctx-item"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => updateAppointmentStatusAction(a.id, "scheduled", date))
+                  }
+                >
+                  Agendado
+                </button>
+              ) : null}
+              {a.status !== "confirmed" ? (
+                <button
+                  type="button"
+                  className="agenda-ctx-item"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => updateAppointmentStatusAction(a.id, "confirmed", date))
+                  }
+                >
+                  Confirmado
+                </button>
+              ) : null}
+              {!onLocal ? (
+                <button
+                  type="button"
+                  className="agenda-ctx-item"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => updateAppointmentStatusAction(a.id, "arrived", date))
+                  }
+                >
+                  No Local
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="agenda-ctx-item"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => updateAppointmentStatusAction(a.id, "scheduled", date))
+                  }
+                >
+                  Tirar No Local
+                </button>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {permissions.canWrite && !closedOps ? (
         <button
           type="button"
           className="agenda-ctx-item"
@@ -376,7 +442,7 @@ export function AgendaContextMenu({
         </button>
       ) : null}
 
-      {permissions.canWrite && !closed ? (
+      {permissions.canWrite && !closedOps ? (
         <button
           type="button"
           className="agenda-ctx-item"
@@ -392,7 +458,7 @@ export function AgendaContextMenu({
         </button>
       ) : null}
 
-      {permissions.canOpenOrder && !closed ? (
+      {permissions.canOpenOrder && !closedOps ? (
         <button
           type="button"
           className="agenda-ctx-item"
@@ -409,13 +475,17 @@ export function AgendaContextMenu({
         </button>
       ) : null}
 
-      {permissions.canWrite && !closed ? (
+      {permissions.canWrite && !closedOps ? (
         <div className={`agenda-ctx-flyout${tagOpen ? " is-open" : ""}`}>
           <button
             type="button"
             className="agenda-ctx-item has-sub"
             disabled={pending}
-            onClick={() => setTagOpen((v) => !v)}
+            onClick={() => {
+              setPayOpen(false);
+              setStatusOpen(false);
+              setTagOpen((v) => !v);
+            }}
           >
             <span className="agenda-ctx-ico" aria-hidden>
               🏷
@@ -456,20 +526,6 @@ export function AgendaContextMenu({
             </div>
           ) : null}
         </div>
-      ) : null}
-
-      {permissions.canUpdateStatus && !closed && a.status !== "arrived" ? (
-        <button
-          type="button"
-          className="agenda-ctx-item"
-          disabled={pending}
-          onClick={() => run(() => updateAppointmentStatusAction(a.id, "arrived", date))}
-        >
-          <span className="agenda-ctx-ico is-ok" aria-hidden>
-            📍
-          </span>
-          No Local
-        </button>
       ) : null}
 
       <div className="agenda-ctx-sep" />

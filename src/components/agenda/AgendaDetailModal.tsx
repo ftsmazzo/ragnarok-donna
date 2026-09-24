@@ -54,7 +54,10 @@ export function AgendaDetailModal({
   const [tagValue, setTagValue] = useState("");
   const [payMethod, setPayMethod] = useState("pix");
   const isBlock = a.status === "blocked";
-  const closed = a.status === "cancelled" || a.status === "completed" || a.status === "no_show";
+  const isCompleted = a.status === "completed";
+  /** Ausente/cancelado: esconde operação de balcão, mas ainda mostra Reabrir. */
+  const opsLocked =
+    a.status === "cancelled" || a.status === "no_show" || isCompleted;
 
   useEffect(() => {
     if (!open || isBlock || !a.clientId) {
@@ -122,7 +125,7 @@ export function AgendaDetailModal({
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={pending}>
             Fechar
           </button>
-          {!isBlock && permissions.canOpenOrder && !closed ? (
+          {!isBlock && permissions.canOpenOrder && !opsLocked ? (
             <button
               type="button"
               className="btn btn-primary"
@@ -299,11 +302,11 @@ export function AgendaDetailModal({
         </div>
       </dl>
 
-      {!isBlock && !closed ? (
+      {!isBlock && !isCompleted ? (
         <div className="agenda-status-actions">
           <p className="client-profile-hint">Ações rápidas (mesmo menu do botão direito)</p>
           <div className="agenda-status-buttons">
-            {permissions.canWrite && !isBlock && !closed ? (
+            {permissions.canWrite && !opsLocked ? (
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
@@ -314,7 +317,7 @@ export function AgendaDetailModal({
               </button>
             ) : null}
 
-            {permissions.canOpenOrder ? (
+            {permissions.canOpenOrder && !opsLocked ? (
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
@@ -325,7 +328,7 @@ export function AgendaDetailModal({
               </button>
             ) : null}
 
-            {permissions.canOpenOrder && a.clientId && a.serviceId ? (
+            {permissions.canOpenOrder && a.clientId && a.serviceId && !opsLocked ? (
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
@@ -336,7 +339,10 @@ export function AgendaDetailModal({
               </button>
             ) : null}
 
-            {permissions.canUpdateStatus && a.status !== "arrived" ? (
+            {permissions.canUpdateStatus &&
+            a.status !== "arrived" &&
+            a.status !== "in_progress" &&
+            !opsLocked ? (
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
@@ -344,6 +350,30 @@ export function AgendaDetailModal({
                 onClick={() => run(() => updateAppointmentStatusAction(a.id, "arrived", date))}
               >
                 No Local
+              </button>
+            ) : null}
+
+            {permissions.canUpdateStatus &&
+            (a.status === "arrived" || a.status === "in_progress") ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() => run(() => updateAppointmentStatusAction(a.id, "scheduled", date))}
+              >
+                Tirar No Local
+              </button>
+            ) : null}
+
+            {permissions.canUpdateStatus &&
+            (a.status === "no_show" || a.status === "cancelled") ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() => run(() => updateAppointmentStatusAction(a.id, "scheduled", date))}
+              >
+                Reabrir horário
               </button>
             ) : null}
 
@@ -369,32 +399,20 @@ export function AgendaDetailModal({
               </button>
             ) : null}
 
-            {permissions.canUpdateStatus ? (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  disabled={pending || a.status === "in_progress"}
-                  onClick={() =>
-                    run(() => updateAppointmentStatusAction(a.id, "in_progress", date))
-                  }
-                >
-                  Em atendimento
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  disabled={pending || a.status === "completed"}
-                  onClick={() =>
-                    run(() => updateAppointmentStatusAction(a.id, "completed", date))
-                  }
-                >
-                  Finalizar horário
-                </button>
-              </>
+            {permissions.canUpdateStatus && !opsLocked ? (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={pending}
+                onClick={() =>
+                  run(() => updateAppointmentStatusAction(a.id, "completed", date))
+                }
+              >
+                Finalizar horário
+              </button>
             ) : null}
 
-            {permissions.canWrite ? (
+            {permissions.canWrite && !opsLocked ? (
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
@@ -411,7 +429,7 @@ export function AgendaDetailModal({
               </button>
             ) : null}
 
-            {permissions.canWrite ? (
+            {permissions.canWrite && !opsLocked ? (
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
@@ -424,7 +442,7 @@ export function AgendaDetailModal({
               </button>
             ) : null}
 
-            {permissions.canOpenOrder ? (
+            {permissions.canOpenOrder && !opsLocked ? (
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
@@ -438,7 +456,7 @@ export function AgendaDetailModal({
               </button>
             ) : null}
 
-            {permissions.canCancel ? (
+            {permissions.canCancel && !opsLocked ? (
               <>
                 <button
                   type="button"
@@ -462,7 +480,7 @@ export function AgendaDetailModal({
             ) : null}
           </div>
 
-          {permissions.canWrite ? (
+          {permissions.canWrite && !opsLocked ? (
             <div className="agenda-tag-row">
               <input
                 className="input"
@@ -486,7 +504,7 @@ export function AgendaDetailModal({
             </div>
           ) : null}
 
-          {permissions.canOpenOrder && a.orderId ? (
+          {permissions.canOpenOrder && a.orderId && !opsLocked ? (
             <div className="agenda-pay-row">
               <label className="form-field" style={{ margin: 0, flex: 1 }}>
                 <span>Finalizar Comanda</span>

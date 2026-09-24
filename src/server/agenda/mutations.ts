@@ -341,7 +341,7 @@ export async function updateAppointmentStatus(
       await assertBarberOwnStaff(session, appt.staffId);
     } else if (hasCapability(session.role, "appointments.status_own")) {
       await assertBarberOwnStaff(session, appt.staffId);
-      const barberAllowed = ["arrived", "in_progress", "completed", "confirmed"];
+      const barberAllowed = ["arrived", "scheduled", "completed", "confirmed"];
       if (!barberAllowed.includes(status)) {
         throw new ForbiddenError("Barbeiro não pode alterar para este status");
       }

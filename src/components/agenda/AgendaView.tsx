@@ -76,9 +76,8 @@ function slotStatusGlyph(status: string): { glyph: string; title: string } | nul
     case "confirmed":
       return { glyph: "✓", title: labelApptStatus(status) };
     case "arrived":
-      return { glyph: "●", title: labelApptStatus(status) };
     case "in_progress":
-      return { glyph: "▶", title: labelApptStatus(status) };
+      return { glyph: "●", title: "No Local" };
     case "completed":
       return { glyph: "✔", title: labelApptStatus(status) };
     case "no_show":
@@ -95,6 +94,7 @@ function slotClass(a: AgendaAppointment): string {
   else if (a.status === "cancelled") parts.push("muted");
   else if (a.status === "no_show" || (a.seriesConflict && a.status === "scheduled")) parts.push("tone-noshow");
   else if (a.orderStatus === "closed" || a.status === "completed") parts.push("tone-paid");
+  else if (a.status === "arrived" || a.status === "in_progress") parts.push("tone-local");
   else if (a.status === "confirmed") parts.push("tone-confirmed");
   else if (a.noPreference) parts.push("tone-nopref");
   else parts.push("tone-open");
@@ -538,8 +538,9 @@ export function AgendaView({
                                 {a.isEncaixe ? " · encaixe" : null}
                                 {a.noPreference ? " · sem pref." : null}
                                 {a.seriesConflict ? ` · ${a.seriesConflict}` : null}
-                                {a.status === "arrived" ? " · no local" : null}
-                                {a.status === "in_progress" ? " · em atend." : null}
+                                {a.status === "arrived" || a.status === "in_progress"
+                                  ? " · no local"
+                                  : null}
                                 {a.clientHairPreference && tall
                                   ? ` · ${a.clientHairPreference}`
                                   : null}
@@ -598,16 +599,13 @@ export function AgendaView({
               <i style={{ background: "#b91c1c" }} /> Não veio
             </span>
             <span>
+              <i style={{ background: "#ec4899" }} /> No Local
+            </span>
+            <span>
               <span className="legend-glyph" aria-hidden>
                 ●
               </span>{" "}
               No local
-            </span>
-            <span>
-              <span className="legend-glyph" aria-hidden>
-                ▶
-              </span>{" "}
-              Em atendimento
             </span>
             <span>
               <span className="legend-glyph" aria-hidden>
