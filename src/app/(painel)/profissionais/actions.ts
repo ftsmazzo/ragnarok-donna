@@ -4,6 +4,7 @@ import {
   createStaffMember,
   deactivateStaffMember,
   reactivateStaffMember,
+  saveStaffProductCommissions,
   saveStaffSchedules,
   saveStaffServiceCommissions,
   setStaffClientGoal,
@@ -50,17 +51,28 @@ export async function saveStaffServiceCommissionsAction(
   staffId: string,
   formData: FormData
 ): Promise<ActionResult> {
-  const rows: Array<{ serviceId: string; commissionPct: string }> = [];
+  const serviceRows: Array<{ serviceId: string; commissionPct: string }> = [];
+  const productRows: Array<{ productId: string; commissionPct: string }> = [];
   for (const [key, value] of formData.entries()) {
-    if (!key.startsWith("svc_pct_")) continue;
-    const serviceId = key.slice("svc_pct_".length);
-    rows.push({ serviceId, commissionPct: String(value ?? "") });
+    if (key.startsWith("svc_pct_")) {
+      serviceRows.push({
+        serviceId: key.slice("svc_pct_".length),
+        commissionPct: String(value ?? ""),
+      });
+    } else if (key.startsWith("prod_pct_")) {
+      productRows.push({
+        productId: key.slice("prod_pct_".length),
+        commissionPct: String(value ?? ""),
+      });
+    }
   }
-  const result = await saveStaffServiceCommissions(staffId, rows);
-  if (result.ok) {
+  const svc = await saveStaffServiceCommissions(staffId, serviceRows);
+  if (!svc.ok) return svc;
+  const prod = await saveStaffProductCommissions(staffId, productRows);
+  if (prod.ok) {
     revalidatePath("/profissionais");
   }
-  return result;
+  return prod;
 }
 
 export async function deactivateStaffAction(staffId: string): Promise<ActionResult> {

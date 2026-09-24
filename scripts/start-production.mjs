@@ -239,6 +239,19 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS avatar_url text;
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS commission_bps integer;
 ALTER TABLE staff_services ADD COLUMN IF NOT EXISTS commission_bps integer;
 
+CREATE TABLE IF NOT EXISTS staff_products (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  staff_id uuid NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  custom_price_cents integer,
+  commission_bps integer,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS staff_products_uidx
+  ON staff_products (staff_id, product_id);
+
 ALTER TABLE services ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES branches(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS services_tenant_branch_idx ON services (tenant_id, branch_id);
 

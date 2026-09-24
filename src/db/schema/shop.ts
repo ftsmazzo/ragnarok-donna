@@ -230,6 +230,28 @@ export const products = pgTable(
   ]
 );
 
+/** Override de % / preço só deste profissional neste produto */
+export const staffProducts = pgTable(
+  "staff_products",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    customPriceCents: integer("custom_price_cents"),
+    /** Override de % só deste profissional neste produto (bps). null = usa o catálogo. */
+    commissionBps: integer("commission_bps"),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("staff_products_uidx").on(t.staffId, t.productId)]
+);
+
 export const packages = pgTable(
   "packages",
   {

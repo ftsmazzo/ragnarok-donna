@@ -504,3 +504,91 @@ export async function saveStaffServiceCommissions(
     return { ok: false, error: "Erro ao salvar comissões por serviço" };
   }
 }
+
+/**
+ * Salva overrides de % por produto deste profissional.
+ * Campo vazio / null → remove override (volta ao % do catálogo).
+ */
+export async function saveStaffProductCommissions(
+  staffId: string,
+  rows: Array<{ productId: string; commissionPct: string }>
+): Promise<ActionResult> {
+  try {
+    await assertCanWriteAsync();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const [exists] = await db
+      .select({ id: schema.staff.id })
+      .from(schema.staff)
+      .where(and(eq(schema.staff.id, staffId), eq(schema.staff.tenantId, tenant.id)))
+      .limit(1);
+    if (!exists) throw new NotFoundError("Profissional não encontrado");
+
+    const now = new Date();
+    for (const row of rows) {
+      const productId = row.productId?.trim();
+      if (!productId) continue;
+
+      const [prod] = await db
+        .select({ id: schema.products.id })
+        .from(schema.products)
+        .where(
+          and(
+            eq(schema.products.id, productId),
+            eq(schema.products.tenantId, tenant.id),
+            isNull(schema.products.deletedAt)
+          )
+        )
+        .limit(1);
+      if (!prod) continue;
+
+      const raw = row.commissionPct?.trim() ?? "";
+      let commissionBps: number | null = null;
+      if (raw !== "") {
+        const n = Number(raw.replace(",", "."));
+        if (Number.isNaN(n) || n < 0 || n > 100) {
+          throw new AppError(
+            "VALIDATION",
+            `Comissão inválida em um produto (use 0–100% ou deixe vazio)`
+          );
+        }
+        commissionBps = Math.round(n * 100);
+      }
+
+      const [link] = await db
+        .select({ id: schema.staffProducts.id })
+        .from(schema.staffProducts)
+        .where(
+          and(
+            eq(schema.staffProducts.tenantId, tenant.id),
+            eq(schema.staffProducts.staffId, staffId),
+            eq(schema.staffProducts.productId, productId)
+          )
+        )
+        .limit(1);
+
+      if (link) {
+        await db
+          .update(schema.staffProducts)
+          .set({ commissionBps, updatedAt: now })
+          .where(eq(schema.staffProducts.id, link.id));
+      } else if (commissionBps != null) {
+        await db.insert(schema.staffProducts).values({
+          tenantId: tenant.id,
+          staffId,
+          productId,
+          commissionBps,
+        });
+      }
+    }
+
+    return { ok: true, id: staffId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof NotFoundError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: "Sem permissão" };
+    console.error("[saveStaffProductCommissions]", err);
+    return { ok: false, error: "Erro ao salvar comissões por produto" };
+  }
+}

@@ -39,11 +39,21 @@ export type StaffDetail = StaffListItem & {
   schedules: StaffScheduleSlot[];
   /** Serviços ativos + override de % (null = usa catálogo). */
   serviceCommissions: StaffServiceCommission[];
+  /** Produtos à venda + override de % (null = usa catálogo). */
+  productCommissions: StaffProductCommission[];
 };
 
 export type StaffServiceCommission = {
   serviceId: string;
   serviceName: string;
+  catalogCommissionBps: number | null;
+  overrideCommissionBps: number | null;
+  priceCents: number;
+};
+
+export type StaffProductCommission = {
+  productId: string;
+  productName: string;
   catalogCommissionBps: number | null;
   overrideCommissionBps: number | null;
   priceCents: number;
@@ -200,6 +210,33 @@ export async function getStaffMember(staffId: string): Promise<StaffDetail> {
     )
     .orderBy(asc(schema.services.name));
 
+  const productCommissions = await db
+    .select({
+      productId: schema.products.id,
+      productName: schema.products.name,
+      catalogCommissionBps: schema.products.commissionBps,
+      overrideCommissionBps: schema.staffProducts.commissionBps,
+      priceCents: schema.products.priceCents,
+    })
+    .from(schema.products)
+    .leftJoin(
+      schema.staffProducts,
+      and(
+        eq(schema.staffProducts.productId, schema.products.id),
+        eq(schema.staffProducts.staffId, staffId),
+        eq(schema.staffProducts.tenantId, tenant.id)
+      )
+    )
+    .where(
+      and(
+        eq(schema.products.tenantId, tenant.id),
+        eq(schema.products.isActive, true),
+        eq(schema.products.forSale, true),
+        isNull(schema.products.deletedAt)
+      )
+    )
+    .orderBy(asc(schema.products.name));
+
   return {
     ...row,
     meta: (row.meta ?? {}) as Record<string, unknown>,
@@ -210,6 +247,7 @@ export async function getStaffMember(staffId: string): Promise<StaffDetail> {
       endTime: String(s.endTime).slice(0, 5),
     })),
     serviceCommissions,
+    productCommissions,
   };
 }
 
