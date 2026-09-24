@@ -24,7 +24,8 @@ function revalidateOrders(id?: string) {
   revalidatePath("/caixa");
   revalidatePath("/agenda");
   revalidatePath("/comissoes");
-  if (id) revalidatePath(`/comandas?id=${id}`);
+  // Não usar query string em revalidatePath — path canônico é /comandas.
+  void id;
 }
 
 export async function openOrderAction(formData: FormData) {

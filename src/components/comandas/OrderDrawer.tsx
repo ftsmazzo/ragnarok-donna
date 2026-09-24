@@ -119,6 +119,9 @@ export function OrderDrawer({
   const [itemCourtesy, setItemCourtesy] = useState(false);
   const [staffServiceConsumption, setStaffServiceConsumption] = useState(false);
   const [consumerStaffId, setConsumerStaffId] = useState("");
+  const [lineStaffId, setLineStaffId] = useState(
+    () => (order.isStaffConsumption && order.consumerStaffId) || ""
+  );
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editTotalReais, setEditTotalReais] = useState("");
   const [coveredReais, setCoveredReais] = useState("");
@@ -148,6 +151,12 @@ export function OrderDrawer({
   const clientCreditAvailable =
     clientAccountCents != null && clientAccountCents > 0 ? clientAccountCents : 0;
   const hasPackageSale = order.items.some((item) => item.itemType === "package");
+
+  useEffect(() => {
+    if (order.isStaffConsumption && order.consumerStaffId) {
+      setLineStaffId((prev) => prev || order.consumerStaffId || "");
+    }
+  }, [order.id, order.isStaffConsumption, order.consumerStaffId]);
 
   useEffect(() => {
     setOrderDiscountPct(orderDiscountPercent(order.totalCents, order.discountCents));
@@ -300,15 +309,17 @@ export function OrderDrawer({
   const packageBlockedNoClient =
     itemType === "package" && !order.clientId && !selectedPackage?.billAsLines;
 
-  function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
+  function run(fn: () => Promise<{ ok: boolean; error?: string } | null | undefined>) {
     setError("");
     startTransition(async () => {
       try {
         const result = await fn();
-        if (!result.ok) {
-          const msg = result.error ?? "Erro";
+        if (!result || !result.ok) {
+          const msg = result?.error ?? "Erro";
           setError(msg);
           showToast(msg, "error");
+          // Mesmo com falha reportada, o item pode ter sido gravado — atualiza a lista.
+          onChanged();
           return;
         }
         onChanged();
@@ -319,6 +330,7 @@ export function OrderDrawer({
             : "Falha ao processar. Tente de novo.";
         setError(msg);
         showToast(msg, "error");
+        onChanged();
       }
     });
   }
@@ -357,6 +369,7 @@ export function OrderDrawer({
     formData.set("orderId", order.id);
     formData.set("itemType", itemType);
     formData.set("catalogId", catalogId);
+    if (lineStaffId) formData.set("staffId", lineStaffId);
     if (willUseCredit) formData.set("usePackageCredit", "1");
     if (willUseCredit && selectedClientPackageId) {
       formData.set("clientPackageId", selectedClientPackageId);
@@ -392,8 +405,7 @@ export function OrderDrawer({
 
     run(async () => {
       const result = await addOrderItemAction(formData);
-      if (result.ok) {
-        form.reset();
+      if (result?.ok) {
         setCatalogId("");
         setItemType("service");
         setUseCredit(true);
@@ -403,7 +415,12 @@ export function OrderDrawer({
         setConsumerStaffId("");
         setCoveredReais("");
         setSelectedClientPackageId("");
-        setBookFlash("Crédito abatido. Saldo atualizado na carteira.");
+        setBookFlash("");
+        if (order.isStaffConsumption && order.consumerStaffId) {
+          setLineStaffId(order.consumerStaffId);
+        }
+        showToast("Item adicionado", "success");
+        setError("");
       }
       return result;
     });
@@ -1492,7 +1509,16 @@ export function OrderDrawer({
                       type="button"
                       className="btn btn-ghost btn-sm"
                       disabled={pending}
-                      onClick={() => run(() => removeOrderItemAction(item.id, order.id))}
+                      onClick={() =>
+                        run(async () => {
+                          const result = await removeOrderItemAction(item.id, order.id);
+                          if (result?.ok) {
+                            showToast("Item removido", "success");
+                            setError("");
+                          }
+                          return result;
+                        })
+                      }
                     >
                       Remover
                     </button>
@@ -1683,7 +1709,8 @@ export function OrderDrawer({
               <span>Profissional {itemType === "service" || selectedPackage?.billAsLines ? "*" : ""}</span>
               <select
                 name="staffId"
-                defaultValue=""
+                value={lineStaffId}
+                onChange={(e) => setLineStaffId(e.target.value)}
                 required={itemType === "service" || Boolean(selectedPackage?.billAsLines)}
               >
                 <option value="" disabled={itemType === "service"}>
