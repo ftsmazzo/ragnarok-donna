@@ -284,7 +284,8 @@ export function AgendaFormModal({ open, mode, slot, staff, services, onClose, on
 
         {mode === "encaixe" ? (
           <p className="client-profile-hint muted">
-            Encaixe imediato: pode sobrepor horários já ocupados. Ajuste o horário se precisar.
+            Encaixe: ignora almoço e jornada (entrada/saída), e pode sobrepor horários já
+            ocupados. Ajuste o horário se precisar.
           </p>
         ) : null}
 

@@ -84,7 +84,7 @@ export const guideAgenda: SupportGuide = {
     {
       title: "Encaixe (agora / fora da grade normal)",
       detail:
-        "No detalhe do horário ou no menu: Encaixe. Ao criar, também há modo Encaixe no formulário. Marca o horário como encaixe na grade. Isso é operação do painel — a Donna no WhatsApp não sobrescreve esse encaixe.",
+        "No detalhe do horário ou no menu: Encaixe. Ao criar (+ Encaixe ou botão direito na célula), o encaixe ignora almoço e jornada do profissional — pode marcar em qualquer horário da grade e até sobrepor. A Donna no WhatsApp não sobrescreve esse encaixe.",
     },
     {
       title: "Bloquear horário",

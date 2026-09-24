@@ -244,10 +244,10 @@ async function createSlot(raw: WriteInput): Promise<ActionResult> {
       weekday: "short",
     });
 
+    // Encaixe: ignora almoço e jornada — só aviso amigável no sábado.
     if (raw.isEncaixe && isLunchTimeHm(hm)) {
-      throw new AppError(
-        "VALIDATION",
-        `Não encaixar no almoço (${HOUSE_RULES.lunchStartHm}–${HOUSE_RULES.lunchEndHm}). Escolha outro horário.`
+      warnings.push(
+        `Encaixe no horário de almoço (${HOUSE_RULES.lunchStartHm}–${HOUSE_RULES.lunchEndHm}).`
       );
     }
 

@@ -26,6 +26,8 @@ export type AgendaCtxTarget =
       minute?: number;
       x: number;
       y: number;
+      /** Célula fora da jornada/almoço — só encaixe/bloqueio. */
+      offHours?: boolean;
     };
 
 type Props = {
@@ -129,20 +131,22 @@ export function AgendaContextMenu({
   if (target.kind === "cell") {
     return (
       <div ref={ref} className="agenda-ctx" style={pos} role="menu">
-        <button
-          type="button"
-          className="agenda-ctx-item"
-          disabled={!permissions.canWrite || pending}
-          onClick={() => {
-            onOpenForm("schedule", target.staffId, target.hour, target.minute ?? 0);
-            onClose();
-          }}
-        >
-          <span className="agenda-ctx-ico" aria-hidden>
-            ▢
-          </span>
-          Agendar
-        </button>
+        {!target.offHours ? (
+          <button
+            type="button"
+            className="agenda-ctx-item"
+            disabled={!permissions.canWrite || pending}
+            onClick={() => {
+              onOpenForm("schedule", target.staffId, target.hour, target.minute ?? 0);
+              onClose();
+            }}
+          >
+            <span className="agenda-ctx-ico" aria-hidden>
+              ▢
+            </span>
+            Agendar
+          </button>
+        ) : null}
         <button
           type="button"
           className="agenda-ctx-item"

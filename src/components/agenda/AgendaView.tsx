@@ -421,7 +421,8 @@ export function AgendaView({
                         onContextMenu={(e) => {
                           if (!permissions.canWrite) return;
                           e.preventDefault();
-                          if (busy || offHours) return;
+                          if (busy) return;
+                          // Fora do expediente/almoço: só encaixe/bloqueio (menu filtra Agendar).
                           setCtx({
                             kind: "cell",
                             staffId: s.id,
@@ -429,6 +430,7 @@ export function AgendaView({
                             minute,
                             x: e.clientX,
                             y: e.clientY,
+                            offHours,
                           });
                         }}
                         title={
