@@ -317,20 +317,17 @@ export async function recalcPeriodCatalogCommissions(input: {
 }): Promise<{ scanned: number; updated: number }> {
   const db = createDb();
   const { start, end } = rangeBoundsSp(input.from, input.to);
-  const when = sql`coalesce(${schema.orderItems.performedAt}, ${schema.orderItems.createdAt})`;
 
-  const conds = [
+  const baseWhere = and(
     eq(schema.orderItems.tenantId, input.tenantId),
     eq(schema.orders.tenantId, input.tenantId),
     inArray(schema.orderItems.itemType, ["service", "product"]),
     inArray(schema.orders.status, ["open", "closed"]),
     isNull(schema.orders.deletedAt),
-    gte(when, start),
-    lte(when, end),
-  ];
-  if (input.branchId) {
-    conds.push(eq(schema.orders.branchId, input.branchId));
-  }
+    gte(schema.orderItems.performedAt, start),
+    lte(schema.orderItems.performedAt, end),
+    input.branchId ? eq(schema.orders.branchId, input.branchId) : undefined
+  );
 
   const rows = await db
     .select({
@@ -358,7 +355,7 @@ export async function recalcPeriodCatalogCommissions(input: {
       schema.serviceCategories,
       eq(schema.services.categoryId, schema.serviceCategories.id)
     )
-    .where(and(...conds));
+    .where(baseWhere);
 
   let updated = 0;
   for (const row of rows) {
