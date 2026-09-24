@@ -1135,18 +1135,22 @@ export async function addOrderItem(input: {
     let staffCommissionBps: number | null = null;
 
     if (!staffId && input.itemType === "service") {
-      const [orderAppt] = await db
-        .select({ staffId: schema.appointments.staffId })
-        .from(schema.orders)
-        .leftJoin(
-          schema.appointments,
-          eq(schema.appointments.id, schema.orders.appointmentId)
-        )
-        .where(
-          and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id))
-        )
-        .limit(1);
-      staffId = orderAppt?.staffId ?? null;
+      if (isStaffConsumption && typeof orderMeta.consumerStaffId === "string") {
+        staffId = orderMeta.consumerStaffId;
+      } else {
+        const [orderAppt] = await db
+          .select({ staffId: schema.appointments.staffId })
+          .from(schema.orders)
+          .leftJoin(
+            schema.appointments,
+            eq(schema.appointments.id, schema.orders.appointmentId)
+          )
+          .where(
+            and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id))
+          )
+          .limit(1);
+        staffId = orderAppt?.staffId ?? null;
+      }
     }
 
     if (input.itemType === "service" && !staffId) {
@@ -1325,6 +1329,14 @@ export async function addOrderItem(input: {
     // Com crédito: insert na mesma conexão após debit (restore se insert falhar)
     let row: { id: string };
     try {
+      const performedAt =
+        isStaffConsumption && typeof orderMeta.occurredOn === "string"
+          ? new Date(`${orderMeta.occurredOn}T12:00:00-03:00`)
+          : new Date();
+      const itemMeta = isStaffConsumption
+        ? { ...meta, staffConsumptionOrder: true }
+        : meta;
+      meta = itemMeta;
       const [inserted] = await db
         .insert(schema.orderItems)
         .values({
@@ -1342,8 +1354,8 @@ export async function addOrderItem(input: {
           totalCents,
           commissionBps: commission.commissionBps,
           commissionCents: commission.commissionCents,
-          performedAt: new Date(),
-          meta,
+          performedAt,
+          meta: itemMeta,
         })
         .returning({ id: schema.orderItems.id });
       row = inserted!;
@@ -1367,92 +1379,106 @@ export async function addOrderItem(input: {
       throw insertErr;
     }
 
-    if (productId) {
-      await db
-        .update(schema.products)
-        .set({
-          stockQty: sql`${schema.products.stockQty} - ${qty}`,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(eq(schema.products.id, productId), eq(schema.products.tenantId, tenant.id))
-        );
-    }
-
-    await recalculateOrderTotal(input.orderId, tenant.id);
-
-    if (
-      staffServiceConsumption &&
-      totalCents > 0 &&
-      input.consumerStaffId?.trim() &&
-      input.consumerStaffId.trim() !== staffId
-    ) {
-      const consumerId = input.consumerStaffId.trim();
-      const [consumer] = await db
-        .select({ id: schema.staff.id, name: schema.staff.name })
-        .from(schema.staff)
-        .where(
-          and(
-            eq(schema.staff.id, consumerId),
-            eq(schema.staff.tenantId, tenant.id),
-            isNull(schema.staff.deletedAt)
-          )
-        )
-        .limit(1);
-      if (!consumer) {
-        throw new AppError("VALIDATION", "Profissional consumidora inválida");
-      }
-      await db.insert(schema.staffAdvances).values({
-        tenantId: tenant.id,
-        staffId: consumer.id,
-        kind: "discount",
-        status: "open",
-        amountCents: totalCents,
-        occurredAt: new Date(),
-        notes: `Consumo serviço: ${description} (50%) · item ${row.id.slice(0, 8)}`.slice(
-          0,
-          240
-        ),
-        createdByUserId: session.user.id,
-      });
-    }
-
-    if (input.itemType === "service") {
-      await syncStaffMonthServiceCommission(tenant.id, staffId);
-      if (staffId && serviceId && !isStaffConsumption) {
-        const [orderCtx] = await db
-          .select({
-            clientId: schema.orders.clientId,
-            branchId: schema.orders.branchId,
+    try {
+      if (productId) {
+        await db
+          .update(schema.products)
+          .set({
+            stockQty: sql`${schema.products.stockQty} - ${qty}`,
+            updatedAt: new Date(),
           })
-          .from(schema.orders)
           .where(
-            and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id))
+            and(eq(schema.products.id, productId), eq(schema.products.tenantId, tenant.id))
+          );
+      }
+
+      await recalculateOrderTotal(input.orderId, tenant.id);
+
+      if (
+        staffServiceConsumption &&
+        totalCents > 0 &&
+        input.consumerStaffId?.trim() &&
+        input.consumerStaffId.trim() !== staffId
+      ) {
+        const consumerId = input.consumerStaffId.trim();
+        const [consumer] = await db
+          .select({ id: schema.staff.id, name: schema.staff.name })
+          .from(schema.staff)
+          .where(
+            and(
+              eq(schema.staff.id, consumerId),
+              eq(schema.staff.tenantId, tenant.id),
+              isNull(schema.staff.deletedAt)
+            )
           )
           .limit(1);
-        try {
-          await createAgendaSlotForOrderService({
-            tenantId: tenant.id,
-            orderId: input.orderId,
-            orderItemId: row.id,
-            staffId,
-            serviceId,
-            clientId: orderCtx?.clientId ?? null,
-            branchId: orderCtx?.branchId ?? session.branch?.id ?? null,
-            priceCents: unitPriceCents,
-            qty,
-            performedAt: new Date(),
-            itemMeta: meta,
-          });
-        } catch (slotErr) {
-          console.error("[addOrderItem] falha ao criar slot na agenda", slotErr);
+        if (!consumer) {
+          throw new AppError("VALIDATION", "Profissional consumidora inválida");
         }
+        await db.insert(schema.staffAdvances).values({
+          tenantId: tenant.id,
+          staffId: consumer.id,
+          kind: "discount",
+          status: "open",
+          amountCents: totalCents,
+          occurredAt: new Date(),
+          notes: `Consumo serviço: ${description} (50%) · item ${row.id.slice(0, 8)}`.slice(
+            0,
+            240
+          ),
+          createdByUserId: session.user.id,
+        });
+      }
+
+      if (input.itemType === "service") {
+        try {
+          await syncStaffMonthServiceCommission(tenant.id, staffId);
+        } catch (syncErr) {
+          console.error("[addOrderItem] sync comissão falhou", syncErr);
+        }
+        if (staffId && serviceId && !isStaffConsumption) {
+          const [orderCtx] = await db
+            .select({
+              clientId: schema.orders.clientId,
+              branchId: schema.orders.branchId,
+            })
+            .from(schema.orders)
+            .where(
+              and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id))
+            )
+            .limit(1);
+          try {
+            await createAgendaSlotForOrderService({
+              tenantId: tenant.id,
+              orderId: input.orderId,
+              orderItemId: row.id,
+              staffId,
+              serviceId,
+              clientId: orderCtx?.clientId ?? null,
+              branchId: orderCtx?.branchId ?? session.branch?.id ?? null,
+              priceCents: unitPriceCents,
+              qty,
+              performedAt: new Date(),
+              itemMeta: meta,
+            });
+          } catch (slotErr) {
+            console.error("[addOrderItem] falha ao criar slot na agenda", slotErr);
+          }
+        }
+      }
+    } catch (postErr) {
+      // Item já persistido — não devolver erro (UI mostrava falha com item no banco).
+      if (postErr instanceof AppError) {
+        console.error("[addOrderItem] pós-insert AppError", postErr.message);
+      } else {
+        console.error("[addOrderItem] pós-insert", postErr);
       }
     }
     return { ok: true, id: row.id };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[addOrderItem]", err);
     return { ok: false, error: "Não foi possível adicionar o item" };
   }
 }
@@ -2267,12 +2293,17 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
 
     await recalculateOrderTotal(item.orderId, tenant.id);
     if (item.itemType === "service") {
-      await syncStaffMonthServiceCommission(tenant.id, item.staffId);
+      try {
+        await syncStaffMonthServiceCommission(tenant.id, item.staffId);
+      } catch (syncErr) {
+        console.error("[removeOrderItem] sync comissão falhou", syncErr);
+      }
     }
     return { ok: true, id: item.orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[removeOrderItem]", err);
     return { ok: false, error: "Não foi possível remover o item" };
   }
 }
