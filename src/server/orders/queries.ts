@@ -363,6 +363,13 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
 
   if (!order) throw new NotFoundError("Comanda não encontrada");
 
+  try {
+    const { recalcOrderCatalogCommissions } = await import("../commissions/house");
+    await recalcOrderCatalogCommissions(tenant.id, orderId);
+  } catch (err) {
+    console.error("[getOrderDetail] recalc comissão falhou", err);
+  }
+
   const items = await db
     .select({
       id: schema.orderItems.id,
