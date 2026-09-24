@@ -5,6 +5,7 @@ import { SummaryCards } from "@/components/relatorio/SummaryCards";
 import { ExportCsvButton } from "@/components/relatorio/ExportCsvButton";
 import { PaymentMixDonut, RankingBarChart } from "@/components/relatorio/charts";
 import { CommissionAdvancePanel } from "@/components/comissoes/CommissionAdvancePanel";
+import { RecalcCommissionsButton } from "@/components/comissoes/RecalcCommissionsButton";
 import { reportCommissions } from "@/server/commissions";
 import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelAdvanceKind, labelItemType } from "@/lib/format";
@@ -73,6 +74,9 @@ export default async function ComissoesPage({ searchParams }: Props) {
         subtitle={`${data.totalItems.toLocaleString("pt-BR")} item(ns) · a pagar ${formatMoney(data.totalNetDueCents)}`}
         actions={
           <>
+            {data.canWrite && !ownOnly ? (
+              <RecalcCommissionsButton from={data.from} to={data.to} />
+            ) : null}
             {data.canWrite && !ownOnly ? (
               <CommissionAdvancePanel
                 staffList={data.staffList}

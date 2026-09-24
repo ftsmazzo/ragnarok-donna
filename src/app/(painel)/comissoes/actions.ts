@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createStaffAdvance, type AdvanceKind } from "@/server/commissions";
+import {
+  createStaffAdvance,
+  recalcCommissionsCatalogAction,
+  type AdvanceKind,
+} from "@/server/commissions";
 
 export async function createAdvanceAction(formData: FormData) {
   const kind = String(formData.get("kind") ?? "vale") as AdvanceKind;
@@ -17,6 +21,14 @@ export async function createAdvanceAction(formData: FormData) {
     revalidatePath("/comissoes");
     revalidatePath("/caixa");
     revalidatePath("/relatorios/fluxo");
+  }
+  return result;
+}
+
+export async function recalcCommissionsAction(input: { from: string; to: string }) {
+  const result = await recalcCommissionsCatalogAction(input);
+  if (result.ok) {
+    revalidatePath("/comissoes");
   }
   return result;
 }

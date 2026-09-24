@@ -7,7 +7,7 @@ import { resolveBranchScope, withBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability, requireCapability } from "../permissions";
 import { findOpenCashSessionId } from "../finance/queries";
-import { syncStaffMonthServiceCommission, syncTenantMonthServiceCommission } from "./house";
+import { recalcPeriodCatalogCommissions } from "./house";
 
 const commissionExpr = sql<number>`coalesce(
   ${schema.orderItems.commissionCents},
@@ -84,13 +84,14 @@ export async function reportCommissions(opts: {
   const to = opts.to ?? todaySp();
   if (from.slice(0, 7) === monthStartSp().slice(0, 7)) {
     try {
-      if (opts.staffId) {
-        await syncStaffMonthServiceCommission(tenant.id, opts.staffId);
-      } else {
-        await syncTenantMonthServiceCommission(tenant.id);
-      }
+      await recalcPeriodCatalogCommissions({
+        tenantId: tenant.id,
+        from,
+        to,
+        branchId: scope.multiBranch ? scope.branchId : null,
+      });
     } catch (err) {
-      console.error("[reportCommissions] sync mês falhou (seguindo sem sync)", err);
+      console.error("[reportCommissions] recalc catálogo falhou (seguindo sem sync)", err);
     }
   }
   const { start, end } = rangeBoundsSp(from, to);
@@ -351,6 +352,35 @@ export async function reportCommissions(opts: {
     staffList,
     canWrite: hasCapability(session.role, "commissions.write"),
   };
+}
+
+/**
+ * Recalcula comissões do período filtrado (itens já lançados / fechados)
+ * a partir do catálogo — sem reabrir comanda.
+ */
+export async function recalcCommissionsCatalogAction(opts: {
+  from?: string;
+  to?: string;
+}): Promise<{ ok: true; scanned: number; updated: number } | { ok: false; error: string }> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "commissions.write");
+    const tenant = await requireTenantContext();
+    const scope = await resolveBranchScope();
+    const from = opts.from ?? monthStartSp();
+    const to = opts.to ?? todaySp();
+    const result = await recalcPeriodCatalogCommissions({
+      tenantId: tenant.id,
+      from,
+      to,
+      branchId: scope.multiBranch ? scope.branchId : null,
+    });
+    return { ok: true, ...result };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível recalcular as comissões" };
+  }
 }
 
 export async function createStaffAdvance(input: {
