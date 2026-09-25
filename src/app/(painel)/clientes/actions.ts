@@ -18,6 +18,7 @@ import {
   renewOrTopUpClientPackage,
   sellCatalogPackageToClient,
   cancelUnusedPackageSale,
+  refundExcessPackagePayments,
 } from "@/server/packages/mutations";
 
 export async function createClientAction(formData: FormData): Promise<ActionResult> {
@@ -241,6 +242,22 @@ export async function cancelClientSubscriptionAction(subscriptionId: string): Pr
   if (result.ok) {
     revalidatePath("/clientes");
     revalidatePath("/crm");
+  }
+  return result;
+}
+
+/** Estorna pagamentos duplicados de venda de pacote (ex.: retries com falso erro). Owner/recepção. */
+export async function refundExcessPackagePaymentsAction(input: {
+  clientId: string;
+  date?: string;
+}): Promise<{ ok: true; id: string; refundedCents?: number } | { ok: false; error: string }> {
+  const result = await refundExcessPackagePayments(input);
+  if (result.ok) {
+    revalidatePath("/clientes");
+    revalidatePath(`/clientes?id=${input.clientId}`);
+    revalidatePath("/caixa");
+    revalidatePath("/comandas");
+    revalidatePath("/pacotes");
   }
   return result;
 }

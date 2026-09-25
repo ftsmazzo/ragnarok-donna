@@ -17,10 +17,7 @@ export async function completePackageSaleAction(input: {
     revalidatePath("/pacotes");
     revalidatePath("/clientes");
     revalidatePath("/comandas");
-    revalidatePath(`/clientes?id=${input.clientId}`);
-    if ("orderId" in result && result.orderId) {
-      revalidatePath(`/comandas?id=${result.orderId}`);
-    }
+    revalidatePath("/caixa");
   }
   return result;
 }

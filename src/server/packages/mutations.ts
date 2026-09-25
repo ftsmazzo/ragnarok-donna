@@ -4,7 +4,14 @@ import { AppError, ForbiddenError } from "../errors";
 import { topUpClientPackageCredits } from "./credits";
 
 export type RenewResult =
-  | { ok: true; id: string; orderId?: string; refundedCents?: number }
+  | {
+      ok: true;
+      id: string;
+      orderId?: string;
+      refundedCents?: number;
+      /** Pagamento/carteira ok, mas houve aviso (não deve gerar retry). */
+      warning?: string;
+    }
   | { ok: false; error: string };
 
 /**
@@ -184,40 +191,96 @@ export async function completePackageSale(input: {
       orderId = opened.id;
     }
 
-    const { addOrderItem, addPayment, closeOrder } = await import("../orders/mutations");
-    const sold = await addOrderItem({
-      orderId,
-      itemType: "package",
-      catalogId: packageId,
-      staffId: input.staffId?.trim() || undefined,
-      qty: 1,
-      saleNotes: input.notes,
-    });
-    if (!sold.ok) return sold;
+    const { addOrderItem, addPayment, closeOrder, getOrderBalanceCents } = await import(
+      "../orders/mutations"
+    );
+
+    // Idempotência: não lançar o mesmo pacote de novo se já há item de venda na comanda.
+    const existingSales = await db
+      .select({
+        id: schema.orderItems.id,
+        meta: schema.orderItems.meta,
+        packageId: schema.orderItems.packageId,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.tenantId, tenant.id),
+          eq(schema.orderItems.orderId, orderId),
+          eq(schema.orderItems.itemType, "package"),
+          eq(schema.orderItems.packageId, packageId)
+        )
+      );
+
+    let saleItemId =
+      existingSales.find((row) => {
+        const meta = (row.meta ?? {}) as Record<string, unknown>;
+        return Boolean(meta.packageSale);
+      })?.id ?? "";
+
+    if (!saleItemId) {
+      const sold = await addOrderItem({
+        orderId,
+        itemType: "package",
+        catalogId: packageId,
+        staffId: input.staffId?.trim() || undefined,
+        qty: 1,
+        saleNotes: input.notes,
+      });
+      if (!sold.ok) return sold;
+      saleItemId = sold.id;
+    }
 
     if (input.payAndClose) {
       const method = input.method?.trim();
       if (!method) {
         return { ok: false, error: "Selecione a forma de pagamento" };
       }
-      const amountCents =
-        input.amountCents != null && Number.isFinite(input.amountCents)
-          ? Math.round(input.amountCents)
-          : undefined;
-      if (amountCents == null || amountCents <= 0) {
-        return { ok: false, error: "Informe o valor pago" };
+
+      const balanceCents = await getOrderBalanceCents(orderId, tenant.id);
+      if (balanceCents > 0) {
+        const requested =
+          input.amountCents != null && Number.isFinite(input.amountCents)
+            ? Math.round(input.amountCents)
+            : balanceCents;
+        if (requested <= 0) {
+          return { ok: false, error: "Informe o valor pago" };
+        }
+        // Paga só o saldo — evita empilhar pagamentos em retries.
+        const amountCents = Math.min(requested, balanceCents);
+        const pay = await addPayment({ orderId, method, amountCents });
+        if (!pay.ok) return pay;
       }
-      const pay = await addPayment({ orderId, method, amountCents });
-      if (!pay.ok) return pay;
+
       const closed = await closeOrder(orderId);
-      if (!closed.ok) return closed;
+      if (!closed.ok) {
+        const stillDue = await getOrderBalanceCents(orderId, tenant.id);
+        if (stillDue <= 0) {
+          // Pagamento já entrou no caixa — NÃO devolver erro (senão a recepção retenta e duplica).
+          console.error(
+            "[completePackageSale] close falhou com saldo zerado",
+            closed.error,
+            orderId
+          );
+          return {
+            ok: true,
+            id: saleItemId,
+            orderId,
+            warning:
+              closed.error ??
+              "Pagamento registrado. Se a carteira não liberou, feche a comanda de novo ou chame o suporte.",
+          };
+        }
+        return closed;
+      }
     }
 
-    return { ok: true, id: sold.id, orderId };
+    return { ok: true, id: saleItemId, orderId };
   } catch (err) {
     if (err instanceof AppError || err instanceof ForbiddenError) {
       return { ok: false, error: err.message };
     }
+    console.error("[completePackageSale]", err);
     return { ok: false, error: "Não foi possível vender o pacote" };
   }
 }
@@ -612,5 +675,219 @@ export async function cancelUnusedPackageSale(input: {
       return { ok: false, error: err.message };
     }
     return { ok: false, error: "Não foi possível cancelar a venda do pacote" };
+  }
+}
+
+/**
+ * Remove pagamentos a mais em venda de pacote (ex.: retries com falso erro),
+ * mantendo a carteira ativa e pagamentos cobrindo só o valor do pacote.
+ */
+export async function refundExcessPackagePayments(input: {
+  clientId: string;
+  /** YYYY-MM-DD — default hoje (SP). */
+  date?: string;
+}): Promise<RenewResult> {
+  try {
+    const { requireTenantContext, requireSession } = await import("../context/tenant");
+    const { requireCapability } = await import("../permissions/guards");
+    const { isBarberRole, isOwnerRole } = await import("../permissions/roles");
+    const { todaySp } = await import("@/lib/datetime");
+    const session = await requireSession();
+    requireCapability(session, "orders.write");
+    if (isBarberRole(session.role) && !isOwnerRole(session.role)) {
+      throw new ForbiddenError("Sem permissão para estornar pagamentos duplicados");
+    }
+    const tenant = await requireTenantContext();
+    const db = createDb();
+    const clientId = input.clientId.trim();
+    if (!clientId) return { ok: false, error: "Cliente obrigatório" };
+    const day = input.date && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : todaySp();
+    const start = new Date(`${day}T00:00:00-03:00`);
+    const end = new Date(`${day}T23:59:59.999-03:00`);
+
+    const orderRows = await db
+      .select({
+        id: schema.orders.id,
+        discountCents: schema.orders.discountCents,
+      })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.tenantId, tenant.id),
+          eq(schema.orders.clientId, clientId),
+          isNull(schema.orders.deletedAt),
+          sql`${schema.orders.openedAt} >= ${start}`,
+          sql`${schema.orders.openedAt} <= ${end}`
+        )
+      );
+
+    let refundedCents = 0;
+    let keptId = "";
+
+    for (const order of orderRows) {
+      const outcome = await db.transaction(async (tx) => {
+        const [pkgSum] = await tx
+          .select({
+            total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+            n: sql<number>`count(*)::int`,
+          })
+          .from(schema.orderItems)
+          .where(
+            and(
+              eq(schema.orderItems.orderId, order.id),
+              eq(schema.orderItems.tenantId, tenant.id),
+              eq(schema.orderItems.itemType, "package")
+            )
+          );
+        if (Number(pkgSum?.n ?? 0) === 0) return { refunded: 0 };
+
+        const due = Math.max(
+          0,
+          Number(pkgSum?.total ?? 0) - Math.min(order.discountCents, Number(pkgSum?.total ?? 0))
+        );
+
+        const pays = await tx
+          .select({
+            id: schema.payments.id,
+            method: schema.payments.method,
+            amountCents: schema.payments.amountCents,
+          })
+          .from(schema.payments)
+          .where(
+            and(eq(schema.payments.orderId, order.id), eq(schema.payments.tenantId, tenant.id))
+          )
+          .orderBy(desc(schema.payments.paidAt));
+
+        let excess = pays.reduce((s, p) => s + p.amountCents, 0) - due;
+        if (excess <= 0) return { refunded: 0 };
+
+        const [cash] = await tx
+          .select({ id: schema.cashSessions.id })
+          .from(schema.cashSessions)
+          .where(
+            and(
+              eq(schema.cashSessions.tenantId, tenant.id),
+              isNull(schema.cashSessions.closedAt)
+            )
+          )
+          .orderBy(desc(schema.cashSessions.openedAt))
+          .limit(1);
+
+        let refunded = 0;
+        for (const pay of pays) {
+          if (excess <= 0) break;
+          const take = Math.min(pay.amountCents, excess);
+          if (pay.method !== "client_account") {
+            if (cash) {
+              await tx.insert(schema.cashMovements).values({
+                tenantId: tenant.id,
+                cashSessionId: cash.id,
+                orderId: order.id,
+                direction: "out",
+                method: pay.method,
+                amountCents: take,
+                description: "Estorno pagamento duplicado (pacote)",
+              });
+            }
+            if (take === pay.amountCents) {
+              const [cashIn] = await tx
+                .select({ id: schema.cashMovements.id })
+                .from(schema.cashMovements)
+                .where(
+                  and(
+                    eq(schema.cashMovements.tenantId, tenant.id),
+                    eq(schema.cashMovements.orderId, order.id),
+                    eq(schema.cashMovements.direction, "in"),
+                    eq(schema.cashMovements.method, pay.method),
+                    eq(schema.cashMovements.amountCents, pay.amountCents)
+                  )
+                )
+                .orderBy(desc(schema.cashMovements.createdAt))
+                .limit(1);
+              if (cashIn) {
+                await tx
+                  .delete(schema.cashMovements)
+                  .where(eq(schema.cashMovements.id, cashIn.id));
+              }
+            }
+          }
+          if (take === pay.amountCents) {
+            await tx
+              .delete(schema.payments)
+              .where(
+                and(eq(schema.payments.id, pay.id), eq(schema.payments.tenantId, tenant.id))
+              );
+          } else {
+            await tx
+              .update(schema.payments)
+              .set({ amountCents: pay.amountCents - take, updatedAt: new Date() })
+              .where(
+                and(eq(schema.payments.id, pay.id), eq(schema.payments.tenantId, tenant.id))
+              );
+          }
+          refunded += take;
+          excess -= take;
+        }
+        return { refunded };
+      });
+
+      refundedCents += outcome.refunded;
+      if (outcome.refunded > 0) keptId = order.id;
+    }
+
+    // Comandas extras do mesmo dia: pacote pago sem carteira ativa → cancela venda inteira.
+    const orphanPays = await db
+      .select({
+        paymentId: schema.payments.id,
+        orderId: schema.payments.orderId,
+      })
+      .from(schema.payments)
+      .innerJoin(schema.orders, eq(schema.orders.id, schema.payments.orderId))
+      .innerJoin(
+        schema.orderItems,
+        and(
+          eq(schema.orderItems.orderId, schema.orders.id),
+          eq(schema.orderItems.itemType, "package")
+        )
+      )
+      .leftJoin(
+        schema.clientPackages,
+        and(
+          eq(schema.clientPackages.orderId, schema.orders.id),
+          ne(schema.clientPackages.status, "cancelled")
+        )
+      )
+      .where(
+        and(
+          eq(schema.orders.tenantId, tenant.id),
+          eq(schema.orders.clientId, clientId),
+          isNull(schema.orders.deletedAt),
+          isNull(schema.clientPackages.id),
+          sql`${schema.payments.paidAt} >= ${start}`,
+          sql`${schema.payments.paidAt} <= ${end}`
+        )
+      );
+
+    const orphanOrderIds = [...new Set(orphanPays.map((p) => p.orderId))];
+    for (const orderId of orphanOrderIds) {
+      const cancelled = await cancelUnusedPackageSale({
+        paymentId: orphanPays.find((p) => p.orderId === orderId)?.paymentId,
+      });
+      if (cancelled.ok) {
+        refundedCents += cancelled.refundedCents ?? 0;
+        keptId = keptId || cancelled.id;
+      }
+    }
+
+    if (refundedCents <= 0) {
+      return { ok: false, error: "Nenhum pagamento duplicado encontrado para estornar" };
+    }
+    return { ok: true, id: keptId || clientId, refundedCents };
+  } catch (err) {
+    if (err instanceof AppError || err instanceof ForbiddenError) {
+      return { ok: false, error: err.message };
+    }
+    console.error("[refundExcessPackagePayments]", err);
+    return { ok: false, error: "Não foi possível estornar os pagamentos duplicados" };
   }
 }

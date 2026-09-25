@@ -135,6 +135,46 @@ async function recalculateOrderTotal(orderId: string, tenantId: string) {
   return totalCents;
 }
 
+/** Saldo a pagar da comanda (itens − desconto − pagos − dívida em conta). */
+export async function getOrderBalanceCents(
+  orderId: string,
+  tenantId: string
+): Promise<number> {
+  const db = createDb();
+  const [order] = await db
+    .select({
+      totalCents: schema.orders.totalCents,
+      discountCents: schema.orders.discountCents,
+      meta: schema.orders.meta,
+    })
+    .from(schema.orders)
+    .where(
+      and(
+        eq(schema.orders.id, orderId),
+        eq(schema.orders.tenantId, tenantId),
+        isNull(schema.orders.deletedAt)
+      )
+    )
+    .limit(1);
+  if (!order) return 0;
+  const [paidRow] = await db
+    .select({
+      paid: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+    })
+    .from(schema.payments)
+    .where(
+      and(eq(schema.payments.orderId, orderId), eq(schema.payments.tenantId, tenantId))
+    );
+  const meta = (order.meta ?? {}) as Record<string, unknown>;
+  const debtCents =
+    typeof meta.clientAccountDebtCents === "number" &&
+    Number.isFinite(meta.clientAccountDebtCents)
+      ? Math.max(0, Math.round(meta.clientAccountDebtCents))
+      : 0;
+  const due = Math.max(0, order.totalCents - order.discountCents);
+  return Math.max(0, due - Number(paidRow?.paid ?? 0) - debtCents);
+}
+
 async function assertOpenOrder(orderId: string, tenantId: string) {
   const db = createDb();
   const [order] = await db
@@ -537,59 +577,98 @@ export async function openOrder(input: {
 
       if (appt.orderId) {
         if (clientId && dayAnchor) {
-          await attachSameDayClientAppointments({
-            tenantId: tenant.id,
-            orderId: appt.orderId,
-            clientId,
-            branchId: apptBranchId,
-            dayAnchor,
-          });
+          try {
+            await attachSameDayClientAppointments({
+              tenantId: tenant.id,
+              orderId: appt.orderId,
+              clientId,
+              branchId: apptBranchId,
+              dayAnchor,
+            });
+          } catch (attachErr) {
+            console.error("[openOrder] attachSameDay (existing)", attachErr);
+          }
         }
         return { ok: true, id: appt.orderId };
       }
     }
 
-    const [row] = await db
-      .insert(schema.orders)
-      .values({
-        tenantId: tenant.id,
-        branchId: session.branch?.id ?? apptBranchId ?? null,
-        clientId: clientId || null,
-        appointmentId: appointmentId || null,
-        status: "open",
-        notes: input.notes?.trim() || null,
-        openedByUserId: session.user.id,
-      })
-      .returning({ id: schema.orders.id });
-
-    if (appointmentId && clientId && dayAnchor) {
-      await attachSameDayClientAppointments({
-        tenantId: tenant.id,
-        orderId: row.id,
-        clientId,
-        branchId: apptBranchId ?? session.branch?.id ?? null,
-        dayAnchor,
-      });
-    } else if (appointmentId) {
-      await db
-        .update(schema.appointments)
-        .set({
-          orderId: row.id,
-          status: "arrived",
-          updatedAt: new Date(),
-        })
+    // Reusa comanda aberta do cliente (evita órfãs + “falhou / 2ª vez ok” quando o insert
+    // já tinha ocorrido e o attachSameDay estourou na 1ª tentativa).
+    let orderId = "";
+    if (clientId) {
+      const [existingOpen] = await db
+        .select({ id: schema.orders.id })
+        .from(schema.orders)
         .where(
           and(
-            eq(schema.appointments.id, appointmentId),
-            eq(schema.appointments.tenantId, tenant.id)
+            eq(schema.orders.tenantId, tenant.id),
+            eq(schema.orders.clientId, clientId),
+            eq(schema.orders.status, "open"),
+            isNull(schema.orders.deletedAt)
           )
-        );
+        )
+        .orderBy(desc(schema.orders.openedAt))
+        .limit(1);
+      if (existingOpen) {
+        orderId = existingOpen.id;
+      }
     }
 
-    return { ok: true, id: row.id };
+    if (!orderId) {
+      const [row] = await db
+        .insert(schema.orders)
+        .values({
+          tenantId: tenant.id,
+          branchId: session.branch?.id ?? apptBranchId ?? null,
+          clientId: clientId || null,
+          appointmentId: appointmentId || null,
+          status: "open",
+          notes: input.notes?.trim() || null,
+          openedByUserId: session.user.id,
+        })
+        .returning({ id: schema.orders.id });
+      orderId = row.id;
+    }
+
+    if (appointmentId && clientId && dayAnchor) {
+      try {
+        await attachSameDayClientAppointments({
+          tenantId: tenant.id,
+          orderId,
+          clientId,
+          branchId: apptBranchId ?? session.branch?.id ?? null,
+          dayAnchor,
+        });
+      } catch (attachErr) {
+        // Comanda já existe — não devolver erro (recepção retentava e via “não abriu”).
+        console.error("[openOrder] attachSameDay (new)", attachErr);
+      }
+    } else if (appointmentId) {
+      try {
+        await db
+          .update(schema.appointments)
+          .set({
+            orderId,
+            status: "arrived",
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.appointments.id, appointmentId),
+              eq(schema.appointments.tenantId, tenant.id)
+            )
+          );
+      } catch (linkErr) {
+        console.error("[openOrder] link appointment", linkErr);
+      }
+    }
+
+    return { ok: true, id: orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[openOrder]", err);
     return { ok: false, error: "Não foi possível abrir a comanda" };
   }
 }
