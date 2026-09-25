@@ -40,6 +40,8 @@ export type OrderItemDetail = {
   courtesy: boolean;
   /** Consumo de serviço entre profissionais (50%). */
   staffServiceConsumption: boolean;
+  /** Nome da profissional que recebeu o serviço (desconto na comissão). */
+  consumerStaffName: string | null;
 };
 
 export type OrderPaymentDetail = {

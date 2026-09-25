@@ -1224,7 +1224,8 @@ export async function addOrderItem(input: {
 
     if (!staffId && input.itemType === "service") {
       if (isStaffConsumption && typeof orderMeta.consumerStaffId === "string") {
-        staffId = orderMeta.consumerStaffId;
+        // Consumo: NÃO assume consumidora como executora — secretária escolhe quem fez.
+        staffId = null;
       } else {
         const [orderAppt] = await db
           .select({ staffId: schema.appointments.staffId })
@@ -1242,7 +1243,26 @@ export async function addOrderItem(input: {
     }
 
     if (input.itemType === "service" && !staffId) {
-      throw new AppError("VALIDATION", "Informe o profissional do serviço");
+      throw new AppError(
+        "VALIDATION",
+        isStaffConsumption
+          ? "Informe quem executou o serviço (outra profissional, não a que recebeu)"
+          : "Informe o profissional do serviço"
+      );
+    }
+
+    if (isStaffConsumption && input.itemType === "service") {
+      const consumerId =
+        typeof orderMeta.consumerStaffId === "string" ? orderMeta.consumerStaffId : null;
+      if (!consumerId) {
+        throw new AppError("VALIDATION", "Comanda de consumo sem profissional consumidora");
+      }
+      if (staffId === consumerId) {
+        throw new AppError(
+          "VALIDATION",
+          "Quem executou precisa ser outra profissional — a consumidora já está definida na comanda"
+        );
+      }
     }
 
     if (staffId) {
@@ -1413,14 +1433,27 @@ export async function addOrderItem(input: {
         consumerStaffId: input.consumerStaffId?.trim() || null,
       };
     }
+    if (isStaffConsumption && input.itemType === "service") {
+      meta = {
+        ...meta,
+        staffServiceConsumption: true,
+        staffConsumptionOrder: true,
+        consumerStaffId:
+          typeof orderMeta.consumerStaffId === "string" ? orderMeta.consumerStaffId : null,
+        consumerStaffName:
+          typeof orderMeta.consumerStaffName === "string"
+            ? orderMeta.consumerStaffName
+            : null,
+      };
+    }
 
     // Com crédito: insert na mesma conexão após debit (restore se insert falhar)
     let row: { id: string };
+    const performedAt =
+      isStaffConsumption && typeof orderMeta.occurredOn === "string"
+        ? new Date(`${orderMeta.occurredOn}T12:00:00-03:00`)
+        : new Date();
     try {
-      const performedAt =
-        isStaffConsumption && typeof orderMeta.occurredOn === "string"
-          ? new Date(`${orderMeta.occurredOn}T12:00:00-03:00`)
-          : new Date();
       const itemMeta = isStaffConsumption
         ? { ...meta, staffConsumptionOrder: true }
         : meta;
@@ -1493,34 +1526,59 @@ export async function addOrderItem(input: {
             : typeof orderMeta.consumerStaffId === "string"
               ? orderMeta.consumerStaffId
               : null) || null;
-        if (consumerId && consumerId !== staffId) {
-          const [consumer] = await db
-            .select({ id: schema.staff.id, name: schema.staff.name })
-            .from(schema.staff)
-            .where(
-              and(
-                eq(schema.staff.id, consumerId),
-                eq(schema.staff.tenantId, tenant.id),
-                isNull(schema.staff.deletedAt)
-              )
+        if (!consumerId) {
+          throw new AppError(
+            "VALIDATION",
+            "Informe quem consumiu o serviço (desconto na comissão)"
+          );
+        }
+        if (consumerId === staffId) {
+          throw new AppError(
+            "VALIDATION",
+            "Consumidora e executora precisam ser profissionais diferentes"
+          );
+        }
+        const [consumer] = await db
+          .select({ id: schema.staff.id, name: schema.staff.name })
+          .from(schema.staff)
+          .where(
+            and(
+              eq(schema.staff.id, consumerId),
+              eq(schema.staff.tenantId, tenant.id),
+              isNull(schema.staff.deletedAt)
             )
-            .limit(1);
-          if (!consumer) {
-            throw new AppError("VALIDATION", "Profissional consumidora inválida");
-          }
-          await db.insert(schema.staffAdvances).values({
+          )
+          .limit(1);
+        if (!consumer) {
+          throw new AppError("VALIDATION", "Profissional consumidora inválida");
+        }
+        const [advance] = await db
+          .insert(schema.staffAdvances)
+          .values({
             tenantId: tenant.id,
             staffId: consumer.id,
             kind: "discount",
             status: "open",
             amountCents: totalCents,
-            occurredAt: new Date(),
-            notes: `Consumo serviço: ${description} (50%) · item ${row.id.slice(0, 8)}`.slice(
-              0,
-              240
-            ),
+            occurredAt: performedAt,
+            notes:
+              `Consumo serviço: ${description} (50% = ${(totalCents / 100).toFixed(2)}) · exec. ${staffId?.slice(0, 8)} · item ${row.id.slice(0, 8)}`.slice(
+                0,
+                240
+              ),
             createdByUserId: session.user.id,
-          });
+          })
+          .returning({ id: schema.staffAdvances.id });
+        if (advance?.id) {
+          await db
+            .update(schema.orderItems)
+            .set({
+              meta: { ...meta, staffAdvanceId: advance.id },
+              updatedAt: new Date(),
+            })
+            .where(
+              and(eq(schema.orderItems.id, row.id), eq(schema.orderItems.tenantId, tenant.id))
+            );
         }
       }
 
@@ -1530,7 +1588,7 @@ export async function addOrderItem(input: {
         } catch (syncErr) {
           console.error("[addOrderItem] sync comissão falhou", syncErr);
         }
-        if (staffId && serviceId && !isStaffConsumption) {
+        if (staffId && serviceId && !isStaffConsumption && !staffServiceConsumption) {
           const [orderCtx] = await db
             .select({
               clientId: schema.orders.clientId,
@@ -2378,6 +2436,39 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
     }
 
     await cancelAgendaSlotFromOrderItem(tenant.id, meta);
+
+    if (
+      (meta.staffServiceConsumption || meta.staffConsumptionOrder) &&
+      typeof meta.staffAdvanceId === "string"
+    ) {
+      await db
+        .update(schema.staffAdvances)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.staffAdvances.id, meta.staffAdvanceId),
+            eq(schema.staffAdvances.tenantId, tenant.id),
+            eq(schema.staffAdvances.status, "open")
+          )
+        );
+    } else if (
+      (meta.staffServiceConsumption || meta.staffConsumptionOrder) &&
+      item.itemType === "service"
+    ) {
+      // Fallback: advances antigos sem staffAdvanceId no meta (match por nota do item)
+      const itemHint = `item ${itemId.slice(0, 8)}`;
+      await db
+        .update(schema.staffAdvances)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.staffAdvances.tenantId, tenant.id),
+            eq(schema.staffAdvances.kind, "discount"),
+            eq(schema.staffAdvances.status, "open"),
+            sql`${schema.staffAdvances.notes} like ${`%${itemHint}%`}`
+          )
+        );
+    }
 
     await db
       .delete(schema.orderItems)
