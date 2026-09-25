@@ -31,11 +31,15 @@ export type CashDaySnapshot = {
   expectedOutCents: number;
   expectedBalanceCents: number;
   paymentTotalCents: number;
+  /** Soma das taxas de adquirente sobre os pagamentos do dia. */
+  paymentFeeCents: number;
+  /** Bruto − taxas (líquido a receber das formas). */
+  paymentNetCents: number;
   paymentCount: number;
   closedOrdersCount: number;
   closedOrdersCents: number;
   openOrdersCount: number;
-  byMethod: { method: string; count: number; totalCents: number }[];
+  byMethod: { method: string; count: number; totalCents: number; feeCents: number; netCents: number }[];
   payments: {
     id: string;
     paidAt: Date;

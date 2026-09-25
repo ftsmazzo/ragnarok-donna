@@ -2121,6 +2121,16 @@ input {
   color: var(--ink);
 }
 
+.overview-subline {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
 .overview-label {
   display: block;
   margin-top: 6px;

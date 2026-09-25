@@ -157,7 +157,14 @@ export function CaixaView({ data, permissions, staffList }: Props) {
           {
             label: "Pagamentos do dia",
             value: formatMoney(data.paymentTotalCents),
-            hint: `${data.paymentCount} pagamento(s)`,
+            subline:
+              data.paymentFeeCents > 0
+                ? `Líquido: ${formatMoney(data.paymentNetCents)}`
+                : undefined,
+            hint:
+              data.paymentFeeCents > 0
+                ? `${data.paymentCount} pagamento(s) · taxas ${formatMoney(data.paymentFeeCents)}`
+                : `${data.paymentCount} pagamento(s)`,
           },
           {
             label: "Comandas fechadas",
@@ -237,21 +244,25 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                   <th>Forma</th>
                   <th>Qtd</th>
                   <th>Total</th>
+                  <th>Taxa</th>
+                  <th>Líquido</th>
                 </tr>
               </thead>
               <tbody>
                 {data.byMethod.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="table-empty">
+                    <td colSpan={5} className="table-empty">
                       Nenhum pagamento neste dia.
                     </td>
                   </tr>
                 ) : (
                   data.byMethod.map((m) => (
                     <tr key={m.method}>
-                      <td className="cell-strong">{labelPaymentMethod(m.method)}</td>
+                      <td className="cell-strong">{m.method}</td>
                       <td>{m.count}</td>
                       <td>{formatMoney(m.totalCents)}</td>
+                      <td>{m.feeCents > 0 ? formatMoney(m.feeCents) : "—"}</td>
+                      <td>{formatMoney(m.netCents)}</td>
                     </tr>
                   ))
                 )}

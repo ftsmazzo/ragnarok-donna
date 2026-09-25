@@ -2,6 +2,7 @@ import { and, count, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-or
 import { createDb, schema } from "@/db";
 import { dayBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { labelStoredPayment, paymentLabelFromParts } from "@/lib/payment-codes";
+import { paymentFeeCents } from "@/lib/payment-fees";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import type { CashDaySnapshot, CashMovementRow, CashPermissions, CashSessionSummary } from "./types";
@@ -300,6 +301,23 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
     );
 
   const paymentTotalCents = byMethod.reduce((s, r) => s + Number(r.totalCents), 0);
+  const byMethodRows = byMethod.map((r) => {
+    const totalCents = Number(r.totalCents);
+    const meta = {
+      brand: r.brand || undefined,
+      installments: r.installments != null ? Number(r.installments) : undefined,
+      kind: r.kind || undefined,
+    };
+    const feeCents = paymentFeeCents(totalCents, r.method, meta);
+    return {
+      method: paymentLabelFromParts(r),
+      count: Number(r.n),
+      totalCents,
+      feeCents,
+      netCents: Math.max(0, totalCents - feeCents),
+    };
+  });
+  const paymentFeeTotalCents = byMethodRows.reduce((s, r) => s + r.feeCents, 0);
 
   return {
     date,
@@ -310,15 +328,13 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
     expectedOutCents,
     expectedBalanceCents: expectedInCents - expectedOutCents,
     paymentTotalCents,
+    paymentFeeCents: paymentFeeTotalCents,
+    paymentNetCents: Math.max(0, paymentTotalCents - paymentFeeTotalCents),
     paymentCount: payments.length,
     closedOrdersCount: Number(closedOrders?.n ?? 0),
     closedOrdersCents: Number(closedOrders?.total ?? 0),
     openOrdersCount: Number(openOrders?.n ?? 0),
-    byMethod: byMethod.map((r) => ({
-      method: paymentLabelFromParts(r),
-      count: Number(r.n),
-      totalCents: Number(r.totalCents),
-    })),
+    byMethod: byMethodRows,
     payments: payments.map((p) => ({
       id: p.id,
       paidAt: p.paidAt,
