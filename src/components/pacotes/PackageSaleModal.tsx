@@ -123,7 +123,11 @@ export function PackageSaleModal({
         showToast(msg, "error");
         return;
       }
-      showToast("Pacote vendido com sucesso!", "success");
+      if (result.warning) {
+        showToast(result.warning, "info");
+      } else {
+        showToast("Pacote vendido com sucesso!", "success");
+      }
       onSuccess?.();
       onClose();
     });

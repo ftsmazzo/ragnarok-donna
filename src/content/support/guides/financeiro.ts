@@ -34,12 +34,12 @@ export const guideCaixa: SupportGuide = {
     {
       title: "O que aparece na tela",
       detail:
-        "Banner com status (aberto/fechado), fundo e saldo esperado. Cards: Pagamentos do dia mostra o bruto e, abaixo, o Líquido (bruto − taxas de cartão Visa/Master e Elo/Amex). Lista de movimentos e tabela por forma com colunas Taxa e Líquido.",
+        "Banner com status (aberto/fechado), fundo e saldo esperado. Cards: Pagamentos do dia mostra o bruto e, abaixo, o Líquido após taxa % (bruto − taxas Visa/Master e Elo/Amex). A taxa é só informativa — não altera valor de comanda. Tabela por forma com colunas Taxa % e Líquido.",
     },
     {
       title: "Líquido e taxas",
       detail:
-        "Taxas cadastradas da maquininha (débito e crédito por bandeira/parcelas). PIX, dinheiro e Conta do cliente não descontam taxa. O líquido é só informativo no resumo — o caixa físico continua batendo o bruto recebido no dia.",
+        "Taxas cadastradas da maquininha em % (débito e crédito por bandeira/parcelas), convertidas em R$ no resumo. PIX, dinheiro e Conta do cliente não descontam taxa. O líquido é só informativo — o caixa físico continua batendo o bruto recebido no dia; nada é descontado na comanda do cliente.",
     },
     {
       title: "Suprimento e sangria",

@@ -17,6 +17,7 @@ import { AgendaQuickThinkWidget } from "@/components/agenda/AgendaQuickThinkWidg
 import { OrderDrawer } from "@/components/comandas/OrderDrawer";
 import { PersonAvatar } from "@/components/cadastro/PersonAvatar";
 import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
+import { showToast } from "@/components/ui/Toast";
 import { previewStyle, useAgendaDrag } from "@/components/agenda/useAgendaDrag";
 import type {
   AgendaAppointment,
@@ -281,7 +282,9 @@ export function AgendaView({
     if (result.ok) {
       refresh();
       openComanda(result.id);
+      return;
     }
+    showToast(result.error ?? "Não foi possível abrir a comanda", "error");
   }
 
   return (

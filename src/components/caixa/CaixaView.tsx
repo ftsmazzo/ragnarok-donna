@@ -159,11 +159,11 @@ export function CaixaView({ data, permissions, staffList }: Props) {
             value: formatMoney(data.paymentTotalCents),
             subline:
               data.paymentFeeCents > 0
-                ? `Líquido: ${formatMoney(data.paymentNetCents)}`
+                ? `Líquido após taxa %: ${formatMoney(data.paymentNetCents)}`
                 : undefined,
             hint:
               data.paymentFeeCents > 0
-                ? `${data.paymentCount} pagamento(s) · taxas ${formatMoney(data.paymentFeeCents)}`
+                ? `${data.paymentCount} pag. · taxas maquininha ${formatMoney(data.paymentFeeCents)} (só informativo — não altera comanda)`
                 : `${data.paymentCount} pagamento(s)`,
           },
           {
@@ -244,7 +244,7 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                   <th>Forma</th>
                   <th>Qtd</th>
                   <th>Total</th>
-                  <th>Taxa</th>
+                  <th>Taxa %</th>
                   <th>Líquido</th>
                 </tr>
               </thead>
@@ -261,7 +261,13 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                       <td className="cell-strong">{m.method}</td>
                       <td>{m.count}</td>
                       <td>{formatMoney(m.totalCents)}</td>
-                      <td>{m.feeCents > 0 ? formatMoney(m.feeCents) : "—"}</td>
+                      <td>
+                        {m.feeCents > 0 && m.totalCents > 0
+                          ? `${((m.feeCents / m.totalCents) * 100).toFixed(2).replace(".", ",")}% · ${formatMoney(m.feeCents)}`
+                          : m.feeCents > 0
+                            ? formatMoney(m.feeCents)
+                            : "—"}
+                      </td>
                       <td>{formatMoney(m.netCents)}</td>
                     </tr>
                   ))
