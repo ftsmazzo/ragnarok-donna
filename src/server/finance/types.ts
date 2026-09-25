@@ -50,6 +50,8 @@ export type CashDaySnapshot = {
     orderId: string;
     /** Venda de pacote sem uso — dá para estornar no balcão. */
     packageCancelId: string | null;
+    /** Consumo profissional→profissional (não deveria pesar no caixa). */
+    isStaffConsumption: boolean;
   }[];
 };
 
