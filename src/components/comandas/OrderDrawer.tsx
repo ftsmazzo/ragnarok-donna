@@ -115,13 +115,13 @@ export function OrderDrawer({
   const [itemType, setItemType] = useState<ItemType>("service");
   const [catalogId, setCatalogId] = useState("");
   const [useCredit, setUseCredit] = useState(true);
-  const [itemDiscountPct, setItemDiscountPct] = useState("");
+  const [itemDiscountPct, setItemDiscountPct] = useState(() =>
+    order.isStaffConsumption ? "50" : ""
+  );
   const [itemCourtesy, setItemCourtesy] = useState(false);
   const [staffServiceConsumption, setStaffServiceConsumption] = useState(false);
   const [consumerStaffId, setConsumerStaffId] = useState("");
-  const [lineStaffId, setLineStaffId] = useState(
-    () => (order.isStaffConsumption && order.consumerStaffId) || ""
-  );
+  const [lineStaffId, setLineStaffId] = useState("");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editTotalReais, setEditTotalReais] = useState("");
   const [coveredReais, setCoveredReais] = useState("");
@@ -153,14 +153,12 @@ export function OrderDrawer({
   const hasPackageSale = order.items.some((item) => item.itemType === "package");
 
   useEffect(() => {
-    if (order.isStaffConsumption) setInsertInCash(false);
-  }, [order.id, order.isStaffConsumption]);
-
-  useEffect(() => {
-    if (order.isStaffConsumption && order.consumerStaffId) {
-      setLineStaffId((prev) => prev || order.consumerStaffId || "");
+    if (order.isStaffConsumption) {
+      setInsertInCash(false);
+      setItemDiscountPct("50");
+      setLineStaffId("");
     }
-  }, [order.id, order.isStaffConsumption, order.consumerStaffId]);
+  }, [order.id, order.isStaffConsumption]);
 
   useEffect(() => {
     setOrderDiscountPct(orderDiscountPercent(order.totalCents, order.discountCents));
@@ -168,11 +166,11 @@ export function OrderDrawer({
 
   useEffect(() => {
     setCoveredReais("");
-    setItemDiscountPct("");
+    setItemDiscountPct(order.isStaffConsumption ? "50" : "");
     setItemCourtesy(false);
     setStaffServiceConsumption(false);
     setConsumerStaffId("");
-  }, [catalogId, itemType]);
+  }, [catalogId, itemType, order.isStaffConsumption]);
 
   useEffect(() => {
     if (!payOpen && !payCloseOpen) return;
@@ -185,8 +183,16 @@ export function OrderDrawer({
         ? "client_account"
         : "pix";
     setPayLines([makeCheckoutLine(order.balanceCents, defaultMethod)]);
-    setInsertInCash(true);
-  }, [payOpen, payCloseOpen, order.id, order.balanceCents, clientCreditAvailable, hasPackageSale]);
+    setInsertInCash(!order.isStaffConsumption);
+  }, [
+    payOpen,
+    payCloseOpen,
+    order.id,
+    order.balanceCents,
+    order.isStaffConsumption,
+    clientCreditAvailable,
+    hasPackageSale,
+  ]);
 
   const creditByService = new Map<string, number>();
   const creditByProduct = new Map<string, number>();
@@ -379,11 +385,31 @@ export function OrderDrawer({
       formData.set("clientPackageId", selectedClientPackageId);
     }
 
+    if (order.isStaffConsumption && itemType === "service") {
+      if (!lineStaffId) {
+        setError("Informe quem executou o serviço");
+        return;
+      }
+      if (order.consumerStaffId && lineStaffId === order.consumerStaffId) {
+        setError("Quem executou precisa ser outra profissional (não a consumidora)");
+        return;
+      }
+      formData.set("discountPercent", "50");
+    }
+
+    if (staffServiceConsumption && itemType === "service" && !consumerStaffId) {
+      setError("Informe quem consumiu o serviço (desconto na comissão)");
+      return;
+    }
+
     if (itemCourtesy && (itemType === "service" || itemType === "product")) {
       formData.set("courtesy", "1");
       formData.set("discountReais", "0");
     } else {
-      const pct = parsePct(formData.get("discountPercent"));
+      const pct =
+        order.isStaffConsumption && itemType === "service"
+          ? 50
+          : parsePct(formData.get("discountPercent"));
       if (pct > 0 && (itemType === "service" || itemType === "product")) {
         const coveredRaw = formData.get("coveredReais");
         const covered =
@@ -420,10 +446,16 @@ export function OrderDrawer({
         setCoveredReais("");
         setSelectedClientPackageId("");
         setBookFlash("");
-        if (order.isStaffConsumption && order.consumerStaffId) {
-          setLineStaffId(order.consumerStaffId);
+        if (order.isStaffConsumption) {
+          setLineStaffId("");
+          setItemDiscountPct("50");
         }
-        showToast("Item adicionado", "success");
+        showToast(
+          order.isStaffConsumption
+            ? "Item ok — comissão na executora e desconto na consumidora"
+            : "Item adicionado",
+          "success"
+        );
         setError("");
       }
       return result;
@@ -1398,6 +1430,10 @@ export function OrderDrawer({
                   </strong>
                   <span className="muted">
                     {item.qty}x · {item.staffName ?? "Sem profissional"}
+                    {item.staffServiceConsumption &&
+                    (item.consumerStaffName || order.consumerStaffName)
+                      ? ` · desconto em ${item.consumerStaffName ?? order.consumerStaffName}`
+                      : ""}
                     {item.commissionCents != null && item.commissionCents > 0
                       ? ` · comissão${
                           item.commissionBps != null
@@ -1571,7 +1607,7 @@ export function OrderDrawer({
             {itemType === "service" ? (
               <p className="client-profile-hint muted">
                 {order.isStaffConsumption
-                  ? "Consumo de profissional: serviço a 50% (comissão na executora, desconto na consumidora), sem card na agenda e sem entrar no caixa."
+                  ? "Consumo: serviço a 50%. Escolha quem EXECUTOU (outra profissional). A consumidora da comanda leva o desconto automático; a executora leva a comissão. Não entra no caixa."
                   : "Serviço na comanda aparece na agenda do profissional escolhido (comissão). Produto não entra na agenda."}
               </p>
             ) : null}
@@ -1721,8 +1757,21 @@ export function OrderDrawer({
               </div>
             ) : null}
 
+            {order.isStaffConsumption && order.consumerStaffName ? (
+              <p className="client-profile-hint">
+                Consumidora (desconto na comissão): <strong>{order.consumerStaffName}</strong>
+                {" · "}
+                escolha quem <strong>executou</strong> — comissão fica nessa profissional; o valor
+                pago (50%) vira desconto automático na consumidora.
+              </p>
+            ) : null}
+
             <label className="form-field">
-              <span>Profissional {itemType === "service" || selectedPackage?.billAsLines ? "*" : ""}</span>
+              <span>
+                {order.isStaffConsumption && itemType === "service"
+                  ? "Quem executou *"
+                  : `Profissional ${itemType === "service" || selectedPackage?.billAsLines ? "*" : ""}`}
+              </span>
               <select
                 name="staffId"
                 value={lineStaffId}
@@ -1730,19 +1779,34 @@ export function OrderDrawer({
                 required={itemType === "service" || Boolean(selectedPackage?.billAsLines)}
               >
                 <option value="" disabled={itemType === "service"}>
-                  {itemType === "service" ? "Selecione…" : "—"}
+                  {itemType === "service"
+                    ? order.isStaffConsumption
+                      ? "Selecione quem fez (≠ consumidora)…"
+                      : "Selecione quem fez…"
+                    : "—"}
                 </option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
+                {staff
+                  .filter(
+                    (s) =>
+                      !order.isStaffConsumption ||
+                      itemType !== "service" ||
+                      s.id !== order.consumerStaffId
+                  )
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
               </select>
             </label>
             {itemType !== "package" ? (
               <>
                 <label className="form-field">
-                  <span>Desconto no item (%)</span>
+                  <span>
+                    {order.isStaffConsumption && itemType === "service"
+                      ? "Desconto automático (50%)"
+                      : "Desconto no item (%)"}
+                  </span>
                   <div className="form-row-2" style={{ alignItems: "center", gap: 8 }}>
                     <input
                       name="discountPercent"
@@ -1750,12 +1814,23 @@ export function OrderDrawer({
                       min={0}
                       max={100}
                       step={0.01}
-                      value={itemCourtesy ? "100" : itemDiscountPct}
+                      value={
+                        itemCourtesy
+                          ? "100"
+                          : order.isStaffConsumption && itemType === "service"
+                            ? "50"
+                            : itemDiscountPct
+                      }
                       onChange={(e) => setItemDiscountPct(e.target.value)}
                       placeholder="0"
-                      disabled={itemCourtesy}
+                      disabled={
+                        itemCourtesy ||
+                        (order.isStaffConsumption && itemType === "service")
+                      }
+                      readOnly={order.isStaffConsumption && itemType === "service"}
                     />
-                    {!itemCourtesy ? (
+                    {!itemCourtesy &&
+                    !(order.isStaffConsumption && itemType === "service") ? (
                       <button
                         type="button"
                         className="btn btn-outline btn-sm"
@@ -1769,44 +1844,50 @@ export function OrderDrawer({
                   <span className="client-profile-hint muted">
                     {itemCourtesy
                       ? `Cortesia: item sai a ${formatMoney(0)} (tabela ${formatMoney(itemDiscountBaseCents)}).`
-                      : parsePct(itemDiscountPct) > 0
-                        ? `= ${formatMoney(itemDiscountCentsPreview)} sobre ${formatMoney(itemDiscountBaseCents)}${
-                            willUseCredit ? " (residual após abate)" : ""
-                          }`
-                        : willUseCredit
-                          ? "Digite a % — o R$ é calculado no residual após o abate."
-                          : "Digite a % — o R$ é calculado automaticamente sobre o preço."}
+                      : order.isStaffConsumption && itemType === "service"
+                        ? `Tabela ${formatMoney(itemDiscountBaseCents)} → pago ${formatMoney(
+                            Math.round(itemDiscountBaseCents * 0.5)
+                          )} · desconto na consumidora + comissão na executora`
+                        : parsePct(itemDiscountPct) > 0
+                          ? `= ${formatMoney(itemDiscountCentsPreview)} sobre ${formatMoney(itemDiscountBaseCents)}${
+                              willUseCredit ? " (residual após abate)" : ""
+                            }`
+                          : willUseCredit
+                            ? "Digite a % — o R$ é calculado no residual após o abate."
+                            : "Digite a % — o R$ é calculado automaticamente sobre o preço."}
                   </span>
                 </label>
-                <label
-                  className={
-                    itemCourtesy
-                      ? "form-check order-courtesy-toggle is-on"
-                      : "form-check order-courtesy-toggle"
-                  }
-                >
-                  <input
-                    type="checkbox"
-                    checked={itemCourtesy}
-                    disabled={willUseCredit || staffServiceConsumption}
-                    onChange={(e) => {
-                      const on = e.target.checked;
-                      setItemCourtesy(on);
-                      if (on) {
-                        setItemDiscountPct("100");
-                        setUseCredit(false);
-                        setStaffServiceConsumption(false);
-                      } else {
-                        setItemDiscountPct("");
-                      }
-                    }}
-                  />
-                  <span>
-                    {willUseCredit
-                      ? "Desmarque o crédito de pacote para marcar cortesia."
-                      : "Cortesia — zera o valor deste item (não entra no caixa)."}
-                  </span>
-                </label>
+                {!order.isStaffConsumption ? (
+                  <label
+                    className={
+                      itemCourtesy
+                        ? "form-check order-courtesy-toggle is-on"
+                        : "form-check order-courtesy-toggle"
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={itemCourtesy}
+                      disabled={willUseCredit || staffServiceConsumption}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setItemCourtesy(on);
+                        if (on) {
+                          setItemDiscountPct("100");
+                          setUseCredit(false);
+                          setStaffServiceConsumption(false);
+                        } else {
+                          setItemDiscountPct(staffServiceConsumption ? "50" : "");
+                        }
+                      }}
+                    />
+                    <span>
+                      {willUseCredit
+                        ? "Desmarque o crédito de pacote para marcar cortesia."
+                        : "Cortesia — zera o valor deste item (não entra no caixa)."}
+                    </span>
+                  </label>
+                ) : null}
                 {itemType === "service" && !order.isStaffConsumption ? (
                   <>
                     <label
@@ -1839,17 +1920,20 @@ export function OrderDrawer({
                     </label>
                     {staffServiceConsumption ? (
                       <label className="form-field">
-                        <span>Quem consumiu (desconto na comissão)</span>
+                        <span>Quem consumiu (desconto na comissão) *</span>
                         <select
                           value={consumerStaffId}
                           onChange={(e) => setConsumerStaffId(e.target.value)}
+                          required
                         >
-                          <option value="">— opcional —</option>
-                          {staff.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
+                          <option value="">Selecione a consumidora…</option>
+                          {staff
+                            .filter((s) => !lineStaffId || s.id !== lineStaffId)
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
                         </select>
                       </label>
                     ) : null}
