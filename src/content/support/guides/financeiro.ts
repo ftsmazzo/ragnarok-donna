@@ -34,7 +34,12 @@ export const guideCaixa: SupportGuide = {
     {
       title: "O que aparece na tela",
       detail:
-        "Banner com status (aberto/fechado), fundo e saldo esperado. Cards/resumo do dia e lista de movimentos (entradas de pagamento vinculadas a comanda, suprimentos e sangrias).",
+        "Banner com status (aberto/fechado), fundo e saldo esperado. Cards: Pagamentos do dia mostra o bruto e, abaixo, o Líquido (bruto − taxas de cartão Visa/Master e Elo/Amex). Lista de movimentos e tabela por forma com colunas Taxa e Líquido.",
+    },
+    {
+      title: "Líquido e taxas",
+      detail:
+        "Taxas cadastradas da maquininha (débito e crédito por bandeira/parcelas). PIX, dinheiro e Conta do cliente não descontam taxa. O líquido é só informativo no resumo — o caixa físico continua batendo o bruto recebido no dia.",
     },
     {
       title: "Suprimento e sangria",
@@ -73,9 +78,14 @@ export const guideCaixa: SupportGuide = {
       reply:
         "Sangria = dinheiro saindo do caixa (loja). Vale = adiantamento/desconto na conta do profissional (comissão). Vale pode ser lançado no Caixa ou em Comissões.",
     },
+    {
+      concern: "O que é o Líquido nos pagamentos?",
+      reply:
+        "É o total do dia menos as taxas da maquininha (débito/crédito por bandeira e parcelas). PIX e dinheiro entram 100% no líquido. Não muda o saldo da sessão — só ajuda a ver o que sobra após a taxa.",
+    },
   ],
   relatedGuideIds: ["comandas", "comissoes", "fluxo-caixa", "contas"],
-  lastVerified: "2026-09-15",
+  lastVerified: "2026-09-25",
 };
 
 export const guideComissoes: SupportGuide = {
@@ -188,7 +198,7 @@ export const guideComissoes: SupportGuide = {
     },
     {
       title: "Atalhos",
-      detail: "Caixa do dia → /caixa; CSV; nota sobre taxas e link para Comissões.",
+      detail: "Caixa do dia → /caixa; CSV; líquido (bruto − taxas de cartão) no card Pagamentos; link para Comissões.",
     },
   ],
   objections: [
@@ -200,7 +210,7 @@ export const guideComissoes: SupportGuide = {
     {
       concern: "Diferença entre Fluxo e Caixa do dia",
       reply:
-        "Caixa = sessão de hoje (abrir/fechar, sangria). Fluxo = relatório do período (visão gerencial; disponível sem taxas de adquirente).",
+        "Caixa do dia mostra bruto e líquido (com taxas de cartão). Fluxo = relatório do período (visão gerencial; o “disponível” ainda é sem taxas).",
     },
   ],
   relatedGuideIds: ["caixa", "relatorio-financeiro", "contas", "comissoes"],
