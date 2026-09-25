@@ -1241,9 +1241,24 @@ setImmediate(async () => {
   withTimeout(runContaClienteImport(), 60_000).catch((err) => {
     console.error("[bootstrap:conta-cliente]", err.message ?? err);
   });
+  withTimeout(runFlaviaPackageDupesFix(), 90_000).catch((err) => {
+    console.error("[bootstrap:flavia-pkg]", err.message ?? err);
+  });
   await runDonnaEnsureStandalone();
   await runDonnaImportStandalone();
 });
+
+/** One-shot #231: estorna pagamentos duplicados Flávia Arnold (sem painel). */
+async function runFlaviaPackageDupesFix() {
+  if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
+  if (process.env.SKIP_FLAVIA_PKG_FIX === "1") return;
+  if (!process.env.DATABASE_URL) return;
+  try {
+    await spawnScript("fix-flavia-package-dupes.mjs");
+  } catch (err) {
+    console.error("[bootstrap:flavia-pkg] falhou (não bloqueia start):", err?.message ?? err);
+  }
+}
 
 /** Idempotente: preenche clients.birth_date a partir de data/appbarber-birthdates.json */
 async function runBirthdateBackfill() {
