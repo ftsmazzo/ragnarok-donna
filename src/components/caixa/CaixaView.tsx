@@ -12,6 +12,7 @@ import { formatMoney, labelPaymentMethod } from "@/lib/format";
 import {
   addCashMovementAction,
   closeCashSessionAction,
+  deleteCashMovementAction,
   openCashSessionAction,
 } from "@/app/(painel)/caixa/actions";
 import { cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
@@ -61,6 +62,33 @@ export function CaixaView({ data, permissions, staffList }: Props) {
       }
       const refunded = result.refundedCents ?? amountCents;
       showToast(`Pacote excluído · ${formatMoney(refunded)} saiu do caixa`, "success");
+      refresh();
+    });
+  }
+
+  function deleteMovement(m: {
+    id: string;
+    amountCents: number;
+    direction: "in" | "out";
+    description: string | null;
+  }) {
+    const label = m.description?.trim() || (m.direction === "out" ? "Saída" : "Entrada");
+    if (
+      !window.confirm(
+        `Excluir este movimento?\n${label} · ${m.direction === "out" ? "−" : "+"}${formatMoney(m.amountCents)}\nO saldo esperado do caixa é recalculado.`
+      )
+    ) {
+      return;
+    }
+    setError("");
+    startTransition(async () => {
+      const result = await deleteCashMovementAction(m.id);
+      if (!result.ok) {
+        setError(result.error ?? "Erro ao excluir");
+        showToast(result.error ?? "Erro ao excluir", "error");
+        return;
+      }
+      showToast("Movimento excluído do caixa", "success");
       refresh();
     });
   }
@@ -183,6 +211,9 @@ export function CaixaView({ data, permissions, staffList }: Props) {
         <section className="panel">
           <div className="panel-toolbar">
             <strong>Movimentos da sessão</strong>
+            {canWrite && openSession ? (
+              <span className="muted-note">🗑 na linha remove do saldo esperado</span>
+            ) : null}
           </div>
           <div className="table-wrap">
             <table className="data-table">
@@ -193,12 +224,13 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                   <th>Descrição</th>
                   <th>Forma</th>
                   <th>Valor</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {data.movements.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="table-empty">
+                    <td colSpan={6} className="table-empty">
                       Nenhum movimento na sessão.
                     </td>
                   </tr>
@@ -215,7 +247,8 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                       <td>
                         {m.direction === "in" &&
                         m.description &&
-                        m.description !== "Pagamento de comanda"
+                        m.description !== "Pagamento de comanda" &&
+                        !m.description.includes("Consumo profissional")
                           ? m.description
                           : m.method
                             ? labelPaymentMethod(m.method)
@@ -224,6 +257,20 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                       <td className={m.direction === "out" ? "cell-danger" : undefined}>
                         {m.direction === "out" ? "−" : "+"}
                         {formatMoney(m.amountCents)}
+                      </td>
+                      <td>
+                        {canWrite && openSession ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            disabled={pending}
+                            title="Excluir movimento do caixa"
+                            aria-label="Excluir movimento"
+                            onClick={() => deleteMovement(m)}
+                          >
+                            🗑
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   ))

@@ -164,6 +164,55 @@ export async function addCashMovement(input: {
   }
 }
 
+/** Remove um movimento da sessão aberta (ajuste operacional do saldo esperado). */
+export async function deleteCashMovement(movementId: string): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "cash.write");
+    const tenant = await requireTenantContext();
+
+    const openId = await findOpenCashSessionId(tenant.id);
+    if (!openId) {
+      throw new AppError("VALIDATION", "Abra o caixa para excluir movimentos");
+    }
+
+    const id = movementId?.trim();
+    if (!id) throw new AppError("VALIDATION", "Movimento inválido");
+
+    const db = createDb();
+    const [row] = await db
+      .select({ id: schema.cashMovements.id })
+      .from(schema.cashMovements)
+      .where(
+        and(
+          eq(schema.cashMovements.id, id),
+          eq(schema.cashMovements.tenantId, tenant.id),
+          eq(schema.cashMovements.cashSessionId, openId)
+        )
+      )
+      .limit(1);
+
+    if (!row) {
+      throw new AppError(
+        "NOT_FOUND",
+        "Movimento não encontrado nesta sessão aberta (só dá para apagar da sessão atual)"
+      );
+    }
+
+    await db
+      .delete(schema.cashMovements)
+      .where(
+        and(eq(schema.cashMovements.id, row.id), eq(schema.cashMovements.tenantId, tenant.id))
+      );
+
+    return { ok: true, id: row.id };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: "Não foi possível excluir o movimento" };
+  }
+}
+
 type PaymentCashInput = {
   tenantId: string;
   orderId?: string | null;

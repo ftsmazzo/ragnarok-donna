@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   addCashMovement,
   closeCashSession,
+  deleteCashMovement,
   openCashSession,
 } from "@/server/finance/mutations";
 
@@ -41,6 +42,12 @@ export async function addCashMovementAction(formData: FormData) {
     method: String(formData.get("method") ?? "") || undefined,
     description: String(formData.get("description") ?? "") || undefined,
   });
+  if (result.ok) revalidateCash();
+  return result;
+}
+
+export async function deleteCashMovementAction(movementId: string) {
+  const result = await deleteCashMovement(movementId);
   if (result.ok) revalidateCash();
   return result;
 }
