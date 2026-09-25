@@ -1248,12 +1248,13 @@ setImmediate(async () => {
   await runDonnaImportStandalone();
 });
 
-/** One-shot #231: estorna pagamentos duplicados Flávia Arnold (sem painel). */
+/** One-shot #231: apaga só itens/pagamentos duplicados da Flávia (cirúrgico). */
 async function runFlaviaPackageDupesFix() {
   if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
   if (process.env.SKIP_FLAVIA_PKG_FIX === "1") return;
   if (!process.env.DATABASE_URL) return;
   try {
+    // FLAVIA_PKG_FIX_DRY_RUN=1 → só loga no EasyPanel, sem DELETE.
     await spawnScript("fix-flavia-package-dupes.mjs");
   } catch (err) {
     console.error("[bootstrap:flavia-pkg] falhou (não bloqueia start):", err?.message ?? err);
