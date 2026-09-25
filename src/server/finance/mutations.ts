@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
@@ -73,6 +73,17 @@ export async function closeCashSession(input: {
     }
 
     const db = createDb();
+    // Garante que consumo profissional não distorce a sessão no momento do fechar.
+    await db.execute(sql`
+      delete from cash_movements cm
+      using orders o
+      where cm.order_id = o.id
+        and cm.tenant_id = ${tenant.id}
+        and o.tenant_id = ${tenant.id}
+        and cm.direction = 'in'
+        and coalesce(o.meta->>'kind', '') = 'staff_consumption'
+    `);
+
     await db
       .update(schema.cashSessions)
       .set({
