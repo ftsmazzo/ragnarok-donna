@@ -170,22 +170,28 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       )
       .orderBy(desc(schema.cashMovements.createdAt));
 
-    movements = rows
-      .filter((r) => {
-        const meta = r.orderMeta as Record<string, unknown> | null;
-        return meta?.kind !== "staff_consumption";
-      })
-      .map((r) => ({
+    movements = rows.map((r) => {
+      const meta = r.orderMeta as Record<string, unknown> | null;
+      const isStaffConsumption = meta?.kind === "staff_consumption";
+      const baseDesc = r.description;
+      const description =
+        isStaffConsumption && baseDesc
+          ? `${baseDesc} · Consumo profissional`
+          : isStaffConsumption
+            ? "Consumo profissional"
+            : baseDesc;
+      return {
         id: r.id,
         createdAt: r.createdAt,
         direction: (r.direction === "out" ? "out" : "in") as "in" | "out",
         method: r.method,
         amountCents: r.amountCents,
-        description: r.description,
+        description,
         orderId: r.orderId,
         orderExternalId: r.orderExternalId,
-        clientName: r.clientName,
-      }));
+        clientName: r.clientName ?? (typeof meta?.consumerStaffName === "string" ? meta.consumerStaffName : null),
+      };
+    });
   }
 
   const expectedInCents =
