@@ -16,6 +16,7 @@ import {
   setOrderDiscount,
   setOrderItemCourtesy,
   updateOrderItemLine,
+  updatePaymentAmount,
 } from "@/server/orders/mutations";
 
 function revalidateOrders(id?: string) {
@@ -178,6 +179,12 @@ export async function addPaymentAction(formData: FormData) {
 export async function removePaymentAction(paymentId: string) {
   const { removePayment } = await import("@/server/orders/mutations");
   const result = await removePayment(paymentId);
+  if (result.ok) revalidateOrders();
+  return result;
+}
+
+export async function updatePaymentAmountAction(paymentId: string, amountReais: number) {
+  const result = await updatePaymentAmount(paymentId, amountReais);
   if (result.ok) revalidateOrders();
   return result;
 }

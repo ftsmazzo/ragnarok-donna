@@ -28,6 +28,7 @@ import {
   setOrderItemCourtesyAction,
   settleAndCloseOrderAction,
   updateOrderItemLineAction,
+  updatePaymentAmountAction,
 } from "@/app/(painel)/comandas/actions";
 import { renewOrTopUpClientPackageAction, cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
 import { ClientPicker } from "@/components/agenda/ClientPicker";
@@ -124,6 +125,8 @@ export function OrderDrawer({
   );
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editTotalReais, setEditTotalReais] = useState("");
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editPaymentReais, setEditPaymentReais] = useState("");
   const [coveredReais, setCoveredReais] = useState("");
   const [orderDiscountPct, setOrderDiscountPct] = useState(() =>
     orderDiscountPercent(order.totalCents, order.discountCents)
@@ -1497,9 +1500,10 @@ export function OrderDrawer({
                     ) : (
                       <button
                         type="button"
-                        className="btn btn-ghost btn-sm"
+                        className="btn btn-outline btn-sm"
                         disabled={pending}
                         style={{ marginTop: 4 }}
+                        title="Altera o valor cobrado deste item"
                         onClick={() => {
                           setEditingItemId(item.id);
                           setEditTotalReais((item.totalCents / 100).toFixed(2));
@@ -1911,27 +1915,84 @@ export function OrderDrawer({
                 <div>
                   <strong>{labelStoredPayment(p.method, p.meta)}</strong>
                   <span className="muted">{formatDateTimeSp(p.paidAt)}</span>
+                  {canEdit && editingPaymentId === p.id ? (
+                    <div className="form-row-2" style={{ alignItems: "center", gap: 8, marginTop: 6 }}>
+                      <input
+                        type="number"
+                        min={0.01}
+                        step={0.01}
+                        value={editPaymentReais}
+                        onChange={(e) => setEditPaymentReais(e.target.value)}
+                        aria-label="Valor pago (R$)"
+                        style={{ maxWidth: 110 }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={pending}
+                        onClick={() => {
+                          const amountReais = Number(String(editPaymentReais).replace(",", "."));
+                          if (!Number.isFinite(amountReais) || amountReais <= 0) {
+                            showToast("Informe um valor válido", "error");
+                            return;
+                          }
+                          run(async () => {
+                            const result = await updatePaymentAmountAction(p.id, amountReais);
+                            if (result.ok) {
+                              setEditingPaymentId(null);
+                              showToast("Valor pago atualizado", "success");
+                            }
+                            return result;
+                          });
+                        }}
+                      >
+                        Ok
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={pending}
+                        onClick={() => setEditingPaymentId(null)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="order-item-actions">
                   <strong>{formatMoney(p.amountCents)}</strong>
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      disabled={pending}
-                      title="Remover para trocar a forma de pagamento"
-                      onClick={() =>
-                        run(async () => {
-                          const result = await removePaymentAction(p.id);
-                          if (result.ok) {
-                            showToast("Pagamento removido — escolha outra forma", "success");
-                          }
-                          return result;
-                        })
-                      }
-                    >
-                      Remover
-                    </button>
+                  {canEdit && editingPaymentId !== p.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={pending}
+                        title="Alterar valor pago"
+                        onClick={() => {
+                          setEditingPaymentId(p.id);
+                          setEditPaymentReais((p.amountCents / 100).toFixed(2));
+                        }}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={pending}
+                        title="Remover para trocar a forma de pagamento"
+                        onClick={() =>
+                          run(async () => {
+                            const result = await removePaymentAction(p.id);
+                            if (result.ok) {
+                              showToast("Pagamento removido — escolha outra forma", "success");
+                            }
+                            return result;
+                          })
+                        }
+                      >
+                        Remover
+                      </button>
+                    </>
                   ) : null}
                 </div>
               </li>

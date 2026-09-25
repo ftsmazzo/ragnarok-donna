@@ -2073,12 +2073,81 @@ export async function updateOrderItemLine(
           )
         );
       const nextOrderTotal = Number(itemsRow?.total ?? 0) + totalCents;
-      const paidCents = Number(paidRow?.paid ?? 0);
-      if (paidCents > 0 && nextOrderTotal - order.discountCents < paidCents) {
-        throw new AppError(
-          "VALIDATION",
-          "Total ficaria abaixo do já pago. Ajuste o pagamento antes."
-        );
+      const dueAfter = Math.max(0, nextOrderTotal - order.discountCents);
+      let paidCents = Number(paidRow?.paid ?? 0);
+      // Se o novo total fica abaixo do já pago, reduz pagamentos (mais recentes primeiro)
+      // para o balcão conseguir baixar o valor do produto sem travar.
+      if (paidCents > dueAfter) {
+        let excess = paidCents - dueAfter;
+        const payRows = await db
+          .select({
+            id: schema.payments.id,
+            amountCents: schema.payments.amountCents,
+            method: schema.payments.method,
+            orderId: schema.payments.orderId,
+          })
+          .from(schema.payments)
+          .where(
+            and(
+              eq(schema.payments.orderId, item.orderId),
+              eq(schema.payments.tenantId, tenant.id)
+            )
+          )
+          .orderBy(desc(schema.payments.paidAt));
+
+        for (const pay of payRows) {
+          if (excess <= 0) break;
+          const take = Math.min(excess, pay.amountCents);
+          const nextAmount = pay.amountCents - take;
+          const [cashRow] = await db
+            .select({ id: schema.cashMovements.id, amountCents: schema.cashMovements.amountCents })
+            .from(schema.cashMovements)
+            .where(
+              and(
+                eq(schema.cashMovements.tenantId, tenant.id),
+                eq(schema.cashMovements.orderId, pay.orderId),
+                eq(schema.cashMovements.direction, "in"),
+                eq(schema.cashMovements.method, pay.method),
+                eq(schema.cashMovements.amountCents, pay.amountCents)
+              )
+            )
+            .orderBy(desc(schema.cashMovements.createdAt))
+            .limit(1);
+
+          if (pay.method === "client_account") {
+            throw new AppError(
+              "VALIDATION",
+              "Há pagamento na Conta do Cliente. Remova ou edite esse pagamento antes de baixar o valor do item."
+            );
+          }
+          if (nextAmount <= 0) {
+            if (cashRow) {
+              await db
+                .delete(schema.cashMovements)
+                .where(eq(schema.cashMovements.id, cashRow.id));
+            }
+            await db
+              .delete(schema.payments)
+              .where(
+                and(eq(schema.payments.id, pay.id), eq(schema.payments.tenantId, tenant.id))
+              );
+          } else {
+            await db
+              .update(schema.payments)
+              .set({ amountCents: nextAmount, updatedAt: new Date() })
+              .where(
+                and(eq(schema.payments.id, pay.id), eq(schema.payments.tenantId, tenant.id))
+              );
+            if (cashRow) {
+              await db
+                .update(schema.cashMovements)
+                .set({ amountCents: nextAmount, updatedAt: new Date() })
+                .where(eq(schema.cashMovements.id, cashRow.id));
+            }
+          }
+          excess -= take;
+          paidCents -= take;
+        }
       }
     }
 
@@ -2098,7 +2167,7 @@ export async function updateOrderItemLine(
       );
 
     await recalculateOrderTotal(item.orderId, tenant.id);
-    if (item.itemType === "service") {
+    if (item.itemType === "service" || item.itemType === "product") {
       await syncStaffMonthServiceCommission(tenant.id, item.staffId);
     }
     return { ok: true, id: item.orderId };
@@ -2107,6 +2176,104 @@ export async function updateOrderItemLine(
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     console.error("[updateOrderItemLine]", err);
     return { ok: false, error: "Não foi possível atualizar o valor do item" };
+  }
+}
+
+/** Altera o valor de um pagamento já lançado (e o movimento de caixa correspondente). */
+export async function updatePaymentAmount(
+  paymentId: string,
+  amountReais: number
+): Promise<ActionResult> {
+  try {
+    const session = await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    const amountCents = Math.round(amountReais * 100);
+    if (!Number.isFinite(amountCents) || amountCents <= 0) {
+      throw new AppError("VALIDATION", "Informe um valor maior que zero");
+    }
+
+    const db = createDb();
+    await db.transaction(async (tx) => {
+      const [payment] = await tx
+        .select({
+          id: schema.payments.id,
+          orderId: schema.payments.orderId,
+          method: schema.payments.method,
+          amountCents: schema.payments.amountCents,
+        })
+        .from(schema.payments)
+        .where(
+          and(eq(schema.payments.id, paymentId), eq(schema.payments.tenantId, tenant.id))
+        )
+        .for("update");
+      if (!payment?.orderId) throw new AppError("NOT_FOUND", "Pagamento não encontrado");
+
+      const state = await lockOrderFinancialState(tx, payment.orderId, tenant.id);
+      const otherPaid = state.paidCents - payment.amountCents;
+      const due = Math.max(0, state.totalCents - state.discountCents);
+      const maxAllowed = Math.max(0, due - otherPaid);
+      if (amountCents > maxAllowed + 1) {
+        throw new AppError(
+          "VALIDATION",
+          `Valor maior que o saldo da comanda (máx. ${(maxAllowed / 100).toFixed(2)})`
+        );
+      }
+
+      if (payment.method === "client_account") {
+        const delta = payment.amountCents - amountCents;
+        if (delta !== 0) {
+          if (!state.clientId) {
+            throw new AppError("VALIDATION", "Comanda sem cliente para ajustar Conta do Cliente");
+          }
+          await applyClientAccountDeltaTx(tx, {
+            tenantId: tenant.id,
+            clientId: state.clientId,
+            deltaCents: delta,
+            reason: "order_reversal",
+            notes: "Edição do valor pago na comanda",
+            orderId: payment.orderId,
+            paymentId: payment.id,
+            createdByUserId: session.user.id,
+          });
+        }
+      }
+
+      const [cashRow] = await tx
+        .select({ id: schema.cashMovements.id })
+        .from(schema.cashMovements)
+        .where(
+          and(
+            eq(schema.cashMovements.tenantId, tenant.id),
+            eq(schema.cashMovements.orderId, payment.orderId),
+            eq(schema.cashMovements.direction, "in"),
+            eq(schema.cashMovements.method, payment.method),
+            eq(schema.cashMovements.amountCents, payment.amountCents)
+          )
+        )
+        .orderBy(desc(schema.cashMovements.createdAt))
+        .limit(1);
+
+      await tx
+        .update(schema.payments)
+        .set({ amountCents, updatedAt: new Date() })
+        .where(
+          and(eq(schema.payments.id, payment.id), eq(schema.payments.tenantId, tenant.id))
+        );
+
+      if (cashRow) {
+        await tx
+          .update(schema.cashMovements)
+          .set({ amountCents, updatedAt: new Date() })
+          .where(eq(schema.cashMovements.id, cashRow.id));
+      }
+    });
+
+    return { ok: true, id: paymentId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[updatePaymentAmount]", err);
+    return { ok: false, error: "Não foi possível alterar o valor pago" };
   }
 }
 
