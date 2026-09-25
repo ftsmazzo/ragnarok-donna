@@ -95,6 +95,18 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
   const date = dateStr ?? todaySp();
   const { start, end } = dayBoundsSp(date);
 
+  // Urgente: movimentos antigos de "Consumo de profissional" distorcem o saldo
+  // e travam o fechamento. Remover do caixa físico (idempotente).
+  await db.execute(sql`
+    delete from cash_movements cm
+    using orders o
+    where cm.order_id = o.id
+      and cm.tenant_id = ${tenant.id}
+      and o.tenant_id = ${tenant.id}
+      and cm.direction = 'in'
+      and coalesce(o.meta->>'kind', '') = 'staff_consumption'
+  `);
+
   const openSession = await getOpenCashSession();
 
   const [daySessionRow] = await db
@@ -295,7 +307,8 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
         eq(schema.orders.status, "closed"),
         gte(schema.orders.closedAt, start),
         lte(schema.orders.closedAt, end),
-        isNull(schema.orders.deletedAt)
+        isNull(schema.orders.deletedAt),
+        sql`coalesce(${schema.orders.meta}->>'kind','') <> 'staff_consumption'`
       )
     );
 
@@ -306,7 +319,8 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       and(
         eq(schema.orders.tenantId, tenant.id),
         eq(schema.orders.status, "open"),
-        isNull(schema.orders.deletedAt)
+        isNull(schema.orders.deletedAt),
+        sql`coalesce(${schema.orders.meta}->>'kind','') <> 'staff_consumption'`
       )
     );
 
