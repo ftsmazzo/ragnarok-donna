@@ -82,6 +82,7 @@ const RULES: RouteRule[] = [
   { pattern: "/configuracoes/agente", roles: ["owner", "admin"] },
   { pattern: "/configuracoes/disparos", roles: ["owner", "admin", "manager"] },
   { pattern: "/configuracoes/empresa", roles: ["owner", "admin"] },
+  { pattern: "/configuracoes/taxas", roles: ["owner", "admin"] },
   { pattern: "/configuracoes", roles: ["owner", "admin"] },
   { pattern: "/pwa/conversas", roles: ["owner", "admin", "manager"] },
   /** Barbeiro: lançar consumo (produtos) na comanda aberta pelo celular. */

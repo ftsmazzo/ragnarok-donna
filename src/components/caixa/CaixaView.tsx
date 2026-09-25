@@ -94,6 +94,9 @@ export function CaixaView({ data, permissions, staffList }: Props) {
             <Link href="/caixa/historico" className="btn btn-outline">
               Histórico
             </Link>
+            <Link href="/configuracoes/taxas" className="btn btn-outline">
+              Taxas maquininha
+            </Link>
             <Link href={`/caixa?date=${prev}`} className="btn btn-outline">
               ← Anterior
             </Link>

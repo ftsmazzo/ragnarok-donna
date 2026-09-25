@@ -3,6 +3,7 @@ import { createDb, schema } from "@/db";
 import { dayBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { labelStoredPayment, paymentLabelFromParts } from "@/lib/payment-codes";
 import { paymentFeeCents } from "@/lib/payment-fees";
+import { resolveTenantPaymentFees } from "@/server/tenant/payment-fees";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import type { CashDaySnapshot, CashMovementRow, CashPermissions, CashSessionSummary } from "./types";
@@ -94,6 +95,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
   const db = createDb();
   const date = dateStr ?? todaySp();
   const { start, end } = dayBoundsSp(date);
+  const fees = await resolveTenantPaymentFees();
 
   const openSession = await getOpenCashSession();
 
@@ -308,7 +310,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       installments: r.installments != null ? Number(r.installments) : undefined,
       kind: r.kind || undefined,
     };
-    const feeCents = paymentFeeCents(totalCents, r.method, meta);
+    const feeCents = paymentFeeCents(totalCents, r.method, meta, fees);
     return {
       method: paymentLabelFromParts(r),
       count: Number(r.n),

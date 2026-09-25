@@ -112,6 +112,11 @@ export function OrderDrawer({
   const [payLines, setPayLines] = useState<CheckoutLine[]>(() => [makeCheckoutLine(0)]);
   const [insertInCash, setInsertInCash] = useState(true);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmRemovePayment, setConfirmRemovePayment] = useState<{
+    id: string;
+    amountCents: number;
+    label: string;
+  } | null>(null);
   const [itemType, setItemType] = useState<ItemType>("service");
   const [catalogId, setCatalogId] = useState("");
   const [useCredit, setUseCredit] = useState(true);
@@ -145,6 +150,8 @@ export function OrderDrawer({
   const [pending, startTransition] = useTransition();
   const isOpen = order.status === "open";
   const canEdit = permissions.canWrite && isOpen;
+  const canRemovePayment =
+    permissions.canWrite && (isOpen || order.status === "closed");
   const due = Math.max(0, order.totalCents - order.discountCents);
   const credits = order.credits ?? [];
   const clientAccountCents = order.clientAccountBalanceCents;
@@ -1898,19 +1905,17 @@ export function OrderDrawer({
                 </div>
                 <div className="order-item-actions">
                   <strong>{formatMoney(p.amountCents)}</strong>
-                  {canEdit ? (
+                  {canRemovePayment ? (
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
                       disabled={pending}
-                      title="Remover para trocar a forma de pagamento"
+                      title="Remover pagamento e estornar do caixa"
                       onClick={() =>
-                        run(async () => {
-                          const result = await removePaymentAction(p.id);
-                          if (result.ok) {
-                            showToast("Pagamento removido — escolha outra forma", "success");
-                          }
-                          return result;
+                        setConfirmRemovePayment({
+                          id: p.id,
+                          amountCents: p.amountCents,
+                          label: labelStoredPayment(p.method, p.meta),
                         })
                       }
                     >
@@ -1976,6 +1981,52 @@ export function OrderDrawer({
           A comanda será cancelada. Só é permitido se ainda não houver pagamentos
           registrados.
         </p>
+      </Modal>
+
+      <Modal
+        open={Boolean(confirmRemovePayment)}
+        onClose={() => setConfirmRemovePayment(null)}
+        title="Remover pagamento"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setConfirmRemovePayment(null)}
+              disabled={pending}
+            >
+              Não
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={pending || !confirmRemovePayment}
+              onClick={() => {
+                if (!confirmRemovePayment) return;
+                const paymentId = confirmRemovePayment.id;
+                run(async () => {
+                  const result = await removePaymentAction(paymentId);
+                  if (result.ok) {
+                    setConfirmRemovePayment(null);
+                    showToast("Pagamento removido do caixa", "success");
+                  }
+                  return result;
+                });
+              }}
+            >
+              Sim, estornar
+            </button>
+          </>
+        }
+      >
+        {confirmRemovePayment ? (
+          <p>
+            Deseja estornar o valor de{" "}
+            <strong>{formatMoney(confirmRemovePayment.amountCents)}</strong>
+            {confirmRemovePayment.label ? ` (${confirmRemovePayment.label})` : ""} do
+            caixa?
+          </p>
+        ) : null}
       </Modal>
 
       {bookTarget && order.clientId ? (

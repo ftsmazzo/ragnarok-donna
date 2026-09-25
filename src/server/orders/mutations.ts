@@ -2543,7 +2543,7 @@ export async function addPayment(input: {
   }
 }
 
-/** Remove pagamento de comanda aberta (troca de forma / estorno operacional). */
+/** Remove pagamento (comanda aberta ou fechada). Estorna caixa; reabre se saldo voltar. */
 export async function removePayment(paymentId: string): Promise<ActionResult> {
   try {
     const session = await assertFullOrderWrite();
@@ -2570,7 +2570,29 @@ export async function removePayment(paymentId: string): Promise<ActionResult> {
         throw new AppError("NOT_FOUND", "Pagamento não encontrado");
       }
 
-      const state = await lockOrderFinancialState(tx, payment.orderId, tenant.id);
+      const [order] = await tx
+        .select({
+          id: schema.orders.id,
+          status: schema.orders.status,
+          clientId: schema.orders.clientId,
+          totalCents: schema.orders.totalCents,
+          discountCents: schema.orders.discountCents,
+          meta: schema.orders.meta,
+        })
+        .from(schema.orders)
+        .where(
+          and(
+            eq(schema.orders.id, payment.orderId),
+            eq(schema.orders.tenantId, tenant.id),
+            isNull(schema.orders.deletedAt)
+          )
+        )
+        .for("update");
+
+      if (!order) throw new AppError("NOT_FOUND", "Comanda não encontrada");
+      if (order.status !== "open" && order.status !== "closed") {
+        throw new AppError("VALIDATION", "Só é possível remover pagamento de comanda aberta ou fechada");
+      }
 
       const [link] = await tx
         .select({
@@ -2615,7 +2637,7 @@ export async function removePayment(paymentId: string): Promise<ActionResult> {
       }
 
       if (payment.method === "client_account") {
-        if (!state.clientId) {
+        if (!order.clientId) {
           throw new AppError(
             "VALIDATION",
             "Não foi possível estornar Conta do Cliente: comanda sem cliente"
@@ -2623,10 +2645,10 @@ export async function removePayment(paymentId: string): Promise<ActionResult> {
         }
         await applyClientAccountDeltaTx(tx, {
           tenantId: tenant.id,
-          clientId: state.clientId,
+          clientId: order.clientId,
           deltaCents: payment.amountCents,
           reason: "order_reversal",
-          notes: "Estorno de pagamento na comanda aberta",
+          notes: "Estorno de pagamento na comanda",
           orderId: payment.orderId,
           paymentId: payment.id,
           createdByUserId: session.user.id,
@@ -2641,6 +2663,34 @@ export async function removePayment(paymentId: string): Promise<ActionResult> {
             eq(schema.payments.tenantId, tenant.id)
           )
         );
+
+      // Se a comanda estava fechada e o saldo voltou, reabre automaticamente.
+      if (order.status === "closed") {
+        const [paidRow] = await tx
+          .select({
+            paid: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+          })
+          .from(schema.payments)
+          .where(
+            and(
+              eq(schema.payments.orderId, order.id),
+              eq(schema.payments.tenantId, tenant.id)
+            )
+          );
+        const due = Math.max(0, order.totalCents - Math.min(order.discountCents, order.totalCents));
+        const paid = Number(paidRow?.paid ?? 0);
+        if (paid < due) {
+          await tx
+            .update(schema.orders)
+            .set({
+              status: "open",
+              closedAt: null,
+              closedByUserId: null,
+              updatedAt: new Date(),
+            })
+            .where(and(eq(schema.orders.id, order.id), eq(schema.orders.tenantId, tenant.id)));
+        }
+      }
     });
 
     return { ok: true, id: paymentId };
