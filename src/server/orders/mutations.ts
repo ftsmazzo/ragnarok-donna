@@ -1588,7 +1588,7 @@ export async function addOrderItem(input: {
         } catch (syncErr) {
           console.error("[addOrderItem] sync comissão falhou", syncErr);
         }
-        if (staffId && serviceId && !isStaffConsumption) {
+        if (staffId && serviceId && !isStaffConsumption && !staffServiceConsumption) {
           const [orderCtx] = await db
             .select({
               clientId: schema.orders.clientId,
