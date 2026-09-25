@@ -145,6 +145,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
         orderId: schema.cashMovements.orderId,
         orderExternalId: schema.orders.externalId,
         clientName: schema.clients.name,
+        orderMeta: schema.orders.meta,
       })
       .from(schema.cashMovements)
       .leftJoin(schema.orders, eq(schema.cashMovements.orderId, schema.orders.id))
@@ -157,17 +158,22 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       )
       .orderBy(desc(schema.cashMovements.createdAt));
 
-    movements = rows.map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt,
-      direction: (r.direction === "out" ? "out" : "in") as "in" | "out",
-      method: r.method,
-      amountCents: r.amountCents,
-      description: r.description,
-      orderId: r.orderId,
-      orderExternalId: r.orderExternalId,
-      clientName: r.clientName,
-    }));
+    movements = rows
+      .filter((r) => {
+        const meta = r.orderMeta as Record<string, unknown> | null;
+        return meta?.kind !== "staff_consumption";
+      })
+      .map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt,
+        direction: (r.direction === "out" ? "out" : "in") as "in" | "out",
+        method: r.method,
+        amountCents: r.amountCents,
+        description: r.description,
+        orderId: r.orderId,
+        orderExternalId: r.orderExternalId,
+        clientName: r.clientName,
+      }));
   }
 
   const expectedInCents =
@@ -190,11 +196,14 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       totalCents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
     })
     .from(schema.payments)
+    .innerJoin(schema.orders, eq(schema.payments.orderId, schema.orders.id))
     .where(
       and(
         eq(schema.payments.tenantId, tenant.id),
         gte(schema.payments.paidAt, start),
-        lte(schema.payments.paidAt, end)
+        lte(schema.payments.paidAt, end),
+        // Consumo profissional→profissional não entra no caixa / totais do dia.
+        sql`coalesce(${schema.orders.meta}->>'kind','') <> 'staff_consumption'`
       )
     )
     .groupBy(schema.payments.method, brandSql, installmentsSql, kindSql)
@@ -218,7 +227,8 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       and(
         eq(schema.payments.tenantId, tenant.id),
         gte(schema.payments.paidAt, start),
-        lte(schema.payments.paidAt, end)
+        lte(schema.payments.paidAt, end),
+        sql`coalesce(${schema.orders.meta}->>'kind','') <> 'staff_consumption'`
       )
     )
     .orderBy(desc(schema.payments.paidAt));

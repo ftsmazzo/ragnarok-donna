@@ -1244,6 +1244,9 @@ setImmediate(async () => {
   withTimeout(runFlaviaPackageDupesFix(), 90_000).catch((err) => {
     console.error("[bootstrap:flavia-pkg]", err.message ?? err);
   });
+  withTimeout(runStaffConsumptionCashFix(), 60_000).catch((err) => {
+    console.error("[bootstrap:staff-cash]", err.message ?? err);
+  });
   await runDonnaEnsureStandalone();
   await runDonnaImportStandalone();
 });
@@ -1258,6 +1261,18 @@ async function runFlaviaPackageDupesFix() {
     await spawnScript("fix-flavia-package-dupes.mjs");
   } catch (err) {
     console.error("[bootstrap:flavia-pkg] falhou (não bloqueia start):", err?.message ?? err);
+  }
+}
+
+/** One-shot #236: tira do caixa físico lançamentos de Consumo de profissional. */
+async function runStaffConsumptionCashFix() {
+  if (process.env.SKIP_DEPLOY_BOOTSTRAP === "1") return;
+  if (process.env.SKIP_STAFF_CASH_FIX === "1") return;
+  if (!process.env.DATABASE_URL) return;
+  try {
+    await spawnScript("fix-staff-consumption-cash.mjs");
+  } catch (err) {
+    console.error("[bootstrap:staff-cash] falhou (não bloqueia start):", err?.message ?? err);
   }
 }
 

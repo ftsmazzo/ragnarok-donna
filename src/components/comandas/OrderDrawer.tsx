@@ -110,7 +110,7 @@ export function OrderDrawer({
   const [payOpen, setPayOpen] = useState(false);
   const [payCloseOpen, setPayCloseOpen] = useState(false);
   const [payLines, setPayLines] = useState<CheckoutLine[]>(() => [makeCheckoutLine(0)]);
-  const [insertInCash, setInsertInCash] = useState(true);
+  const [insertInCash, setInsertInCash] = useState(() => !order.isStaffConsumption);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [itemType, setItemType] = useState<ItemType>("service");
   const [catalogId, setCatalogId] = useState("");
@@ -151,6 +151,10 @@ export function OrderDrawer({
   const clientCreditAvailable =
     clientAccountCents != null && clientAccountCents > 0 ? clientAccountCents : 0;
   const hasPackageSale = order.items.some((item) => item.itemType === "package");
+
+  useEffect(() => {
+    if (order.isStaffConsumption) setInsertInCash(false);
+  }, [order.id, order.isStaffConsumption]);
 
   useEffect(() => {
     if (order.isStaffConsumption && order.consumerStaffId) {
@@ -871,7 +875,13 @@ export function OrderDrawer({
                   </p>
                 ) : null}
 
-                {anyNonAccount ? (
+                {order.isStaffConsumption ? (
+                  <p className="client-profile-hint muted">
+                    Consumo de profissional <strong>não entra no caixa físico</strong> — o valor
+                    ajusta comissão (50% no serviço + desconto na consumidora). Pode fechar o
+                    caixa sem contar esse lançamento.
+                  </p>
+                ) : anyNonAccount ? (
                   <label className="form-field package-sale-checkbox">
                     <input
                       type="checkbox"
@@ -1003,7 +1013,13 @@ export function OrderDrawer({
                       : ` · sobra ${formatMoney(payLinesDiffCents)}`}
                 </p>
 
-                {anyNonAccount ? (
+                {order.isStaffConsumption ? (
+                  <p className="client-profile-hint muted">
+                    Consumo de profissional <strong>não entra no caixa físico</strong> — o valor
+                    ajusta comissão (50% no serviço + desconto na consumidora). Pode fechar o
+                    caixa sem contar esse lançamento.
+                  </p>
+                ) : anyNonAccount ? (
                   <label className="form-field package-sale-checkbox">
                     <input
                       type="checkbox"
@@ -1555,7 +1571,7 @@ export function OrderDrawer({
             {itemType === "service" ? (
               <p className="client-profile-hint muted">
                 {order.isStaffConsumption
-                  ? "Consumo de profissional: valor e comissão no executor, sem card na agenda."
+                  ? "Consumo de profissional: serviço a 50% (comissão na executora, desconto na consumidora), sem card na agenda e sem entrar no caixa."
                   : "Serviço na comanda aparece na agenda do profissional escolhido (comissão). Produto não entra na agenda."}
               </p>
             ) : null}

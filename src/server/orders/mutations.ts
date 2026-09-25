@@ -43,6 +43,15 @@ function accountDebtFromMeta(meta: unknown): number {
     : 0;
 }
 
+/** Comanda Consumo de profissional — não movimenta caixa físico. */
+function isStaffConsumptionMeta(meta: unknown): boolean {
+  return Boolean(
+    meta &&
+      typeof meta === "object" &&
+      (meta as Record<string, unknown>).kind === "staff_consumption"
+  );
+}
+
 async function lockOrderFinancialState(
   tx: DbTransaction,
   orderId: string,
@@ -1285,7 +1294,7 @@ export async function addOrderItem(input: {
     }
 
     const lineGross = unitPriceCents * qty;
-    if (staffServiceConsumption && !courtesy) {
+    if ((staffServiceConsumption || isStaffConsumption) && !courtesy && input.itemType === "service") {
       // 50% do preço de tabela (consumo entre profissionais)
       discountCents = Math.max(discountCents, Math.round(lineGross * 0.5));
     }
@@ -1474,39 +1483,45 @@ export async function addOrderItem(input: {
       await recalculateOrderTotal(input.orderId, tenant.id);
 
       if (
-        staffServiceConsumption &&
+        (staffServiceConsumption || isStaffConsumption) &&
         totalCents > 0 &&
-        input.consumerStaffId?.trim() &&
-        input.consumerStaffId.trim() !== staffId
+        input.itemType === "service"
       ) {
-        const consumerId = input.consumerStaffId.trim();
-        const [consumer] = await db
-          .select({ id: schema.staff.id, name: schema.staff.name })
-          .from(schema.staff)
-          .where(
-            and(
-              eq(schema.staff.id, consumerId),
-              eq(schema.staff.tenantId, tenant.id),
-              isNull(schema.staff.deletedAt)
+        const consumerId =
+          (staffServiceConsumption
+            ? input.consumerStaffId?.trim()
+            : typeof orderMeta.consumerStaffId === "string"
+              ? orderMeta.consumerStaffId
+              : null) || null;
+        if (consumerId && consumerId !== staffId) {
+          const [consumer] = await db
+            .select({ id: schema.staff.id, name: schema.staff.name })
+            .from(schema.staff)
+            .where(
+              and(
+                eq(schema.staff.id, consumerId),
+                eq(schema.staff.tenantId, tenant.id),
+                isNull(schema.staff.deletedAt)
+              )
             )
-          )
-          .limit(1);
-        if (!consumer) {
-          throw new AppError("VALIDATION", "Profissional consumidora inválida");
+            .limit(1);
+          if (!consumer) {
+            throw new AppError("VALIDATION", "Profissional consumidora inválida");
+          }
+          await db.insert(schema.staffAdvances).values({
+            tenantId: tenant.id,
+            staffId: consumer.id,
+            kind: "discount",
+            status: "open",
+            amountCents: totalCents,
+            occurredAt: new Date(),
+            notes: `Consumo serviço: ${description} (50%) · item ${row.id.slice(0, 8)}`.slice(
+              0,
+              240
+            ),
+            createdByUserId: session.user.id,
+          });
         }
-        await db.insert(schema.staffAdvances).values({
-          tenantId: tenant.id,
-          staffId: consumer.id,
-          kind: "discount",
-          status: "open",
-          amountCents: totalCents,
-          occurredAt: new Date(),
-          notes: `Consumo serviço: ${description} (50%) · item ${row.id.slice(0, 8)}`.slice(
-            0,
-            240
-          ),
-          createdByUserId: session.user.id,
-        });
       }
 
       if (input.itemType === "service") {
@@ -2417,6 +2432,17 @@ export async function addPayment(input: {
     const method = input.method as PaymentMethod;
     const db = createDb();
 
+    const [orderKindRow] = await db
+      .select({ meta: schema.orders.meta })
+      .from(schema.orders)
+      .where(
+        and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id))
+      )
+      .limit(1);
+    // Consumo profissional→profissional: nunca lança no caixa físico (fecha caixa sem distorcer).
+    const insertInCash =
+      isStaffConsumptionMeta(orderKindRow?.meta) ? false : input.insertInCash !== false;
+
     if (method === "client_account") {
       const paymentId = await db.transaction(async (tx) => {
         const state = await lockOrderFinancialState(
@@ -2511,7 +2537,7 @@ export async function addPayment(input: {
         })
         .returning({ id: schema.payments.id });
 
-      if (input.insertInCash !== false) {
+      if (insertInCash) {
         const { recordPaymentInCashTx } = await import("../finance/mutations");
         await recordPaymentInCashTx(tx, {
           tenantId: tenant.id,
@@ -2522,15 +2548,17 @@ export async function addPayment(input: {
         });
       }
 
-      const { bridgePaymentToTreasury } = await import("../treasury/bridge");
-      await bridgePaymentToTreasury(tx, {
-        tenantId: tenant.id,
-        paymentId: payment.id,
-        orderId: input.orderId,
-        amountCents,
-        method,
-        description: `Receita comanda · ${labelStoredPayment(method, input.meta)}`,
-      });
+      if (!isStaffConsumptionMeta(orderKindRow?.meta)) {
+        const { bridgePaymentToTreasury } = await import("../treasury/bridge");
+        await bridgePaymentToTreasury(tx, {
+          tenantId: tenant.id,
+          paymentId: payment.id,
+          orderId: input.orderId,
+          amountCents,
+          method,
+          description: `Receita comanda · ${labelStoredPayment(method, input.meta)}`,
+        });
+      }
 
       return payment.id;
     });
@@ -2685,6 +2713,9 @@ export async function settleAndCloseOrder(input: {
       if (state.itemCount === 0) {
         throw new AppError("VALIDATION", "Adicione ao menos um item antes de fechar");
       }
+      const insertInCash = isStaffConsumptionMeta(state.meta)
+        ? false
+        : input.insertInCash !== false;
 
       let remaining = state.balanceCents;
       for (const line of lines) {
@@ -2754,7 +2785,7 @@ export async function settleAndCloseOrder(input: {
               meta: line.meta,
             })
             .returning({ id: schema.payments.id });
-          if (input.insertInCash !== false) {
+          if (insertInCash) {
             const { recordPaymentInCashTx } = await import("../finance/mutations");
             await recordPaymentInCashTx(tx, {
               tenantId: tenant.id,
@@ -2764,15 +2795,17 @@ export async function settleAndCloseOrder(input: {
               description: labelStoredPayment(method, line.meta),
             });
           }
-          const { bridgePaymentToTreasury } = await import("../treasury/bridge");
-          await bridgePaymentToTreasury(tx, {
-            tenantId: tenant.id,
-            paymentId: payment.id,
-            orderId: input.orderId,
-            amountCents: line.amountCents,
-            method,
-            description: `Receita comanda · ${labelStoredPayment(method, line.meta)}`,
-          });
+          if (!isStaffConsumptionMeta(state.meta)) {
+            const { bridgePaymentToTreasury } = await import("../treasury/bridge");
+            await bridgePaymentToTreasury(tx, {
+              tenantId: tenant.id,
+              paymentId: payment.id,
+              orderId: input.orderId,
+              amountCents: line.amountCents,
+              method,
+              description: `Receita comanda · ${labelStoredPayment(method, line.meta)}`,
+            });
+          }
         }
         remaining -= line.amountCents;
       }
@@ -3300,7 +3333,7 @@ export async function payAndCloseOrder(input: {
             meta: input.meta ?? {},
           })
           .returning({ id: schema.payments.id });
-        if (input.insertInCash !== false) {
+        if (input.insertInCash !== false && !isStaffConsumptionMeta(state.meta)) {
           const { recordPaymentInCashTx } = await import("../finance/mutations");
           await recordPaymentInCashTx(tx, {
             tenantId: tenant.id,
@@ -3310,15 +3343,17 @@ export async function payAndCloseOrder(input: {
             description: labelStoredPayment(method, input.meta),
           });
         }
-        const { bridgePaymentToTreasury } = await import("../treasury/bridge");
-        await bridgePaymentToTreasury(tx, {
-          tenantId: tenant.id,
-          paymentId: payment.id,
-          orderId: input.orderId,
-          amountCents: state.balanceCents,
-          method,
-          description: `Receita comanda · ${labelStoredPayment(method, input.meta)}`,
-        });
+        if (!isStaffConsumptionMeta(state.meta)) {
+          const { bridgePaymentToTreasury } = await import("../treasury/bridge");
+          await bridgePaymentToTreasury(tx, {
+            tenantId: tenant.id,
+            paymentId: payment.id,
+            orderId: input.orderId,
+            amountCents: state.balanceCents,
+            method,
+            description: `Receita comanda · ${labelStoredPayment(method, input.meta)}`,
+          });
+        }
       }
 
       if (state.clientId) {
