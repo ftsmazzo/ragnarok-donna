@@ -3,6 +3,7 @@ import { createDb, schema } from "@/db";
 import { dayBoundsSp, shiftDateSp, todaySp } from "@/lib/datetime";
 import { labelStoredPayment, paymentLabelFromParts } from "@/lib/payment-codes";
 import { paymentFeeCents } from "@/lib/payment-fees";
+import { resolveTenantPaymentFees } from "@/server/tenant/payment-fees";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
 import type { CashDaySnapshot, CashMovementRow, CashPermissions, CashSessionSummary } from "./types";
@@ -94,6 +95,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
   const db = createDb();
   const date = dateStr ?? todaySp();
   const { start, end } = dayBoundsSp(date);
+  const fees = await resolveTenantPaymentFees();
 
   // Urgente: movimentos antigos de "Consumo de profissional" distorcem o saldo
   // e travam o fechamento. Remover do caixa físico (idempotente).
@@ -220,8 +222,9 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
         eq(schema.payments.tenantId, tenant.id),
         gte(schema.payments.paidAt, start),
         lte(schema.payments.paidAt, end),
-        // Consumo profissional→profissional não entra no caixa / totais do dia.
-        sql`coalesce(${schema.orders.meta}->>'kind','') <> 'staff_consumption'`
+        // Consumo profissional e valores tirados do caixa (lixeira) não entram nos totais.
+        sql`coalesce(${schema.orders.meta}->>'kind','') <> 'staff_consumption'`,
+        sql`coalesce(${schema.payments.meta}->>'excludedFromCash','') <> 'true'`
       )
     )
     .groupBy(schema.payments.method, brandSql, installmentsSql, kindSql)
@@ -246,7 +249,10 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       and(
         eq(schema.payments.tenantId, tenant.id),
         gte(schema.payments.paidAt, start),
-        lte(schema.payments.paidAt, end)
+        lte(schema.payments.paidAt, end),
+        // Detalhe alinhado aos totais: sem consumo profissional e sem excluídos do caixa.
+        sql`coalesce(${schema.orders.meta}->>'kind','') <> 'staff_consumption'`,
+        sql`coalesce(${schema.payments.meta}->>'excludedFromCash','') <> 'true'`
       )
     )
     .orderBy(desc(schema.payments.paidAt));
@@ -338,7 +344,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       installments: r.installments != null ? Number(r.installments) : undefined,
       kind: r.kind || undefined,
     };
-    const feeCents = paymentFeeCents(totalCents, r.method, meta);
+    const feeCents = paymentFeeCents(totalCents, r.method, meta, fees);
     return {
       method: paymentLabelFromParts(r),
       count: Number(r.n),
