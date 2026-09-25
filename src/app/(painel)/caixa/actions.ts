@@ -7,6 +7,8 @@ import {
   deleteCashMovement,
   openCashSession,
 } from "@/server/finance/mutations";
+import { cancelUnusedPackageSale } from "@/server/packages/mutations";
+import { removePayment } from "@/server/orders/mutations";
 
 function revalidateCash() {
   revalidatePath("/caixa");
@@ -48,6 +50,25 @@ export async function addCashMovementAction(formData: FormData) {
 
 export async function deleteCashMovementAction(movementId: string) {
   const result = await deleteCashMovement(movementId);
+  if (result.ok) revalidateCash();
+  return result;
+}
+
+/** Lixeira no Detalhe dos pagamentos: pacote sem uso cancela venda; demais remove pagamento. */
+export async function deleteCashDayPaymentAction(input: {
+  paymentId: string;
+  packageCancel?: boolean;
+}): Promise<{ ok: boolean; error?: string; refundedCents?: number }> {
+  const paymentId = input.paymentId?.trim();
+  if (!paymentId) return { ok: false, error: "Pagamento inválido" };
+
+  if (input.packageCancel) {
+    const result = await cancelUnusedPackageSale({ paymentId });
+    if (result.ok) revalidateCash();
+    return result;
+  }
+
+  const result = await removePayment(paymentId);
   if (result.ok) revalidateCash();
   return result;
 }

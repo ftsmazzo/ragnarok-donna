@@ -237,6 +237,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       orderId: schema.payments.orderId,
       clientName: schema.clients.name,
       orderExternalId: schema.orders.externalId,
+      orderMeta: schema.orders.meta,
     })
     .from(schema.payments)
     .innerJoin(schema.orders, eq(schema.payments.orderId, schema.orders.id))
@@ -245,8 +246,7 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
       and(
         eq(schema.payments.tenantId, tenant.id),
         gte(schema.payments.paidAt, start),
-        lte(schema.payments.paidAt, end),
-        sql`coalesce(${schema.orders.meta}->>'kind','') <> 'staff_consumption'`
+        lte(schema.payments.paidAt, end)
       )
     )
     .orderBy(desc(schema.payments.paidAt));
@@ -348,6 +348,10 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
     };
   });
   const paymentFeeTotalCents = byMethodRows.reduce((s, r) => s + r.feeCents, 0);
+  const paymentCountExStaff = payments.filter((p) => {
+    const meta = (p.orderMeta ?? {}) as Record<string, unknown>;
+    return meta.kind !== "staff_consumption";
+  }).length;
 
   return {
     date,
@@ -360,21 +364,30 @@ export async function getCashDay(dateStr?: string): Promise<CashDaySnapshot> {
     paymentTotalCents,
     paymentFeeCents: paymentFeeTotalCents,
     paymentNetCents: Math.max(0, paymentTotalCents - paymentFeeTotalCents),
-    paymentCount: payments.length,
+    paymentCount: paymentCountExStaff,
     closedOrdersCount: Number(closedOrders?.n ?? 0),
     closedOrdersCents: Number(closedOrders?.total ?? 0),
     openOrdersCount: Number(openOrders?.n ?? 0),
     byMethod: byMethodRows,
-    payments: payments.map((p) => ({
-      id: p.id,
-      paidAt: p.paidAt,
-      method: labelStoredPayment(p.method, p.meta),
-      amountCents: p.amountCents,
-      clientName: p.clientName,
-      orderExternalId: p.orderExternalId,
-      orderId: p.orderId,
-      packageCancelId: cancelByOrder.get(p.orderId) ?? null,
-    })),
+    payments: payments.map((p) => {
+      const orderMeta = (p.orderMeta ?? {}) as Record<string, unknown>;
+      const isStaffConsumption = orderMeta.kind === "staff_consumption";
+      return {
+        id: p.id,
+        paidAt: p.paidAt,
+        method: labelStoredPayment(p.method, p.meta),
+        amountCents: p.amountCents,
+        clientName:
+          p.clientName ??
+          (typeof orderMeta.consumerStaffName === "string"
+            ? orderMeta.consumerStaffName
+            : null),
+        orderExternalId: p.orderExternalId,
+        orderId: p.orderId,
+        packageCancelId: cancelByOrder.get(p.orderId) ?? null,
+        isStaffConsumption,
+      };
+    }),
   };
 }
 

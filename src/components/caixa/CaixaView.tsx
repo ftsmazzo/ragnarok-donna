@@ -12,10 +12,10 @@ import { formatMoney, labelPaymentMethod } from "@/lib/format";
 import {
   addCashMovementAction,
   closeCashSessionAction,
+  deleteCashDayPaymentAction,
   deleteCashMovementAction,
   openCashSessionAction,
 } from "@/app/(painel)/caixa/actions";
-import { cancelUnusedPackageSaleAction } from "@/app/(painel)/clientes/actions";
 import { CommissionAdvancePanel } from "@/components/comissoes/CommissionAdvancePanel";
 import { useToast } from "@/components/ui/Toast";
 
@@ -54,14 +54,53 @@ export function CaixaView({ data, permissions, staffList }: Props) {
     }
     setError("");
     startTransition(async () => {
-      const result = await cancelUnusedPackageSaleAction({ paymentId });
+      const result = await deleteCashDayPaymentAction({
+        paymentId,
+        packageCancel: true,
+      });
       if (!result.ok) {
-        setError(result.error);
-        showToast(result.error, "error");
+        setError(result.error ?? "Erro");
+        showToast(result.error ?? "Erro", "error");
         return;
       }
       const refunded = result.refundedCents ?? amountCents;
       showToast(`Pacote excluído · ${formatMoney(refunded)} saiu do caixa`, "success");
+      refresh();
+    });
+  }
+
+  function deletePaymentRow(p: {
+    id: string;
+    amountCents: number;
+    method: string;
+    clientName: string | null;
+    packageCancelId: string | null;
+    isStaffConsumption: boolean;
+  }) {
+    if (p.packageCancelId) {
+      cancelPackagePayment(p.id, p.amountCents);
+      return;
+    }
+    const who = p.clientName ? ` · ${p.clientName}` : "";
+    const tip = p.isStaffConsumption
+      ? "\n(Consumo profissional — some do detalhe e do caixa se houver movimento.)"
+      : "\nRemove o pagamento da comanda e o movimento no caixa (se existir).";
+    if (
+      !window.confirm(
+        `Excluir este pagamento?\n${p.method}${who} · ${formatMoney(p.amountCents)}${tip}`
+      )
+    ) {
+      return;
+    }
+    setError("");
+    startTransition(async () => {
+      const result = await deleteCashDayPaymentAction({ paymentId: p.id });
+      if (!result.ok) {
+        setError(result.error ?? "Erro ao excluir");
+        showToast(result.error ?? "Erro ao excluir", "error");
+        return;
+      }
+      showToast("Pagamento excluído", "success");
       refresh();
     });
   }
@@ -326,7 +365,7 @@ export function CaixaView({ data, permissions, staffList }: Props) {
           <div className="panel-toolbar" style={{ marginTop: 12 }}>
             <strong>Detalhe dos pagamentos</strong>
             <span className="muted-note">
-              Pacote sem uso: 🗑 na linha estorna e tira do caixa
+              🗑 remove o lançamento · pacote sem uso cancela a venda
             </span>
           </div>
           <div className="table-wrap">
@@ -352,19 +391,34 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                   data.payments.map((p) => (
                     <tr key={p.id}>
                       <td>{formatDateTimeSp(p.paidAt)}</td>
-                      <td>{p.clientName ?? "—"}</td>
+                      <td>
+                        {p.clientName ?? "—"}
+                        {p.isStaffConsumption ? (
+                          <span className="order-badge" style={{ marginLeft: 6 }}>
+                            Consumo
+                          </span>
+                        ) : null}
+                      </td>
                       <td>{p.orderExternalId ?? "—"}</td>
                       <td>{labelPaymentMethod(p.method)}</td>
                       <td>{formatMoney(p.amountCents)}</td>
                       <td>
-                        {permissions.canWrite && p.packageCancelId ? (
+                        {permissions.canWrite ? (
                           <button
                             type="button"
                             className="btn btn-ghost btn-sm"
                             disabled={pending}
-                            title="Excluir venda de pacote e estornar"
-                            aria-label="Excluir venda de pacote"
-                            onClick={() => cancelPackagePayment(p.id, p.amountCents)}
+                            title={
+                              p.packageCancelId
+                                ? "Excluir venda de pacote e estornar"
+                                : "Excluir pagamento"
+                            }
+                            aria-label={
+                              p.packageCancelId
+                                ? "Excluir venda de pacote"
+                                : "Excluir pagamento"
+                            }
+                            onClick={() => deletePaymentRow(p)}
                           >
                             🗑
                           </button>
