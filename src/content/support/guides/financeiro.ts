@@ -39,7 +39,12 @@ export const guideCaixa: SupportGuide = {
     {
       title: "Líquido e taxas",
       detail:
-        "Taxas cadastradas da maquininha em % (débito e crédito por bandeira/parcelas), convertidas em R$ no resumo. PIX, dinheiro e Conta do cliente não descontam taxa. O líquido é só informativo — o caixa físico continua batendo o bruto recebido no dia; nada é descontado na comanda do cliente.",
+        "Taxas cadastradas em Configurações → Taxas da maquininha (débito/crédito por bandeira e parcelas). Cada local define as próprias %. PIX, dinheiro e Conta do cliente não descontam taxa. O líquido é só informativo — o caixa físico continua batendo o bruto; nada é descontado na comanda.",
+    },
+    {
+      title: "Remover pagamento",
+      detail:
+        "Na comanda → Pagamentos → Remover → confirme se deseja estornar o valor. O pagamento some do Caixa. Em comanda fechada, se o saldo voltar, a comanda reabre automaticamente.",
     },
     {
       title: "Suprimento e sangria",

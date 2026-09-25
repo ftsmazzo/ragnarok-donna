@@ -108,6 +108,7 @@ export const NAV: NavItem[] = [
     children: [
       { label: "Lista de espera", href: "/lista-espera" },
       { label: "Dados da empresa", href: "/configuracoes/empresa", icon: "⌂" },
+      { label: "Taxas da maquininha", href: "/configuracoes/taxas", icon: "%" },
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
       { label: "Minha conta", href: "/configuracoes/conta" },
       { label: "App celular (PWA)", href: "/pwa/conversas", icon: "▣" },
@@ -156,6 +157,7 @@ export const NAV_CONSOLIDATED: NavItem[] = [
     icon: "⚙",
     children: [
       { label: "Dados da empresa", href: "/configuracoes/empresa", icon: "⌂" },
+      { label: "Taxas da maquininha", href: "/configuracoes/taxas", icon: "%" },
       { label: "Equipe de acesso", href: "/configuracoes/equipe" },
       { label: "Minha conta", href: "/configuracoes/conta" },
     ],
