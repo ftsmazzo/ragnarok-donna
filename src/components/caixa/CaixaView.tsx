@@ -233,7 +233,7 @@ export function CaixaView({ data, permissions, staffList }: Props) {
                 : undefined,
             hint:
               data.paymentFeeCents > 0
-                ? `${data.paymentCount} pag. · taxas maquininha ${formatMoney(data.paymentFeeCents)} (só informativo — não altera comanda)`
+                ? `${data.paymentCount} pag. · taxas maquininha ${formatMoney(data.paymentFeeCents)} (50% salão / 50% na comissão)`
                 : `${data.paymentCount} pagamento(s)`,
           },
           {

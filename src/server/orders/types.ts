@@ -40,6 +40,8 @@ export type OrderItemDetail = {
   courtesy: boolean;
   /** Consumo de serviço entre profissionais (50%). */
   staffServiceConsumption: boolean;
+  /** Metade da taxa de maquininha rateada neste item (descontada da comissão). */
+  cardFeeStaffShareCents: number;
 };
 
 export type OrderPaymentDetail = {

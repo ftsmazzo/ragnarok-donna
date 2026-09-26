@@ -8,6 +8,7 @@ import {
   resolveCommissionBps,
   type ServiceCommissionKind,
 } from "@/lib/commission-policy";
+import { applyCardFeeShareToCommissionCents } from "./card-fee-share";
 
 type Db = ReturnType<typeof createDb>;
 
@@ -148,19 +149,23 @@ export async function syncStaffMonthServiceCommission(
             staffDefaultBps,
           });
     const bps = resolved;
-    const cents = bps == null ? 0 : commissionCentsFrom(base, bps);
+    const grossCents = bps == null ? 0 : commissionCentsFrom(base, bps);
+    // Taxa maquininha: 50% do fee da comanda já rateado em meta.cardFeeStaffShareCents
+    const cents = applyCardFeeShareToCommissionCents(grossCents, meta);
     const nextBps = bps == null ? null : bps;
     const nextMeta = {
       ...meta,
       commissionKind: kind,
       commissionBaseCents: base,
+      commissionGrossCents: grossCents,
     };
 
     if (
       row.commissionBps === nextBps &&
       row.commissionCents === cents &&
       meta.commissionKind === kind &&
-      meta.commissionBaseCents === base
+      meta.commissionBaseCents === base &&
+      meta.commissionGrossCents === grossCents
     ) {
       continue;
     }
