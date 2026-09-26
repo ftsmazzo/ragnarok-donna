@@ -132,7 +132,13 @@ export async function addOrderItemAction(formData: FormData) {
 export async function updateOrderItemLineAction(
   itemId: string,
   orderId: string,
-  input: { totalReais?: number; unitPriceReais?: number; discountReais?: number }
+  input: {
+    totalReais?: number;
+    unitPriceReais?: number;
+    discountReais?: number;
+    staffId?: string | null;
+    serviceId?: string | null;
+  }
 ) {
   const result = await updateOrderItemLine(itemId, input);
   if (result.ok) revalidateOrders(orderId);

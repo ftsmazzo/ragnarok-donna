@@ -3,7 +3,7 @@ import { createDb, schema, type DbTransaction } from "@/db";
 import { AppError, ForbiddenError } from "../errors";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { requireCapability } from "../permissions/guards";
-import { isBarberRole, isOwnerRole } from "../permissions/roles";
+import { isBarberRole, isManagementRole } from "../permissions/roles";
 import { resolveSessionStaffId } from "../permissions/staff-scope";
 import { assertOwnOrderAccess, getOrderDetail } from "./queries";
 import { applyClientAccountDeltaTx } from "../clients/account";
@@ -2068,18 +2068,25 @@ async function addPackageSaleItem(input: {
 }
 
 /**
- * Edita valor cobrado na linha (serviço/produto) e recalcula comissão
- * com o % já resolvido (override → catálogo → fallback).
+ * Edita linha da comanda: valor, profissional e/ou serviço (catálogo).
+ * Recalcula comissão e sincroniza o slot da agenda ligado ao item.
  */
 export async function updateOrderItemLine(
   itemId: string,
-  input: { unitPriceReais?: number; discountReais?: number; totalReais?: number }
+  input: {
+    unitPriceReais?: number;
+    discountReais?: number;
+    totalReais?: number;
+    staffId?: string | null;
+    /** Troca o serviço do catálogo (só itemType=service). */
+    serviceId?: string | null;
+  }
 ): Promise<ActionResult> {
   try {
     const session = await requireSession();
     requireCapability(session, "orders.write");
     if (isBarberRole(session.role)) {
-      throw new ForbiddenError("Barbeiro não pode editar valor do item");
+      throw new ForbiddenError("Barbeiro não pode editar item da comanda");
     }
     const tenant = await requireTenantContext();
     const db = createDb();
@@ -2110,7 +2117,7 @@ export async function updateOrderItemLine(
     const order = await assertOpenOrder(item.orderId, tenant.id);
 
     if (item.itemType !== "service" && item.itemType !== "product") {
-      throw new AppError("VALIDATION", "Só serviço ou produto pode editar valor");
+      throw new AppError("VALIDATION", "Só serviço ou produto pode editar");
     }
     const meta = { ...((item.meta ?? {}) as Record<string, unknown>) };
     if (meta.packageSale) {
@@ -2123,11 +2130,85 @@ export async function updateOrderItemLine(
       );
     }
     if (meta.courtesy) {
-      throw new AppError("VALIDATION", "Desmarque cortesia antes de editar o valor");
+      throw new AppError("VALIDATION", "Desmarque cortesia antes de editar o item");
+    }
+    if (meta.staffServiceConsumption) {
+      throw new AppError(
+        "VALIDATION",
+        "Consumo profissional: remova e lance de novo se precisar trocar"
+      );
     }
 
     const qty = Math.max(1, item.qty);
+    let serviceId = item.serviceId;
+    let description = item.description;
+    let catalogCommissionBps: number | null = null;
     let unitPriceCents = item.unitPriceCents;
+    const prevStaffId = item.staffId;
+
+    if (input.serviceId !== undefined) {
+      if (item.itemType !== "service") {
+        throw new AppError("VALIDATION", "Só item de serviço troca o serviço do catálogo");
+      }
+      const nextServiceId = input.serviceId?.trim() || null;
+      if (!nextServiceId) {
+        throw new AppError("VALIDATION", "Informe o serviço");
+      }
+      const [svc] = await db
+        .select({
+          id: schema.services.id,
+          name: schema.services.name,
+          priceCents: schema.services.priceCents,
+          commissionBps: schema.services.commissionBps,
+        })
+        .from(schema.services)
+        .where(
+          and(
+            eq(schema.services.id, nextServiceId),
+            eq(schema.services.tenantId, tenant.id),
+            isNull(schema.services.deletedAt)
+          )
+        )
+        .limit(1);
+      if (!svc) throw new AppError("VALIDATION", "Serviço inválido");
+      serviceId = svc.id;
+      description = svc.name;
+      catalogCommissionBps = svc.commissionBps;
+      // Se não veio valor explícito e o preço ainda era o do serviço antigo, atualiza tabela.
+      if (
+        input.totalReais == null &&
+        input.unitPriceReais == null &&
+        input.discountReais == null
+      ) {
+        unitPriceCents = svc.priceCents;
+      }
+    }
+
+    let staffId: string | null = item.staffId;
+    if (input.staffId !== undefined) {
+      const nextStaff = input.staffId?.trim() || null;
+      if (item.itemType === "service" && !nextStaff) {
+        throw new AppError("VALIDATION", "Informe o profissional do serviço");
+      }
+      if (nextStaff) {
+        const [st] = await db
+          .select({ id: schema.staff.id })
+          .from(schema.staff)
+          .where(
+            and(
+              eq(schema.staff.id, nextStaff),
+              eq(schema.staff.tenantId, tenant.id),
+              isNull(schema.staff.deletedAt)
+            )
+          )
+          .limit(1);
+        if (!st) throw new AppError("VALIDATION", "Profissional inválido");
+        staffId = st.id;
+      } else {
+        staffId = null;
+      }
+    }
+
     if (input.unitPriceReais != null && Number.isFinite(input.unitPriceReais)) {
       unitPriceCents = Math.max(0, Math.round(input.unitPriceReais * 100));
     }
@@ -2150,33 +2231,36 @@ export async function updateOrderItemLine(
         throw new AppError("VALIDATION", "Desconto maior que o valor do item");
       }
       totalCents = lineGross - discountCents;
-    } else if (input.unitPriceReais != null) {
+    } else if (
+      input.unitPriceReais != null ||
+      input.serviceId !== undefined
+    ) {
       discountCents = Math.min(discountCents, lineGross);
       totalCents = lineGross - discountCents;
     }
 
     let overrideBps: number | null = null;
-    if (item.serviceId && item.staffId) {
+    if (serviceId && staffId) {
       const [ov] = await db
         .select({ commissionBps: schema.staffServices.commissionBps })
         .from(schema.staffServices)
         .where(
           and(
             eq(schema.staffServices.tenantId, tenant.id),
-            eq(schema.staffServices.staffId, item.staffId),
-            eq(schema.staffServices.serviceId, item.serviceId)
+            eq(schema.staffServices.staffId, staffId),
+            eq(schema.staffServices.serviceId, serviceId)
           )
         )
         .limit(1);
       if (ov?.commissionBps != null) overrideBps = ov.commissionBps;
-    } else if (item.productId && item.staffId) {
+    } else if (item.productId && staffId) {
       const [ov] = await db
         .select({ commissionBps: schema.staffProducts.commissionBps })
         .from(schema.staffProducts)
         .where(
           and(
             eq(schema.staffProducts.tenantId, tenant.id),
-            eq(schema.staffProducts.staffId, item.staffId),
+            eq(schema.staffProducts.staffId, staffId),
             eq(schema.staffProducts.productId, item.productId)
           )
         )
@@ -2184,24 +2268,40 @@ export async function updateOrderItemLine(
       if (ov?.commissionBps != null) overrideBps = ov.commissionBps;
     }
 
-    const [full] = await db
-      .select({
-        productCommissionBps: schema.products.commissionBps,
-        serviceCommissionBps: schema.services.commissionBps,
-        staffDefaultBps: schema.staff.defaultCommissionBps,
-      })
-      .from(schema.orderItems)
-      .leftJoin(schema.services, eq(schema.orderItems.serviceId, schema.services.id))
-      .leftJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
-      .leftJoin(schema.staff, eq(schema.orderItems.staffId, schema.staff.id))
-      .where(eq(schema.orderItems.id, itemId))
-      .limit(1);
-
-    const catalogBps =
-      item.itemType === "service"
-        ? (full?.serviceCommissionBps ?? null)
-        : (full?.productCommissionBps ?? null);
-    const staffDefaultBps = full?.staffDefaultBps ?? null;
+    let catalogBps: number | null = catalogCommissionBps;
+    let staffDefaultBps: number | null = null;
+    if (item.itemType === "service" && serviceId) {
+      if (catalogBps == null) {
+        const [svcRow] = await db
+          .select({ commissionBps: schema.services.commissionBps })
+          .from(schema.services)
+          .where(
+            and(eq(schema.services.id, serviceId), eq(schema.services.tenantId, tenant.id))
+          )
+          .limit(1);
+        catalogBps = svcRow?.commissionBps ?? null;
+      }
+    } else if (item.productId) {
+      const [prodRow] = await db
+        .select({ commissionBps: schema.products.commissionBps })
+        .from(schema.products)
+        .where(
+          and(
+            eq(schema.products.id, item.productId),
+            eq(schema.products.tenantId, tenant.id)
+          )
+        )
+        .limit(1);
+      catalogBps = prodRow?.commissionBps ?? null;
+    }
+    if (staffId) {
+      const [stRow] = await db
+        .select({ defaultCommissionBps: schema.staff.defaultCommissionBps })
+        .from(schema.staff)
+        .where(and(eq(schema.staff.id, staffId), eq(schema.staff.tenantId, tenant.id)))
+        .limit(1);
+      staffDefaultBps = stRow?.defaultCommissionBps ?? null;
+    }
 
     const bps = resolveCommissionBps({
       overrideBps,
@@ -2214,7 +2314,7 @@ export async function updateOrderItemLine(
     if (item.itemType === "service") {
       const house = await annotateServiceCommission({
         tenantId: tenant.id,
-        serviceName: item.description.replace(/\s·\sPacote.*$/i, ""),
+        serviceName: description.replace(/\s·\sPacote.*$/i, ""),
         baseCents: totalCents,
         clientPackageId: null,
       });
@@ -2247,87 +2347,24 @@ export async function updateOrderItemLine(
           )
         );
       const nextOrderTotal = Number(itemsRow?.total ?? 0) + totalCents;
-      const dueAfter = Math.max(0, nextOrderTotal - order.discountCents);
-      let paidCents = Number(paidRow?.paid ?? 0);
-      // Se o novo total fica abaixo do já pago, reduz pagamentos (mais recentes primeiro)
-      // para o balcão conseguir baixar o valor do produto sem travar.
-      if (paidCents > dueAfter) {
-        let excess = paidCents - dueAfter;
-        const payRows = await db
-          .select({
-            id: schema.payments.id,
-            amountCents: schema.payments.amountCents,
-            method: schema.payments.method,
-            orderId: schema.payments.orderId,
-          })
-          .from(schema.payments)
-          .where(
-            and(
-              eq(schema.payments.orderId, item.orderId),
-              eq(schema.payments.tenantId, tenant.id)
-            )
-          )
-          .orderBy(desc(schema.payments.paidAt));
-
-        for (const pay of payRows) {
-          if (excess <= 0) break;
-          const take = Math.min(excess, pay.amountCents);
-          const nextAmount = pay.amountCents - take;
-          const [cashRow] = await db
-            .select({ id: schema.cashMovements.id, amountCents: schema.cashMovements.amountCents })
-            .from(schema.cashMovements)
-            .where(
-              and(
-                eq(schema.cashMovements.tenantId, tenant.id),
-                eq(schema.cashMovements.orderId, pay.orderId),
-                eq(schema.cashMovements.direction, "in"),
-                eq(schema.cashMovements.method, pay.method),
-                eq(schema.cashMovements.amountCents, pay.amountCents)
-              )
-            )
-            .orderBy(desc(schema.cashMovements.createdAt))
-            .limit(1);
-
-          if (pay.method === "client_account") {
-            throw new AppError(
-              "VALIDATION",
-              "Há pagamento na Conta do Cliente. Remova ou edite esse pagamento antes de baixar o valor do item."
-            );
-          }
-          if (nextAmount <= 0) {
-            if (cashRow) {
-              await db
-                .delete(schema.cashMovements)
-                .where(eq(schema.cashMovements.id, cashRow.id));
-            }
-            await db
-              .delete(schema.payments)
-              .where(
-                and(eq(schema.payments.id, pay.id), eq(schema.payments.tenantId, tenant.id))
-              );
-          } else {
-            await db
-              .update(schema.payments)
-              .set({ amountCents: nextAmount, updatedAt: new Date() })
-              .where(
-                and(eq(schema.payments.id, pay.id), eq(schema.payments.tenantId, tenant.id))
-              );
-            if (cashRow) {
-              await db
-                .update(schema.cashMovements)
-                .set({ amountCents: nextAmount, updatedAt: new Date() })
-                .where(eq(schema.cashMovements.id, cashRow.id));
-            }
-          }
-          excess -= take;
-          paidCents -= take;
-        }
+      const paidCents = Number(paidRow?.paid ?? 0);
+      if (paidCents > 0 && nextOrderTotal - order.discountCents < paidCents) {
+        throw new AppError(
+          "VALIDATION",
+          "Novo total ficaria abaixo do já pago. Ajuste o pagamento antes."
+        );
       }
     }
+
+    // Mesma lógica de excesso de pagamento do update anterior (mantida abaixo via trecho existente se necessário)
+    // — se total caiu e há pagamentos, o bloco acima já bloqueia.
 
     await db
       .update(schema.orderItems)
       .set({
+        serviceId: item.itemType === "service" ? serviceId : item.serviceId,
+        staffId,
+        description,
         unitPriceCents,
         discountCents,
         totalCents,
@@ -2340,18 +2377,47 @@ export async function updateOrderItemLine(
         and(eq(schema.orderItems.id, itemId), eq(schema.orderItems.tenantId, tenant.id))
       );
 
+    const appointmentId =
+      typeof meta.appointmentId === "string" ? meta.appointmentId : null;
+    if (appointmentId && item.itemType === "service") {
+      await db
+        .update(schema.appointments)
+        .set({
+          staffId,
+          serviceId,
+          priceCents: unitPriceCents,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.appointments.id, appointmentId),
+            eq(schema.appointments.tenantId, tenant.id),
+            isNull(schema.appointments.deletedAt)
+          )
+        );
+    }
+
     await recalculateOrderTotal(item.orderId, tenant.id);
     if (item.itemType === "service" || item.itemType === "product") {
-      await syncStaffMonthServiceCommission(tenant.id, item.staffId);
+      await syncStaffMonthServiceCommission(tenant.id, prevStaffId);
+      if (staffId && staffId !== prevStaffId) {
+        await syncStaffMonthServiceCommission(tenant.id, staffId);
+      }
+    }
+    try {
+      await refreshOrderCardFeeAndCommissions(tenant.id, item.orderId);
+    } catch (feeErr) {
+      console.error("[updateOrderItemLine] taxa/comissão", feeErr);
     }
     return { ok: true, id: item.orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     console.error("[updateOrderItemLine]", err);
-    return { ok: false, error: "Não foi possível atualizar o valor do item" };
+    return { ok: false, error: "Não foi possível atualizar o item" };
   }
 }
+
 
 /** Altera o valor de um pagamento já lançado (e o movimento de caixa correspondente). */
 export async function updatePaymentAmount(
@@ -3496,12 +3562,12 @@ export async function setOrderClient(input: {
   }
 }
 
-/** Reabre comanda fechada (owner/admin). Não apaga pagamentos já lançados. */
+/** Reabre comanda fechada (titular/admin/gerente). Não apaga pagamentos já lançados. */
 export async function reopenOrder(orderId: string): Promise<ActionResult> {
   try {
     const session = await assertFullOrderWrite();
-    if (!isOwnerRole(session.role)) {
-      throw new ForbiddenError("Só titular/admin pode reabrir comanda");
+    if (!isManagementRole(session.role)) {
+      throw new ForbiddenError("Só titular, admin ou gerente pode reabrir comanda");
     }
     const tenant = await requireTenantContext();
     const db = createDb();
@@ -3512,6 +3578,7 @@ export async function reopenOrder(orderId: string): Promise<ActionResult> {
           id: schema.orders.id,
           status: schema.orders.status,
           clientId: schema.orders.clientId,
+          appointmentId: schema.orders.appointmentId,
           meta: schema.orders.meta,
         })
         .from(schema.orders)
@@ -3585,6 +3652,24 @@ export async function reopenOrder(orderId: string): Promise<ActionResult> {
           updatedAt: new Date(),
         })
         .where(and(eq(schema.orders.id, orderId), eq(schema.orders.tenantId, tenant.id)));
+
+      // Horários que fecharam junto com a comanda voltam ao balcão (arrived).
+      await tx
+        .update(schema.appointments)
+        .set({ status: "arrived", updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            isNull(schema.appointments.deletedAt),
+            eq(schema.appointments.status, "completed"),
+            or(
+              eq(schema.appointments.orderId, orderId),
+              order.appointmentId
+                ? eq(schema.appointments.id, order.appointmentId)
+                : sql`false`
+            )
+          )
+        );
     });
 
     return { ok: true, id: orderId };

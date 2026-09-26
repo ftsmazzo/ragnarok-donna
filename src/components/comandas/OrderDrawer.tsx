@@ -125,6 +125,8 @@ export function OrderDrawer({
   );
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editTotalReais, setEditTotalReais] = useState("");
+  const [editStaffId, setEditStaffId] = useState("");
+  const [editServiceId, setEditServiceId] = useState("");
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [editPaymentReais, setEditPaymentReais] = useState("");
   const [coveredReais, setCoveredReais] = useState("");
@@ -1460,50 +1462,105 @@ export function OrderDrawer({
                   !item.courtesy &&
                   (item.itemType === "service" || item.itemType === "product") ? (
                     editingItemId === item.id ? (
-                      <div className="form-row-2" style={{ alignItems: "center", gap: 8, marginTop: 6 }}>
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          value={editTotalReais}
-                          onChange={(e) => setEditTotalReais(e.target.value)}
-                          aria-label="Valor cobrado (R$)"
-                          style={{ maxWidth: 110 }}
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm"
-                          disabled={pending}
-                          onClick={() => {
-                            const totalReais = Number(String(editTotalReais).replace(",", "."));
-                            if (!Number.isFinite(totalReais) || totalReais < 0) {
-                              showToast("Informe um valor válido", "error");
-                              return;
-                            }
-                            run(async () => {
-                              const result = await updateOrderItemLineAction(
-                                item.id,
-                                order.id,
-                                { totalReais }
+                      <div className="form-stack" style={{ gap: 8, marginTop: 6 }}>
+                        {item.itemType === "service" ? (
+                          <label className="form-field">
+                            <span>Serviço</span>
+                            <select
+                              value={editServiceId}
+                              onChange={(e) => {
+                                const id = e.target.value;
+                                setEditServiceId(id);
+                                const svc = services.find((s) => s.id === id);
+                                if (svc) {
+                                  setEditTotalReais((svc.priceCents / 100).toFixed(2));
+                                }
+                              }}
+                            >
+                              {services.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name} · {formatMoney(s.priceCents)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+                        <label className="form-field">
+                          <span>Profissional</span>
+                          <select
+                            value={editStaffId}
+                            onChange={(e) => setEditStaffId(e.target.value)}
+                          >
+                            {item.itemType !== "service" ? (
+                              <option value="">Sem profissional</option>
+                            ) : null}
+                            {staff.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="form-field">
+                          <span>Valor cobrado (R$)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={editTotalReais}
+                            onChange={(e) => setEditTotalReais(e.target.value)}
+                            style={{ maxWidth: 120 }}
+                          />
+                        </label>
+                        <div className="form-row-2" style={{ gap: 8 }}>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={pending}
+                            onClick={() => {
+                              const totalReais = Number(
+                                String(editTotalReais).replace(",", ".")
                               );
-                              if (result.ok) {
-                                setEditingItemId(null);
-                                showToast("Valor atualizado", "success");
+                              if (!Number.isFinite(totalReais) || totalReais < 0) {
+                                showToast("Informe um valor válido", "error");
+                                return;
                               }
-                              return result;
-                            });
-                          }}
-                        >
-                          Ok
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          disabled={pending}
-                          onClick={() => setEditingItemId(null)}
-                        >
-                          Cancelar
-                        </button>
+                              if (item.itemType === "service" && !editStaffId) {
+                                showToast("Informe o profissional", "error");
+                                return;
+                              }
+                              run(async () => {
+                                const result = await updateOrderItemLineAction(
+                                  item.id,
+                                  order.id,
+                                  {
+                                    totalReais,
+                                    staffId: editStaffId || null,
+                                    serviceId:
+                                      item.itemType === "service"
+                                        ? editServiceId || null
+                                        : undefined,
+                                  }
+                                );
+                                if (result.ok) {
+                                  setEditingItemId(null);
+                                  showToast("Item atualizado", "success");
+                                }
+                                return result;
+                              });
+                            }}
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            disabled={pending}
+                            onClick={() => setEditingItemId(null)}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1511,13 +1568,15 @@ export function OrderDrawer({
                         className="btn btn-outline btn-sm"
                         disabled={pending}
                         style={{ marginTop: 4 }}
-                        title="Altera o valor cobrado deste item"
+                        title="Altera serviço, profissional e valor"
                         onClick={() => {
                           setEditingItemId(item.id);
                           setEditTotalReais((item.totalCents / 100).toFixed(2));
+                          setEditStaffId(item.staffId ?? "");
+                          setEditServiceId(item.serviceId ?? "");
                         }}
                       >
-                        Editar valor
+                        Editar item
                       </button>
                     )
                   ) : null}
