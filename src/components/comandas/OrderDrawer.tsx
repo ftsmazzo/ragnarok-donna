@@ -1401,7 +1401,8 @@ export function OrderDrawer({
                   </strong>
                   <span className="muted">
                     {item.qty}x · {item.staffName ?? "Sem profissional"}
-                    {item.commissionCents != null && item.commissionCents > 0
+                    {item.commissionCents != null &&
+                    (item.commissionCents > 0 || item.cardFeeStaffShareCents > 0)
                       ? ` · comissão${
                           item.commissionBps != null
                             ? ` ${(item.commissionBps / 100).toFixed(
@@ -1410,7 +1411,7 @@ export function OrderDrawer({
                             : ""
                         } ${formatMoney(item.commissionCents)}${
                           item.cardFeeStaffShareCents > 0
-                            ? ` (taxa −${formatMoney(item.cardFeeStaffShareCents)})`
+                            ? ` · −${formatMoney(item.cardFeeStaffShareCents)} (½ taxa cartão)`
                             : ""
                         }`
                       : item.commissionBps != null && item.commissionBps > 0

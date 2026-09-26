@@ -38,6 +38,8 @@ export type CommissionItemRow = {
   totalCents: number;
   commissionBps: number | null;
   commissionCents: number;
+  /** Metade da taxa de cartão descontada neste item (já refletida em commissionCents). */
+  cardFeeStaffShareCents: number;
   clientName: string | null;
 };
 
@@ -257,6 +259,7 @@ export async function reportCommissions(opts: {
       totalCents: schema.orderItems.totalCents,
       commissionBps: schema.orderItems.commissionBps,
       commissionCents: commissionExpr.as("commission_cents"),
+      meta: schema.orderItems.meta,
       clientName: schema.clients.name,
     })
     .from(schema.orderItems)
@@ -267,6 +270,26 @@ export async function reportCommissions(opts: {
     .orderBy(desc(schema.orderItems.performedAt))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE);
+
+  const itemRows: CommissionItemRow[] = items.map((i) => {
+    const meta = (i.meta ?? {}) as Record<string, unknown>;
+    return {
+      id: i.id,
+      performedAt: i.performedAt,
+      staffName: i.staffName,
+      description: i.description,
+      itemType: i.itemType,
+      totalCents: i.totalCents,
+      commissionBps: i.commissionBps,
+      commissionCents: Number(i.commissionCents),
+      cardFeeStaffShareCents:
+        typeof meta.cardFeeStaffShareCents === "number" &&
+        Number.isFinite(meta.cardFeeStaffShareCents)
+          ? Math.max(0, Math.round(meta.cardFeeStaffShareCents))
+          : 0,
+      clientName: i.clientName,
+    };
+  });
 
   const byTypeRows = await db
     .select({
@@ -337,7 +360,7 @@ export async function reportCommissions(opts: {
       commissionCents: Number(r.commission),
     })),
     advances: advances as AdvanceRow[],
-    items: items as CommissionItemRow[],
+    items: itemRows,
     totalItems: total,
     totalRevenueCents: Number(totals?.revenue ?? 0),
     totalCommissionCents,

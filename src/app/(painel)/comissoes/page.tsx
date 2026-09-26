@@ -290,7 +290,15 @@ export default async function ComissoesPage({ searchParams }: Props) {
                       <td>{i.description}</td>
                       <td>{labelItemType(i.itemType)}</td>
                       <td>{formatMoney(i.totalCents)}</td>
-                      <td>{formatMoney(i.commissionCents)}</td>
+                      <td>
+                        {formatMoney(i.commissionCents)}
+                        {i.cardFeeStaffShareCents > 0 ? (
+                          <span className="muted">
+                            {" "}
+                            · −{formatMoney(i.cardFeeStaffShareCents)} ½ taxa
+                          </span>
+                        ) : null}
+                      </td>
                     </tr>
                   ))
                 )}
