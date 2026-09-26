@@ -2145,42 +2145,43 @@ export async function updateOrderItemLine(
     let catalogCommissionBps: number | null = null;
     let unitPriceCents = item.unitPriceCents;
     const prevStaffId = item.staffId;
+    let serviceChanged = false;
 
-    if (input.serviceId !== undefined) {
-      if (item.itemType !== "service") {
-        throw new AppError("VALIDATION", "Só item de serviço troca o serviço do catálogo");
-      }
+    // Serviço: só troca se veio id válido e diferente. Vazio = mantém o atual
+    // (trocar só a profissional não pode falhar por select de serviço em branco).
+    if (input.serviceId !== undefined && item.itemType === "service") {
       const nextServiceId = input.serviceId?.trim() || null;
-      if (!nextServiceId) {
-        throw new AppError("VALIDATION", "Informe o serviço");
-      }
-      const [svc] = await db
-        .select({
-          id: schema.services.id,
-          name: schema.services.name,
-          priceCents: schema.services.priceCents,
-          commissionBps: schema.services.commissionBps,
-        })
-        .from(schema.services)
-        .where(
-          and(
-            eq(schema.services.id, nextServiceId),
-            eq(schema.services.tenantId, tenant.id),
-            isNull(schema.services.deletedAt)
+      if (nextServiceId && nextServiceId !== item.serviceId) {
+        const [svc] = await db
+          .select({
+            id: schema.services.id,
+            name: schema.services.name,
+            priceCents: schema.services.priceCents,
+            commissionBps: schema.services.commissionBps,
+          })
+          .from(schema.services)
+          .where(
+            and(
+              eq(schema.services.id, nextServiceId),
+              eq(schema.services.tenantId, tenant.id),
+              isNull(schema.services.deletedAt)
+            )
           )
-        )
-        .limit(1);
-      if (!svc) throw new AppError("VALIDATION", "Serviço inválido");
-      serviceId = svc.id;
-      description = svc.name;
-      catalogCommissionBps = svc.commissionBps;
-      // Se não veio valor explícito e o preço ainda era o do serviço antigo, atualiza tabela.
-      if (
-        input.totalReais == null &&
-        input.unitPriceReais == null &&
-        input.discountReais == null
-      ) {
-        unitPriceCents = svc.priceCents;
+          .limit(1);
+        if (!svc) throw new AppError("VALIDATION", "Serviço inválido");
+        serviceId = svc.id;
+        description = svc.name.slice(0, 200);
+        catalogCommissionBps = svc.commissionBps;
+        serviceChanged = true;
+        if (
+          input.totalReais == null &&
+          input.unitPriceReais == null &&
+          input.discountReais == null
+        ) {
+          unitPriceCents = svc.priceCents;
+        }
+      } else if (!nextServiceId && !item.serviceId) {
+        throw new AppError("VALIDATION", "Informe o serviço");
       }
     }
 
@@ -2231,10 +2232,7 @@ export async function updateOrderItemLine(
         throw new AppError("VALIDATION", "Desconto maior que o valor do item");
       }
       totalCents = lineGross - discountCents;
-    } else if (
-      input.unitPriceReais != null ||
-      input.serviceId !== undefined
-    ) {
+    } else if (input.unitPriceReais != null || serviceChanged) {
       discountCents = Math.min(discountCents, lineGross);
       totalCents = lineGross - discountCents;
     }
@@ -2356,15 +2354,12 @@ export async function updateOrderItemLine(
       }
     }
 
-    // Mesma lógica de excesso de pagamento do update anterior (mantida abaixo via trecho existente se necessário)
-    // — se total caiu e há pagamentos, o bloco acima já bloqueia.
-
     await db
       .update(schema.orderItems)
       .set({
         serviceId: item.itemType === "service" ? serviceId : item.serviceId,
         staffId,
-        description,
+        description: description.slice(0, 200),
         unitPriceCents,
         discountCents,
         totalCents,
@@ -2377,32 +2372,75 @@ export async function updateOrderItemLine(
         and(eq(schema.orderItems.id, itemId), eq(schema.orderItems.tenantId, tenant.id))
       );
 
-    const appointmentId =
-      typeof meta.appointmentId === "string" ? meta.appointmentId : null;
-    if (appointmentId && item.itemType === "service") {
-      await db
-        .update(schema.appointments)
-        .set({
-          staffId,
-          serviceId,
-          priceCents: unitPriceCents,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(schema.appointments.id, appointmentId),
-            eq(schema.appointments.tenantId, tenant.id),
-            isNull(schema.appointments.deletedAt)
-          )
-        );
+    // Agenda: meta.appointmentId ou horário da comanda com mesmo staff/serviço antigo.
+    if (item.itemType === "service" && (staffId !== prevStaffId || serviceChanged)) {
+      try {
+        let appointmentId =
+          typeof meta.appointmentId === "string" ? meta.appointmentId : null;
+        if (!appointmentId) {
+          const [linked] = await db
+            .select({ id: schema.appointments.id })
+            .from(schema.appointments)
+            .where(
+              and(
+                eq(schema.appointments.tenantId, tenant.id),
+                eq(schema.appointments.orderId, item.orderId),
+                isNull(schema.appointments.deletedAt),
+                prevStaffId
+                  ? eq(schema.appointments.staffId, prevStaffId)
+                  : sql`true`,
+                item.serviceId
+                  ? eq(schema.appointments.serviceId, item.serviceId)
+                  : sql`true`
+              )
+            )
+            .limit(1);
+          appointmentId = linked?.id ?? null;
+          if (appointmentId) {
+            nextMeta = { ...nextMeta, appointmentId };
+            await db
+              .update(schema.orderItems)
+              .set({ meta: nextMeta, updatedAt: new Date() })
+              .where(
+                and(
+                  eq(schema.orderItems.id, itemId),
+                  eq(schema.orderItems.tenantId, tenant.id)
+                )
+              );
+          }
+        }
+        if (appointmentId) {
+          await db
+            .update(schema.appointments)
+            .set({
+              staffId,
+              serviceId,
+              priceCents: unitPriceCents,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(schema.appointments.id, appointmentId),
+                eq(schema.appointments.tenantId, tenant.id),
+                isNull(schema.appointments.deletedAt)
+              )
+            );
+        }
+      } catch (apptErr) {
+        console.error("[updateOrderItemLine] sync agenda", apptErr);
+      }
     }
 
     await recalculateOrderTotal(item.orderId, tenant.id);
-    if (item.itemType === "service" || item.itemType === "product") {
-      await syncStaffMonthServiceCommission(tenant.id, prevStaffId);
-      if (staffId && staffId !== prevStaffId) {
-        await syncStaffMonthServiceCommission(tenant.id, staffId);
+    try {
+      if (item.itemType === "service" || item.itemType === "product") {
+        await syncStaffMonthServiceCommission(tenant.id, prevStaffId);
+        if (staffId && staffId !== prevStaffId) {
+          await syncStaffMonthServiceCommission(tenant.id, staffId);
+        }
       }
+    } catch (syncErr) {
+      console.error("[updateOrderItemLine] sync comissão", syncErr);
     }
     try {
       await refreshOrderCardFeeAndCommissions(tenant.id, item.orderId);
@@ -2411,10 +2449,24 @@ export async function updateOrderItemLine(
     }
     return { ok: true, id: item.orderId };
   } catch (err) {
-    if (err instanceof AppError) return { ok: false, error: err.message };
-    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    const app =
+      err instanceof AppError
+        ? err
+        : err instanceof ForbiddenError
+          ? err
+          : err &&
+              typeof err === "object" &&
+              (err as Error).name === "AppError" &&
+              typeof (err as Error).message === "string"
+            ? (err as AppError)
+            : null;
+    if (app) return { ok: false, error: app.message };
     console.error("[updateOrderItemLine]", err);
-    return { ok: false, error: "Não foi possível atualizar o item" };
+    const detail =
+      err instanceof Error && err.message
+        ? err.message.slice(0, 180)
+        : "erro desconhecido";
+    return { ok: false, error: `Não foi possível atualizar o item (${detail})` };
   }
 }
 
