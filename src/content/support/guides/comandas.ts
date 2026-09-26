@@ -134,7 +134,7 @@ export const guideComandas: SupportGuide = {
   ],
   relatedGuideIds: ["comandas-historico", "pacotes", "consumo-pwa", "caixa", "comissoes"],
   lastVerified: "2026-09-24",
-  enrichNotes: ["Permissão reabrir: só owner/admin (isOwnerRole)"],
+  enrichNotes: ["Permissão reabrir: titular/admin/gerente (isManagementRole)"],
 };
 
 export const guideComandasHistorico: SupportGuide = {

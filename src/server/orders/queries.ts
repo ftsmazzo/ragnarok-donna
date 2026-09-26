@@ -6,7 +6,7 @@ import { ForbiddenError, NotFoundError } from "../errors";
 import { resolveBranchScope, withBranchScope, withCatalogBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
-import { isBarberRole, isOwnerRole } from "../permissions/roles";
+import { isBarberRole, isManagementRole } from "../permissions/roles";
 import { resolveSessionStaffId } from "../permissions/staff-scope";
 import type {
   CatalogPackage,
@@ -24,7 +24,8 @@ export async function getOrderPermissions(): Promise<OrderPermissions> {
   return {
     canWrite: hasCapability(session.role, "orders.write"),
     canCancel: hasCapability(session.role, "orders.write"),
-    canReopen: isOwnerRole(session.role) && hasCapability(session.role, "orders.write"),
+    canReopen:
+      isManagementRole(session.role) && hasCapability(session.role, "orders.write"),
   };
 }
 

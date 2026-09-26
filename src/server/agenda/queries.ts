@@ -3,7 +3,7 @@ import { createDb, schema } from "@/db";
 import { resolveBranchScope, withBranchScope, withCatalogBranchScope } from "../context/branch-scope";
 import { requireSession, requireTenantContext } from "../context/tenant";
 import { hasCapability } from "../permissions/capabilities";
-import { isBarberRole } from "../permissions/roles";
+import { isBarberRole, isManagementRole } from "../permissions/roles";
 import { assertOwnStaffAccess, resolveSessionStaffId } from "../permissions/staff-scope";
 import { NotFoundError } from "../errors";
 import type {
@@ -28,6 +28,8 @@ export async function getAgendaPermissions(): Promise<AgendaPermissions> {
       hasCapability(session.role, "appointments.write") ||
       hasCapability(session.role, "appointments.status_own"),
     canOpenOrder: hasCapability(session.role, "orders.write"),
+    canReopenOrder:
+      isManagementRole(session.role) && hasCapability(session.role, "orders.write"),
     scopedStaffId,
   };
 }

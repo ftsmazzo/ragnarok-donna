@@ -72,6 +72,8 @@ export type AgendaPermissions = {
   canCancel: boolean;
   canUpdateStatus: boolean;
   canOpenOrder: boolean;
+  /** Titular/admin/gerente: reabrir comanda fechada pela agenda. */
+  canReopenOrder: boolean;
   scopedStaffId: string | null;
 };
 

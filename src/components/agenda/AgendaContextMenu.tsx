@@ -9,7 +9,7 @@ import {
   setAppointmentEncaixeAction,
   updateAppointmentStatusAction,
 } from "@/app/(painel)/agenda/actions";
-import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
+import { openOrderFromAppointmentAction, reopenOrderAction } from "@/app/(painel)/comandas/actions";
 import { PAYMENT_METHOD_OPTIONS } from "@/lib/paymentMethods";
 
 export type AgendaCtxTarget =
@@ -181,13 +181,16 @@ export function AgendaContextMenu({
 
   const a = target.appointment;
   const isBlock = a.status === "blocked";
-  /** Ausente/cancelado: ainda dá para reabrir; realizado fica fechado. */
+  /** Ausente/cancelado/concluído: esconde fluxo de venda; comanda fechada ainda pode ver/reabrir. */
   const closedOps =
     a.status === "cancelled" || a.status === "completed" || a.status === "no_show";
-  const canReopen =
+  const canReopenSlot =
     permissions.canUpdateStatus &&
     (a.status === "no_show" || a.status === "cancelled");
   const onLocal = a.status === "arrived" || a.status === "in_progress";
+  const hasClosedOrder =
+    Boolean(a.orderId) &&
+    (a.status === "completed" || a.orderStatus === "closed");
 
   if (isBlock) {
     return (
@@ -248,6 +251,44 @@ export function AgendaContextMenu({
             ▤
           </span>
           Abrir Comanda
+        </button>
+      ) : null}
+
+      {permissions.canOpenOrder && hasClosedOrder && a.orderId ? (
+        <button
+          type="button"
+          className="agenda-ctx-item"
+          disabled={pending}
+          onClick={() => {
+            onOpenComanda(a.orderId!);
+            onClose();
+          }}
+        >
+          <span className="agenda-ctx-ico" aria-hidden>
+            ▤
+          </span>
+          Ver comanda
+        </button>
+      ) : null}
+
+      {permissions.canReopenOrder && hasClosedOrder && a.orderId ? (
+        <button
+          type="button"
+          className="agenda-ctx-item"
+          disabled={pending}
+          onClick={() =>
+            run(async () => {
+              const result = await reopenOrderAction(a.orderId!);
+              if (!result.ok) return result;
+              onOpenComanda(a.orderId!);
+              return result;
+            })
+          }
+        >
+          <span className="agenda-ctx-ico is-ok" aria-hidden>
+            ↺
+          </span>
+          Reabrir comanda
         </button>
       ) : null}
 
@@ -368,7 +409,7 @@ export function AgendaContextMenu({
         </>
       ) : null}
 
-      {canReopen ? (
+      {canReopenSlot ? (
         <button
           type="button"
           className="agenda-ctx-item"

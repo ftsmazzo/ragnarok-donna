@@ -15,7 +15,7 @@ import {
   setAppointmentEncaixeAction,
   updateAppointmentStatusAction,
 } from "@/app/(painel)/agenda/actions";
-import { openOrderFromAppointmentAction } from "@/app/(painel)/comandas/actions";
+import { openOrderFromAppointmentAction, reopenOrderAction } from "@/app/(painel)/comandas/actions";
 import { getClientUpsellTipsAction } from "@/app/(painel)/agenda/insights-actions";
 import { PAYMENT_METHOD_OPTIONS } from "@/lib/paymentMethods";
 
@@ -55,9 +55,11 @@ export function AgendaDetailModal({
   const [payMethod, setPayMethod] = useState("pix");
   const isBlock = a.status === "blocked";
   const isCompleted = a.status === "completed";
-  /** Ausente/cancelado: esconde operação de balcão, mas ainda mostra Reabrir. */
+  /** Ausente/cancelado/concluído: esconde operação de balcão; comanda fechada ainda abre. */
   const opsLocked =
     a.status === "cancelled" || a.status === "no_show" || isCompleted;
+  const hasClosedOrder =
+    Boolean(a.orderId) && (isCompleted || a.orderStatus === "closed");
 
   useEffect(() => {
     if (!open || isBlock || !a.clientId) {
@@ -133,6 +135,36 @@ export function AgendaDetailModal({
               disabled={pending}
             >
               {a.orderId ? "Ver comanda" : "Abrir comanda"}
+            </button>
+          ) : null}
+          {!isBlock && permissions.canOpenOrder && hasClosedOrder && a.orderId ? (
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => {
+                onOpenComanda?.(a.orderId!);
+                onClose();
+              }}
+              disabled={pending}
+            >
+              Ver comanda
+            </button>
+          ) : null}
+          {!isBlock && permissions.canReopenOrder && hasClosedOrder && a.orderId ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  const result = await reopenOrderAction(a.orderId!);
+                  if (!result.ok) return result;
+                  onOpenComanda?.(a.orderId!);
+                  return result;
+                })
+              }
+            >
+              Reabrir comanda
             </button>
           ) : null}
           {isBlock && permissions.canWrite ? (
