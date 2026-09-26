@@ -86,6 +86,19 @@ export async function applyRecurrencePackageAction(
   return result;
 }
 
+/** Abate linha Recorrência no pacote vendido na mesma comanda (1º uso). */
+export async function absorbOrderItemIntoPackageSaleAction(
+  itemId: string,
+  orderId: string
+) {
+  const { absorbOrderItemIntoPackageSale } = await import(
+    "@/server/orders/mutations"
+  );
+  const result = await absorbOrderItemIntoPackageSale(itemId);
+  if (result.ok) revalidateOrders(orderId);
+  return result;
+}
+
 export async function addOrderItemAction(formData: FormData) {
   const orderId = String(formData.get("orderId") ?? "");
   const itemTypeRaw = String(formData.get("itemType") ?? "service");

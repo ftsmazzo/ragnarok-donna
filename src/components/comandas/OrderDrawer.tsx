@@ -15,6 +15,7 @@ import { formatDateTimeSp } from "@/lib/datetime";
 import { formatMoney, labelOrderStatus } from "@/lib/format";
 import { labelStoredPayment } from "@/lib/payment-codes";
 import {
+  absorbOrderItemIntoPackageSaleAction,
   addOrderItemAction,
   addPaymentAction,
   cancelOrderAction,
@@ -93,6 +94,22 @@ function discountCentsFromPercent(baseCents: number, percent: number): number {
 function orderDiscountPercent(totalCents: number, discountCents: number): string {
   if (totalCents <= 0 || discountCents <= 0) return "";
   return ((discountCents / totalCents) * 100).toFixed(2).replace(/\.?0+$/, "");
+}
+
+/** Linha de serviço coberta por venda de pacote (carteira) nesta comanda. */
+function packageSaleCoversService(
+  order: OrderDetail,
+  packages: CatalogPackage[],
+  serviceId: string | null | undefined
+): boolean {
+  if (!serviceId) return false;
+  for (const item of order.items) {
+    if (!item.packageSale || !item.packageId) continue;
+    const pkg = packages.find((p) => p.id === item.packageId);
+    if (!pkg?.items?.length) continue;
+    if (pkg.items.some((line) => line.serviceId === serviceId)) return true;
+  }
+  return false;
 }
 
 export function OrderDrawer({
@@ -1647,6 +1664,44 @@ export function OrderDrawer({
                         Editar item
                       </button>
                     )
+                  ) : null}
+                  {canEdit &&
+                  item.itemType === "service" &&
+                  !item.packageSale &&
+                  !item.redeemed &&
+                  !item.courtesy &&
+                  !item.staffServiceConsumption &&
+                  editingItemId !== item.id &&
+                  packageSaleCoversService(order, packages, item.serviceId) ? (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      disabled={pending}
+                      style={{ marginTop: 4, marginLeft: 6 }}
+                      title="Consome 1 crédito do pacote desta comanda. Agenda de hoje = 1º uso. Comissão na fatia."
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            "Abater este serviço do pacote desta comanda?\n\n• Valor avulso some do total (não cobra de novo)\n• Consome 1 crédito (ida de hoje = 1º uso)\n• Comissão fica sobre o valor desta linha"
+                          )
+                        ) {
+                          return;
+                        }
+                        run(async () => {
+                          const result = await absorbOrderItemIntoPackageSaleAction(
+                            item.id,
+                            order.id
+                          );
+                          if (result.ok) {
+                            showToast("Abatido do pacote", "success");
+                            setError("");
+                          }
+                          return result;
+                        });
+                      }}
+                    >
+                      Abater do pacote
+                    </button>
                   ) : null}
                 </div>
                 <div className="order-item-actions">

@@ -1145,6 +1145,283 @@ export async function applyRecurrencePackageFromAppointment(input: {
   }
 }
 
+/**
+ * Abate linha avulsa (já editada p/ serviço Recorrência do pacote) na venda de
+ * pacote da mesma comanda — 1º uso sem remarcar. Ativa carteira on-demand se
+ * ainda estiver "libera ao fechar".
+ */
+export async function absorbOrderItemIntoPackageSale(itemId: string): Promise<ActionResult> {
+  try {
+    await assertFullOrderWrite();
+    const tenant = await requireTenantContext();
+    const db = createDb();
+
+    const [item] = await db
+      .select({
+        id: schema.orderItems.id,
+        orderId: schema.orderItems.orderId,
+        itemType: schema.orderItems.itemType,
+        serviceId: schema.orderItems.serviceId,
+        description: schema.orderItems.description,
+        qty: schema.orderItems.qty,
+        unitPriceCents: schema.orderItems.unitPriceCents,
+        totalCents: schema.orderItems.totalCents,
+        commissionBps: schema.orderItems.commissionBps,
+        staffId: schema.orderItems.staffId,
+        meta: schema.orderItems.meta,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(eq(schema.orderItems.id, itemId), eq(schema.orderItems.tenantId, tenant.id))
+      )
+      .limit(1);
+
+    if (!item) throw new AppError("NOT_FOUND", "Item não encontrado");
+    const order = await assertOpenOrder(item.orderId, tenant.id);
+    if (!order.clientId) {
+      throw new AppError("VALIDATION", "Vincule o cliente na comanda antes de abater");
+    }
+    if (item.itemType !== "service" || !item.serviceId) {
+      throw new AppError("VALIDATION", "Só serviço pode abater do pacote");
+    }
+    if (item.qty !== 1) {
+      throw new AppError("VALIDATION", "Abate 1 crédito por vez (qtd. da linha deve ser 1)");
+    }
+
+    const meta = { ...((item.meta ?? {}) as Record<string, unknown>) };
+    if (meta.redeemed) {
+      throw new AppError("VALIDATION", "Este item já foi abatido do pacote");
+    }
+    if (meta.packageSale) {
+      throw new AppError("VALIDATION", "Linha de venda de pacote não abate crédito");
+    }
+    if (meta.courtesy) {
+      throw new AppError("VALIDATION", "Desmarque cortesia antes de abater");
+    }
+    if (meta.staffServiceConsumption) {
+      throw new AppError("VALIDATION", "Consumo profissional não abate do pacote");
+    }
+
+    const { resolvePackageServiceItems, activateClientPackagesForOrder, debitOneCredit } =
+      await import("../packages/credits");
+
+    const packageSales = await db
+      .select({
+        id: schema.orderItems.id,
+        packageId: schema.orderItems.packageId,
+        meta: schema.orderItems.meta,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.orderId, item.orderId),
+          eq(schema.orderItems.tenantId, tenant.id),
+          eq(schema.orderItems.itemType, "package")
+        )
+      );
+
+    const coveringSales: Array<{ id: string; packageId: string }> = [];
+    for (const sale of packageSales) {
+      const saleMeta = (sale.meta ?? {}) as Record<string, unknown>;
+      if (!saleMeta.packageSale || !sale.packageId) continue;
+      const [pkg] = await db
+        .select({ id: schema.packages.id, items: schema.packages.items })
+        .from(schema.packages)
+        .where(
+          and(
+            eq(schema.packages.id, sale.packageId),
+            eq(schema.packages.tenantId, tenant.id)
+          )
+        )
+        .limit(1);
+      if (!pkg) continue;
+      const resolved = await resolvePackageServiceItems(tenant.id, pkg.items, {
+        healPackageId: pkg.id,
+      });
+      const covers = resolved.serviceItems.some((s) => s.serviceId === item.serviceId);
+      if (covers) coveringSales.push({ id: sale.id, packageId: sale.packageId });
+    }
+
+    if (coveringSales.length === 0) {
+      throw new AppError(
+        "VALIDATION",
+        "Nenhum pacote nesta comanda cobre este serviço. Troque para o serviço Recorrência do pacote e salve antes de abater."
+      );
+    }
+
+    const [paidRow] = await db
+      .select({
+        paid: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+      })
+      .from(schema.payments)
+      .where(
+        and(
+          eq(schema.payments.orderId, item.orderId),
+          eq(schema.payments.tenantId, tenant.id)
+        )
+      );
+    const [itemsRow] = await db
+      .select({
+        total: sql<number>`coalesce(sum(${schema.orderItems.totalCents}), 0)::int`,
+      })
+      .from(schema.orderItems)
+      .where(
+        and(
+          eq(schema.orderItems.orderId, item.orderId),
+          eq(schema.orderItems.tenantId, tenant.id),
+          ne(schema.orderItems.id, itemId)
+        )
+      );
+    const nextTotal = Number(itemsRow?.total ?? 0);
+    const paidCents = Number(paidRow?.paid ?? 0);
+    if (paidCents > 0 && nextTotal - order.discountCents < paidCents) {
+      throw new AppError(
+        "VALIDATION",
+        "Não é possível abater: o total ficaria abaixo do já pago. Ajuste o pagamento antes."
+      );
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`absorb:${itemId}`}))`
+      );
+
+      const [locked] = await tx
+        .select({
+          id: schema.orderItems.id,
+          meta: schema.orderItems.meta,
+          unitPriceCents: schema.orderItems.unitPriceCents,
+          qty: schema.orderItems.qty,
+          description: schema.orderItems.description,
+          commissionBps: schema.orderItems.commissionBps,
+          serviceId: schema.orderItems.serviceId,
+        })
+        .from(schema.orderItems)
+        .where(
+          and(
+            eq(schema.orderItems.id, itemId),
+            eq(schema.orderItems.tenantId, tenant.id)
+          )
+        )
+        .for("update");
+
+      if (!locked) throw new AppError("NOT_FOUND", "Item não encontrado");
+      const lockedMeta = { ...((locked.meta ?? {}) as Record<string, unknown>) };
+      if (lockedMeta.redeemed) {
+        throw new AppError("VALIDATION", "Este item já foi abatido do pacote");
+      }
+      if (!locked.serviceId) {
+        throw new AppError("VALIDATION", "Só serviço pode abater do pacote");
+      }
+
+      // Libera carteira da venda nesta comanda (idempotente no fechar depois).
+      await activateClientPackagesForOrder(
+        {
+          tenantId: tenant.id,
+          orderId: item.orderId,
+          clientId: order.clientId!,
+        },
+        tx
+      );
+
+      const salesAfter = await tx
+        .select({
+          id: schema.orderItems.id,
+          packageId: schema.orderItems.packageId,
+          meta: schema.orderItems.meta,
+        })
+        .from(schema.orderItems)
+        .where(
+          and(
+            eq(schema.orderItems.orderId, item.orderId),
+            eq(schema.orderItems.tenantId, tenant.id),
+            eq(schema.orderItems.itemType, "package"),
+            inArray(
+              schema.orderItems.id,
+              coveringSales.map((s) => s.id)
+            )
+          )
+        );
+
+      let clientPackageId: string | null = null;
+      for (const covering of coveringSales) {
+        const sale = salesAfter.find((s) => s.id === covering.id);
+        if (!sale) continue;
+        const saleMeta = (sale.meta ?? {}) as Record<string, unknown>;
+        if (typeof saleMeta.clientPackageId === "string" && saleMeta.clientPackageId) {
+          clientPackageId = saleMeta.clientPackageId;
+          break;
+        }
+      }
+      if (!clientPackageId) {
+        throw new AppError(
+          "VALIDATION",
+          "Não foi possível liberar a carteira do pacote. Revise o cadastro do pacote."
+        );
+      }
+
+      const debit = await debitOneCredit({
+        tenantId: tenant.id,
+        clientId: order.clientId!,
+        serviceId: locked.serviceId,
+        clientPackageId,
+        tx,
+      });
+
+      const lineGross = locked.unitPriceCents * locked.qty;
+      const coveredCents = lineGross;
+      const baseName =
+        locked.description.replace(/\s·\sPacote.*$/i, "").trim() ||
+        locked.description;
+      const commission = calcCommission(lineGross, locked.commissionBps);
+      const now = new Date();
+
+      await tx
+        .update(schema.orderItems)
+        .set({
+          description: `${baseName} · Pacote`,
+          discountCents: 0,
+          totalCents: 0,
+          commissionBps: commission.commissionBps,
+          commissionCents: commission.commissionCents,
+          meta: {
+            redeemed: true,
+            creditId: debit.creditId,
+            clientPackageId: debit.clientPackageId,
+            coveredCents,
+            absorbedFromAvulso: true,
+          },
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.orderItems.id, locked.id),
+            eq(schema.orderItems.tenantId, tenant.id)
+          )
+        );
+    });
+
+    await recalculateOrderTotal(item.orderId, tenant.id);
+    try {
+      await syncStaffMonthServiceCommission(tenant.id, item.staffId);
+    } catch (syncErr) {
+      console.error("[absorbOrderItemIntoPackageSale] sync comissão", syncErr);
+    }
+    try {
+      await refreshOrderCardFeeAndCommissions(tenant.id, item.orderId);
+    } catch (feeErr) {
+      console.error("[absorbOrderItemIntoPackageSale] taxa/comissão", feeErr);
+    }
+
+    return { ok: true, id: item.orderId };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[absorbOrderItemIntoPackageSale]", err);
+    return { ok: false, error: "Não foi possível abater do pacote" };
+  }
+}
+
 /** Opções de pacote do cliente que cobrem o serviço do agendamento. */
 export async function listRecurrencePackagesForAppointment(appointmentId: string): Promise<
   | {
