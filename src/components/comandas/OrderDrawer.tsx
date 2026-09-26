@@ -1423,7 +1423,10 @@ export function OrderDrawer({
                         ? ` · pacote cobre ${formatMoney(item.coveredCents)} · diferença ${formatMoney(item.totalCents)}`
                         : ` · tabela ${formatMoney(item.unitPriceCents)} abatida`
                       : item.courtesy
-                        ? ` · tabela ${formatMoney(item.unitPriceCents * item.qty)} zerada`
+                        ? ` · sem caixa · comissão sobre ${formatMoney(
+                            item.commissionBaseCents ??
+                              item.unitPriceCents * item.qty
+                          )}`
                         : item.discountCents > 0
                           ? ` · desconto ${formatMoney(item.discountCents)}`
                           : ""}
@@ -1776,7 +1779,7 @@ export function OrderDrawer({
                   </div>
                   <span className="client-profile-hint muted">
                     {itemCourtesy
-                      ? `Cortesia: item sai a ${formatMoney(0)} (tabela ${formatMoney(itemDiscountBaseCents)}).`
+                      ? `Cortesia: cliente não paga; comissão sobre ${formatMoney(itemDiscountBaseCents)}.`
                       : parsePct(itemDiscountPct) > 0
                         ? `= ${formatMoney(itemDiscountCentsPreview)} sobre ${formatMoney(itemDiscountBaseCents)}${
                             willUseCredit ? " (residual após abate)" : ""
@@ -1812,7 +1815,7 @@ export function OrderDrawer({
                   <span>
                     {willUseCredit
                       ? "Desmarque o crédito de pacote para marcar cortesia."
-                      : "Cortesia — zera o valor deste item (não entra no caixa)."}
+                      : "Cortesia — cliente não paga (sai do caixa); o profissional recebe comissão no valor vigente."}
                   </span>
                 </label>
                 {itemType === "service" && !order.isStaffConsumption ? (

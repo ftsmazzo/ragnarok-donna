@@ -517,6 +517,11 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
         packageSale: Boolean(meta.packageSale),
         walletPending: Boolean(meta.packageSale) && !meta.clientPackageId,
         courtesy: Boolean(meta.courtesy),
+        commissionBaseCents:
+          typeof meta.commissionBaseCents === "number" &&
+          Number.isFinite(meta.commissionBaseCents)
+            ? Math.max(0, Math.round(meta.commissionBaseCents))
+            : null,
         staffServiceConsumption: Boolean(meta.staffServiceConsumption),
         cardFeeStaffShareCents:
           typeof meta.cardFeeStaffShareCents === "number" &&
