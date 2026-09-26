@@ -130,7 +130,12 @@ export async function syncStaffMonthServiceCommission(
 
     let base = row.totalCents;
     if (meta.courtesy) {
-      base = 0;
+      // Só comissiona cortesia nova (base gravada). Legado sem base continua 0.
+      base =
+        typeof meta.commissionBaseCents === "number" &&
+        Number.isFinite(meta.commissionBaseCents)
+          ? Math.max(0, meta.commissionBaseCents)
+          : 0;
     } else if (typeof meta.commissionBaseCents === "number" && meta.commissionBaseCents >= 0) {
       base = meta.commissionBaseCents;
     } else if (meta.redeemed && typeof meta.clientPackageId === "string") {
@@ -280,7 +285,11 @@ export async function recalcOrderCatalogCommissions(
 
     let base = row.totalCents;
     if (meta.courtesy) {
-      base = 0;
+      base =
+        typeof meta.commissionBaseCents === "number" &&
+        Number.isFinite(meta.commissionBaseCents)
+          ? Math.max(0, meta.commissionBaseCents)
+          : 0;
     } else if (
       row.itemType === "service" &&
       typeof meta.commissionBaseCents === "number" &&
@@ -418,7 +427,11 @@ export async function recalcPeriodCatalogCommissions(input: {
 
     let base = row.totalCents;
     if (meta.courtesy) {
-      base = 0;
+      base =
+        typeof meta.commissionBaseCents === "number" &&
+        Number.isFinite(meta.commissionBaseCents)
+          ? Math.max(0, meta.commissionBaseCents)
+          : 0;
     } else if (
       row.itemType === "service" &&
       typeof meta.commissionBaseCents === "number" &&

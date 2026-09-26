@@ -36,8 +36,10 @@ export type OrderItemDetail = {
   coveredCents: number;
   packageSale: boolean;
   walletPending: boolean;
-  /** Item zerado como cortesia (meta.courtesy) — não entra no caixa. */
+  /** Item zerado como cortesia (meta.courtesy) — não entra no caixa; comissão permanece. */
   courtesy: boolean;
+  /** Base usada na comissão (cortesia / pacote). */
+  commissionBaseCents: number | null;
   /** Consumo de serviço entre profissionais (50%). */
   staffServiceConsumption: boolean;
   /** Metade da taxa de maquininha rateada neste item (descontada da comissão). */

@@ -1245,7 +1245,7 @@ export async function addOrderItem(input: {
   usePackageCredit?: boolean;
   /** Pacote do cliente (Conta Recorrência). Sem isso, FIFO. */
   clientPackageId?: string;
-  /** Zera o item (100% desconto) e marca meta.courtesy — não entra no caixa. */
+  /** Zera o item no caixa (cortesia) e mantém comissão no valor vigente. */
   courtesy?: boolean;
   /**
    * Consumo de serviço entre profissionais: aplica 50% no item e, se
@@ -1555,15 +1555,17 @@ export async function addOrderItem(input: {
       catalogBps: itemCommissionBps,
       staffDefaultBps: staffCommissionBps,
     });
-    let commission = calcCommission(
-      courtesy ? 0 : useCredit ? lineGross : totalCents,
-      bps
-    );
-    if (input.itemType === "service" && !courtesy) {
+    const commissionBaseCents = courtesy
+      ? lineGross
+      : useCredit
+        ? lineGross
+        : totalCents;
+    let commission = calcCommission(commissionBaseCents, bps);
+    if (input.itemType === "service") {
       const house = await annotateServiceCommission({
         tenantId: tenant.id,
         serviceName: description.replace(/\s·\sPacote.*$/i, ""),
-        baseCents: useCredit ? lineGross : totalCents,
+        baseCents: commissionBaseCents,
         clientPackageId:
           useCredit && typeof meta.clientPackageId === "string"
             ? meta.clientPackageId
@@ -1571,12 +1573,6 @@ export async function addOrderItem(input: {
       });
       meta = { ...meta, ...house.metaPatch };
       commission = calcCommission(house.baseCents, bps);
-    }
-    if (courtesy) {
-      commission = {
-        commissionBps: bps ?? null,
-        commissionCents: 0,
-      };
     }
 
     if (staffServiceConsumption) {
@@ -2531,6 +2527,9 @@ export async function setOrderItemCourtesy(
     };
 
     if (courtesy) {
+      // Cliente não paga (total 0). Comissão sobre o valor vigente da linha
+      // (já editado, se o salão mudou 100 → 60 antes de marcar).
+      const commissionBase = Math.max(0, item.totalCents);
       nextDiscount = lineGross;
       nextTotal = 0;
       nextMeta = {
@@ -2538,12 +2537,20 @@ export async function setOrderItemCourtesy(
         courtesy: true,
         courtesyPrevDiscountCents: item.discountCents,
       };
-      delete nextMeta.commissionKind;
-      delete nextMeta.commissionBaseCents;
-      nextCommission = {
-        commissionBps: item.commissionBps,
-        commissionCents: 0,
-      };
+      delete nextMeta.cardFeeStaffShareCents;
+      nextCommission = calcCommission(commissionBase, item.commissionBps);
+      if (item.itemType === "service") {
+        const house = await annotateServiceCommission({
+          tenantId: tenant.id,
+          serviceName: item.description.replace(/\s·\sPacote.*$/i, ""),
+          baseCents: commissionBase,
+          clientPackageId: null,
+        });
+        nextMeta = { ...nextMeta, ...house.metaPatch };
+        nextCommission = calcCommission(house.baseCents, item.commissionBps);
+      } else {
+        nextMeta.commissionBaseCents = commissionBase;
+      }
     } else {
       const prevDisc =
         typeof meta.courtesyPrevDiscountCents === "number" &&
