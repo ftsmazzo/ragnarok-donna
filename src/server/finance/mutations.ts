@@ -295,6 +295,32 @@ export async function excludePaymentFromCash(paymentId: string): Promise<ActionR
         and(eq(schema.payments.id, payment.id), eq(schema.payments.tenantId, tenant.id))
       );
 
+    if (payment.orderId) {
+      try {
+        const { syncOrderCardFeeCommissionShare } = await import(
+          "../commissions/card-fee-share"
+        );
+        const { syncStaffMonthServiceCommission } = await import("../commissions/house");
+        await syncOrderCardFeeCommissionShare(tenant.id, payment.orderId);
+        const staffRows = await db
+          .selectDistinct({ staffId: schema.orderItems.staffId })
+          .from(schema.orderItems)
+          .where(
+            and(
+              eq(schema.orderItems.tenantId, tenant.id),
+              eq(schema.orderItems.orderId, payment.orderId),
+              eq(schema.orderItems.itemType, "service")
+            )
+          );
+        for (const row of staffRows) {
+          if (!row.staffId) continue;
+          await syncStaffMonthServiceCommission(tenant.id, row.staffId);
+        }
+      } catch (feeErr) {
+        console.error("[excludePaymentFromCash] taxa/comissão", feeErr);
+      }
+    }
+
     return { ok: true, id: payment.id };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };

@@ -1408,7 +1408,11 @@ export function OrderDrawer({
                                 item.commissionBps % 100 === 0 ? 0 : 1
                               )}%`
                             : ""
-                        } ${formatMoney(item.commissionCents)}`
+                        } ${formatMoney(item.commissionCents)}${
+                          item.cardFeeStaffShareCents > 0
+                            ? ` (taxa −${formatMoney(item.cardFeeStaffShareCents)})`
+                            : ""
+                        }`
                       : item.commissionBps != null && item.commissionBps > 0
                         ? ` · comissão ${(item.commissionBps / 100).toFixed(
                             item.commissionBps % 100 === 0 ? 0 : 1
@@ -1576,7 +1580,7 @@ export function OrderDrawer({
               <p className="client-profile-hint muted">
                 {order.isStaffConsumption
                   ? "Consumo de profissional: serviço a 50% (comissão na executora, desconto na consumidora), sem card na agenda e sem entrar no caixa."
-                  : "Serviço na comanda aparece na agenda do profissional escolhido (comissão). Produto não entra na agenda."}
+                  : "Comanda = cliente. Cada serviço entra na agenda do profissional (hora + serviço). Produto não entra na agenda. Ao fechar, os horários ficam concluídos (verde)."}
               </p>
             ) : null}
             <div className="form-row-2">

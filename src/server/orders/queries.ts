@@ -518,6 +518,11 @@ export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
         walletPending: Boolean(meta.packageSale) && !meta.clientPackageId,
         courtesy: Boolean(meta.courtesy),
         staffServiceConsumption: Boolean(meta.staffServiceConsumption),
+        cardFeeStaffShareCents:
+          typeof meta.cardFeeStaffShareCents === "number" &&
+          Number.isFinite(meta.cardFeeStaffShareCents)
+            ? Math.max(0, Math.round(meta.cardFeeStaffShareCents))
+            : 0,
       };
     }),
     payments,

@@ -242,6 +242,23 @@ async function completeAppointmentsLinkedToOrder(
   orderId: string,
   primaryAppointmentId?: string | null
 ) {
+  const itemAppts = await db
+    .select({ meta: schema.orderItems.meta })
+    .from(schema.orderItems)
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, tenantId),
+        eq(schema.orderItems.orderId, orderId),
+        eq(schema.orderItems.itemType, "service")
+      )
+    );
+  const fromItems = itemAppts
+    .map((r) => {
+      const m = (r.meta ?? {}) as Record<string, unknown>;
+      return typeof m.appointmentId === "string" ? m.appointmentId : null;
+    })
+    .filter((id): id is string => Boolean(id));
+
   await db
     .update(schema.appointments)
     .set({ status: "completed", updatedAt: new Date() })
@@ -253,10 +270,38 @@ async function completeAppointmentsLinkedToOrder(
           eq(schema.appointments.orderId, orderId),
           primaryAppointmentId
             ? eq(schema.appointments.id, primaryAppointmentId)
-            : sql`false`
+            : sql`false`,
+          fromItems.length > 0 ? inArray(schema.appointments.id, fromItems) : sql`false`
         )
       )
     );
+}
+
+/** Taxa cartão 50/50 → meta nos itens + recalcula comissão líquida dos profissionais. */
+async function refreshOrderCardFeeAndCommissions(tenantId: string, orderId: string) {
+  const { syncOrderCardFeeCommissionShare } = await import(
+    "../commissions/card-fee-share"
+  );
+  await syncOrderCardFeeCommissionShare(tenantId, orderId);
+  const db = createDb();
+  const staffRows = await db
+    .selectDistinct({ staffId: schema.orderItems.staffId })
+    .from(schema.orderItems)
+    .where(
+      and(
+        eq(schema.orderItems.tenantId, tenantId),
+        eq(schema.orderItems.orderId, orderId),
+        eq(schema.orderItems.itemType, "service")
+      )
+    );
+  for (const row of staffRows) {
+    if (!row.staffId) continue;
+    try {
+      await syncStaffMonthServiceCommission(tenantId, row.staffId);
+    } catch (err) {
+      console.error("[refreshOrderCardFeeAndCommissions]", row.staffId, err);
+    }
+  }
 }
 
 type SeedAppt = {
@@ -320,7 +365,7 @@ async function seedServiceItemFromAppointment(
     commissionBps,
     commissionCents,
     performedAt: new Date(),
-    meta: {},
+    meta: { appointmentId: appt.id },
   });
   await syncStaffMonthServiceCommission(tenantId, appt.staffId);
 }
@@ -414,8 +459,10 @@ async function attachSameDayClientAppointments(input: {
 }
 
 /**
- * Serviço lançado na comanda → card na agenda do profissional (visível pra ela).
- * Produto não cria. Encaixe: não bloqueia por overlap no balcão.
+ * Serviço na comanda → slot na agenda do profissional.
+ * Regra: Agenda = serviço + hora + profissional; Comanda = cliente.
+ * Produto e consumo profissional NÃO criam agenda.
+ * N serviços / N profissionais = N slots, todos com orderId da mesma comanda.
  */
 async function createAgendaSlotForOrderService(input: {
   tenantId: string;
@@ -430,7 +477,81 @@ async function createAgendaSlotForOrderService(input: {
   performedAt: Date;
   itemMeta: Record<string, unknown>;
 }) {
+  if (typeof input.itemMeta.appointmentId === "string" && input.itemMeta.appointmentId) {
+    return;
+  }
+  if (!input.clientId) {
+    throw new AppError(
+      "VALIDATION",
+      "Vincule um cliente à comanda antes de lançar serviço (agenda exige cliente)"
+    );
+  }
+
   const db = createDb();
+
+  // Reaproveita horário já ligado à comanda (mesmo profissional + serviço) sem item.
+  const [existing] = await db
+    .select({ id: schema.appointments.id })
+    .from(schema.appointments)
+    .where(
+      and(
+        eq(schema.appointments.tenantId, input.tenantId),
+        eq(schema.appointments.orderId, input.orderId),
+        eq(schema.appointments.staffId, input.staffId),
+        eq(schema.appointments.serviceId, input.serviceId),
+        isNull(schema.appointments.deletedAt),
+        inArray(schema.appointments.status, [...ATTACHABLE_APPT, "arrived"]),
+        sql`coalesce((${schema.appointments.meta}->>'fromOrderItemId'),'') = ''`
+      )
+    )
+    .limit(1);
+
+  if (existing) {
+    const [cur] = await db
+      .select({ meta: schema.appointments.meta })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.id, existing.id),
+          eq(schema.appointments.tenantId, input.tenantId)
+        )
+      )
+      .limit(1);
+    const prevMeta = (cur?.meta ?? {}) as Record<string, unknown>;
+    await db
+      .update(schema.appointments)
+      .set({
+        orderId: input.orderId,
+        clientId: input.clientId,
+        status: "arrived",
+        meta: { ...prevMeta, fromOrderItemId: input.orderItemId },
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.id, existing.id),
+          eq(schema.appointments.tenantId, input.tenantId)
+        )
+      );
+    await db
+      .update(schema.orderItems)
+      .set({
+        meta: {
+          ...input.itemMeta,
+          appointmentId: existing.id,
+          linkedExistingAppointment: true,
+        },
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.orderItems.id, input.orderItemId),
+          eq(schema.orderItems.tenantId, input.tenantId)
+        )
+      );
+    return;
+  }
+
   const [svc] = await db
     .select({ durationMin: schema.services.durationMin })
     .from(schema.services)
@@ -496,23 +617,58 @@ async function cancelAgendaSlotFromOrderItem(
   const appointmentId =
     typeof meta.appointmentId === "string" ? meta.appointmentId : null;
   if (!appointmentId) return;
-  if (!meta.walkInFromOrder && !meta.fromOrderItemId) return;
 
   const db = createDb();
-  await db
-    .update(schema.appointments)
-    .set({
-      status: "cancelled",
-      deletedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.appointments.id, appointmentId),
-        eq(schema.appointments.tenantId, tenantId),
-        isNull(schema.appointments.deletedAt)
+
+  // Slot criado pela comanda (walk-in): cancela/soft-delete.
+  if (meta.walkInFromOrder) {
+    await db
+      .update(schema.appointments)
+      .set({
+        status: "cancelled",
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.id, appointmentId),
+          eq(schema.appointments.tenantId, tenantId),
+          isNull(schema.appointments.deletedAt)
+        )
+      );
+    return;
+  }
+
+  // Horário pré-existente reaproveitado por outro serviço: só limpa vínculo do item.
+  if (meta.linkedExistingAppointment) {
+    const [cur] = await db
+      .select({ meta: schema.appointments.meta })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.id, appointmentId),
+          eq(schema.appointments.tenantId, tenantId),
+          isNull(schema.appointments.deletedAt)
+        )
       )
-    );
+      .limit(1);
+    if (!cur) return;
+    const prevMeta = { ...((cur.meta ?? {}) as Record<string, unknown>) };
+    delete prevMeta.fromOrderItemId;
+    await db
+      .update(schema.appointments)
+      .set({
+        meta: prevMeta,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.id, appointmentId),
+          eq(schema.appointments.tenantId, tenantId)
+        )
+      );
+  }
+  // Item seedado da agenda (só appointmentId): não cancela o horário original.
 }
 
 export async function openOrder(input: {
@@ -1245,6 +1401,23 @@ export async function addOrderItem(input: {
       throw new AppError("VALIDATION", "Informe o profissional do serviço");
     }
 
+    // Comanda = cliente para serviço (agenda). Consumo profissional é exceção.
+    if (input.itemType === "service" && !isStaffConsumption && !staffServiceConsumption) {
+      const [orderClient] = await db
+        .select({ clientId: schema.orders.clientId })
+        .from(schema.orders)
+        .where(
+          and(eq(schema.orders.id, input.orderId), eq(schema.orders.tenantId, tenant.id))
+        )
+        .limit(1);
+      if (!orderClient?.clientId) {
+        throw new AppError(
+          "VALIDATION",
+          "Vincule um cliente à comanda antes de lançar serviço (agenda exige cliente)"
+        );
+      }
+    }
+
     if (staffId) {
       const [st] = await db
         .select({
@@ -1530,7 +1703,7 @@ export async function addOrderItem(input: {
         } catch (syncErr) {
           console.error("[addOrderItem] sync comissão falhou", syncErr);
         }
-        if (staffId && serviceId && !isStaffConsumption) {
+        if (staffId && serviceId && !isStaffConsumption && !staffServiceConsumption) {
           const [orderCtx] = await db
             .select({
               clientId: schema.orders.clientId,
@@ -1567,6 +1740,11 @@ export async function addOrderItem(input: {
       } else {
         console.error("[addOrderItem] pós-insert", postErr);
       }
+    }
+    try {
+      await refreshOrderCardFeeAndCommissions(tenant.id, input.orderId);
+    } catch (feeErr) {
+      console.error("[addOrderItem] taxa/comissão", feeErr);
     }
     return { ok: true, id: row.id };
   } catch (err) {
@@ -2193,6 +2371,7 @@ export async function updatePaymentAmount(
     }
 
     const db = createDb();
+    let orderIdForFee: string | null = null;
     await db.transaction(async (tx) => {
       const [payment] = await tx
         .select({
@@ -2207,6 +2386,7 @@ export async function updatePaymentAmount(
         )
         .for("update");
       if (!payment?.orderId) throw new AppError("NOT_FOUND", "Pagamento não encontrado");
+      orderIdForFee = payment.orderId;
 
       const state = await lockOrderFinancialState(tx, payment.orderId, tenant.id);
       const otherPaid = state.paidCents - payment.amountCents;
@@ -2267,6 +2447,14 @@ export async function updatePaymentAmount(
           .where(eq(schema.cashMovements.id, cashRow.id));
       }
     });
+
+    try {
+      if (orderIdForFee) {
+        await refreshOrderCardFeeAndCommissions(tenant.id, orderIdForFee);
+      }
+    } catch (feeErr) {
+      console.error("[updatePaymentAmount] taxa/comissão", feeErr);
+    }
 
     return { ok: true, id: paymentId };
   } catch (err) {
@@ -2438,6 +2626,11 @@ export async function setOrderItemCourtesy(
     if (item.itemType === "service") {
       await syncStaffMonthServiceCommission(tenant.id, item.staffId);
     }
+    try {
+      await refreshOrderCardFeeAndCommissions(tenant.id, item.orderId);
+    } catch (feeErr) {
+      console.error("[setOrderItemCourtesy] taxa/comissão", feeErr);
+    }
     return { ok: true, id: item.orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
@@ -2560,6 +2753,11 @@ export async function removeOrderItem(itemId: string): Promise<ActionResult> {
         console.error("[removeOrderItem] sync comissão falhou", syncErr);
       }
     }
+    try {
+      await refreshOrderCardFeeAndCommissions(tenant.id, item.orderId);
+    } catch (feeErr) {
+      console.error("[removeOrderItem] taxa/comissão", feeErr);
+    }
     return { ok: true, id: item.orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
@@ -2680,6 +2878,11 @@ export async function addPayment(input: {
 
         return payment.id;
       });
+      try {
+        await refreshOrderCardFeeAndCommissions(tenant.id, input.orderId);
+      } catch (feeErr) {
+        console.error("[addPayment] taxa/comissão (conta)", feeErr);
+      }
       return { ok: true, id: paymentId };
     }
 
@@ -2730,6 +2933,12 @@ export async function addPayment(input: {
       return payment.id;
     });
 
+    try {
+      await refreshOrderCardFeeAndCommissions(tenant.id, input.orderId);
+    } catch (feeErr) {
+      console.error("[addPayment] taxa/comissão", feeErr);
+    }
+
     return { ok: true, id: paymentId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
@@ -2744,6 +2953,7 @@ export async function removePayment(paymentId: string): Promise<ActionResult> {
     const session = await assertFullOrderWrite();
     const tenant = await requireTenantContext();
     const db = createDb();
+    let orderIdForFee: string | null = null;
 
     await db.transaction(async (tx) => {
       const [payment] = await tx
@@ -2764,6 +2974,7 @@ export async function removePayment(paymentId: string): Promise<ActionResult> {
       if (!payment?.orderId) {
         throw new AppError("NOT_FOUND", "Pagamento não encontrado");
       }
+      orderIdForFee = payment.orderId;
 
       const state = await lockOrderFinancialState(tx, payment.orderId, tenant.id);
 
@@ -2837,6 +3048,14 @@ export async function removePayment(paymentId: string): Promise<ActionResult> {
           )
         );
     });
+
+    try {
+      if (orderIdForFee) {
+        await refreshOrderCardFeeAndCommissions(tenant.id, orderIdForFee);
+      }
+    } catch (feeErr) {
+      console.error("[removePayment] taxa/comissão", feeErr);
+    }
 
     return { ok: true, id: paymentId };
   } catch (err) {
@@ -3026,6 +3245,12 @@ export async function settleAndCloseOrder(input: {
       );
     });
 
+    try {
+      await refreshOrderCardFeeAndCommissions(tenant.id, input.orderId);
+    } catch (feeErr) {
+      console.error("[settleAndCloseOrder] taxa/comissão", feeErr);
+    }
+
     return { ok: true, id: input.orderId };
   } catch (err) {
     if (err instanceof AppError) return { ok: false, error: err.message };
@@ -3130,6 +3355,12 @@ export async function closeOrder(orderId: string): Promise<ActionResult> {
       orderId,
       detail.appointmentId
     );
+
+    try {
+      await refreshOrderCardFeeAndCommissions(tenant.id, orderId);
+    } catch (feeErr) {
+      console.error("[closeOrder] taxa/comissão", feeErr);
+    }
 
     return { ok: true, id: orderId };
   } catch (err) {

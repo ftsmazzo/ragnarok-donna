@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type DrawerProps = {
@@ -25,6 +25,8 @@ export function Drawer({
 }: DrawerProps) {
   const titleId = useId();
   const [mounted, setMounted] = useState(false);
+  /** Só fecha se o gesto começou no overlay (evita fechar ao selecionar texto e soltar fora). */
+  const pointerDownOnOverlay = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -32,6 +34,7 @@ export function Drawer({
 
   useEffect(() => {
     if (!open) return;
+    pointerDownOnOverlay.current = false;
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       // Modal por cima do drawer — não fecha a comanda no Esc do modal
@@ -51,7 +54,19 @@ export function Drawer({
   if (!open || !mounted) return null;
 
   return createPortal(
-    <div className="ui-overlay" onClick={onClose} role="presentation">
+    <div
+      className="ui-overlay"
+      role="presentation"
+      onMouseDown={(e) => {
+        pointerDownOnOverlay.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (!pointerDownOnOverlay.current) return;
+        pointerDownOnOverlay.current = false;
+        onClose();
+      }}
+    >
       <aside
         className="ui-drawer"
         style={{ width }}
@@ -59,6 +74,7 @@ export function Drawer({
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <header className="ui-drawer-head">
           <div>
