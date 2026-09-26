@@ -1477,6 +1477,12 @@ export function OrderDrawer({
                                 }
                               }}
                             >
+                              {item.serviceId &&
+                              !services.some((s) => s.id === item.serviceId) ? (
+                                <option value={item.serviceId}>
+                                  {item.description}
+                                </option>
+                              ) : null}
                               {services.map((s) => (
                                 <option key={s.id} value={s.id}>
                                   {s.name} · {formatMoney(s.priceCents)}
@@ -1536,10 +1542,9 @@ export function OrderDrawer({
                                   {
                                     totalReais,
                                     staffId: editStaffId || null,
-                                    serviceId:
-                                      item.itemType === "service"
-                                        ? editServiceId || null
-                                        : undefined,
+                                    ...(item.itemType === "service" && editServiceId
+                                      ? { serviceId: editServiceId }
+                                      : {}),
                                   }
                                 );
                                 if (result.ok) {
@@ -1573,7 +1578,12 @@ export function OrderDrawer({
                           setEditingItemId(item.id);
                           setEditTotalReais((item.totalCents / 100).toFixed(2));
                           setEditStaffId(item.staffId ?? "");
-                          setEditServiceId(item.serviceId ?? "");
+                          setEditServiceId(
+                            item.serviceId ??
+                              (item.itemType === "service"
+                                ? services[0]?.id ?? ""
+                                : "")
+                          );
                         }}
                       >
                         Editar item
