@@ -503,46 +503,55 @@ export function OrderDrawer({
   }
 
   function submitPayOnly() {
-    const line = payLines[0];
-    if (!line) {
-      const msg = "Informe a forma de pagamento";
+    const payments = payLines
+      .map((line) => ({
+        method: line.method,
+        amountCents: parseReaisToCents(line.amountReais),
+        installments:
+          line.method === "credit" ? Number(line.installments) || undefined : undefined,
+      }))
+      .filter((p) => p.amountCents > 0 && p.method);
+    if (payments.length === 0) {
+      const msg = "Informe ao menos uma forma e valor";
       setError(msg);
       showToast(msg, "error");
       return;
     }
-    const amountCents = parseReaisToCents(line.amountReais);
-    if (amountCents <= 0) {
-      const msg = "Informe o valor do pagamento";
+    const sum = payments.reduce((s, p) => s + p.amountCents, 0);
+    if (sum > order.balanceCents + 1) {
+      const msg = `Formas somam ${formatMoney(sum - order.balanceCents)} a mais que o saldo`;
       setError(msg);
       showToast(msg, "error");
       return;
-    }
-    if (!line.method) {
-      const msg = "Escolha a forma de pagamento";
-      setError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    const formData = new FormData();
-    formData.set("orderId", order.id);
-    formData.set("method", line.method);
-    formData.set("amountReais", (amountCents / 100).toFixed(2));
-    formData.set("insertInCash", insertInCash ? "1" : "0");
-    if (line.method === "credit" && Number(line.installments) > 1) {
-      formData.set("installments", line.installments);
     }
     run(async () => {
-      const result = await addPaymentAction(formData);
-      if (result.ok) {
-        closeCheckout();
-        const left = order.balanceCents - amountCents;
-        if (left <= 1) {
-          showToast("Pagamento ok — clique em Fechar comanda", "success");
-        } else {
-          showToast("Pagamento registrado", "success");
+      let lastId: string | undefined;
+      for (const p of payments) {
+        const formData = new FormData();
+        formData.set("orderId", order.id);
+        formData.set("method", p.method);
+        formData.set("amountReais", (p.amountCents / 100).toFixed(2));
+        formData.set("insertInCash", insertInCash ? "1" : "0");
+        if (p.method === "credit" && p.installments && p.installments > 1) {
+          formData.set("installments", String(p.installments));
         }
+        const result = await addPaymentAction(formData);
+        if (!result.ok) return result;
+        lastId = result.id;
       }
-      return result;
+      closeCheckout();
+      const left = order.balanceCents - sum;
+      if (left <= 1) {
+        showToast("Pagamento ok — clique em Fechar comanda", "success");
+      } else {
+        showToast(
+          payments.length > 1
+            ? `${payments.length} pagamentos registrados`
+            : "Pagamento registrado",
+          "success"
+        );
+      }
+      return { ok: true as const, id: lastId ?? order.id };
     });
   }
 
@@ -609,7 +618,10 @@ export function OrderDrawer({
   function addPayLine() {
     const used = payLines.reduce((s, r) => s + parseReaisToCents(r.amountReais), 0);
     const left = Math.max(0, order.balanceCents - used);
-    setPayLines((rows) => [...rows, makeCheckoutLine(left || 0, "pix")]);
+    const firstMethod = payLines[0]?.method ?? "pix";
+    const nextMethod =
+      firstMethod === "cash" ? "debit" : firstMethod === "debit" || firstMethod === "credit" ? "cash" : "pix";
+    setPayLines((rows) => [...rows, makeCheckoutLine(left || 0, nextMethod)]);
   }
 
   function removePayLine(key: string) {
@@ -697,7 +709,9 @@ export function OrderDrawer({
                 className={`btn btn-primary${pending ? " is-pending" : ""}`}
                 disabled={
                   pending ||
-                  (checkoutMode === "payClose" && Math.abs(payLinesDiffCents) > 1)
+                  (checkoutMode === "payClose" && Math.abs(payLinesDiffCents) > 1) ||
+                  (checkoutMode === "pay" &&
+                    (payLinesSumCents <= 0 || payLinesSumCents > order.balanceCents + 1))
                 }
                 aria-busy={pending}
                 title={
@@ -705,7 +719,9 @@ export function OrderDrawer({
                     ? payLinesDiffCents < 0
                       ? `Falta ${formatMoney(-payLinesDiffCents)} nas formas`
                       : `Formas somam ${formatMoney(payLinesDiffCents)} a mais`
-                    : undefined
+                    : checkoutMode === "pay" && payLinesSumCents > order.balanceCents + 1
+                      ? `Formas somam a mais que o saldo`
+                      : undefined
                 }
                 onClick={() => {
                   if (checkoutMode === "pay") submitPayOnly();
@@ -814,131 +830,22 @@ export function OrderDrawer({
                   ) : null}
                 </div>
 
-                {(payLines[0] ? [payLines[0]] : []).map((line) => (
-                  <div key={line.key} className="checkout-pay-line">
-                    <label className="form-field">
-                      <span>Forma *</span>
-                      <PaymentMethodSelect
-                        value={line.method}
-                        onChange={(v) => updatePayLine(line.key, { method: v })}
-                        required
-                        includeClientAccount={!hasPackageSale}
-                      />
-                    </label>
-                    <label className="form-field">
-                      <span>Valor (R$) *</span>
-                      <input
-                        type="number"
-                        min={0.01}
-                        step={0.01}
-                        required
-                        value={line.amountReais}
-                        onChange={(e) =>
-                          updatePayLine(line.key, { amountReais: e.target.value })
-                        }
-                      />
-                    </label>
-                    {line.method === "credit" ? (
-                      <label className="form-field">
-                        <span>Parcelas</span>
-                        <select
-                          value={line.installments}
-                          onChange={(e) =>
-                            updatePayLine(line.key, { installments: e.target.value })
-                          }
-                        >
-                          {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-                            <option key={n} value={String(n)}>
-                              {n}x
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                    {line.method === "cash" ? (
-                      <label className="form-field">
-                        <span>Recebido (R$)</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          value={line.cashReceived}
-                          onChange={(e) =>
-                            updatePayLine(line.key, { cashReceived: e.target.value })
-                          }
-                          placeholder="opcional p/ troco"
-                        />
-                      </label>
-                    ) : null}
-                  </div>
-                ))}
-
-                {clientCreditAvailable > 0 ? (
-                  <p className="client-profile-hint muted">
-                    Crédito disponível: {formatMoney(clientCreditAvailable)}. Pagamento via
-                    conta não entra no caixa.
-                  </p>
-                ) : null}
-
-                {order.isStaffConsumption ? (
-                  <p className="client-profile-hint muted">
-                    Consumo de profissional <strong>não entra no caixa físico</strong> — o valor
-                    ajusta comissão (50% no serviço + desconto na consumidora). Pode fechar o
-                    caixa sem contar esse lançamento.
-                  </p>
-                ) : anyNonAccount ? (
-                  <label className="form-field package-sale-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={insertInCash}
-                      onChange={(e) => setInsertInCash(e.target.checked)}
-                    />
-                    <span>Inserir no Caixa?</span>
-                  </label>
-                ) : null}
-              </form>
-            ) : (
-              <form
-                id="pay-close-form"
-                className="form-stack"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  submitPayAndClose();
-                }}
-              >
-                <div className="checkout-summary">
-                  <div>
-                    <span>Total</span>
-                    <strong>{formatMoney(due)}</strong>
-                  </div>
-                  <div>
-                    <span>Já pago</span>
-                    <strong>{formatMoney(order.paidCents)}</strong>
-                  </div>
-                  <div>
-                    <span>A pagar</span>
-                    <strong>{formatMoney(order.balanceCents)}</strong>
-                  </div>
-                  {cashChangeCents > 0 ? (
-                    <div>
-                      <span>Troco</span>
-                      <strong>{formatMoney(cashChangeCents)}</strong>
-                    </div>
-                  ) : null}
-                </div>
-
                 <div className="checkout-pay-lines">
                   <div className="checkout-pay-head">
-                    <strong>+ Formas de pagamento</strong>
+                    <strong>Formas de pagamento</strong>
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-outline btn-sm"
                       onClick={addPayLine}
                       disabled={pending}
+                      title="Ex.: parte em dinheiro e parte no cartão"
                     >
-                      + Forma
+                      + Outra forma
                     </button>
                   </div>
+                  <p className="client-profile-hint muted" style={{ margin: 0 }}>
+                    Pode dividir: dinheiro + cartão (ou Pix). Informe o valor de cada uma.
+                  </p>
                   {payLines.map((line, idx) => (
                     <div key={line.key} className="checkout-pay-line">
                       <label className="form-field">
@@ -998,7 +905,158 @@ export function OrderDrawer({
                       {payLines.length > 1 ? (
                         <button
                           type="button"
-                          className="btn btn-ghost btn-sm"
+                          className="btn btn-ghost btn-sm checkout-pay-remove"
+                          disabled={pending}
+                          onClick={() => removePayLine(line.key)}
+                        >
+                          Remover
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+
+                <p className="client-profile-hint muted">
+                  Formas: {formatMoney(payLinesSumCents)}
+                  {payLinesSumCents <= 0
+                    ? " · informe os valores"
+                    : payLinesSumCents > order.balanceCents + 1
+                      ? ` · sobra ${formatMoney(payLinesSumCents - order.balanceCents)}`
+                      : payLinesSumCents < order.balanceCents - 1
+                        ? ` · parcial · resta ${formatMoney(order.balanceCents - payLinesSumCents)}`
+                        : " · ok"}
+                </p>
+
+                {clientCreditAvailable > 0 ? (
+                  <p className="client-profile-hint muted">
+                    Crédito disponível: {formatMoney(clientCreditAvailable)}. Pagamento via
+                    conta não entra no caixa.
+                  </p>
+                ) : null}
+
+                {order.isStaffConsumption ? (
+                  <p className="client-profile-hint muted">
+                    Consumo de profissional <strong>não entra no caixa físico</strong> — o valor
+                    ajusta comissão (50% no serviço + desconto na consumidora). Pode fechar o
+                    caixa sem contar esse lançamento.
+                  </p>
+                ) : anyNonAccount ? (
+                  <label className="form-field package-sale-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={insertInCash}
+                      onChange={(e) => setInsertInCash(e.target.checked)}
+                    />
+                    <span>Inserir no Caixa?</span>
+                  </label>
+                ) : null}
+              </form>
+            ) : (
+              <form
+                id="pay-close-form"
+                className="form-stack"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitPayAndClose();
+                }}
+              >
+                <div className="checkout-summary">
+                  <div>
+                    <span>Total</span>
+                    <strong>{formatMoney(due)}</strong>
+                  </div>
+                  <div>
+                    <span>Já pago</span>
+                    <strong>{formatMoney(order.paidCents)}</strong>
+                  </div>
+                  <div>
+                    <span>A pagar</span>
+                    <strong>{formatMoney(order.balanceCents)}</strong>
+                  </div>
+                  {cashChangeCents > 0 ? (
+                    <div>
+                      <span>Troco</span>
+                      <strong>{formatMoney(cashChangeCents)}</strong>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="checkout-pay-lines">
+                  <div className="checkout-pay-head">
+                    <strong>Formas de pagamento</strong>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={addPayLine}
+                      disabled={pending}
+                      title="Ex.: parte em dinheiro e parte no cartão"
+                    >
+                      + Outra forma
+                    </button>
+                  </div>
+                  <p className="client-profile-hint muted" style={{ margin: 0 }}>
+                    Pode dividir: dinheiro + cartão (ou Pix). A soma deve fechar o saldo.
+                  </p>
+                  {payLines.map((line, idx) => (
+                    <div key={line.key} className="checkout-pay-line">
+                      <label className="form-field">
+                        <span>Forma {idx + 1}</span>
+                        <PaymentMethodSelect
+                          value={line.method}
+                          onChange={(v) => updatePayLine(line.key, { method: v })}
+                          required
+                          includeClientAccount={!hasPackageSale}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span>Valor (R$)</span>
+                        <input
+                          type="number"
+                          min={0.01}
+                          step={0.01}
+                          required
+                          value={line.amountReais}
+                          onChange={(e) =>
+                            updatePayLine(line.key, { amountReais: e.target.value })
+                          }
+                        />
+                      </label>
+                      {line.method === "credit" ? (
+                        <label className="form-field">
+                          <span>Parcelas</span>
+                          <select
+                            value={line.installments}
+                            onChange={(e) =>
+                              updatePayLine(line.key, { installments: e.target.value })
+                            }
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                              <option key={n} value={String(n)}>
+                                {n}x
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                      {line.method === "cash" ? (
+                        <label className="form-field">
+                          <span>Recebido (R$)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={line.cashReceived}
+                            onChange={(e) =>
+                              updatePayLine(line.key, { cashReceived: e.target.value })
+                            }
+                            placeholder="opcional p/ troco"
+                          />
+                        </label>
+                      ) : null}
+                      {payLines.length > 1 ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm checkout-pay-remove"
                           disabled={pending}
                           onClick={() => removePayLine(line.key)}
                         >
