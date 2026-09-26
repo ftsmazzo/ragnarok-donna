@@ -213,6 +213,97 @@ export async function deleteCashMovement(movementId: string): Promise<ActionResu
   }
 }
 
+/**
+ * Lixeira do Detalhe dos pagamentos no Caixa:
+ * tira o valor do caixa físico (movimento) e marca o pagamento como fora do caixa.
+ * NÃO apaga pagamento da comanda, comissão, advance de consumo nem itens.
+ * Funciona com comanda aberta ou fechada.
+ */
+export async function excludePaymentFromCash(paymentId: string): Promise<ActionResult> {
+  try {
+    const session = await requireSession();
+    requireCapability(session, "cash.write");
+    const tenant = await requireTenantContext();
+
+    const id = paymentId?.trim();
+    if (!id) throw new AppError("VALIDATION", "Pagamento inválido");
+
+    const db = createDb();
+    const [payment] = await db
+      .select({
+        id: schema.payments.id,
+        orderId: schema.payments.orderId,
+        method: schema.payments.method,
+        amountCents: schema.payments.amountCents,
+        meta: schema.payments.meta,
+      })
+      .from(schema.payments)
+      .where(and(eq(schema.payments.id, id), eq(schema.payments.tenantId, tenant.id)))
+      .limit(1);
+
+    if (!payment) throw new AppError("NOT_FOUND", "Pagamento não encontrado");
+
+    const [order] = await db
+      .select({ id: schema.orders.id, meta: schema.orders.meta })
+      .from(schema.orders)
+      .where(
+        and(eq(schema.orders.id, payment.orderId), eq(schema.orders.tenantId, tenant.id))
+      )
+      .limit(1);
+
+    const orderMeta = (order?.meta ?? {}) as Record<string, unknown>;
+    const isStaffConsumption = orderMeta.kind === "staff_consumption";
+
+    // Remove só movimentos de caixa ligados a esse pagamento/comanda.
+    if (isStaffConsumption) {
+      await db
+        .delete(schema.cashMovements)
+        .where(
+          and(
+            eq(schema.cashMovements.tenantId, tenant.id),
+            eq(schema.cashMovements.orderId, payment.orderId),
+            eq(schema.cashMovements.direction, "in")
+          )
+        );
+    } else {
+      await db
+        .delete(schema.cashMovements)
+        .where(
+          and(
+            eq(schema.cashMovements.tenantId, tenant.id),
+            eq(schema.cashMovements.orderId, payment.orderId),
+            eq(schema.cashMovements.direction, "in"),
+            eq(schema.cashMovements.method, payment.method),
+            eq(schema.cashMovements.amountCents, payment.amountCents)
+          )
+        );
+    }
+
+    const prevMeta = (payment.meta ?? {}) as Record<string, unknown>;
+    await db
+      .update(schema.payments)
+      .set({
+        meta: {
+          ...prevMeta,
+          excludedFromCash: true,
+          excludedFromCashAt: new Date().toISOString(),
+          excludedFromCashBy: session.user.id,
+        },
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.payments.id, payment.id), eq(schema.payments.tenantId, tenant.id))
+      );
+
+    return { ok: true, id: payment.id };
+  } catch (err) {
+    if (err instanceof AppError) return { ok: false, error: err.message };
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    console.error("[excludePaymentFromCash]", err);
+    return { ok: false, error: "Não foi possível tirar este valor do caixa" };
+  }
+}
+
 type PaymentCashInput = {
   tenantId: string;
   orderId?: string | null;

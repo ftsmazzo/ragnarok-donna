@@ -5,10 +5,10 @@ import {
   addCashMovement,
   closeCashSession,
   deleteCashMovement,
+  excludePaymentFromCash,
   openCashSession,
 } from "@/server/finance/mutations";
 import { cancelUnusedPackageSale } from "@/server/packages/mutations";
-import { removePayment } from "@/server/orders/mutations";
 
 function revalidateCash() {
   revalidatePath("/caixa");
@@ -54,7 +54,10 @@ export async function deleteCashMovementAction(movementId: string) {
   return result;
 }
 
-/** Lixeira no Detalhe dos pagamentos: pacote sem uso cancela venda; demais remove pagamento. */
+/**
+ * Lixeira no Detalhe: pacote sem uso cancela venda;
+ * demais → só tira do caixa (comanda fechada ok; não mexe comissão/consumo).
+ */
 export async function deleteCashDayPaymentAction(input: {
   paymentId: string;
   packageCancel?: boolean;
@@ -68,7 +71,7 @@ export async function deleteCashDayPaymentAction(input: {
     return result;
   }
 
-  const result = await removePayment(paymentId);
+  const result = await excludePaymentFromCash(paymentId);
   if (result.ok) revalidateCash();
   return result;
 }

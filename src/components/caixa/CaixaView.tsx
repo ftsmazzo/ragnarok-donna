@@ -83,11 +83,11 @@ export function CaixaView({ data, permissions, staffList }: Props) {
     }
     const who = p.clientName ? ` · ${p.clientName}` : "";
     const tip = p.isStaffConsumption
-      ? "\n(Consumo profissional — some do detalhe e do caixa se houver movimento.)"
-      : "\nRemove o pagamento da comanda e o movimento no caixa (se existir).";
+      ? "\n\nConsumo profissional: tira só do caixa. Comissão e desconto da profissional continuam."
+      : "\n\nSó remove do caixa físico. Não apaga a comanda, comissão nem consumo.";
     if (
       !window.confirm(
-        `Excluir este pagamento?\n${p.method}${who} · ${formatMoney(p.amountCents)}${tip}`
+        `Tirar este valor do caixa?\n${p.method}${who} · ${formatMoney(p.amountCents)}${tip}`
       )
     ) {
       return;
@@ -100,7 +100,7 @@ export function CaixaView({ data, permissions, staffList }: Props) {
         showToast(result.error ?? "Erro ao excluir", "error");
         return;
       }
-      showToast("Pagamento excluído", "success");
+      showToast("Valor tirado do caixa (comanda/comissão intactas)", "success");
       refresh();
     });
   }
@@ -160,6 +160,9 @@ export function CaixaView({ data, permissions, staffList }: Props) {
             </Link>
             <Link href="/caixa/historico" className="btn btn-outline">
               Histórico
+            </Link>
+            <Link href="/configuracoes/taxas" className="btn btn-outline">
+              Taxas maquininha
             </Link>
             <Link href={`/caixa?date=${prev}`} className="btn btn-outline">
               ← Anterior
@@ -365,7 +368,7 @@ export function CaixaView({ data, permissions, staffList }: Props) {
           <div className="panel-toolbar" style={{ marginTop: 12 }}>
             <strong>Detalhe dos pagamentos</strong>
             <span className="muted-note">
-              🗑 remove o lançamento · pacote sem uso cancela a venda
+              🗑 tira só do caixa · não apaga comissão/consumo · pacote sem uso cancela venda
             </span>
           </div>
           <div className="table-wrap">
